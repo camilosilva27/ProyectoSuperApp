@@ -1,0 +1,149 @@
+/**
+ * Sistema de diseño de AllPromos.
+ *
+ * Dos decisiones que explican casi todo lo demás:
+ *
+ * 1. Los colores de los supermercados son DATOS, no decoración. Vea verde, Carrefour azul,
+ *    Chango Más violeta es la misma convención que ya se lee en la salida del CLI, así que
+ *    el color de un precio siempre dice "de qué super es" y nunca "esto está bien/mal".
+ *    Tampoco usamos logos ni los colores de marca reales: la app no está afiliada a ninguna
+ *    cadena y no debe parecerlo.
+ *
+ * 2. El ahorro se marca con amarillo de cartel de oferta, no con el verde de "éxito".
+ *    El verde ya está ocupado por Vea como dato; si además significara "ahorro", un precio
+ *    verde sería ambiguo. El amarillo viene del mundo real del tema (la etiqueta de oferta
+ *    en la góndola) y queda libre de conflicto.
+ */
+
+import { Platform } from 'react-native';
+
+export type Esquema = 'light' | 'dark';
+
+const superColores = {
+  light: { vea: '#12874A', carr: '#1B5FD9', changomas: '#7A3FB8', coto: '#D6293E', dia: '#FFFFFF' },
+  dark:  { vea: '#2FBE7A', carr: '#6A97F7', changomas: '#B085DE', coto: '#F0555F', dia: '#FFFFFF' },
+};
+
+// Bordes SOLO para identidades cuyo relleno no contrasta por sí solo contra el fondo — hoy
+// únicamente Día (blanco): sin este borde, el punto sería invisible contra `superficie`
+// (blanco en modo claro) o se leería como "vacío"/"no disponible" en vez de "es Día". El
+// resto de los supers no lo necesita, sus colores ya contrastan en los dos temas. Los
+// componentes que dibujan el punto de identidad (PuntosDisponibilidad, BarraDiferencia,
+// "Todo en X" en resultado.tsx) tienen que leer esto — pendiente de aplicar cuando se
+// integre Día a esos componentes (ver PLAN_FEATURES_APP.md).
+const superBordes = {
+  light: { dia: '#C6CCD3' },
+  dark:  { dia: '#3C444D' },
+};
+
+const paletas = {
+  light: {
+    fondo: '#EEF0F2',
+    superficie: '#FFFFFF',
+    superficieAlt: '#F6F7F9',
+    borde: '#DFE3E7',
+    bordeFuerte: '#C6CCD3',
+    tinta: '#14161A',
+    tintaSuave: '#565E67',
+    tintaTenue: '#8A929B',
+    oferta: '#FFD400',
+    ofertaTinta: '#14161A',
+    ofertaSuave: '#FFF6C9',
+    alerta: '#9A5B08',
+    alertaFondo: '#FDF3E0',
+    sombra: '#000000',
+    supers: superColores.light,
+    supersBorde: superBordes.light,
+  },
+  dark: {
+    fondo: '#0F1114',
+    superficie: '#181B20',
+    superficieAlt: '#20242B',
+    borde: '#2B3138',
+    bordeFuerte: '#3C444D',
+    tinta: '#F1F3F5',
+    tintaSuave: '#A6AEB8',
+    tintaTenue: '#727B85',
+    oferta: '#FFD400',
+    ofertaTinta: '#14161A',
+    ofertaSuave: '#3A3410',
+    alerta: '#F0B457',
+    alertaFondo: '#2E2413',
+    sombra: '#000000',
+    supers: superColores.dark,
+    supersBorde: superBordes.dark,
+  },
+} as const;
+
+export type Paleta = typeof paletas.light;
+
+export function paletaDe(esquema: Esquema): Paleta {
+  return paletas[esquema] as Paleta;
+}
+
+/** Nombres de las familias tal como se registran en useFonts (ver app/_layout.tsx). */
+export const fuentes = {
+  // Condensada para números: los precios se leen como etiqueta de góndola.
+  precio: 'BarlowCondensed_700Bold',
+  precioMedio: 'BarlowCondensed_600SemiBold',
+  // Grotesca para UI y textos.
+  titulo: 'Archivo_700Bold',
+  semi: 'Archivo_600SemiBold',
+  medio: 'Archivo_500Medium',
+  cuerpo: 'Archivo_400Regular',
+  // Monoespaciada para datos duros (EAN, precio unitario): registro de ticket.
+  dato: 'IBMPlexMono_400Regular',
+} as const;
+
+/** Escala tipográfica. Los tamaños de `precio` son mayores porque la fuente es condensada. */
+export const texto = {
+  precioHero:   { fontFamily: fuentes.precio, fontSize: 40, lineHeight: 42 },
+  precioGrande: { fontFamily: fuentes.precio, fontSize: 28, lineHeight: 30 },
+  precio:       { fontFamily: fuentes.precio, fontSize: 22, lineHeight: 24 },
+  precioChico:  { fontFamily: fuentes.precioMedio, fontSize: 17, lineHeight: 19 },
+  titulo:       { fontFamily: fuentes.titulo, fontSize: 24, lineHeight: 28 },
+  subtitulo:    { fontFamily: fuentes.semi, fontSize: 17, lineHeight: 22 },
+  cuerpo:       { fontFamily: fuentes.cuerpo, fontSize: 15, lineHeight: 21 },
+  cuerpoMedio:  { fontFamily: fuentes.medio, fontSize: 15, lineHeight: 21 },
+  etiqueta:     { fontFamily: fuentes.medio, fontSize: 13, lineHeight: 18 },
+  micro:        { fontFamily: fuentes.medio, fontSize: 11, lineHeight: 14, letterSpacing: 0.7 },
+  dato:         { fontFamily: fuentes.dato, fontSize: 12, lineHeight: 16 },
+} as const;
+
+export const espacio = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
+
+export const radio = { sm: 6, md: 10, lg: 14, pill: 999 } as const;
+
+export function sombra(esquema: Esquema) {
+  if (esquema === 'dark') return {};
+  return Platform.select({
+    ios: {
+      shadowColor: '#0B1220',
+      shadowOpacity: 0.07,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 2 },
+    },
+    android: { elevation: 2 },
+    default: {},
+  });
+}
+
+/** Formato de moneda argentino. Intl puede no estar disponible según el build: hay fallback. */
+export function pesos(n: number | null | undefined): string {
+  if (n == null || Number.isNaN(n)) return '—';
+  try {
+    return '$' + new Intl.NumberFormat('es-AR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(n);
+  } catch {
+    const [entero, decimales] = Math.abs(n).toFixed(2).split('.');
+    const conPuntos = entero.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return `${n < 0 ? '-' : ''}$${conPuntos},${decimales}`;
+  }
+}
+
+/** Solo el entero, para cuando el contexto ya deja claro que son pesos. */
+export function pesosCorto(n: number): string {
+  return pesos(n).replace(/,\d{2}$/, '');
+}

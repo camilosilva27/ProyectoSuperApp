@@ -1,0 +1,788 @@
+/**
+ * Promos bancarias "por ticket": % de descuento (o cashback) sobre el total de la
+ * compra, condicionado a día de la semana + banco/tarjeta + (opcionalmente) canal.
+ * A diferencia de promo-engine.js (promos por producto), esto no depende de qué
+ * productos comprás — se calcula una vez sobre el subtotal ya armado por super.
+ *
+ * Fase 1 (PLAN_TARJETAS_Y_BANCOS.md 4.2/5): hoy, sin filtrar por canal (informativo).
+ * Fase 2 (4.3/4.4): mismo cálculo repetido para los próximos 7 días y separado por
+ * canal (online vs. físico), por super de forma independiente — no busca alinear el
+ * mismo día entre supers, y no recalcula qué producto va a cada super (eso ya está fijo).
+ *
+ * Nota sobre canal en Vea: a diferencia de Carrefour/Chango Más (que traen flags
+ * hyper/market/ecommerce/express/maxi explícitos), el feed de bankDiscount de Vea NO
+ * tiene ningún campo de canal confiable. Probé el booleano `checkout` esperando que
+ * fuera la señal (por analogía con "pago en el checkout online") y no correlaciona con
+ * nada: es `false` en 38 de 40 promos vigentes sin relación con si el texto legal
+ * menciona "online" o "presencial". Por eso NO se intenta inferir canal de Vea con
+ * regex sobre texto libre (sería adivinar) — sus promos quedan con canales=null
+ * (aplican a ambos canales por igual, ver promoAplicaEnCanal).
+ *
+ * No toca promo-engine.js ni buscar-promos.js más allá de agregar secciones al final.
+ */
+
+const fs   = require('fs');
+const path = require('path');
+
+// Hashes de las queries GraphQL persistidas de VTEX. Son específicos de la versión
+// desplegada de cada app (valtech.carrefourar-bank-promotions / valtech.gdn-banks-promotions)
+// y pueden romperse sin aviso si el super actualiza la app — ver detectarHashRoto() más abajo.
+const CARREFOUR_HOST          = 'https://www.carrefour.com.ar';
+const CARREFOUR_HASH_PROMOTIONS = 'e3aa1d96402d80dbca5c2c9dbcb7ff859970db0ccfdb64e583fb8a9b1bbff49e';
+const CARREFOUR_HASH_BANKS      = 'a17d0a4ae5248a8007075eb0c871b327be760c90f8ef994193758e4914e68c33';
+const CARREFOUR_HASH_CARDS      = 'b0268b02cfc0021bcd0d0373f54e590bb71111cbcef4dcc62bf381a3a0abfa15';
+
+const CHANGOMAS_HOST          = 'https://www.masonline.com.ar';
+const CHANGOMAS_HASH_PROMOS     = '1a071ebc5dc407a3f65e687b0f4c0a3b8d12a0c45d8d11370075c3b2a505251c';
+const CHANGOMAS_HASH_BANKS      = '968d464317be357766de0e3beb313a55e0ebf7f45f2ef4a02c99fdf4ebca0876';
+const CHANGOMAS_HASH_CARDS      = 'b3aa47c5a259fd0c6ea4b9d29d553170da26dfcead2be3acafa026b9b9084b3a';
+
+// Tarjetas/billeteras que el usuario pidió modelar (4.7) + las propias de cada super.
+// Los valores son substrings normalizados (sin tildes, minúsculas) a buscar en el
+// nombre de banco YA RESUELTO (no en el string crudo de Carrefour/Chango Más, que son
+// UUIDs — ver resolverIdAnombre). Ojo: "Banco provincia de Neuquén" existe como entidad
+// separada en el catálogo de Vea; como acá no hay ninguna entrada literal "Banco
+// Provincia" en Vea, el alias simplemente no matchea nada ahí, lo cual es correcto.
+const ALIAS_TARJETAS = {
+  'Santander':       ['santander'],
+  'MODO':            ['modo'],
+  'Mercado Pago':    ['mercado pago'],
+  'Cuenta DNI':      ['cuenta dni'],
+  'Banco Provincia': ['banco provincia'],
+  'Cencopay':        ['cencopay'],
+  'Mi Carrefour':    ['mi carrefour'],
+  'MasClub':         ['masclub'],
+};
+
+// "Banco provincia de Neuquén" es una entidad distinta de Banco Provincia de Bs.As.
+// (dueño de Cuenta DNI) pero matchea el substring "banco provincia" — confirmado como
+// riesgo real en la investigación (PLAN_TARJETAS_Y_BANCOS.md sección 2.1). Excluida a mano.
+const EXCLUSIONES_ALIAS = {
+  'Banco Provincia': ['neuquen'],
+};
+
+const DIAS_SEMANA_KEYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+const CANAL_KEYS = ['hyper', 'market', 'ecommerce', 'express', 'maxi'];
+
+// ─── Utils ────────────────────────────────────────────────────────────────────
+
+function normalizar(str) {
+  return (str || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+function resolverCanonicosDesdeNombre(nombre) {
+  const n = normalizar(nombre);
+  return Object.keys(ALIAS_TARJETAS).filter(canon => {
+    if (!ALIAS_TARJETAS[canon].some(alias => n.includes(alias))) return false;
+    const exclusiones = EXCLUSIONES_ALIAS[canon] || [];
+    return !exclusiones.some(ex => n.includes(ex));
+  });
+}
+
+function extraerMonto(texto, patrones) {
+  const t = normalizar(texto);
+  for (const re of patrones) {
+    const m = t.match(re);
+    if (m) return parseInt(m[1].replace(/\./g, '').replace(/,\d+$/, ''), 10);
+  }
+  return null;
+}
+
+// Best-effort: si el regex no encuentra nada, tope/montoMinimo quedan en null (se trata
+// como "sin tope conocido", no como "sin tope real" — ver 4.5, el texto legal completo
+// siempre se muestra junto al número calculado para que se pueda verificar a ojo).
+function extraerTope(texto) {
+  return extraerMonto(texto, [/tope[^$]{0,40}\$\s?([\d.,]+)/, /reintegr[oa][^$]{0,40}\$\s?([\d.,]+)/]);
+}
+
+function extraerMontoMinimo(texto) {
+  return extraerMonto(texto, [/compra minima[^$]{0,40}\$\s?([\d.,]+)/, /a partir de\s?\$\s?([\d.,]+)/]);
+}
+
+function diaISO(fecha) {
+  // JS: 0=domingo...6=sábado. Convención del proyecto (igual que el campo `days` de Vea): 1=lunes...7=domingo.
+  return ((fecha.getDay() + 6) % 7) + 1;
+}
+
+function fmt(n) {
+  return Number(n).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function leerMisTarjetas() {
+  try {
+    const data = JSON.parse(fs.readFileSync(path.join(__dirname, 'mis-tarjetas.json'), 'utf8'));
+    return data.tarjetas || [];
+  } catch {
+    return [];
+  }
+}
+
+// ─── Fetch: Vea (Master Data) ──────────────────────────────────────────────────
+
+// Vea mezcla financiación y descuento real de forma inconsistente en discount/discountText
+// (confirmado contra las 42 promos vigentes hoy 2026-07-01): si discountText menciona
+// "cuota" sin "%", es financiación pura (ej. Santander "3 cuotas sin interés" — se descarta
+// siempre, sin importar la tarjeta, según 4.1). Si aparece un "%" (aunque también mencione
+// cuotas, ej. "% y 3 cuotas sin interés"), el campo `discount` numérico es el % real.
+function esFinanciacionVea(discountText) {
+  const t = (discountText || '').toLowerCase();
+  return t.includes('cuota') && !t.includes('%');
+}
+
+async function fetchVea() {
+  try {
+    const res = await fetch('https://www.vea.com.ar/api/dataentities/JN/documents/bankDiscount?_fields=value,id&an=jumboargentina');
+    if (!res.ok) return { promos: [], error: 'fetch_failed' };
+    const arr = JSON.parse((await res.json()).value);
+
+    const promos = [];
+    for (const e of arr) {
+      if (esFinanciacionVea(e.discountText)) continue;
+      const descuentoPct = Number(e.discount) / 100;
+      if (!(descuentoPct > 0)) continue;
+
+      const nombresBanco = (e.banks || []).map(b => b.name);
+      const canonicosPosibles = [...new Set(nombresBanco.flatMap(resolverCanonicosDesdeNombre))];
+      if (!canonicosPosibles.length) continue;
+
+      const texto = `${e.info || ''} ${e.legals || ''}`;
+      promos.push({
+        canonicosPosibles,
+        super: 'Vea',
+        dias: (e.days || []).map(Number),
+        canales: null, // el feed de Vea no expone flags de canal, a diferencia de Carrefour/Chango Más
+        descuentoPct,
+        tope: extraerTope(texto),
+        montoMinimo: extraerMontoMinimo(texto),
+        vigenciaDesde: new Date(Number(e.dateStart) * 1000),
+        vigenciaHasta: new Date(Number(e.dateEnd) * 1000),
+        textoLegal: e.legals || e.info || '',
+      });
+    }
+    return { promos, error: null };
+  } catch {
+    return { promos: [], error: 'fetch_failed' };
+  }
+}
+
+// ─── Fetch: Carrefour / Chango Más (GraphQL persistido, mismo patrón) ─────────
+
+async function fetchGraphQL(host, operationName, hash, variablesObj) {
+  try {
+    const extensions = { persistedQuery: { version: 1, sha256Hash: hash } };
+    if (variablesObj) extensions.variables = Buffer.from(JSON.stringify(variablesObj)).toString('base64');
+    const url = `${host}/_v/public/graphql/v1?operationName=${operationName}&extensions=${encodeURIComponent(JSON.stringify(extensions))}`;
+    const res = await fetch(url, { headers: { Accept: 'application/json' } });
+    const data = await res.json();
+    if (data.errors) {
+      const msg = data.errors[0]?.message || '';
+      // Confirmado en vivo: un hash inválido responde 200 con este mensaje, no un error HTTP.
+      return { error: /PersistedQueryNotFound/i.test(msg) ? 'hash_roto' : 'fetch_failed' };
+    }
+    return { documents: data.data?.documents || [] };
+  } catch {
+    return { error: 'fetch_failed' };
+  }
+}
+
+function camposAObjeto(doc) {
+  return Object.fromEntries(doc.fields.map(f => [f.key, f.value === 'null' ? null : f.value]));
+}
+
+function diasDesdeBooleanos(o) {
+  return DIAS_SEMANA_KEYS.map((k, i) => (o[k] === 'true' ? i + 1 : null)).filter(Boolean);
+}
+
+function canalesDesdeBooleanos(o) {
+  const activos = CANAL_KEYS.filter(k => o[k] === 'true');
+  return activos.length ? activos : null; // ninguno explícitamente true -> desconocido, no filtra en Fase 1
+}
+
+/** Común a Carrefour y Chango Más: misma forma de API, distinto account/hashes. */
+async function fetchTicketBancoVTEX({ host, hashPromos, hashBanks, hashCards, operationPromos, account, isMasClubField }) {
+  const ahoraISO = new Date().toISOString();
+  const where = `active=true AND (active_from < '${ahoraISO}') AND (active_to > '${ahoraISO}')`;
+
+  const [promosRes, banksRes, cardsRes] = await Promise.all([
+    fetchGraphQL(host, operationPromos, hashPromos, { where, account }),
+    fetchGraphQL(host, 'GetBanks', hashBanks, null),
+    fetchGraphQL(host, 'GetCards', hashCards, null),
+  ]);
+  for (const r of [promosRes, banksRes, cardsRes]) {
+    if (r.error) return { promos: [], error: r.error };
+  }
+
+  const nombrePorId = new Map();
+  for (const doc of [...banksRes.documents, ...cardsRes.documents]) {
+    const o = camposAObjeto(doc);
+    nombrePorId.set(o.id, o.name);
+  }
+
+  const promos = [];
+  for (const doc of promosRes.documents) {
+    const o = camposAObjeto(doc);
+    if (!o.discount_percentage) continue; // financiación (cuotas): confirmado, siempre viene null
+    const descuentoPct = Number(o.discount_percentage) / 100;
+    if (!(descuentoPct > 0)) continue;
+
+    const nombreBanco = nombrePorId.get(o.idBank) || nombrePorId.get(o.idCard);
+    const canonicosPosibles = nombreBanco ? resolverCanonicosDesdeNombre(nombreBanco) : [];
+    if (isMasClubField && o[isMasClubField] === 'true' && !canonicosPosibles.includes('MasClub')) {
+      canonicosPosibles.push('MasClub');
+    }
+    if (!canonicosPosibles.length) continue;
+
+    const textoLegal = o.sub_title || o.legal || '';
+    const textoParaMontos = `${o.sub_title || ''} ${o.legal || ''}`;
+    promos.push({
+      canonicosPosibles,
+      super: host === CARREFOUR_HOST ? 'Carrefour' : 'Chango Más',
+      dias: diasDesdeBooleanos(o),
+      canales: canalesDesdeBooleanos(o),
+      descuentoPct,
+      tope: extraerTope(textoParaMontos),
+      montoMinimo: extraerMontoMinimo(textoParaMontos),
+      vigenciaDesde: new Date(o.active_from),
+      vigenciaHasta: new Date(o.active_to),
+      textoLegal,
+    });
+  }
+  return { promos, error: null };
+}
+
+async function fetchCarrefour() {
+  return fetchTicketBancoVTEX({
+    host: CARREFOUR_HOST,
+    hashPromos: CARREFOUR_HASH_PROMOTIONS,
+    hashBanks: CARREFOUR_HASH_BANKS,
+    hashCards: CARREFOUR_HASH_CARDS,
+    operationPromos: 'GetPromotions',
+    account: 'carrefourar',
+  });
+}
+
+async function fetchChangoMas() {
+  return fetchTicketBancoVTEX({
+    host: CHANGOMAS_HOST,
+    hashPromos: CHANGOMAS_HASH_PROMOS,
+    hashBanks: CHANGOMAS_HASH_BANKS,
+    hashCards: CHANGOMAS_HASH_CARDS,
+    operationPromos: 'GetPromos',
+    account: 'masonlineprod',
+    isMasClubField: 'isMasClub',
+  });
+}
+
+// ─── Funciones puras de cálculo (testeables sin red) ──────────────────────────
+
+/** Filtra por día de la semana + ventana de vigencia. No filtra por canal (Fase 1, decisión confirmada). */
+function promosAplicablesHoy(promosNormalizadas, { fecha = new Date() } = {}) {
+  const dia = diaISO(fecha);
+  return promosNormalizadas.filter(p =>
+    p.dias.includes(dia) && fecha >= p.vigenciaDesde && fecha <= p.vigenciaHasta
+  );
+}
+
+/** De las promos aplicables, la de mayor ahorro real sobre `subtotal` (aplicando tope y monto mínimo). */
+function mejorPromoTicket(promosAplicables, subtotal) {
+  let mejor = null;
+  for (const promo of promosAplicables) {
+    if (promo.montoMinimo != null && subtotal < promo.montoMinimo) continue;
+    let descuento = subtotal * promo.descuentoPct;
+    if (promo.tope != null) descuento = Math.min(descuento, promo.tope);
+    if (descuento <= 0) continue;
+    if (!mejor || descuento > mejor.descuento) mejor = { promo, descuento, totalConDescuento: subtotal - descuento };
+  }
+  return mejor;
+}
+
+// ─── Fase 2: multi-día (7 días) y canal (online/físico), por super independiente ──
+
+/**
+ * ¿Esta promo aplica en el canal dado? `canales` desconocido (null, caso de TODAS las
+ * promos de Vea y las de Carrefour/Chango Más sin ningún flag en true) -> aplica en
+ * ambos canales por igual (no se excluye por falta de dato, mismo criterio que Fase 1).
+ */
+function promoAplicaEnCanal(promo, canal) {
+  if (!promo.canales) return true;
+  if (canal === 'online') return promo.canales.includes('ecommerce');
+  return promo.canales.some(c => c !== 'ecommerce'); // 'fisico': cualquier formato de local
+}
+
+/**
+ * Repite promosAplicablesHoy + mejorPromoTicket para cada uno de los próximos `dias`
+ * días (incluyendo `desde`), opcionalmente restringido a un canal. Devuelve un array
+ * `[{ fecha, mejor }]` (uno por día, `mejor` puede ser null) para poder testear o
+ * inspeccionar cada día por separado antes de elegir el mejor con elegirMejorDia().
+ */
+function mejoresDiasTicket(promosNormalizadas, subtotal, { desde = new Date(), dias = 7, canal = null } = {}) {
+  const resultados = [];
+  for (let i = 0; i < dias; i++) {
+    const fecha = new Date(desde.getTime() + i * 86400000);
+    let aplicables = promosAplicablesHoy(promosNormalizadas, { fecha });
+    if (canal) aplicables = aplicables.filter(p => promoAplicaEnCanal(p, canal));
+    resultados.push({ fecha, mejor: mejorPromoTicket(aplicables, subtotal) });
+  }
+  return resultados;
+}
+
+/** El día de mayor ahorro de una lista de mejoresDiasTicket(). null si ninguno tiene promo. */
+function elegirMejorDia(diasCalculados) {
+  return diasCalculados.reduce((best, dia) => {
+    const ahorro = dia.mejor ? dia.mejor.descuento : 0;
+    const mejorAhorro = best && best.mejor ? best.mejor.descuento : -1;
+    return ahorro > mejorAhorro ? dia : best;
+  }, null);
+}
+
+// ─── Orquestador ────────────────────────────────────────────────────────────────
+
+/**
+ * Trae y normaliza las promos bancarias de los 3 supers, ya filtradas por las tarjetas
+ * propias del usuario (mis-tarjetas.json). No filtra por día ni canal (eso es
+ * promosAplicablesHoy, que se llama al momento de mostrar, no acá).
+ * @returns { vea: {promos,error}, carr: {promos,error}, changomas: {promos,error} }
+ */
+async function obtenerPromosBancarias() {
+  const misTarjetas = leerMisTarjetas();
+  const [vea, carr, changomas] = await Promise.all([
+    fetchVea().catch(() => ({ promos: [], error: 'fetch_failed' })),
+    fetchCarrefour().catch(() => ({ promos: [], error: 'fetch_failed' })),
+    fetchChangoMas().catch(() => ({ promos: [], error: 'fetch_failed' })),
+  ]);
+
+  const filtrarPorTarjetasPropias = resultado => {
+    if (resultado.error) return resultado;
+    const promos = resultado.promos
+      .filter(p => p.canonicosPosibles.some(c => misTarjetas.includes(c)))
+      .map(p => ({ ...p, bancoCanonico: p.canonicosPosibles.find(c => misTarjetas.includes(c)) }));
+    return { promos, error: null };
+  };
+
+  return {
+    vea: filtrarPorTarjetasPropias(vea),
+    carr: filtrarPorTarjetasPropias(carr),
+    changomas: filtrarPorTarjetasPropias(changomas),
+  };
+}
+
+// ─── Display ──────────────────────────────────────────────────────────────────
+
+/** Común a las dos secciones de abajo: imprime el aviso de error si corresponde. @returns true si imprimió (el caller debe hacer continue). */
+function imprimirAvisoErrorSiCorresponde(s, datos) {
+  if (datos.error === 'hash_roto') {
+    console.log(`  ⚠️  ${s.nombre}: la consulta de promos bancarias dejó de funcionar (hash de GraphQL desactualizado) — hay que recapturarlo con el navegador`);
+    return true;
+  }
+  if (datos.error) {
+    console.log(`  ⚠️  ${s.nombre}: no se pudo consultar promos bancarias (error de red)`);
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Imprime la sección de promos bancarias al final del comparativo (individual o lista).
+ * `supermercados` es el array SUPERMERCADOS ya existente en buscar-promos.js (key/nombre/tag),
+ * pasado desde afuera para no duplicarlo ni acoplar este módulo a ese archivo.
+ * `subtotalesPorSuper` es { vea: number, carr: number, changomas: number } — en modo individual
+ * es el total de ese único producto en cada super; en modo lista, el total del carrito.
+ */
+function imprimirSeccionBancaria(supermercados, datosPorSuper, subtotalesPorSuper, fecha = new Date()) {
+  console.log('\n' + '='.repeat(60));
+  console.log('💳 PROMOS BANCARIAS DE HOY (con tus tarjetas):\n');
+
+  for (const s of supermercados) {
+    const datos = datosPorSuper[s.key];
+    const subtotal = subtotalesPorSuper[s.key];
+    if (!datos || subtotal == null) continue;
+    if (imprimirAvisoErrorSiCorresponde(s, datos)) continue;
+
+    const aplicables = promosAplicablesHoy(datos.promos, { fecha });
+    const mejor = mejorPromoTicket(aplicables, subtotal);
+    if (!mejor) {
+      console.log(`  ${s.tag} ${s.nombre}: sin promo bancaria aplicable hoy`);
+      continue;
+    }
+
+    const { promo, descuento } = mejor;
+    const canalTxt = promo.canales ? `, canal: ${promo.canales.join('/')}` : '';
+    const topeTxt = promo.tope == null ? ' — tope no detectado, verificar' : '';
+    console.log(`  ${s.tag} ${s.nombre}: -$${fmt(descuento)} pagando con ${promo.bancoCanonico} (${Math.round(promo.descuentoPct * 100)}% de descuento${canalTxt}${topeTxt})`);
+    if (promo.textoLegal) {
+      const extracto = promo.textoLegal.length > 160 ? promo.textoLegal.slice(0, 160) + '…' : promo.textoLegal;
+      console.log(`       "${extracto}"`);
+    }
+  }
+  console.log();
+}
+
+const NOMBRES_DIA = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
+
+function formatearFecha(fecha, hoy) {
+  const nombre = NOMBRES_DIA[diaISO(fecha) - 1];
+  const corta = `${String(fecha.getDate()).padStart(2, '0')}/${String(fecha.getMonth() + 1).padStart(2, '0')}`;
+  const esHoy = fecha.toDateString() === hoy.toDateString();
+  return `${esHoy ? 'hoy ' : ''}${nombre} ${corta}`;
+}
+
+function describirMejorDia(dia, hoy) {
+  if (!dia || !dia.mejor) return 'sin promo bancaria aplicable en los próximos 7 días';
+  const { promo, descuento } = dia.mejor;
+  const topeTxt = promo.tope == null ? ' — tope no detectado, verificar' : '';
+  return `${formatearFecha(dia.fecha, hoy)} con ${promo.bancoCanonico} (${Math.round(promo.descuentoPct * 100)}% de descuento${topeTxt}) → ahorrás $${fmt(descuento)}`;
+}
+
+/**
+ * Fase 2 (4.3 + 4.4): para cada super, de forma independiente, cuál es el mejor día de
+ * los próximos 7 (incluyendo hoy) para cada canal (online / en el local), sobre el
+ * subtotal ya fijo de ese super. No busca alinear el mismo día entre supers ni
+ * recalcula qué producto va a cada super — eso ya está decidido (ver 4.3).
+ *
+ * `canalForzadoPorSuper` (opcional): { [key]: 'online' } cuando ALGÚN ítem ya asignado a
+ * ese super tiene una promo de producto exclusiva online (🌐) — en ese caso ir al local
+ * haría perder ese descuento (que casi siempre es mayor que la promo bancaria), así que
+ * no tiene sentido comparar contra "en el local" como si fuera una alternativa real.
+ */
+function imprimirMejorDiaPorSuper(supermercados, datosPorSuper, subtotalesPorSuper, hoy = new Date(), canalForzadoPorSuper = {}) {
+  console.log('\n' + '='.repeat(60));
+  console.log('📅 MEJOR DÍA PARA COMPRAR (próximos 7 días, con tus tarjetas):\n');
+
+  for (const s of supermercados) {
+    const datos = datosPorSuper[s.key];
+    const subtotal = subtotalesPorSuper[s.key];
+    if (!datos || subtotal == null) continue;
+    console.log(`  ${s.tag} ${s.nombre}:`);
+    if (imprimirAvisoErrorSiCorresponde(s, datos)) { console.log(); continue; }
+
+    if (canalForzadoPorSuper[s.key] === 'online') {
+      console.log('       🌐 Algún ítem de esta compra tiene descuento exclusivo online — no se evalúa comprar en el local.');
+      const mejorOnline = elegirMejorDia(mejoresDiasTicket(datos.promos, subtotal, { desde: hoy, canal: 'online' }));
+      console.log(`       🌐 Online: ${describirMejorDia(mejorOnline, hoy)}`);
+      console.log();
+      continue;
+    }
+
+    const mejorOnline = elegirMejorDia(mejoresDiasTicket(datos.promos, subtotal, { desde: hoy, canal: 'online' }));
+    const mejorFisico  = elegirMejorDia(mejoresDiasTicket(datos.promos, subtotal, { desde: hoy, canal: 'fisico' }));
+    console.log(`       🌐 Online:      ${describirMejorDia(mejorOnline, hoy)}`);
+    console.log(`       🏬 En el local: ${describirMejorDia(mejorFisico, hoy)}`);
+
+    const ahorroOnline = mejorOnline?.mejor?.descuento || 0;
+    const ahorroFisico = mejorFisico?.mejor?.descuento || 0;
+    if (Math.abs(ahorroOnline - ahorroFisico) > 0.01) {
+      console.log(`       → conviene más ${ahorroOnline > ahorroFisico ? 'online' : 'en el local'}`);
+    }
+    console.log();
+  }
+}
+
+// ─── Síntesis final: un solo total combinando promo por producto + mejor tarjeta/día ──
+
+/**
+ * La mejor oportunidad bancaria posible para `subtotal`, sea online o físico (el que dé
+ * más ahorro). A diferencia de imprimirMejorDiaPorSuper (que muestra las dos alternativas
+ * por separado a propósito, 4.4), esto es para el total combinado: ahí no importan las
+ * dos alternativas, solo la mejor.
+ *
+ * `canalForzado`: si se pasa 'online', ni se evalúa 'fisico' — se usa cuando algún ítem
+ * de esta compra ya tiene una promo de producto exclusiva online, así que ir al local no
+ * es una alternativa real (perdés ese descuento, casi siempre mayor que el bancario).
+ */
+function mejorOportunidadTicket(promosNormalizadas, subtotal, { desde = new Date(), dias = 7, canalForzado = null } = {}) {
+  const online = elegirMejorDia(mejoresDiasTicket(promosNormalizadas, subtotal, { desde, dias, canal: 'online' }));
+  if (canalForzado === 'online') return online?.mejor ? { ...online, canal: 'online' } : null;
+
+  const fisico = elegirMejorDia(mejoresDiasTicket(promosNormalizadas, subtotal, { desde, dias, canal: 'fisico' }));
+  const ahorroOnline = online?.mejor?.descuento || 0;
+  const ahorroFisico = fisico?.mejor?.descuento || 0;
+  if (ahorroOnline === 0 && ahorroFisico === 0) return null;
+  return ahorroOnline >= ahorroFisico ? { ...online, canal: 'online' } : { ...fisico, canal: 'fisico' };
+}
+
+/**
+ * Combina, por super, el subtotal YA fijado por las promos por producto (`subtotalPorSuper`
+ * — en modo lista, solo lo que se le asignó a ese super en el plan mixto, NUNCA el
+ * hipotético "todo ahí"; en modo individual, el precio de ese único ítem) con la mejor
+ * oportunidad bancaria de los próximos 7 días. No suma ni elige entre supers — eso lo
+ * decide el caller según el modo (lista: se suman todos, porque comprás en los 3 a la vez;
+ * individual: se elige el mínimo, porque un solo ítem se compra en un solo lugar).
+ *
+ * `canalForzadoPorSuper`: ver nota de mejorOportunidadTicket.
+ */
+function calcularPlanFinal(supermercados, datosPorSuper, subtotalPorSuper, canalForzadoPorSuper = {}, hoy = new Date()) {
+  const porSuper = [];
+  for (const s of supermercados) {
+    const subtotal = subtotalPorSuper[s.key];
+    if (!subtotal) continue;
+    const datos = datosPorSuper[s.key];
+    const errorBanco = datos?.error || null;
+    const canalForzado = canalForzadoPorSuper[s.key] || null;
+    const oportunidad = (datos && !errorBanco) ? mejorOportunidadTicket(datos.promos, subtotal, { desde: hoy, canalForzado }) : null;
+    const ahorro = oportunidad ? oportunidad.mejor.descuento : 0;
+    porSuper.push({ ...s, subtotal, oportunidad, ahorro, totalConBanco: subtotal - ahorro, errorBanco, canalForzado });
+  }
+  return porSuper;
+}
+
+function describirOportunidad(p, hoy) {
+  if (p.errorBanco === 'hash_roto') return '⚠️  promo bancaria no disponible (hash de GraphQL desactualizado)';
+  if (p.errorBanco) return '⚠️  no se pudo consultar la promo bancaria (error de red)';
+  if (!p.oportunidad) return 'sin promo bancaria aplicable en los próximos 7 días';
+  const { fecha, mejor, canal } = p.oportunidad;
+  const canalTxt = canal === 'online' ? 'online' : 'en el local';
+  const topeTxt = mejor.promo.tope == null ? ' — tope no detectado, verificar' : '';
+  return `pagando con ${mejor.promo.bancoCanonico} ${canalTxt} el ${formatearFecha(fecha, hoy)} (${Math.round(mejor.promo.descuentoPct * 100)}%${topeTxt}) → -$${fmt(mejor.descuento)}`;
+}
+
+/** Modo individual: un solo ítem se compra en un solo lugar — se muestran los 3 supers como alternativas y se recomienda el más barato, no se suman. */
+function imprimirPlanFinalIndividual(porSuper, hoy = new Date()) {
+  if (porSuper.length < 2) return; // sin alternativa real para comparar
+  console.log('\n' + '='.repeat(60));
+  console.log('🧾 PLAN FINAL (mejor combinación de super + tarjeta + día):\n');
+
+  const medallas = ['🥇', '🥈', '🥉'];
+  [...porSuper].sort((a, b) => a.totalConBanco - b.totalConBanco).forEach((p, i) => {
+    console.log(`  ${medallas[i] || '  '} ${p.nombre}: $${fmt(p.totalConBanco)}  (ítem $${fmt(p.subtotal)}, ${describirOportunidad(p, hoy)})`);
+  });
+  console.log();
+}
+
+// ─── Re-optimización ítem→super según el día (modo lista) ────────────────────
+//
+// El ahorro bancario tiene tope (cap en $) → no crece indefinidamente al sumar más
+// productos a un super → la decisión de qué producto va a cada super NO se puede
+// resolver producto por producto de forma aislada (depende de cuánto ya se acumuló
+// ahí). Es un problema de asignación con costo cóncavo por super, en general
+// NP-difícil de resolver exacto. Se resuelve con una heurística iterativa: reasignar
+// cada ítem al super de menor "precio efectivo" (precio × (1-%), SIN aplicar el tope
+// en este paso — aproximación deliberada) y repetir hasta que se estabilice. El tope
+// sí se aplica correctamente al calcular el total REAL de la asignación resultante.
+// Red de seguridad: si el resultado no mejora sobre no reasignar nada, se descarta y
+// se usa la asignación de hoy — nunca puede recomendar algo peor que lo ya existente.
+
+/** superKey más barata para `item` dado el % de descuento vigente en cada super (sin tope). */
+function elegirSuperMasBarato(item, oportunidadesPorSuper = {}) {
+  let mejor = null;
+  for (const [superKey, precio] of Object.entries(item.preciosPorSuper)) {
+    if (precio == null) continue;
+    const pct = oportunidadesPorSuper[superKey]?.mejor?.promo?.descuentoPct || 0;
+    const efectivo = precio * (1 - pct);
+    if (!mejor || efectivo < mejor.efectivo) mejor = { superKey, efectivo };
+  }
+  return mejor ? mejor.superKey : null;
+}
+
+function calcularSubtotalesDesdeAsignacion(items, asignacion, supermercados) {
+  const subtotales = Object.fromEntries(supermercados.map(s => [s.key, 0]));
+  items.forEach((item, i) => {
+    const superKey = asignacion[i];
+    if (superKey) subtotales[superKey] += item.preciosPorSuper[superKey];
+  });
+  return subtotales;
+}
+
+/** true si ALGÚN ítem asignado a ese super (en esta asignación) exige canal online. */
+function calcularCanalForzadoDesdeAsignacion(items, asignacion, supermercados) {
+  const forzado = Object.fromEntries(supermercados.map(s => [s.key, null]));
+  items.forEach((item, i) => {
+    const superKey = asignacion[i];
+    if (superKey && item.esOnlineExclusivoPorSuper[superKey]) forzado[superKey] = 'online';
+  });
+  return forzado;
+}
+
+function mismaAsignacion(a, b) {
+  return a.length === b.length && a.every((v, i) => v === b[i]);
+}
+
+/**
+ * items: [{ id, preciosPorSuper: {vea,carr,changomas} (null si no está ahí),
+ *           esOnlineExclusivoPorSuper: {...} }]
+ * Devuelve { asignacion, subtotales, canalForzado, oportunidades, erroresPorSuper,
+ *            total, totalSinReasignar, mejoro }.
+ */
+function reoptimizarAsignacion(items, datosPorSuper, supermercados, { hoy = new Date(), maxIteraciones = 4 } = {}) {
+  const superKeys = supermercados.map(s => s.key);
+
+  function calcularResultado(asignacion) {
+    const subtotales = calcularSubtotalesDesdeAsignacion(items, asignacion, supermercados);
+    const canalForzado = calcularCanalForzadoDesdeAsignacion(items, asignacion, supermercados);
+    const oportunidades = {};
+    const erroresPorSuper = {};
+    let total = 0;
+    for (const key of superKeys) {
+      const subtotal = subtotales[key];
+      const datos = datosPorSuper[key];
+      erroresPorSuper[key] = datos?.error || null;
+      const oportunidad = (subtotal && datos && !datos.error)
+        ? mejorOportunidadTicket(datos.promos, subtotal, { desde: hoy, canalForzado: canalForzado[key] })
+        : null;
+      oportunidades[key] = oportunidad;
+      total += subtotal - (oportunidad ? oportunidad.mejor.descuento : 0);
+    }
+    return { subtotales, canalForzado, oportunidades, erroresPorSuper, total };
+  }
+
+  const asignacionHoy = items.map(item => elegirSuperMasBarato(item, {}));
+  const resultadoHoy = calcularResultado(asignacionHoy);
+
+  let asignacion = asignacionHoy;
+  for (let i = 0; i < maxIteraciones; i++) {
+    const { oportunidades } = calcularResultado(asignacion);
+    const nuevaAsignacion = items.map((item, idx) => elegirSuperMasBarato(item, oportunidades) || asignacion[idx]);
+    if (mismaAsignacion(nuevaAsignacion, asignacion)) break;
+    asignacion = nuevaAsignacion;
+  }
+  const resultadoReasignado = calcularResultado(asignacion);
+
+  const mejoro = resultadoReasignado.total < resultadoHoy.total - 0.01; // margen para no oscilar por redondeo
+  const final = mejoro ? { asignacion, ...resultadoReasignado } : { asignacion: asignacionHoy, ...resultadoHoy };
+
+  return { ...final, mejoro, totalSinReasignar: resultadoHoy.total };
+}
+
+/**
+ * Reemplaza el contenido de "🧾 PLAN FINAL" en modo lista: puede reasignar productos
+ * a un super distinto del que se ve en el Resumen Final de arriba, si eso aprovecha
+ * mejor una promo bancaria. `items`/`resultado` vienen de reoptimizarAsignacion().
+ * `totalOptimoSinBanco` es la "Compra óptima" ya calculada por mostrarResumenFinal
+ * (sin ninguna promo bancaria) — solo se usa para el desglose en cascada del pie.
+ */
+function imprimirPlanFinalReoptimizado(supermercados, items, resultado, totalOptimoSinBanco, hoy = new Date()) {
+  if (!items.length) return;
+  console.log('\n' + '='.repeat(60));
+  console.log('🧾 PLAN FINAL (producto + super + la mejor tarjeta/día — puede mover productos de super para aprovechar mejor las promos bancarias):\n');
+
+  const { asignacion, subtotales, canalForzado, oportunidades, erroresPorSuper, total, mejoro, totalSinReasignar } = resultado;
+
+  for (const s of supermercados) {
+    const subtotal = subtotales[s.key];
+    if (!subtotal) continue;
+    console.log(`  ${s.tag} ${s.nombre}: $${fmt(subtotal)}`);
+
+    const asignadosAqui = items.filter((_, i) => asignacion[i] === s.key);
+    const soloOnline = asignadosAqui.filter(it => it.esOnlineExclusivoPorSuper[s.key]).map(it => it.id);
+    const indistinto = asignadosAqui.filter(it => !it.esOnlineExclusivoPorSuper[s.key]).map(it => it.id);
+    if (soloOnline.length) console.log(`       🌐 Comprar online (descuento exclusivo web): ${soloOnline.join(', ')}`);
+    if (indistinto.length) {
+      const etiqueta = soloOnline.length ? '🏬 Podés comprar en el local (mismo precio)' : 'Ítems';
+      console.log(`       ${etiqueta}: ${indistinto.join(', ')}`);
+    }
+
+    const datosFicticio = { oportunidad: oportunidades[s.key], errorBanco: erroresPorSuper[s.key], canalForzado: canalForzado[s.key] };
+    console.log(`       ${describirOportunidad(datosFicticio, hoy)}`);
+    const ahorro = oportunidades[s.key] ? oportunidades[s.key].mejor.descuento : 0;
+    console.log(`       Total en ${s.nombre}: $${fmt(subtotal - ahorro)}\n`);
+  }
+
+  console.log('─'.repeat(60));
+  console.log(`  Sin tarjetas ni reasignar (compra óptima de hoy): $${fmt(totalOptimoSinBanco)}`);
+  console.log(`  Con tarjetas, sin mover productos de super:        $${fmt(totalSinReasignar)}   (-$${fmt(totalOptimoSinBanco - totalSinReasignar)} por tarjetas)`);
+  console.log(`  🏆 Con tarjetas Y reasignando productos:            $${fmt(total)}   (-$${fmt(totalSinReasignar - total)} extra por reasignar)`);
+  if (!mejoro) {
+    console.log('\n  (La reasignación no encontró una mejora sobre la asignación de hoy — se mantiene igual.)');
+  }
+  console.log();
+}
+
+module.exports = {
+  obtenerPromosBancarias,
+  promosAplicablesHoy,
+  mejorPromoTicket,
+  imprimirSeccionBancaria,
+  // Fase 2:
+  promoAplicaEnCanal,
+  mejoresDiasTicket,
+  elegirMejorDia,
+  imprimirMejorDiaPorSuper,
+  // Síntesis final:
+  mejorOportunidadTicket,
+  calcularPlanFinal,
+  imprimirPlanFinalIndividual,
+  // Re-optimización ítem→super según el día (Fase 4):
+  elegirSuperMasBarato,
+  reoptimizarAsignacion,
+  imprimirPlanFinalReoptimizado,
+  // Fase 3 (promos por producto condicionadas a tarjeta propia) reusa esto para no
+  // duplicar la lectura de mis-tarjetas.json:
+  leerMisTarjetas,
+  // exportado para poder testear sin red:
+  resolverCanonicosDesdeNombre,
+};
+
+// ─── Auto-test manual (sin red) ────────────────────────────────────────────────
+// node promos-bancarias.js
+if (require.main === module) {
+  const hoy = new Date();
+  const promosFake = [
+    {
+      canonicosPosibles: ['MODO'], bancoCanonico: 'MODO', super: 'Vea',
+      dias: [diaISO(hoy)], canales: null, descuentoPct: 0.2, tope: 5000, montoMinimo: null,
+      vigenciaDesde: new Date(hoy.getTime() - 86400000), vigenciaHasta: new Date(hoy.getTime() + 86400000),
+      textoLegal: 'Promo de prueba MODO 20% tope $5000',
+    },
+    {
+      canonicosPosibles: ['Cencopay'], bancoCanonico: 'Cencopay', super: 'Vea',
+      dias: [diaISO(hoy) + 10], canales: null, descuentoPct: 0.5, tope: null, montoMinimo: null, // día que nunca matchea
+      vigenciaDesde: new Date(hoy.getTime() - 86400000), vigenciaHasta: new Date(hoy.getTime() + 86400000),
+      textoLegal: 'No debería aparecer (día no vigente hoy)',
+    },
+  ];
+  const aplicables = promosAplicablesHoy(promosFake, { fecha: hoy });
+  console.log('Aplicables hoy (esperado: 1):', aplicables.length);
+  const mejor = mejorPromoTicket(aplicables, 20000);
+  console.log('Mejor promo sobre $20000 (esperado: ahorro $4000 = tope $5000 antes de tope, tope aplica primero):', mejor);
+  console.log('Alias "Banco Provincia - Cuenta DNI" (esperado: ambos):', resolverCanonicosDesdeNombre('Banco Provincia - Cuenta DNI'));
+  console.log('Alias "Banco provincia de Neuquén" (esperado: [] — excluido a mano, no es la misma entidad):', resolverCanonicosDesdeNombre('Banco provincia de Neuquén'));
+
+  // --- Fase 2: multi-día + canal ---
+  const en3dias = new Date(hoy.getTime() + 3 * 86400000);
+  const en5dias = new Date(hoy.getTime() + 5 * 86400000);
+  const promosFase2 = [
+    {
+      canonicosPosibles: ['Mercado Pago'], bancoCanonico: 'Mercado Pago', super: 'Carrefour',
+      dias: [diaISO(en3dias)], canales: ['ecommerce'], descuentoPct: 0.15, tope: null, montoMinimo: null,
+      vigenciaDesde: new Date(hoy.getTime() - 86400000), vigenciaHasta: new Date(hoy.getTime() + 10 * 86400000),
+      textoLegal: 'Solo online, en 3 días',
+    },
+    {
+      canonicosPosibles: ['Cuenta DNI'], bancoCanonico: 'Cuenta DNI', super: 'Carrefour',
+      dias: [diaISO(en5dias)], canales: ['hyper', 'market'], descuentoPct: 0.1, tope: 3000, montoMinimo: null,
+      vigenciaDesde: new Date(hoy.getTime() - 86400000), vigenciaHasta: new Date(hoy.getTime() + 10 * 86400000),
+      textoLegal: 'Solo en el local, en 5 días',
+    },
+  ];
+  const mejorOnline = elegirMejorDia(mejoresDiasTicket(promosFase2, 30000, { desde: hoy, canal: 'online' }));
+  console.log('Mejor día online (esperado: en 3 días, Mercado Pago):', mejorOnline.fecha.toDateString(), '|', mejorOnline.mejor?.promo.bancoCanonico);
+  const mejorFisico = elegirMejorDia(mejoresDiasTicket(promosFase2, 30000, { desde: hoy, canal: 'fisico' }));
+  console.log('Mejor día físico (esperado: en 5 días, Cuenta DNI):', mejorFisico.fecha.toDateString(), '|', mejorFisico.mejor?.promo.bancoCanonico);
+  console.log('promoAplicaEnCanal ecommerce-only en canal fisico (esperado false):', promoAplicaEnCanal(promosFase2[0], 'fisico'));
+  console.log('promoAplicaEnCanal canales=null (Vea) en online y fisico (esperado true, true):', promoAplicaEnCanal(promosFake[0], 'online'), promoAplicaEnCanal(promosFake[0], 'fisico'));
+
+  // --- Fase 4: re-optimización ítem→super ---
+  // Vea sin promo bancaria; Carrefour con 20% sin tope hoy. Por precio solo, item1 va a
+  // Vea (1000<1200) y item2 a Carrefour (900<1000) — pero al considerar el 20% de
+  // Carrefour, convine mover TAMBIÉN item1 ahí (1200*0.8=960 < 1000): $1720 -> $1680.
+  const supersFake = [{ key: 'vea' }, { key: 'carr' }, { key: 'changomas' }];
+  const promoCarr20 = {
+    canonicosPosibles: ['MODO'], bancoCanonico: 'MODO', super: 'Carrefour',
+    dias: [diaISO(hoy)], canales: null, descuentoPct: 0.2, tope: null, montoMinimo: null,
+    vigenciaDesde: new Date(hoy.getTime() - 86400000), vigenciaHasta: new Date(hoy.getTime() + 86400000),
+    textoLegal: 'Prueba: 20% sin tope',
+  };
+  const datosFase4 = {
+    vea: { promos: [], error: null },
+    carr: { promos: [promoCarr20], error: null },
+    changomas: { promos: [], error: null },
+  };
+  const itemsFase4 = [
+    { id: 'item1', preciosPorSuper: { vea: 1000, carr: 1200, changomas: null }, esOnlineExclusivoPorSuper: {} },
+    { id: 'item2', preciosPorSuper: { vea: 1000, carr: 900, changomas: null }, esOnlineExclusivoPorSuper: {} },
+  ];
+  const resultadoFase4 = reoptimizarAsignacion(itemsFase4, datosFase4, supersFake, { hoy });
+  console.log('Reasignación (esperado: ambos a carr, mejoro=true, totalSinReasignar=1720, total=1680):',
+    resultadoFase4.asignacion, '| mejoro:', resultadoFase4.mejoro,
+    '| sinReasignar:', resultadoFase4.totalSinReasignar, '| total:', resultadoFase4.total);
+  console.log('Invariante (total <= totalSinReasignar, nunca empeora):', resultadoFase4.total <= resultadoFase4.totalSinReasignar);
+}

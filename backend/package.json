@@ -1,0 +1,22 @@
+{
+  "name": "allpromos-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "API HTTP sobre la logica de AllPromos, para la app mobile. Reusa AllPromos/core sin duplicar calculo.",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "unificar": "node src/cron/unificarCatalogo.js",
+    "refrescar": "node src/cron/refrescarCatalogos.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

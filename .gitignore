@@ -1,0 +1,45 @@
+# Dependencias
+node_modules/
+
+# Catálogos y promos generados por los scrapers (pesados, se regeneran con el cron).
+# Ojo: son necesarios para correr el CLI/backend — regenerar con los scraper-promos-*.js
+AllPromos/catalogo-*.json
+AllPromos/promos-*.json
+backend/catalogo-unificado.json
+backend/catalogo-unificado.json.tmp
+
+# Fotos de producto descargadas una sola vez (ver backend/src/cron/descargarImagenes.js) —
+# miles de archivos, se regeneran solas la primera vez que falten, no tiene sentido versionarlas.
+backend/imagenes/
+
+# Salidas locales
+AllPromos/resultado.html
+backend/logs/
+
+# Config con secretos / personal
+.env
+.env.*
+!.env.example
+AllPromos/mis-tarjetas.json
+
+# Listas de compra personales
+AllPromos/compras-*.txt
+!AllPromos/compras-prueba.txt
+
+# Expo / React Native
+app/.expo/
+app/dist/
+app/web-build/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# macOS
+.DS_Store
+
+# Estado local de Claude Code (no compartir entre máquinas)
+.claude/settings.local.json
+.claude/scheduled_tasks.lock

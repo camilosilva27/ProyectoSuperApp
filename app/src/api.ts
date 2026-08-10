@@ -1,0 +1,159 @@
+/**
+ * Cliente del backend de AllPromos.
+ *
+ * La app nunca habla directo con las APIs de los supermercados: la cookie de sesión de Vea
+ * no debe viajar dentro de un binario distribuido, y concentrar las consultas en el backend
+ * permite controlar el ritmo de requests en un solo lugar en vez de en cada teléfono.
+ */
+
+export type SuperKey = 'vea' | 'carr' | 'changomas';
+
+export type Supermercado = { key: SuperKey; nombre: string; tag: string };
+
+export type ProductoCatalogo = {
+  ean: string;
+  nombre: string;
+  variante: string | null;
+  categoria: string | null;
+  disponibleEn: SuperKey[];
+  /** Ruta relativa a `configApi.urlBase` (ej. "/imagenes/779...jpg"), o null si no hay foto
+   *  todavía. Ver src/componentes/FotoProducto.tsx para el fallback. */
+  imagen: string | null;
+};
+
+export type Promo = {
+  tipo: string;
+  descripcion: string;
+  cantidadMinima: number;
+  esOnline: boolean;
+  requiereTarjeta: string | null;
+  activa: boolean;
+  /** false cuando la promo pide una tarjeta que no está en las seleccionadas: existe, pero
+   *  no está contada en `total` — es un aviso, no una promesa de precio. */
+  tarjetaActiva: boolean;
+};
+
+export type OpcionSuper = {
+  key: SuperKey;
+  super: string;
+  tag: string;
+  total: number;
+  precioUnitario: number;
+  productoNombre: string;
+  variante: string | null;
+  promo: Promo | null;
+  /** Lo que pagarías en este super si activaras la tarjeta que pide `promo`. Solo viene
+   *  poblado cuando hay una promo de tarjeta sin activar. */
+  totalConTarjeta: number | null;
+};
+
+export type VistaPreviaCantidad = {
+  cantidad: number;
+  opciones: { key: SuperKey; nombre: string; tag: string; total: number; oferta: string }[];
+};
+
+export type ItemComparado = {
+  ean: string;
+  nombre: string | null;
+  imagen: string | null;
+  cantidad: number;
+  enCatalogoLocal: boolean;
+  opciones: OpcionSuper[];
+  mejor: OpcionSuper | null;
+  sugerenciaCantidad: {
+    cantidadesCandidatas: number[];
+    vistaPrevia: VistaPreviaCantidad[];
+  } | null;
+  error: string | null;
+};
+
+export type RespuestaComparar = {
+  generado: string;
+  supermercados: Supermercado[];
+  items: ItemComparado[];
+  resumen: {
+    totalOptimo: number;
+    totalesPorSuper: Record<SuperKey, number>;
+    subtotalAsignadoPorSuper: Record<SuperKey, number>;
+    comprasPorSuper: Record<SuperKey, { input: string; esOnlineExclusivo: boolean }[]>;
+    requiereOnlinePorSuper: Record<SuperKey, boolean>;
+    noEncontrados: string[];
+  };
+  advertencias: string[];
+};
+
+export type EstadoSalud = {
+  ok: boolean;
+  entorno: string;
+  ahora: string;
+  catalogos: {
+    key: string; archivo: string; scraper: string; fecha: string | null;
+    dias: number | null; totalSkus: number; disponible: boolean; vencido: boolean;
+  }[];
+  catalogoUnificado: { disponible: boolean; total: number; generado: string | null };
+  problemas: string[];
+};
+
+const URL_BASE = (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/$/, '');
+
+export class ErrorApi extends Error {
+  constructor(message: string, readonly status?: number) {
+    super(message);
+    this.name = 'ErrorApi';
+  }
+}
+
+async function pedir<T>(ruta: string, init?: RequestInit): Promise<T> {
+  let respuesta: Response;
+  try {
+    respuesta = await fetch(`${URL_BASE}${ruta}`, {
+      ...init,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        ...(init?.headers ?? {}),
+      },
+    });
+  } catch {
+    // Distinguir "no hay red / backend caído" de "el backend contestó un error" importa:
+    // el primero se arregla prendiendo el server, el segundo mirando la respuesta.
+    throw new ErrorApi('No se pudo conectar con el servidor de AllPromos');
+  }
+
+  if (!respuesta.ok) {
+    let detalle = `Error ${respuesta.status}`;
+    try {
+      const cuerpo = await respuesta.json();
+      if (cuerpo?.error) detalle = cuerpo.error;
+    } catch {
+      /* la respuesta no era JSON: nos quedamos con el código */
+    }
+    throw new ErrorApi(detalle, respuesta.status);
+  }
+
+  return respuesta.json() as Promise<T>;
+}
+
+export function buscarProductos(q: string, limit = 40) {
+  return pedir<{ disponible: boolean; total: number; resultados: ProductoCatalogo[] }>(
+    `/api/catalogo/buscar?q=${encodeURIComponent(q)}&limit=${limit}`
+  );
+}
+
+export function comparar(items: { ean: string; cantidad: number }[], tarjetas: string[]) {
+  return pedir<RespuestaComparar>('/api/comparar', {
+    method: 'POST',
+    body: JSON.stringify({ items, tarjetas }),
+  });
+}
+
+export function salud() {
+  return pedir<EstadoSalud>('/api/health');
+}
+
+/** `producto.imagen` es una ruta relativa (ej. "/imagenes/779...jpg") — esto la completa. */
+export function urlImagen(ruta: string | null): string | null {
+  return ruta ? `${URL_BASE}${ruta}` : null;
+}
+
+export const configApi = { urlBase: URL_BASE };
