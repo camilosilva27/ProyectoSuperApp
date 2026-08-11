@@ -21,9 +21,6 @@ const CATALOGOS = [
   { key: 'carrefour', archivo: 'catalogo-carrefour.json', scraper: 'scraper-promos-carrefour.js' },
   { key: 'changomas', archivo: 'catalogo-changomas.json', scraper: 'scraper-promos-changomas.js' },
   { key: 'dia',       archivo: 'catalogo-dia.json',       scraper: 'scraper-promos-dia.js' },
-  // Coto: solo catálogo (nombre→EAN + estado de frescura). Sin comparación en vivo todavía —
-  // tiene precio por sucursal (ver scraper-promos-coto.js), decisión de diseño pendiente para
-  // el caso en vivo. Por eso no está en resolverEANporNombre ni en SUPERMERCADOS (core/fetchers.js).
   { key: 'coto',      archivo: 'catalogo-coto.json',      scraper: 'scraper-promos-coto.js' },
 ];
 
@@ -128,9 +125,8 @@ function resolverEANporNombre(palabras) {
     }
   }
 
-  // Luego Carrefour, Chango Más y Día: agregan EANs que no estén ya vistos (skuIdVea = null).
-  // Coto queda afuera a propósito: sin comparación en vivo, no tiene sentido resolverlo acá.
-  for (const archivo of ['catalogo-carrefour.json', 'catalogo-changomas.json', 'catalogo-dia.json']) {
+  // Luego el resto: agregan EANs que no estén ya vistos (skuIdVea = null).
+  for (const archivo of ['catalogo-carrefour.json', 'catalogo-changomas.json', 'catalogo-dia.json', 'catalogo-coto.json']) {
     for (const s of skusDe(archivo)) {
       if (!s.ean || vistos.has(s.ean)) continue;
       if (matchesBusqueda(s.productName, s.skuName, palabras)) {

@@ -32,11 +32,27 @@ const CHANGOMAS_SELLER = '1';
 const DIA_HOST   = 'https://diaonline.supermercadosdia.com.ar';
 const DIA_SELLER = '1';
 
+// Coto no es VTEX: el buscador lo sirve Constructor.io vía el gateway de Coto (misma API key
+// pública de solo lectura que usa scraper-promos-coto.js). Se busca por término de texto
+// (`products/search/{termino}`) — no hay un filtro exacto por EAN como en VTEX, así que
+// cotoLive() busca por EAN como término y filtra el resultado que matchee ese EAN exacto.
+//
+// PRECIO: Coto expone un array `price[]` con un precio por sucursal física, a diferencia de
+// los otros 4 (precio único nacional). Decisión del usuario (2026-08-11, explícita y
+// revisable): usar SIEMPRE el precio dominante (moda entre sucursales, empate a favor del
+// más bajo) como precioBase — nunca se pregunta ni se resuelve por sucursal puntual. OJO: en
+// algunas zonas de CABA (Flores y Once, según lo confirmado en vivo en scraper-promos-coto.js)
+// el precio real puede ser un poco MENOR al dominante — es una aproximación válida para la
+// mayoría de las sucursales, no el precio exacto de ninguna en particular.
+const COTO_KEY  = 'key_r6xzz4IAoTWcipni';
+const COTO_HOST = 'https://api.coto.com.ar/api/v1/ms-digital-sitio-bff-web/api/v1/products/search';
+
 const SUPERMERCADOS = [
   { key: 'vea',       nombre: 'Vea',        tag: '🟢' },
   { key: 'carr',      nombre: 'Carrefour',  tag: '🔵' },
   { key: 'changomas', nombre: 'Chango Más', tag: '🟣' },
   { key: 'dia',       nombre: 'Día',        tag: '🟡' },
+  { key: 'coto',      nombre: 'Coto',       tag: '🔴' },
 ];
 
 // ─── Live: Carrefour ──────────────────────────────────────────────────────────
@@ -322,37 +338,117 @@ async function diaLiveNombre(nombre) {
   return res.ok ? parsearProductosDia(await res.json()) : [];
 }
 
+// ─── Live: Coto ───────────────────────────────────────────────────────────────
+
+/** Moda de una lista de precios por sucursal. Empate: se queda con el valor más bajo (a favor del usuario). */
+function precioDominanteCoto(precios) {
+  if (!precios.length) return null;
+  const conteo = new Map();
+  for (const p of precios) conteo.set(p, (conteo.get(p) || 0) + 1);
+  let mejor = null;
+  for (const [precio, veces] of conteo) {
+    if (!mejor || veces > mejor.veces || (veces === mejor.veces && precio < mejor.precio)) {
+      mejor = { precio, veces };
+    }
+  }
+  return mejor.precio;
+}
+
+function parsearProductosCoto(results) {
+  const resultados = [];
+  for (const item of results) {
+    const d = item.data || {};
+    const ean = d.product_main_ean ? String(d.product_main_ean) : null;
+    const productName = d.sku_display_name || d.sku_description || null;
+    const precios = (d.price || []).map(p => p.listPrice).filter(p => typeof p === 'number');
+    const precioBase = precioDominanteCoto(precios);
+    if (!precioBase) continue;
+
+    // Mismos dos formatos que ve el scraper: "X%Dto" (descuento directo) y "NxM" tipo
+    // "2x1"/"3x2" (interpretarPromoPorTexto reconoce ambos directo del texto crudo).
+    const discounts = d.discounts || [];
+    const percentual = discounts.find(disc => /^\d+(?:\.\d+)?\s*%\s*Dto/i.test(disc.discountText || ''));
+    const otros = discounts.filter(disc => disc !== percentual);
+
+    if (percentual) {
+      const precioFinal = parseFloat(String(percentual.discountPrice || '').replace(/[^\d.]/g, ''));
+      if (Number.isFinite(precioFinal) && precioFinal > 0 && precioFinal < precioBase) {
+        resultados.push({
+          super: 'Coto', productName, skuName: null, ean,
+          precioBase,
+          promo: interpretarPromoPorTexto('', (1 - precioFinal / precioBase).toFixed(4)),
+        });
+      }
+    }
+
+    for (const disc of otros) {
+      const promo = interpretarPromoPorTexto(disc.discountText || '');
+      if (promo) {
+        resultados.push({ super: 'Coto', productName, skuName: null, ean, precioBase, promo });
+      }
+    }
+
+    if (!percentual && !otros.length) {
+      resultados.push({ super: 'Coto', productName, skuName: null, ean, precioBase, promo: null });
+    }
+  }
+  return resultados;
+}
+
+async function cotoBuscar(termino) {
+  const res = await fetch(
+    `${COTO_HOST}/${encodeURIComponent(termino)}?key=${COTO_KEY}&num_results_per_page=5`,
+    { headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' } }
+  );
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.response?.results || [];
+}
+
+/** Búsqueda por EAN: Coto no tiene filtro exacto, así que se busca por texto y se filtra el match exacto. */
+async function cotoLiveEAN(ean) {
+  const results = await cotoBuscar(ean);
+  const exactos = results.filter(item => String(item.data?.product_main_ean ?? '') === ean);
+  return parsearProductosCoto(exactos);
+}
+
+async function cotoLiveNombre(nombre) {
+  return parsearProductosCoto(await cotoBuscar(nombre));
+}
+
 // ─── Orquestación ─────────────────────────────────────────────────────────────
 
 /**
- * Precios en vivo de un EAN en los 4 supers, en paralelo.
+ * Precios en vivo de un EAN en los 5 supers, en paralelo.
  * @param {string} ean
  * @param {object} opciones
  * @param {string[]} opciones.tarjetas   tarjetas del usuario (habilita promos de tarjeta propia)
  * @param {string|null} opciones.skuIdVea  si ya se conoce, evita releer el catálogo de Vea.
  *                                         Si se omite, se resuelve desde el catálogo local.
- * @returns {{ vea: [], carr: [], changomas: [], dia: [] }}
+ * @returns {{ vea: [], carr: [], changomas: [], dia: [], coto: [] }}
  */
 async function buscarPorEAN(ean, { tarjetas = [], skuIdVea } = {}) {
   const sku = skuIdVea === undefined ? skuIdVeaPorEAN(ean) : skuIdVea;
-  const [vea, carr, changomas, dia] = await Promise.all([
+  const [vea, carr, changomas, dia, coto] = await Promise.all([
     veaLive(ean, sku),
     carrefourLiveEAN(ean, { tarjetas }),
     changoMasLiveEAN(ean),
     diaLiveEAN(ean),
+    cotoLiveEAN(ean),
   ]);
-  return { vea, carr, changomas, dia };
+  return { vea, carr, changomas, dia, coto };
 }
 
-/** Fallback: búsqueda por nombre directo en las 4 APIs (menos confiable que por EAN). */
+/** Fallback: búsqueda por nombre directo en las 5 APIs (menos confiable que por EAN). */
 async function buscarPorNombreEnVivo(nombre, { tarjetas = [] } = {}) {
-  const [vea, carr, changomas, dia] = await Promise.all([
+  const [vea, carr, changomas, dia, coto] = await Promise.all([
     veaLiveNombre(nombre),
     carrefourLiveNombre(nombre, { tarjetas }),
     changoMasLiveNombre(nombre),
     diaLiveNombre(nombre),
+    cotoLiveNombre(nombre),
   ]);
-  return { vea, carr, changomas, dia };
+  return { vea, carr, changomas, dia, coto };
 }
 
 module.exports = {
@@ -362,11 +458,14 @@ module.exports = {
   CHANGOMAS_SELLER,
   DIA_HOST,
   DIA_SELLER,
+  COTO_HOST,
+  COTO_KEY,
   SUPERMERCADOS,
   parsearProductosCarrefour,
   parsearProductosChangoMas,
   parsearProductosVea,
   parsearProductosDia,
+  parsearProductosCoto,
   carrefourLiveEAN,
   carrefourLiveNombre,
   changoMasLiveEAN,
@@ -375,6 +474,8 @@ module.exports = {
   veaLiveNombre,
   diaLiveEAN,
   diaLiveNombre,
+  cotoLiveEAN,
+  cotoLiveNombre,
   buscarPorEAN,
   buscarPorNombreEnVivo,
 };
