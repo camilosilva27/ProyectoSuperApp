@@ -1,6 +1,6 @@
 /**
  * POST /api/comparar — el endpoint central: dado un carrito de EANs + cantidades, devuelve
- * precios y promos EN VIVO de los 3 supers, qué conviene comprar dónde, y cuánto se ahorra
+ * precios y promos EN VIVO de los 5 supers, qué conviene comprar dónde, y cuánto se ahorra
  * mezclando versus comprar todo en un solo lugar.
  *
  * Todo el cálculo se delega a AllPromos/core/comparador.js y promo-engine.js — los mismos
@@ -40,10 +40,38 @@ const router = express.Router();
 const TARJETAS_QUE_AFECTAN_PRODUCTO = ['Mi Carrefour'];
 
 const MAX_ITEMS = 60;
-// Los 3 supers rate-limitean (429 en Carrefour, 429 y 502 intermitentes en Chango Más).
-// Cada ítem dispara 3 requests en paralelo, así que se procesan de a pocos ítems para no
-// abrir 180 conexiones de golpe con un carrito grande.
+// Carrefour y Chango Más rate-limitean (429 en Carrefour, 429 y 502 intermitentes en Chango
+// Más). Cada ítem dispara 5 requests en paralelo (uno por super), así que se procesan de a
+// pocos ítems para no abrir 300 conexiones de golpe con un carrito grande.
 const ITEMS_EN_PARALELO = 4;
+
+// Caché corto de la consulta en vivo por EAN — evita pedir de nuevo a los 5 supers si dos
+// requests llegan casi al mismo tiempo para el mismo producto (recargar la app, o dos
+// integrantes de la familia mirando el mismo carrito). TTL corto a propósito: sigue siendo
+// "en vivo" para cualquier propósito práctico (nadie nota una diferencia de 3 min en un
+// precio de supermercado) y no viola el invariante de "nunca mostrar precio del catálogo
+// local" (ver AllPromos/CLAUDE.md) porque el dato sigue viniendo de un fetch en vivo, solo se
+// reutiliza por un rato corto. Se cachea la Promise, no el resultado ya resuelto: así dos
+// requests que llegan casi juntos comparten el mismo fetch en vuelo en vez de disparar dos.
+//
+// `tarjetas` no forma parte de la key porque este endpoint siempre pide con la misma
+// constante (TARJETAS_QUE_AFECTAN_PRODUCTO) independientemente de lo que el usuario haya
+// seleccionado — la selección real se aplica después, en calcularOpciones. Si eso cambia
+// alguna vez, hay que meter tarjetas en la key.
+const CACHE_TTL_MS = 3 * 60 * 1000;
+const cacheEnVivo = new Map(); // ean → { expira, promise }
+
+function buscarPorEANCacheado(ean, opciones) {
+  const ahora = Date.now();
+  const entrada = cacheEnVivo.get(ean);
+  if (entrada && entrada.expira > ahora) return entrada.promise;
+
+  const promise = buscarPorEAN(ean, opciones);
+  cacheEnVivo.set(ean, { expira: ahora + CACHE_TTL_MS, promise });
+  // Si falla, no dejar la promesa rota cacheada — la próxima consulta reintenta en vivo.
+  promise.catch(() => cacheEnVivo.delete(ean));
+  return promise;
+}
 
 async function mapConLimite(lista, limite, fn) {
   const resultados = new Array(lista.length);
@@ -146,7 +174,7 @@ router.post('/comparar', async (req, res) => {
         productName: nombre,
         // Siempre se pide la promo de tarjeta propia si existe, independientemente de si el
         // usuario la seleccionó — así se puede avisar sin obligar a elegir nada antes.
-        ...(await buscarPorEAN(ean, { tarjetas: TARJETAS_QUE_AFECTAN_PRODUCTO, skuIdVea: delCatalogo?.skuIdVea ?? null })),
+        ...(await buscarPorEANCacheado(ean, { tarjetas: TARJETAS_QUE_AFECTAN_PRODUCTO, skuIdVea: delCatalogo?.skuIdVea ?? null })),
       };
 
       const opciones = calcularOpciones(grupo, cantidad, SUPERMERCADOS, tarjetasSeleccionadas);

@@ -15,6 +15,7 @@ const express = require('express');
 const { estadoCatalogos } = require('../../../AllPromos/core/catalogo');
 const { leerEstadoUnificado } = require('../catalogoUnificado');
 const { diasMaximoCatalogo, rutaLogs, entorno } = require('../config');
+const sondaEnVivo = require('../sondaEnVivo');
 const path = require('path');
 
 const router = express.Router();
@@ -31,6 +32,7 @@ router.get('/health', (req, res) => {
   const catalogos = estadoCatalogos({ diasMaximo: diasMaximoCatalogo });
   const unificado = leerEstadoUnificado();
   const ultimoRefresco = leerUltimoRefresco();
+  const sonda = sondaEnVivo.estadoActual();
 
   const problemas = [];
   for (const c of catalogos) {
@@ -43,6 +45,14 @@ router.get('/health', (req, res) => {
   if (ultimoRefresco?.errores?.length) {
     problemas.push(...ultimoRefresco.errores);
   }
+  if (sonda.error) {
+    problemas.push(`Sonda en vivo no pudo correr: ${sonda.error}`);
+  }
+  if (sonda.resultados) {
+    for (const [key, r] of Object.entries(sonda.resultados)) {
+      if (!r.ok) problemas.push(`Comparación en vivo de ${r.nombre} sin resultados para el EAN de prueba (${key}) — puede estar rota`);
+    }
+  }
 
   res.json({
     ok: problemas.length === 0,
@@ -51,6 +61,7 @@ router.get('/health', (req, res) => {
     catalogos,
     catalogoUnificado: unificado,
     ultimoRefresco,
+    sondaEnVivo: sonda,
     problemas,
   });
 });

@@ -17,6 +17,7 @@ const { puerto, entorno, rutaImagenes } = require('./config');
 const healthRouter = require('./routes/health');
 const catalogoRouter = require('./routes/catalogo');
 const compararRouter = require('./routes/comparar');
+const sondaEnVivo = require('./sondaEnVivo');
 
 const app = express();
 
@@ -76,6 +77,7 @@ function arrancar() {
     console.log(`🚀 AllPromos backend escuchando en http://localhost:${puerto} (${entorno})`);
     console.log(`   Probá: curl -s http://localhost:${puerto}/api/health`);
   });
+  sondaEnVivo.iniciar();
 }
 
 if (require.main === module) arrancar();
