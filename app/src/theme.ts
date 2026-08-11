@@ -4,10 +4,10 @@
  * Dos decisiones que explican casi todo lo demás:
  *
  * 1. Los colores de los supermercados son DATOS, no decoración. Vea verde, Carrefour azul,
- *    Chango Más violeta es la misma convención que ya se lee en la salida del CLI, así que
- *    el color de un precio siempre dice "de qué super es" y nunca "esto está bien/mal".
- *    Tampoco usamos logos ni los colores de marca reales: la app no está afiliada a ninguna
- *    cadena y no debe parecerlo.
+ *    Chango Más violeta, Coto rojo y Día blanco (con borde propio, ver `superBordes`) es la
+ *    misma convención que ya se lee en la salida del CLI, así que el color de un precio
+ *    siempre dice "de qué super es" y nunca "esto está bien/mal". Tampoco usamos logos ni
+ *    los colores de marca reales: la app no está afiliada a ninguna cadena y no debe parecerlo.
  *
  * 2. El ahorro se marca con amarillo de cartel de oferta, no con el verde de "éxito".
  *    El verde ya está ocupado por Vea como dato; si además significara "ahorro", un precio
@@ -29,8 +29,7 @@ const superColores = {
 // (blanco en modo claro) o se leería como "vacío"/"no disponible" en vez de "es Día". El
 // resto de los supers no lo necesita, sus colores ya contrastan en los dos temas. Los
 // componentes que dibujan el punto de identidad (PuntosDisponibilidad, BarraDiferencia,
-// "Todo en X" en resultado.tsx) tienen que leer esto — pendiente de aplicar cuando se
-// integre Día a esos componentes (ver PLAN_FEATURES_APP.md).
+// "Todo en X" y la banda de color del plan de compra en resultado.tsx) leen esto.
 const superBordes = {
   light: { dia: '#C6CCD3' },
   dark:  { dia: '#3C444D' },

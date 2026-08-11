@@ -12,9 +12,9 @@ import type { SuperKey } from '../api';
 import { espacio, radio, texto } from '../theme';
 import { useTema } from '../useTema';
 
-const ORDEN_SUPERS: SuperKey[] = ['vea', 'carr', 'changomas'];
+const ORDEN_SUPERS: SuperKey[] = ['vea', 'carr', 'changomas', 'dia', 'coto'];
 const NOMBRE_SUPER: Record<SuperKey, string> = {
-  vea: 'Vea', carr: 'Carrefour', changomas: 'Chango Más',
+  vea: 'Vea', carr: 'Carrefour', changomas: 'Chango Más', dia: 'Día', coto: 'Coto',
 };
 
 /** En qué supers existe el producto, antes de saber precios. Color = identidad del super. */
@@ -27,13 +27,18 @@ export function PuntosDisponibilidad({ disponibleEn }: { disponibleEn: SuperKey[
     >
       {ORDEN_SUPERS.map(key => {
         const presente = disponibleEn.includes(key);
+        // Día es blanco: sin borde se pierde contra `superficie` o se lee como "no disponible".
+        const bordeIdentidad = (paleta.supersBorde as Partial<Record<SuperKey, string>>)[key];
         return (
           <View
             key={key}
             style={[
               styles.punto,
               presente
-                ? { backgroundColor: paleta.supers[key] }
+                ? {
+                    backgroundColor: paleta.supers[key],
+                    ...(bordeIdentidad ? { borderWidth: 1, borderColor: bordeIdentidad } : null),
+                  }
                 : { backgroundColor: 'transparent', borderWidth: 1, borderColor: paleta.borde },
             ]}
           />

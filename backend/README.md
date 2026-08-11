@@ -18,7 +18,7 @@ La app mobile no habla directo con las APIs de los supermercados por dos razones
 npm install
 cp .env.example .env
 
-npm run unificar              # genera catalogo-unificado.json desde los 3 catálogos locales
+npm run unificar              # genera catalogo-unificado.json desde los 5 catálogos locales
 npm start                     # http://localhost:3000
 curl -s localhost:3000/api/health
 ```
@@ -30,11 +30,11 @@ devuelven 503 con la instrucción de generarlo.
 
 | Método | Ruta | Qué hace |
 |---|---|---|
-| GET | `/api/health` | Frescura de los 3 catálogos, estado del unificado y resultado del último refresco. Es donde se ve si se venció la cookie de Vea o si se rompió un hash de GraphQL. |
+| GET | `/api/health` | Frescura de los 5 catálogos, estado del unificado y resultado del último refresco. Es donde se ve si se venció la cookie de Vea o si se rompió un hash de GraphQL. |
 | GET | `/api/catalogo/buscar?q=…` | Busca en el catálogo unificado. **Nunca devuelve precios.** |
 | GET | `/api/catalogo/categorias` | Categorías agrupadas por rubro. |
 | GET | `/api/catalogo/producto/:ean` | Un producto del catálogo local. |
-| POST | `/api/comparar` | El endpoint central: precios y promos en vivo de los 3 supers para un carrito. |
+| POST | `/api/comparar` | El endpoint central: precios y promos en vivo de los 5 supers para un carrito. |
 
 Ningún endpoint pide token — ver "Seguridad" abajo para por qué.
 
@@ -54,7 +54,7 @@ como aviso con un botón y no vuelve a consultar nada hasta que el usuario acept
 ## Cron
 
 ```bash
-npm run refrescar    # corre los 3 scrapers + regenera el unificado + sonda de promos bancarias
+npm run refrescar    # corre los 5 scrapers + regenera el unificado + sonda de promos bancarias
 ```
 
 Los scrapers se lanzan como **subprocesos con `cwd = AllPromos/`**, no se refactorizan: tienen
@@ -78,7 +78,7 @@ un fallo sin leer logs.
 cualquier visitante — no protege nada en un cliente web, cualquiera lo puede leer con
 "Inspeccionar" y usarlo directo contra el backend. En vez de fingir un secreto que no lo es,
 se sacó y se dejó como única defensa el rate limiting: 120 req/min global y 20/min para
-`/api/comparar` (más estricto porque cada comparación dispara 3 requests reales a los supers —
+`/api/comparar` (más estricto porque cada comparación dispara 5 requests reales a los supers —
 Carrefour y Chango Más ya devuelven 429/502 con tráfico normal, así que un abuso ahí arriesga
 que nos bloqueen a nosotros, no solo "gastar de más" el backend propio).
 

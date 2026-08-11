@@ -28,6 +28,15 @@ import { FotoProducto } from '../src/componentes/FotoProducto';
 import { espacio, pesos, radio, texto } from '../src/theme';
 import { useTema } from '../src/useTema';
 
+/** Color de identidad de un super, con el borde de contraste de Día si corresponde (ver theme.ts). */
+function colorIdentidad(paleta: ReturnType<typeof useTema>['paleta'], key: SuperKey) {
+  const borde = (paleta.supersBorde as Partial<Record<SuperKey, string>>)[key];
+  return {
+    backgroundColor: paleta.supers[key],
+    ...(borde ? { borderWidth: 1, borderColor: borde } : null),
+  };
+}
+
 export default function PantallaResultado() {
   const { paleta } = useTema();
   const insets = useSafeAreaInsets();
@@ -56,7 +65,7 @@ export default function PantallaResultado() {
       <View style={[styles.centrado, { backgroundColor: paleta.fondo }]}>
         <ActivityIndicator color={paleta.tintaSuave} />
         <Text style={[texto.cuerpo, { color: paleta.tintaSuave, textAlign: 'center' }]}>
-          Consultando precios en Vea, Carrefour y Chango Más…
+          Consultando precios en Vea, Carrefour, Chango Más, Día y Coto…
         </Text>
       </View>
     );
@@ -141,7 +150,7 @@ function Veredicto({ data }: { data: RespuestaComparar }) {
         {supersConTotal.map(s => (
           <View key={s.key} style={styles.filaUnico}>
             <View style={styles.identidadUnico}>
-              <View style={[styles.punto, { backgroundColor: paleta.supers[s.key] }]} />
+              <View style={[styles.punto, colorIdentidad(paleta, s.key)]} />
               <Text style={[texto.etiqueta, { color: paleta.tintaSuave }]}>Todo en {s.nombre}</Text>
             </View>
             <Text style={[texto.precioChico, { color: paleta.tintaSuave }]}>
@@ -170,7 +179,7 @@ function PlanDeCompra({ data }: { data: RespuestaComparar }) {
           key={s.key}
           style={[styles.tarjetaPlan, { backgroundColor: paleta.superficie, borderColor: paleta.borde }, sombra]}
         >
-          <View style={[styles.bandaColor, { backgroundColor: paleta.supers[s.key] }]} />
+          <View style={[styles.bandaColor, colorIdentidad(paleta, s.key)]} />
           <View style={styles.planCuerpo}>
             <View style={styles.planEncabezado}>
               <Text style={[texto.subtitulo, { color: paleta.tinta }]}>{s.nombre}</Text>

@@ -1,8 +1,8 @@
 /**
  * Descarga y guarda en disco, UNA SOLA VEZ por EAN, la foto de producto que ya viene en la
  * misma respuesta que usamos para precio (`items[].images[].imageUrl`) — no hace falta
- * scrapear nada nuevo, el dato ya está en catalogo-{vea,carrefour,changomas}.json una vez que
- * los scrapers lo capturan (ver el campo `imagenUrl` que agregan).
+ * scrapear nada nuevo, el dato ya está en catalogo-{vea,carrefour,changomas,dia,coto}.json una
+ * vez que los scrapers lo capturan (ver el campo `imagenUrl` que agregan).
  *
  * "Para siempre" es la decisión explícita acá: si `backend/imagenes/<ean>.<ext>` ya existe,
  * NUNCA se vuelve a descargar, ni siquiera si el cron diario corre de nuevo — la foto de un
@@ -11,13 +11,15 @@
  * refrescar una imagen puntual (ej. el super la cambió), hay que borrar el archivo a mano;
  * no hay lógica de "vencimiento" para fotos.
  *
- * Se descarga en 300x300, no el tamaño original — los 3 supers corren sobre VTEX, y su CDN
- * soporta pedir un tamaño puntual insertando `-ancho-alto` en la URL (confirmado en vivo el
- * 2026-08-10 contra los 3: Vea 7.4x más chica, Carrefour ~20x, Chango Más ~8.4x). La app nunca
- * muestra la foto a más de ~44px, así que servir el original (hasta 1000x1000, algunos de
- * Carrefour pesan 350KB+) sería bajar datos que se tiran al achicarla en el cliente. 300x300
- * deja margen para una futura pantalla de "ver foto grande" sin verse claramente pixelada,
- * a cambio de solo ~4x menos ahorro que ir directo a 150x150. Ver `conTamano()`.
+ * Se descarga en 300x300, no el tamaño original — Vea, Carrefour, Chango Más y Día corren
+ * sobre VTEX, y su CDN soporta pedir un tamaño puntual insertando `-ancho-alto` en la URL
+ * (confirmado en vivo el 2026-08-10 contra esos 4: Vea 7.4x más chica, Carrefour ~20x, Chango
+ * Más ~8.4x). Coto no es VTEX y su URL no matchea ese patrón — `conTamano()` la deja sin
+ * tocar en ese caso (ver el fallback ahí abajo), así que sus fotos se bajan en el tamaño
+ * original. La app nunca muestra la foto a más de ~44px, así que servir el original (hasta
+ * 1000x1000, algunos de Carrefour pesan 350KB+) sería bajar datos que se tiran al achicarla en
+ * el cliente. 300x300 deja margen para una futura pantalla de "ver foto grande" sin verse
+ * claramente pixelada, a cambio de solo ~4x menos ahorro que ir directo a 150x150.
  */
 
 const fs = require('fs');

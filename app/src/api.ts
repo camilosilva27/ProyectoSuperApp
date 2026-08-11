@@ -6,7 +6,7 @@
  * permite controlar el ritmo de requests en un solo lugar en vez de en cada teléfono.
  */
 
-export type SuperKey = 'vea' | 'carr' | 'changomas';
+export type SuperKey = 'vea' | 'carr' | 'changomas' | 'dia' | 'coto';
 
 export type Supermercado = { key: SuperKey; nombre: string; tag: string };
 

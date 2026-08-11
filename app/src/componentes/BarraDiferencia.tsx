@@ -41,6 +41,15 @@ import type { OpcionSuper } from '../api';
 import { espacio, pesos, radio, texto } from '../theme';
 import { useTema } from '../useTema';
 
+/** Color de identidad de un super, con el borde de contraste de Día si corresponde (ver theme.ts). */
+function estiloIdentidadDe(paleta: ReturnType<typeof useTema>['paleta'], key: OpcionSuper['key']) {
+  const borde = (paleta.supersBorde as Partial<Record<OpcionSuper['key'], string>>)[key];
+  return {
+    backgroundColor: paleta.supers[key],
+    ...(borde ? { borderWidth: 1, borderColor: borde } : null),
+  };
+}
+
 type Props = {
   /** Ya ordenadas de más barata a más cara (así las devuelve el backend). */
   opciones: OpcionSuper[];
@@ -67,7 +76,7 @@ export function BarraDiferencia({ opciones, animar = true, demoraMs = 0, onActiv
           delta={opcion.total - mejor.total}
           totalMejor={mejor.total}
           esMejor={i === 0}
-          colorIdentidad={paleta.supers[opcion.key]}
+          estiloIdentidad={estiloIdentidadDe(paleta, opcion.key)}
           animar={animar}
           demoraMs={demoraMs + i * 70}
           onActivarTarjeta={onActivarTarjeta}
@@ -78,13 +87,13 @@ export function BarraDiferencia({ opciones, animar = true, demoraMs = 0, onActiv
 }
 
 function FilaSuper({
-  opcion, delta, totalMejor, esMejor, colorIdentidad, animar, demoraMs, onActivarTarjeta,
+  opcion, delta, totalMejor, esMejor, estiloIdentidad, animar, demoraMs, onActivarTarjeta,
 }: {
   opcion: OpcionSuper;
   delta: number;
   totalMejor: number;
   esMejor: boolean;
-  colorIdentidad: string;
+  estiloIdentidad: { backgroundColor: string; borderWidth?: number; borderColor?: string };
   animar: boolean;
   demoraMs: number;
   onActivarTarjeta?: (tarjeta: string) => void;
@@ -123,7 +132,7 @@ function FilaSuper({
     <View style={styles.fila}>
       <View style={styles.encabezado}>
         <View style={styles.identidad}>
-          <View style={[styles.punto, { backgroundColor: colorIdentidad }]} />
+          <View style={[styles.punto, estiloIdentidad]} />
           <Text style={[texto.etiqueta, { color: paleta.tinta }]} numberOfLines={1}>
             {opcion.super}
           </Text>

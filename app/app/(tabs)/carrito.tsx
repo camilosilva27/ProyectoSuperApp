@@ -143,7 +143,7 @@ export default function PantallaCarrito() {
         >
           <BotonPrincipal
             onPress={() => router.push('/resultado')}
-            subtitulo="Precios en vivo de los 3 supermercados"
+            subtitulo="Precios en vivo de los 5 supermercados"
           >
             Comparar precios
           </BotonPrincipal>
