@@ -252,7 +252,6 @@ function AvisoCantidad({
 }: { item: ItemComparado; onAplicar: (cantidad: number) => void }) {
   const { paleta } = useTema();
   const sugerencia = item.sugerenciaCantidad!;
-  const mejorActual = item.mejor?.total ?? null;
 
   return (
     <View style={[styles.aviso, { backgroundColor: paleta.ofertaSuave, borderColor: paleta.oferta }]}>
@@ -266,12 +265,6 @@ function AvisoCantidad({
           null
         );
         if (!mejorPrevia) return null;
-
-        // Comparación honesta: llevar más unidades casi siempre cuesta más en total. Lo que
-        // se muestra es el precio por unidad, que es donde realmente se ve la ventaja.
-        const porUnidadAhora = mejorActual != null ? mejorActual / item.cantidad : null;
-        const porUnidadPrevia = mejorPrevia.total / previa.cantidad;
-        const conviene = porUnidadAhora != null && porUnidadPrevia < porUnidadAhora;
 
         return (
           <Pressable
@@ -288,13 +281,11 @@ function AvisoCantidad({
               <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>
                 Llevá {previa.cantidad}: {pesos(mejorPrevia.total)} en {mejorPrevia.nombre}
               </Text>
-              <Text style={[texto.dato, { color: paleta.tintaSuave }]}>
-                {pesos(porUnidadPrevia)} por unidad
-                {conviene && porUnidadAhora != null
-                  ? ` · ahorrás ${pesos(porUnidadAhora - porUnidadPrevia)} en cada una`
-                  : ''}
-                {mejorPrevia.oferta ? ` · ${mejorPrevia.oferta}` : ''}
-              </Text>
+              {mejorPrevia.oferta ? (
+                <Text style={[texto.dato, { color: paleta.tintaSuave }]}>
+                  {mejorPrevia.oferta}
+                </Text>
+              ) : null}
             </View>
             <Text style={[texto.subtitulo, { color: paleta.tinta }]}>›</Text>
           </Pressable>
