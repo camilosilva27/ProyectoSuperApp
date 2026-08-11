@@ -2,10 +2,13 @@
  * Genera backend/catalogo-unificado.json: el índice de productos que alimenta la vista de
  * selección de la app (buscar y tocar, en vez de escribir el nombre a mano).
  *
- * Combina los 3 catálogos locales deduplicando por EAN. El orden de prioridad para el
- * nombre canónico es Vea → Carrefour → Chango Más, el mismo que ya usa
- * resolverEANporNombre() en AllPromos/core/catalogo.js, para que un producto se llame igual
- * en la app y en el CLI.
+ * Combina los catálogos locales deduplicando por EAN. El orden de prioridad para el
+ * nombre canónico es Vea → Carrefour → Chango Más → Día → Coto, el mismo que ya usa
+ * resolverEANporNombre() en AllPromos/core/catalogo.js (salvo Coto, que no está ahí — ver
+ * nota en ese archivo), para que un producto se llame igual en la app y en el CLI.
+ *
+ * Coto entra acá solo para catálogo/búsqueda — todavía no tiene comparación de precio en
+ * vivo (ver AllPromos/scraper-promos-coto.js: precio por sucursal, decisión pendiente).
  *
  * IMPORTANTE — los campos de precio se excluyen a propósito. Los catalogo-*.json traen
  * `precioBase`/`precioActual`/`promocion`/`descuentoDirecto` de la fecha del scraping, que
@@ -33,6 +36,8 @@ const FUENTES = [
   { key: 'vea',       archivo: 'catalogo-vea.json' },
   { key: 'carr',      archivo: 'catalogo-carrefour.json' },
   { key: 'changomas', archivo: 'catalogo-changomas.json' },
+  { key: 'dia',       archivo: 'catalogo-dia.json' },
+  { key: 'coto',      archivo: 'catalogo-coto.json' },
 ];
 
 function construirCatalogoUnificado() {

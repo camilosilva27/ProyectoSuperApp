@@ -31,6 +31,8 @@ const SCRAPERS = [
   { nombre: 'Vea',        archivo: 'scraper-promos-vea.js',        timeoutMs: 15 * 60 * 1000 },
   { nombre: 'Carrefour',  archivo: 'scraper-promos-carrefour.js',  timeoutMs: 25 * 60 * 1000 },
   { nombre: 'Chango Más', archivo: 'scraper-promos-changomas.js',  timeoutMs: 15 * 60 * 1000 },
+  { nombre: 'Día',        archivo: 'scraper-promos-dia.js',        timeoutMs: 15 * 60 * 1000 },
+  { nombre: 'Coto',       archivo: 'scraper-promos-coto.js',       timeoutMs: 20 * 60 * 1000 },
 ];
 
 function correrScraper({ nombre, archivo, timeoutMs }) {

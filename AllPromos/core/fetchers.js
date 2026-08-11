@@ -26,10 +26,17 @@ const VEA_SELLER = 'jumboargentinav700cordoba700';
 const CHANGOMAS_HOST   = 'https://www.masonline.com.ar';
 const CHANGOMAS_SELLER = '1';
 
+// Día corre sobre VTEX igual que Carrefour/Chango Más: mismo mecanismo de descuento directo
+// (Price < ListPrice) y Teasers para promos condicionales (confirmado en vivo, ver
+// scraper-promos-dia.js). Sin cookie ni sales channel especial: sc=1, seller "1".
+const DIA_HOST   = 'https://diaonline.supermercadosdia.com.ar';
+const DIA_SELLER = '1';
+
 const SUPERMERCADOS = [
   { key: 'vea',       nombre: 'Vea',        tag: '🟢' },
   { key: 'carr',      nombre: 'Carrefour',  tag: '🔵' },
   { key: 'changomas', nombre: 'Chango Más', tag: '🟣' },
+  { key: 'dia',       nombre: 'Día',        tag: '🟡' },
 ];
 
 // ─── Live: Carrefour ──────────────────────────────────────────────────────────
@@ -248,35 +255,104 @@ async function veaLiveNombre(nombre) {
   return res.ok ? parsearProductosVea(await res.json()) : [];
 }
 
+// ─── Live: Día ────────────────────────────────────────────────────────────────
+// Misma forma que Chango Más: descuento directo embebido + Teasers/PromotionTeasers
+// filtrando promos bancarias. Existe además un formato "2x$X" (precio fijo, no %) que
+// interpretarPromoCarrefour() todavía no interpreta — queda sin promo en vez de romper
+// (mismo comportamiento que un teaser desconocido de cualquier otro super).
+function parsearProductosDia(products) {
+  const resultados = [];
+  for (const p of products) {
+    for (const sku of p.items || []) {
+      const offer = sku.sellers?.find(s => s.sellerId === DIA_SELLER)?.commertialOffer
+        || sku.sellers?.[0]?.commertialOffer;
+      if (!offer) continue;
+      const price     = offer.Price     || 0;
+      const listPrice = offer.ListPrice || 0;
+
+      if (listPrice > 0 && price < listPrice) {
+        resultados.push({
+          super: 'Día',
+          productName: p.productName, skuName: sku.name, ean: sku.ean,
+          precioBase: listPrice,
+          promo: interpretarPromoPorTexto('', (1 - price / listPrice).toFixed(4)),
+        });
+      }
+
+      const teasersInternos = [...(offer.Teasers || []), ...(offer.PromotionTeasers || [])]
+        .map(t => ({ nombre: t['<Name>k__BackingField'] ?? t.Name ?? t.name ?? '' }))
+        .filter(t => t.nombre && !/tarjeta|cuenta digital|banco/i.test(t.nombre));
+
+      for (const t of teasersInternos) {
+        const promo = interpretarPromoCarrefour(t);
+        if (promo) {
+          resultados.push({
+            super: 'Día',
+            productName: p.productName, skuName: sku.name, ean: sku.ean,
+            precioBase: price, promo,
+          });
+        }
+      }
+
+      if (price > 0 && (!listPrice || price >= listPrice) && teasersInternos.length === 0) {
+        resultados.push({
+          super: 'Día',
+          productName: p.productName, skuName: sku.name, ean: sku.ean,
+          precioBase: price, promo: null,
+        });
+      }
+    }
+  }
+  return resultados;
+}
+
+async function diaLiveEAN(ean) {
+  const res = await fetch(
+    `${DIA_HOST}/api/catalog_system/pub/products/search?fq=alternateIds_Ean:${ean}&sc=1`,
+    { headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' } }
+  );
+  return res.ok ? parsearProductosDia(await res.json()) : [];
+}
+
+async function diaLiveNombre(nombre) {
+  const res = await fetch(
+    `${DIA_HOST}/api/catalog_system/pub/products/search?fq=productName:${encodeURIComponent(nombre)}&_from=0&_to=9&sc=1`,
+    { headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' } }
+  );
+  return res.ok ? parsearProductosDia(await res.json()) : [];
+}
+
 // ─── Orquestación ─────────────────────────────────────────────────────────────
 
 /**
- * Precios en vivo de un EAN en los 3 supers, en paralelo.
+ * Precios en vivo de un EAN en los 4 supers, en paralelo.
  * @param {string} ean
  * @param {object} opciones
  * @param {string[]} opciones.tarjetas   tarjetas del usuario (habilita promos de tarjeta propia)
  * @param {string|null} opciones.skuIdVea  si ya se conoce, evita releer el catálogo de Vea.
  *                                         Si se omite, se resuelve desde el catálogo local.
- * @returns {{ vea: [], carr: [], changomas: [] }}
+ * @returns {{ vea: [], carr: [], changomas: [], dia: [] }}
  */
 async function buscarPorEAN(ean, { tarjetas = [], skuIdVea } = {}) {
   const sku = skuIdVea === undefined ? skuIdVeaPorEAN(ean) : skuIdVea;
-  const [vea, carr, changomas] = await Promise.all([
+  const [vea, carr, changomas, dia] = await Promise.all([
     veaLive(ean, sku),
     carrefourLiveEAN(ean, { tarjetas }),
     changoMasLiveEAN(ean),
+    diaLiveEAN(ean),
   ]);
-  return { vea, carr, changomas };
+  return { vea, carr, changomas, dia };
 }
 
-/** Fallback: búsqueda por nombre directo en las 3 APIs (menos confiable que por EAN). */
+/** Fallback: búsqueda por nombre directo en las 4 APIs (menos confiable que por EAN). */
 async function buscarPorNombreEnVivo(nombre, { tarjetas = [] } = {}) {
-  const [vea, carr, changomas] = await Promise.all([
+  const [vea, carr, changomas, dia] = await Promise.all([
     veaLiveNombre(nombre),
     carrefourLiveNombre(nombre, { tarjetas }),
     changoMasLiveNombre(nombre),
+    diaLiveNombre(nombre),
   ]);
-  return { vea, carr, changomas };
+  return { vea, carr, changomas, dia };
 }
 
 module.exports = {
@@ -284,16 +360,21 @@ module.exports = {
   VEA_SELLER,
   CHANGOMAS_HOST,
   CHANGOMAS_SELLER,
+  DIA_HOST,
+  DIA_SELLER,
   SUPERMERCADOS,
   parsearProductosCarrefour,
   parsearProductosChangoMas,
   parsearProductosVea,
+  parsearProductosDia,
   carrefourLiveEAN,
   carrefourLiveNombre,
   changoMasLiveEAN,
   changoMasLiveNombre,
   veaLive,
   veaLiveNombre,
+  diaLiveEAN,
+  diaLiveNombre,
   buscarPorEAN,
   buscarPorNombreEnVivo,
 };
