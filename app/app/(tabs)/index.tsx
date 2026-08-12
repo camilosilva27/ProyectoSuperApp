@@ -11,12 +11,12 @@ import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   buscarProductos, ErrorApi, precios as pedirPrecios, MAX_EANS_PRECIOS,
-  type ProductoCatalogo, type PrecioRapido,
+  type ProductoCatalogo, type PrecioRapido, type SuperKey, type OrdenBusqueda,
 } from '../../src/api';
 import { useCarrito } from '../../src/carrito';
 import {
@@ -78,6 +78,21 @@ function usePreciosProgresivos() {
   return { precios, marcarVisibles };
 }
 
+const OPCIONES_ORDEN: { valor: OrdenBusqueda; etiqueta: string }[] = [
+  { valor: 'alfabetico', etiqueta: 'Alfabético' },
+  { valor: 'disponibilidad', etiqueta: 'Más disponible' },
+  { valor: 'precio', etiqueta: 'Precio' },
+];
+
+const OPCIONES_SUPER: { valor: SuperKey | ''; etiqueta: string }[] = [
+  { valor: '', etiqueta: 'Todos' },
+  { valor: 'vea', etiqueta: 'Vea' },
+  { valor: 'carr', etiqueta: 'Carrefour' },
+  { valor: 'changomas', etiqueta: 'Chango Más' },
+  { valor: 'dia', etiqueta: 'Día' },
+  { valor: 'coto', etiqueta: 'Coto' },
+];
+
 /** Espera a que el usuario deje de tipear antes de consultar: menos requests, menos parpadeo. */
 function useTextoDemorado(valor: string, ms = 300) {
   const [demorado, setDemorado] = useState(valor);
@@ -96,10 +111,12 @@ export default function PantallaBuscar() {
   const [consulta, setConsulta] = useState('');
   const consultaDemorada = useTextoDemorado(consulta.trim());
   const consultaValida = consultaDemorada.length >= 2;
+  const [orden, setOrden] = useState<OrdenBusqueda>('alfabetico');
+  const [superFiltro, setSuperFiltro] = useState<SuperKey | ''>('');
 
   const { data, isFetching, error, refetch } = useQuery({
-    queryKey: ['catalogo', consultaDemorada],
-    queryFn: () => buscarProductos(consultaDemorada),
+    queryKey: ['catalogo', consultaDemorada, superFiltro, orden],
+    queryFn: () => buscarProductos(consultaDemorada, { super: superFiltro, orden }),
     enabled: consultaValida,
   });
 
@@ -113,6 +130,29 @@ export default function PantallaBuscar() {
     }
   ).current;
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 60 }).current;
+
+  // "Ordenar por precio" pide precio de TODA la búsqueda de una (no progresivo por scroll,
+  // ver la discusión en el chat) — así la lista no salta de lugar mientras se completa. El
+  // límite de /api/precios (MAX_EANS_PRECIOS) coincide con el límite default de la búsqueda,
+  // por eso alcanza un solo lote.
+  useEffect(() => {
+    if (orden === 'precio' && data?.resultados?.length) {
+      marcarVisibles(data.resultados.map(p => p.ean));
+    }
+  }, [orden, data, marcarVisibles]);
+
+  const cargandoOrdenPrecio = orden === 'precio' && resultados.some(p => precios[p.ean] === undefined);
+
+  const resultadosMostrados = useMemo(() => {
+    if (orden !== 'precio' || cargandoOrdenPrecio) return orden === 'precio' ? [] : resultados;
+    return [...resultados].sort((a, b) => {
+      const pa = precios[a.ean];
+      const pb = precios[b.ean];
+      const va = pa && pa !== 'error' && pa.mejor ? pa.mejor.total : Infinity;
+      const vb = pb && pb !== 'error' && pb.mejor ? pb.mejor.total : Infinity;
+      return va - vb;
+    });
+  }, [resultados, orden, precios, cargandoOrdenPrecio]);
 
   const encabezado = useMemo(() => (
     <View>
@@ -136,20 +176,45 @@ export default function PantallaBuscar() {
         {isFetching ? <ActivityIndicator size="small" color={paleta.tintaTenue} /> : null}
       </View>
 
+      {consultaValida ? (
+        <>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filaChips}>
+            {OPCIONES_ORDEN.map(o => (
+              <Chip key={o.valor} etiqueta={o.etiqueta} activo={orden === o.valor} onPress={() => setOrden(o.valor)} />
+            ))}
+          </ScrollView>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filaChips}>
+            {OPCIONES_SUPER.map(o => (
+              <Chip
+                key={o.valor || 'todos'}
+                etiqueta={o.etiqueta}
+                activo={superFiltro === o.valor}
+                onPress={() => setSuperFiltro(o.valor)}
+              />
+            ))}
+          </ScrollView>
+        </>
+      ) : null}
+
       {consultaValida && !isFetching && !error ? (
         <Text style={[texto.micro, styles.contador, { color: paleta.tintaTenue }]}>
-          {data?.total === 0
-            ? 'SIN RESULTADOS'
-            : `${data?.total} RESULTADO${data?.total === 1 ? '' : 'S'}${hayMas ? ` · MOSTRANDO ${resultados.length}` : ''}`}
+          {cargandoOrdenPrecio
+            ? 'ORDENANDO POR PRECIO…'
+            : data?.total === 0
+              ? 'SIN RESULTADOS'
+              : `${data?.total} RESULTADO${data?.total === 1 ? '' : 'S'}${hayMas ? ` · MOSTRANDO ${resultados.length}` : ''}`}
         </Text>
       ) : null}
     </View>
-  ), [consulta, isFetching, error, data?.total, resultados.length, hayMas, paleta, sombra, consultaValida]);
+  ), [
+    consulta, isFetching, error, data?.total, resultados.length, hayMas, paleta, sombra,
+    consultaValida, orden, superFiltro, cargandoOrdenPrecio,
+  ]);
 
   return (
     <View style={[styles.pantalla, { backgroundColor: paleta.fondo, paddingTop: insets.top + espacio.md }]}>
       <FlatList
-        data={resultados}
+        data={resultadosMostrados}
         keyExtractor={p => p.ean}
         ListHeaderComponent={encabezado}
         contentContainerStyle={[
@@ -180,6 +245,8 @@ export default function PantallaBuscar() {
               }
               onReintentar={refetch}
             />
+          ) : cargandoOrdenPrecio ? (
+            <ActivityIndicator style={styles.cargandoOrden} color={paleta.tintaTenue} />
           ) : consultaValida && !isFetching ? (
             <Vacio
               titulo="Nada con ese nombre"
@@ -214,6 +281,27 @@ export default function PantallaBuscar() {
         </View>
       ) : null}
     </View>
+  );
+}
+
+function Chip({ etiqueta, activo, onPress }: { etiqueta: string; activo: boolean; onPress: () => void }) {
+  const { paleta } = useTema();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: activo }}
+      style={({ pressed }) => [
+        styles.chip,
+        {
+          backgroundColor: activo ? paleta.tinta : 'transparent',
+          borderColor: activo ? paleta.tinta : paleta.borde,
+          opacity: pressed ? 0.7 : 1,
+        },
+      ]}
+    >
+      <Text style={[texto.etiqueta, { color: activo ? paleta.fondo : paleta.tinta }]}>{etiqueta}</Text>
+    </Pressable>
   );
 }
 
@@ -325,7 +413,14 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderRadius: radio.md, paddingHorizontal: espacio.md,
   },
   input: { flex: 1, paddingVertical: 13 },
+  filaChips: { marginTop: espacio.sm },
+  chip: {
+    borderWidth: 1, borderRadius: radio.pill,
+    paddingHorizontal: espacio.md, paddingVertical: espacio.xs,
+    marginRight: espacio.sm,
+  },
   contador: { paddingTop: espacio.md, paddingBottom: espacio.xs },
+  cargandoOrden: { paddingVertical: espacio.xl },
   fila: {
     flexDirection: 'row', alignItems: 'center', gap: espacio.md,
     paddingVertical: espacio.md,

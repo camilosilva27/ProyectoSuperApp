@@ -141,9 +141,20 @@ async function pedir<T>(ruta: string, init?: RequestInit): Promise<T> {
   return respuesta.json() as Promise<T>;
 }
 
-export function buscarProductos(q: string, limit = 40) {
+/** 'precio' (ordenar por precio en vivo) NO se le pasa al backend — lo resuelve la pantalla
+ *  de búsqueda pidiendo precio de toda la lista y ordenando ella misma (ver index.tsx). */
+export type OrdenBusqueda = 'alfabetico' | 'disponibilidad' | 'precio';
+
+export function buscarProductos(q: string, opciones: {
+  limit?: number; super?: SuperKey | ''; orden?: OrdenBusqueda;
+} = {}) {
+  const { limit = 40, super: superFiltro = '', orden = 'alfabetico' } = opciones;
+  const params = new URLSearchParams({
+    q, limit: String(limit), orden: orden === 'precio' ? 'alfabetico' : orden,
+  });
+  if (superFiltro) params.set('super', superFiltro);
   return pedir<{ disponible: boolean; total: number; resultados: ProductoCatalogo[] }>(
-    `/api/catalogo/buscar?q=${encodeURIComponent(q)}&limit=${limit}`
+    `/api/catalogo/buscar?${params.toString()}`
   );
 }
 
@@ -155,7 +166,7 @@ export function comparar(items: { ean: string; cantidad: number }[], tarjetas: s
 }
 
 /** Máximo por lote — tiene que coincidir con MAX_EANS_PRECIOS del backend (routes/comparar.js). */
-export const MAX_EANS_PRECIOS = 20;
+export const MAX_EANS_PRECIOS = 40;
 
 export function precios(eans: string[]) {
   return pedir<{ generado: string; resultados: PrecioRapido[] }>('/api/precios', {

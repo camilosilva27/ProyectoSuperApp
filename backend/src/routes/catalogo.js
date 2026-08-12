@@ -12,17 +12,26 @@
 
 const express = require('express');
 const catalogoUnificado = require('../catalogoUnificado');
+const { SUPERMERCADOS } = require('../../../AllPromos/core/fetchers');
 
 const router = express.Router();
+const KEYS_SUPERMERCADOS = new Set(SUPERMERCADOS.map(s => s.key));
+const ORDENES_VALIDOS = new Set(['alfabetico', 'disponibilidad']);
 
 router.get('/catalogo/buscar', (req, res) => {
-  const { q = '', categoria = '', limit, offset } = req.query;
+  const { q = '', categoria = '', super: superFiltro = '', orden = 'alfabetico', limit, offset } = req.query;
 
   if (!q && !categoria) {
     return res.status(400).json({ error: 'Falta el parametro q (texto) o categoria' });
   }
+  if (superFiltro && !KEYS_SUPERMERCADOS.has(superFiltro)) {
+    return res.status(400).json({ error: `super invalido: ${superFiltro}` });
+  }
+  if (!ORDENES_VALIDOS.has(orden)) {
+    return res.status(400).json({ error: `orden invalido: ${orden}` });
+  }
 
-  const resultado = catalogoUnificado.buscar({ q, categoria, limit, offset });
+  const resultado = catalogoUnificado.buscar({ q, categoria, super: superFiltro, orden, limit, offset });
 
   if (!resultado.disponible) {
     return res.status(503).json({

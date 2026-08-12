@@ -54,10 +54,16 @@ function leerEstadoUnificado() {
 }
 
 /**
- * Busca productos por texto libre y/o categoría.
+ * Busca productos por texto libre y/o categoría, con filtro opcional por supermercado y
+ * orden opcional.
+ * @param {string} orden 'alfabetico' (default — es el orden en que ya vienen guardados los
+ *   productos, ver unificarCatalogo.js) o 'disponibilidad' (más supers primero; empate
+ *   preserva el orden alfabético porque Array#sort de Node es estable).
  * @returns { total, resultados: [{ ean, nombre, variante, categoria, disponibleEn }] }
  */
-function buscar({ q = '', categoria = '', limit = limiteBusquedaDefault, offset = 0 } = {}) {
+function buscar({
+  q = '', categoria = '', super: superFiltro = '', orden = 'alfabetico', limit = limiteBusquedaDefault, offset = 0,
+} = {}) {
   const c = cargar();
   if (!c) return { total: 0, resultados: [], disponible: false };
 
@@ -67,8 +73,13 @@ function buscar({ q = '', categoria = '', limit = limiteBusquedaDefault, offset 
   const coincidencias = [];
   for (const entrada of c.indice) {
     if (categoriaNorm && !entrada.categoriaNorm.startsWith(categoriaNorm)) continue;
+    if (superFiltro && !entrada.producto.disponibleEn.includes(superFiltro)) continue;
     if (palabras.length && !matchesBusqueda(entrada.haystackNombre, entrada.haystackVariante, palabras)) continue;
     coincidencias.push(entrada.producto);
+  }
+
+  if (orden === 'disponibilidad') {
+    coincidencias.sort((a, b) => b.disponibleEn.length - a.disponibleEn.length);
   }
 
   const tope = Math.min(Math.max(1, Number(limit) || limiteBusquedaDefault), limiteBusquedaMaximo);

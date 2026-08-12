@@ -232,12 +232,12 @@ router.post('/comparar', async (req, res) => {
   });
 });
 
-// MAX_EANS_PRECIOS es a propósito el mismo orden de magnitud que un lote visible en pantalla
-// (ver app/(tabs)/index.tsx), no una lista de búsqueda completa — este endpoint es para
-// completar precio/promo de a lotes chicos a medida que se scrollea, no para traer precio de
-// todo el catálogo de una. El mismo rate limit estricto que /comparar aplica acá (ver
-// server.js) porque también dispara consultas reales a los 5 supers.
-const MAX_EANS_PRECIOS = 20;
+// MAX_EANS_PRECIOS coincide a propósito con el límite default de /api/catalogo/buscar (ver
+// app/(tabs)/index.tsx): cubre tanto un lote visible en pantalla mientras se scrollea, como
+// pedir precio de UNA búsqueda completa de una sola vez para "ordenar por precio" — nunca de
+// más que eso (no es para traer precio de todo el catálogo). El mismo rate limit estricto que
+// /comparar aplica acá (ver server.js) porque también dispara consultas reales a los 5 supers.
+const MAX_EANS_PRECIOS = 40;
 
 /**
  * POST /api/precios — versión liviana de /comparar para la pantalla de búsqueda: dado un
