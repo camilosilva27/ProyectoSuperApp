@@ -9,19 +9,74 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { buscarProductos, ErrorApi, type ProductoCatalogo } from '../../src/api';
+import {
+  buscarProductos, ErrorApi, precios as pedirPrecios, MAX_EANS_PRECIOS,
+  type ProductoCatalogo, type PrecioRapido,
+} from '../../src/api';
 import { useCarrito } from '../../src/carrito';
 import {
   BotonPrincipal, EncabezadoPantalla, Problema, PuntosDisponibilidad, Stepper, Vacio,
 } from '../../src/componentes/comunes';
 import { FotoProducto } from '../../src/componentes/FotoProducto';
-import { espacio, radio, texto } from '../../src/theme';
+import { espacio, pesos, radio, texto } from '../../src/theme';
 import { useTema } from '../../src/useTema';
+
+/**
+ * Precio/oferta de a lotes chicos, a medida que se scrollea — no de toda la búsqueda de una.
+ * `onViewableItemsChanged` de FlatList avisa qué EANs están en pantalla en cada momento; los
+ * que todavía no se pidieron (ni están en curso) se acumulan y se piden juntos, con un debounce
+ * corto para no disparar un request por cada pixel de scroll. Ver backend/src/routes/comparar.js
+ * (POST /api/precios) para por qué esto no reemplaza /api/catalogo/buscar: ese nunca trae
+ * precio, a propósito.
+ */
+function usePreciosProgresivos() {
+  const [precios, setPrecios] = useState<Record<string, PrecioRapido | 'error'>>({});
+  const pedidos = useRef(new Set<string>());
+  const pendientes = useRef(new Set<string>());
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const pedirLote = useCallback(() => {
+    const lote = [...pendientes.current].slice(0, MAX_EANS_PRECIOS);
+    pendientes.current.clear();
+    if (!lote.length) return;
+    lote.forEach(ean => pedidos.current.add(ean));
+
+    pedirPrecios(lote)
+      .then(({ resultados }) => {
+        setPrecios(prev => {
+          const siguiente = { ...prev };
+          for (const r of resultados) siguiente[r.ean] = r;
+          return siguiente;
+        });
+      })
+      .catch(() => {
+        setPrecios(prev => {
+          const siguiente = { ...prev };
+          for (const ean of lote) siguiente[ean] = 'error';
+          return siguiente;
+        });
+      });
+  }, []);
+
+  const marcarVisibles = useCallback((eans: string[]) => {
+    let hayNuevos = false;
+    for (const ean of eans) {
+      if (pedidos.current.has(ean) || pendientes.current.has(ean)) continue;
+      pendientes.current.add(ean);
+      hayNuevos = true;
+    }
+    if (!hayNuevos) return;
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(pedirLote, 350);
+  }, [pedirLote]);
+
+  return { precios, marcarVisibles };
+}
 
 /** Espera a que el usuario deje de tipear antes de consultar: menos requests, menos parpadeo. */
 function useTextoDemorado(valor: string, ms = 300) {
@@ -50,6 +105,14 @@ export default function PantallaBuscar() {
 
   const resultados = data?.resultados ?? [];
   const hayMas = (data?.total ?? 0) > resultados.length;
+
+  const { precios, marcarVisibles } = usePreciosProgresivos();
+  const onViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: Array<{ item: ProductoCatalogo }> }) => {
+      marcarVisibles(viewableItems.map(v => v.item.ean));
+    }
+  ).current;
+  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 60 }).current;
 
   const encabezado = useMemo(() => (
     <View>
@@ -96,10 +159,13 @@ export default function PantallaBuscar() {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         ItemSeparatorComponent={() => <View style={[styles.separador, { backgroundColor: paleta.borde }]} />}
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig}
         renderItem={({ item }) => (
           <FilaProducto
             producto={item}
             cantidad={carrito.cantidadDe(item.ean)}
+            precio={precios[item.ean]}
             onAgregar={() => carrito.agregar(item)}
             onCambiarCantidad={n => carrito.cambiarCantidad(item.ean, n)}
           />
@@ -161,10 +227,12 @@ export default function PantallaBuscar() {
  * Stepper es el único elemento interactivo.
  */
 function FilaProducto({
-  producto, cantidad, onAgregar, onCambiarCantidad,
+  producto, cantidad, precio, onAgregar, onCambiarCantidad,
 }: {
   producto: ProductoCatalogo;
   cantidad: number;
+  /** undefined = todavía no se pidió (no visible el tiempo suficiente); 'error' = falló el pedido. */
+  precio: PrecioRapido | 'error' | undefined;
   onAgregar: () => void;
   onCambiarCantidad: (n: number) => void;
 }) {
@@ -192,6 +260,7 @@ function FilaProducto({
             </Text>
           ) : null}
         </View>
+        <BadgePrecio precio={precio} />
       </View>
 
       {enLista ? (
@@ -224,6 +293,30 @@ function FilaProducto({
   );
 }
 
+/**
+ * Precio + oferta, chico y no bloqueante — no aparece nada hasta que la fila estuvo visible
+ * un rato (ver usePreciosProgresivos) y respondió; no hay spinner de carga a propósito, la
+ * idea es que el precio "aparezca" en vez de anunciar que está cargando.
+ */
+function BadgePrecio({ precio }: { precio: PrecioRapido | 'error' | undefined }) {
+  const { paleta } = useTema();
+  if (precio === undefined || precio === 'error' || !precio.mejor) return null;
+
+  return (
+    <View style={styles.badgePrecio}>
+      <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>{pesos(precio.mejor.total)}</Text>
+      <Text style={[texto.micro, { color: paleta.supers[precio.mejor.key] }]} numberOfLines={1}>
+        {precio.mejor.tag} {precio.mejor.super}
+      </Text>
+      {precio.oferta ? (
+        <View style={[styles.pillOferta, { backgroundColor: paleta.ofertaSuave, borderColor: paleta.oferta }]}>
+          <Text style={[texto.micro, { color: paleta.tinta }]} numberOfLines={1}>{precio.oferta}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   pantalla: { flex: 1 },
   lista: { paddingHorizontal: espacio.lg },
@@ -239,6 +332,11 @@ const styles = StyleSheet.create({
   },
   filaTexto: { flex: 1, gap: 3 },
   filaMeta: { flexDirection: 'row', alignItems: 'center', gap: espacio.sm, paddingTop: 2 },
+  badgePrecio: { flexDirection: 'row', alignItems: 'center', gap: espacio.sm, paddingTop: 4 },
+  pillOferta: {
+    borderWidth: 1, borderRadius: radio.pill,
+    paddingHorizontal: espacio.sm, paddingVertical: 1,
+  },
   masBoton: {
     width: 34, height: 34, borderRadius: radio.pill, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',

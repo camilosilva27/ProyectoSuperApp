@@ -1,7 +1,7 @@
 /**
  * Refresco diario de los catálogos locales + regeneración del catálogo unificado.
  *
- * Corre los 3 scrapers existentes como SUBPROCESOS, sin refactorizarlos. Es deliberado:
+ * Corre los 5 scrapers existentes como SUBPROCESOS, sin refactorizarlos. Es deliberado:
  * tienen lógica de retry/backoff frente a 429 (Carrefour) y 502 intermitentes (Chango Más)
  * que AllPromos/CLAUDE.md pide explícitamente no tocar. Invocarlos como proceso separado es
  * el cambio de menor riesgo y además aísla un crash de un scraper del resto del refresco.
@@ -10,9 +10,9 @@
  * __dirname. Por eso se los lanza con cwd = AllPromos/ — si se los corriera desde backend/
  * escribirían los catálogos en el lugar equivocado y el server seguiría leyendo los viejos.
  *
- * Se corren en serie, no en paralelo: son 3 procesos pegándole a APIs de producción de
- * terceros y correrlos juntos triplicaría el ritmo de requests justo contra los endpoints
- * que ya rate-limitean.
+ * Se corren en serie, no en paralelo: son 5 procesos pegándole a APIs de producción de
+ * terceros y correrlos juntos multiplicaría x5 el ritmo de requests justo contra los
+ * endpoints que ya rate-limitean.
  *
  * Uso: node src/cron/refrescarCatalogos.js   (o npm run refrescar)
  * Crontab sugerido en el VPS (5:30 AM):

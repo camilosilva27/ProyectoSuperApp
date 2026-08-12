@@ -232,4 +232,58 @@ router.post('/comparar', async (req, res) => {
   });
 });
 
+// MAX_EANS_PRECIOS es a propósito el mismo orden de magnitud que un lote visible en pantalla
+// (ver app/(tabs)/index.tsx), no una lista de búsqueda completa — este endpoint es para
+// completar precio/promo de a lotes chicos a medida que se scrollea, no para traer precio de
+// todo el catálogo de una. El mismo rate limit estricto que /comparar aplica acá (ver
+// server.js) porque también dispara consultas reales a los 5 supers.
+const MAX_EANS_PRECIOS = 20;
+
+/**
+ * POST /api/precios — versión liviana de /comparar para la pantalla de búsqueda: dado un
+ * lote de EANs (los visibles en ese momento), devuelve solo el mejor precio y una descripción
+ * corta de la oferta si hay, sin el desglose de los 5 supers ni sugerencia de cantidad. Usa
+ * cantidad=1 siempre y no tiene en cuenta tarjetas seleccionadas (no hay ese contexto en la
+ * pantalla de búsqueda) — para eso está /comparar, una vez que el producto ya está en el
+ * carrito.
+ */
+router.post('/precios', async (req, res) => {
+  const eans = Array.isArray(req.body?.eans)
+    ? [...new Set(req.body.eans.map(e => String(e).trim()))]
+    : null;
+  if (!eans || !eans.length) return res.status(400).json({ error: 'Falta eans: string[]' });
+  if (eans.length > MAX_EANS_PRECIOS) {
+    return res.status(400).json({ error: `Demasiados eans (maximo ${MAX_EANS_PRECIOS})` });
+  }
+  for (const ean of eans) {
+    if (!esEANvalido(ean)) return res.status(400).json({ error: `EAN invalido: ${ean}` });
+  }
+
+  const resultados = await mapConLimite(eans, ITEMS_EN_PARALELO, async ean => {
+    const delCatalogo = catalogoUnificado.porEAN(ean);
+    try {
+      const grupo = {
+        ean,
+        ...(await buscarPorEANCacheado(ean, {
+          tarjetas: TARJETAS_QUE_AFECTAN_PRODUCTO,
+          skuIdVea: delCatalogo?.skuIdVea ?? null,
+        })),
+      };
+      const opciones = calcularOpciones(grupo, 1, SUPERMERCADOS, []);
+      if (!opciones.length) return { ean, mejor: null, oferta: null };
+
+      const o = opciones[0];
+      return {
+        ean,
+        mejor: { key: o.key, super: o.nombre, tag: o.tag, total: o.total },
+        oferta: o.mejor.promo?.descripcion ?? null,
+      };
+    } catch {
+      return { ean, mejor: null, oferta: null };
+    }
+  });
+
+  res.json({ generado: new Date().toISOString(), resultados });
+});
+
 module.exports = router;

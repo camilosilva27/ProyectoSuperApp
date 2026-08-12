@@ -82,6 +82,13 @@ export type RespuestaComparar = {
   advertencias: string[];
 };
 
+/** Respuesta liviana de /api/precios: solo el mejor precio + oferta, sin el desglose de los 5 supers. */
+export type PrecioRapido = {
+  ean: string;
+  mejor: { key: SuperKey; super: string; tag: string; total: number } | null;
+  oferta: string | null;
+};
+
 export type EstadoSalud = {
   ok: boolean;
   entorno: string;
@@ -144,6 +151,16 @@ export function comparar(items: { ean: string; cantidad: number }[], tarjetas: s
   return pedir<RespuestaComparar>('/api/comparar', {
     method: 'POST',
     body: JSON.stringify({ items, tarjetas }),
+  });
+}
+
+/** Máximo por lote — tiene que coincidir con MAX_EANS_PRECIOS del backend (routes/comparar.js). */
+export const MAX_EANS_PRECIOS = 20;
+
+export function precios(eans: string[]) {
+  return pedir<{ generado: string; resultados: PrecioRapido[] }>('/api/precios', {
+    method: 'POST',
+    body: JSON.stringify({ eans }),
   });
 }
 

@@ -52,16 +52,16 @@ app.use('/api', healthRouter);
 
 // Sin token: en una app web no hay dónde guardar un secreto (queda en el JS que descarga
 // cualquiera — ver la discusión en PLAN_FEATURES_APP.md). La única defensa real hoy es este
-// límite, más estricto que el global porque comparar dispara consultas reales a los 3
-// supermercados — Carrefour y Chango Más ya devuelven 429/502 con tráfico normal, así que un
-// abuso acá arriesga que nos bloqueen a nosotros, no solo "usar de más" el backend propio.
+// límite, más estricto que el global porque comparar y precios disparan consultas reales a
+// los 5 supermercados — Carrefour y Chango Más ya devuelven 429/502 con tráfico normal, así
+// que un abuso acá arriesga que nos bloqueen a nosotros, no solo "usar de más" el backend propio.
 app.use('/api', rateLimit({
   windowMs: 60 * 1000,
   limit: 20,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   message: { error: 'Demasiadas comparaciones seguidas, esperá un momento' },
-  skip: req => !req.path.startsWith('/comparar'),
+  skip: req => !req.path.startsWith('/comparar') && !req.path.startsWith('/precios'),
 }), catalogoRouter, compararRouter);
 
 app.use((req, res) => res.status(404).json({ error: 'Ruta no encontrada' }));
