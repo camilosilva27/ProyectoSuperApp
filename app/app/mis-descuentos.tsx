@@ -18,7 +18,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ErrorApi, misDescuentos, type Descuento } from '../src/api';
 import { useCarrito } from '../src/carrito';
-import { Problema } from '../src/componentes/comunes';
+import { NOMBRE_SUPER, ORDEN_SUPERS, Problema } from '../src/componentes/comunes';
 import { HeaderNegro } from '../src/componentes/HeaderNegro';
 import { espacio, pesos, radio, texto } from '../src/theme';
 import { useTema } from '../src/useTema';
@@ -29,6 +29,18 @@ function descripcionDe(d: Descuento): string {
   const dias = d.dias.length ? ` los ${d.dias.join(', ')}` : '';
   const tope = d.tope != null ? ` · tope ${pesos(d.tope)}` : '';
   return `${pct}${dias}${tope}`;
+}
+
+/**
+ * En qué super(s) aplica. Se omite para Mi Carrefour cuando el único super es Carrefour:
+ * decirlo ahí es redundante, el nombre ya lo dice. Si algún día tuviera otros supers además
+ * de Carrefour, se muestra igual — la redundancia se decide por los datos, no por el nombre.
+ */
+function supersDe(d: Descuento): string | null {
+  if (!d.disponible || !d.supers.length) return null;
+  if (d.nombre === 'Mi Carrefour' && d.supers.every(s => s === 'carr')) return null;
+  const ordenados = ORDEN_SUPERS.filter(k => d.supers.includes(k));
+  return `Aplica en ${ordenados.map(k => NOMBRE_SUPER[k]).join(', ')}`;
 }
 
 export default function PantallaMisDescuentos() {
@@ -80,6 +92,9 @@ export default function PantallaMisDescuentos() {
                         {d.nombre}
                       </Text>
                       <Text style={[texto.dato, { color: paleta.tintaTenue }]}>{descripcionDe(d)}</Text>
+                      {supersDe(d) ? (
+                        <Text style={[texto.micro, { color: paleta.tintaTenue }]}>{supersDe(d)}</Text>
+                      ) : null}
                     </View>
                     <Switch
                       value={activa}
