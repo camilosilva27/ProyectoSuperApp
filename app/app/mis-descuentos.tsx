@@ -128,7 +128,10 @@ export default function PantallaMisDescuentos() {
 }
 
 const styles = StyleSheet.create({
-  filaVolver: { flexDirection: 'row', alignItems: 'center', gap: espacio.md },
+  filaVolver: {
+    flexDirection: 'row', alignItems: 'center', gap: espacio.md,
+    height: 44, paddingRight: espacio.md, marginLeft: -espacio.xs, marginVertical: -espacio.xs,
+  },
   flecha: { fontSize: 22, color: '#FFFFFF' },
   titulo: { fontSize: 26, lineHeight: 26, color: '#FFFFFF' },
   bajada: { color: '#FFFFFF', opacity: 0.7 },

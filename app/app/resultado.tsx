@@ -237,7 +237,7 @@ function HeaderVeredicto({
           <Text style={[texto.precioHero, styles.totalHero]}>{pesos(totalOptimo)}</Text>
           {mejorUnico ? (
             <Text style={[texto.etiqueta, styles.subtitutloHero]}>
-              Comprando todo en {mejorUnico.nombre} pagás lo mismo: no hace falta un segundo viaje.
+              Comprando todo en {mejorUnico.nombre} pagás el mejor precio: no hace falta un segundo viaje.
             </Text>
           ) : null}
         </View>
@@ -609,7 +609,10 @@ const styles = StyleSheet.create({
   contenido: { padding: espacio.pantalla, gap: espacio.pantalla },
   centrado: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: espacio.xl, gap: espacio.md },
 
-  filaVolver: { flexDirection: 'row', alignItems: 'center', gap: espacio.md },
+  filaVolver: {
+    flexDirection: 'row', alignItems: 'center', gap: espacio.md,
+    height: 44, paddingRight: espacio.md, marginLeft: -espacio.xs, marginVertical: -espacio.xs,
+  },
   flechaVolver: { fontSize: 22, color: '#FFFFFF' },
   labelHeaderOscuro: { color: '#FFFFFF', opacity: 0.6, letterSpacing: 1.2 },
   totalHero: { color: '#FFFFFF' },
