@@ -19,19 +19,22 @@ const KEYS_SUPERMERCADOS = new Set(SUPERMERCADOS.map(s => s.key));
 const ORDENES_VALIDOS = new Set(['alfabetico', 'disponibilidad']);
 
 router.get('/catalogo/buscar', (req, res) => {
-  const { q = '', categoria = '', super: superFiltro = '', orden = 'alfabetico', limit, offset } = req.query;
+  const { q = '', categoria = '', supers: supersCrudo = '', orden = 'alfabetico', limit, offset } = req.query;
 
   if (!q && !categoria) {
     return res.status(400).json({ error: 'Falta el parametro q (texto) o categoria' });
   }
-  if (superFiltro && !KEYS_SUPERMERCADOS.has(superFiltro)) {
-    return res.status(400).json({ error: `super invalido: ${superFiltro}` });
+  const supers = supersCrudo
+    ? String(supersCrudo).split(',').map(s => s.trim()).filter(Boolean)
+    : [];
+  for (const s of supers) {
+    if (!KEYS_SUPERMERCADOS.has(s)) return res.status(400).json({ error: `super invalido: ${s}` });
   }
   if (!ORDENES_VALIDOS.has(orden)) {
     return res.status(400).json({ error: `orden invalido: ${orden}` });
   }
 
-  const resultado = catalogoUnificado.buscar({ q, categoria, super: superFiltro, orden, limit, offset });
+  const resultado = catalogoUnificado.buscar({ q, categoria, supers, orden, limit, offset });
 
   if (!resultado.disponible) {
     return res.status(503).json({

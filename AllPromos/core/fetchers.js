@@ -63,12 +63,15 @@ function parsearProductosCarrefour(products, { tarjetas = [] } = {}) {
     for (const sku of p.items || []) {
       const offer = sku.sellers?.[0]?.commertialOffer;
       if (!offer) continue;
+      const skuId    = sku.itemId;
+      const sellerId = sku.sellers[0].sellerId;
       const price     = offer.Price     || 0;
       const listPrice = offer.ListPrice || 0;
 
       if (listPrice > 0 && price < listPrice) {
         resultados.push({
           super: 'Carrefour',
+          skuId, sellerId,
           productName: p.productName, skuName: sku.name, ean: sku.ean,
           precioBase: listPrice,
           promo: interpretarPromoPorTexto('', (1 - price / listPrice).toFixed(4)),
@@ -85,6 +88,7 @@ function parsearProductosCarrefour(products, { tarjetas = [] } = {}) {
         if (promo) {
           resultados.push({
             super: 'Carrefour',
+            skuId, sellerId,
             productName: p.productName, skuName: sku.name, ean: sku.ean,
             precioBase: price, promo,
           });
@@ -103,6 +107,7 @@ function parsearProductosCarrefour(products, { tarjetas = [] } = {}) {
         if (promo) {
           resultados.push({
             super: 'Carrefour',
+            skuId, sellerId,
             productName: p.productName, skuName: sku.name, ean: sku.ean,
             precioBase: price, promo,
           });
@@ -112,6 +117,7 @@ function parsearProductosCarrefour(products, { tarjetas = [] } = {}) {
       if (price > 0 && (!listPrice || price >= listPrice) && teasersInternos.length === 0) {
         resultados.push({
           super: 'Carrefour',
+          skuId, sellerId,
           productName: p.productName, skuName: sku.name, ean: sku.ean,
           precioBase: price, promo: null,
         });
@@ -146,15 +152,18 @@ function parsearProductosChangoMas(products) {
   const resultados = [];
   for (const p of products) {
     for (const sku of p.items || []) {
-      const offer = sku.sellers?.find(s => s.sellerId === CHANGOMAS_SELLER)?.commertialOffer
-        || sku.sellers?.[0]?.commertialOffer;
+      const sellerInfo = sku.sellers?.find(s => s.sellerId === CHANGOMAS_SELLER) || sku.sellers?.[0];
+      const offer = sellerInfo?.commertialOffer;
       if (!offer) continue;
+      const skuId    = sku.itemId;
+      const sellerId = sellerInfo.sellerId;
       const price     = offer.Price     || 0;
       const listPrice = offer.ListPrice || 0;
 
       if (listPrice > 0 && price < listPrice) {
         resultados.push({
           super: 'Chango Más',
+          skuId, sellerId,
           productName: p.productName, skuName: sku.name, ean: sku.ean,
           precioBase: listPrice,
           promo: interpretarPromoPorTexto('', (1 - price / listPrice).toFixed(4)),
@@ -170,6 +179,7 @@ function parsearProductosChangoMas(products) {
         if (promo) {
           resultados.push({
             super: 'Chango Más',
+            skuId, sellerId,
             productName: p.productName, skuName: sku.name, ean: sku.ean,
             precioBase: price, promo,
           });
@@ -179,6 +189,7 @@ function parsearProductosChangoMas(products) {
       if (price > 0 && (!listPrice || price >= listPrice) && teasersInternos.length === 0) {
         resultados.push({
           super: 'Chango Más',
+          skuId, sellerId,
           productName: p.productName, skuName: sku.name, ean: sku.ean,
           precioBase: price, promo: null,
         });
@@ -223,6 +234,7 @@ async function parsearProductosVea(products) {
       if (!sellerInfo) continue;
       candidatos.push({
         skuId: sku.itemId,
+        sellerId: sellerInfo.sellerId,
         productName: p.productName, skuName: sku.name, ean: sku.ean,
         price: sellerInfo.commertialOffer?.Price || 0,
       });
@@ -243,6 +255,7 @@ async function parsearProductosVea(products) {
     const promo = promos[s.skuId];
     return {
       super: 'Vea',
+      skuId: s.skuId, sellerId: s.sellerId,
       productName: s.productName, skuName: s.skuName, ean: s.ean,
       precioBase: s.price,
       promo: promo ? interpretarPromoPorTexto(promo.name, promo.effectiveDiscount) : null,
@@ -280,15 +293,18 @@ function parsearProductosDia(products) {
   const resultados = [];
   for (const p of products) {
     for (const sku of p.items || []) {
-      const offer = sku.sellers?.find(s => s.sellerId === DIA_SELLER)?.commertialOffer
-        || sku.sellers?.[0]?.commertialOffer;
+      const sellerInfo = sku.sellers?.find(s => s.sellerId === DIA_SELLER) || sku.sellers?.[0];
+      const offer = sellerInfo?.commertialOffer;
       if (!offer) continue;
+      const skuId    = sku.itemId;
+      const sellerId = sellerInfo.sellerId;
       const price     = offer.Price     || 0;
       const listPrice = offer.ListPrice || 0;
 
       if (listPrice > 0 && price < listPrice) {
         resultados.push({
           super: 'Día',
+          skuId, sellerId,
           productName: p.productName, skuName: sku.name, ean: sku.ean,
           precioBase: listPrice,
           promo: interpretarPromoPorTexto('', (1 - price / listPrice).toFixed(4)),
@@ -304,6 +320,7 @@ function parsearProductosDia(products) {
         if (promo) {
           resultados.push({
             super: 'Día',
+            skuId, sellerId,
             productName: p.productName, skuName: sku.name, ean: sku.ean,
             precioBase: price, promo,
           });
@@ -313,6 +330,7 @@ function parsearProductosDia(products) {
       if (price > 0 && (!listPrice || price >= listPrice) && teasersInternos.length === 0) {
         resultados.push({
           super: 'Día',
+          skuId, sellerId,
           productName: p.productName, skuName: sku.name, ean: sku.ean,
           precioBase: price, promo: null,
         });
@@ -416,6 +434,38 @@ async function cotoLiveNombre(nombre) {
   return parsearProductosCoto(await cotoBuscar(nombre));
 }
 
+// ─── Link de "agregar al carrito" ─────────────────────────────────────────────
+// Los 4 supers de acá arriba corren VTEX, que ofrece una URL pública pensada justamente
+// para que un comparador de precios arme el carrito directo en el sitio del super
+// (mismo mecanismo que usan Google Shopping y similares) — confirmado en vivo con curl
+// contra Vea, Carrefour y Día: la respuesta trae Set-Cookie con checkout.vtex.com=__ofid=...,
+// o sea arma el carrito de verdad. Coto no entra: no es VTEX (ver COTO_HOST arriba).
+const VTEX_CARRITO = {
+  vea:       { host: 'https://www.vea.com.ar',                     sc: 34 },
+  carr:      { host: 'https://www.carrefour.com.ar',                sc: 1 },
+  changomas: { host: CHANGOMAS_HOST,                                sc: 1 },
+  dia:       { host: DIA_HOST,                                      sc: 1 },
+};
+
+/**
+ * URL de "agregar al carrito" de VTEX para un super, o null si el super no es VTEX (Coto)
+ * o no hay items. `items`: [{ skuId, sellerId, cantidad }].
+ */
+function armarUrlCarrito(key, items) {
+  const cfg = VTEX_CARRITO[key];
+  if (!cfg || !items?.length) return null;
+
+  const params = new URLSearchParams();
+  for (const { skuId, sellerId, cantidad } of items) {
+    params.append('sku', skuId);
+    params.append('qty', String(cantidad));
+    params.append('seller', sellerId);
+  }
+  params.set('sc', String(cfg.sc));
+  params.set('redirect', 'true');
+  return `${cfg.host}/checkout/cart/add?${params.toString()}`;
+}
+
 // ─── Orquestación ─────────────────────────────────────────────────────────────
 
 /**
@@ -476,6 +526,7 @@ module.exports = {
   diaLiveNombre,
   cotoLiveEAN,
   cotoLiveNombre,
+  armarUrlCarrito,
   buscarPorEAN,
   buscarPorNombreEnVivo,
 };

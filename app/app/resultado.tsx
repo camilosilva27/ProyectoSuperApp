@@ -13,9 +13,9 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useState } from 'react';
 import {
-  ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -25,6 +25,7 @@ import { useCarrito } from '../src/carrito';
 import { BarraDiferencia } from '../src/componentes/BarraDiferencia';
 import { EncabezadoPantalla, Problema, Vacio } from '../src/componentes/comunes';
 import { FotoProducto } from '../src/componentes/FotoProducto';
+import { useFiltrosSupers } from '../src/filtrosSupers';
 import { espacio, pesos, radio, texto } from '../src/theme';
 import { useTema } from '../src/useTema';
 
@@ -41,13 +42,14 @@ export default function PantallaResultado() {
   const { paleta } = useTema();
   const insets = useSafeAreaInsets();
   const carrito = useCarrito();
+  const { supersActivos } = useFiltrosSupers();
 
   const pedido = carrito.items.map(i => ({ ean: i.ean, cantidad: i.cantidad }));
-  const clave = JSON.stringify({ pedido, tarjetas: carrito.tarjetas });
+  const clave = JSON.stringify({ pedido, tarjetas: carrito.tarjetas, supersActivos });
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['comparar', clave],
-    queryFn: () => comparar(pedido, carrito.tarjetas),
+    queryFn: () => comparar(pedido, carrito.tarjetas, supersActivos),
     enabled: pedido.length > 0,
     staleTime: 0, // los precios son en vivo: no se reusan entre comparaciones
   });
@@ -166,38 +168,87 @@ function Veredicto({ data }: { data: RespuestaComparar }) {
 /** El itinerario: qué comprar en cada super. Es la instrucción accionable de la pantalla. */
 function PlanDeCompra({ data }: { data: RespuestaComparar }) {
   const { paleta, sombra } = useTema();
-  const { comprasPorSuper, subtotalAsignadoPorSuper, requiereOnlinePorSuper } = data.resumen;
+  const { comprasPorSuper, subtotalAsignadoPorSuper, requiereOnlinePorSuper, linksCarrito } = data.resumen;
+  const [erroresCarrito, setErroresCarrito] = useState<Partial<Record<SuperKey, boolean>>>({});
 
   const conCompras = data.supermercados.filter(s => (comprasPorSuper[s.key] ?? []).length > 0);
   if (conCompras.length <= 1) return null;
 
+  const abrirCarrito = async (key: SuperKey, url: string) => {
+    try {
+      await Linking.openURL(url);
+      setErroresCarrito(prev => ({ ...prev, [key]: false }));
+    } catch {
+      setErroresCarrito(prev => ({ ...prev, [key]: true }));
+    }
+  };
+
   return (
     <View style={styles.seccion}>
       <Text style={[texto.micro, { color: paleta.tintaTenue }]}>PLAN DE COMPRA</Text>
-      {conCompras.map(s => (
-        <View
-          key={s.key}
-          style={[styles.tarjetaPlan, { backgroundColor: paleta.superficie, borderColor: paleta.borde }, sombra]}
-        >
-          <View style={[styles.bandaColor, colorIdentidad(paleta, s.key)]} />
-          <View style={styles.planCuerpo}>
-            <View style={styles.planEncabezado}>
-              <Text style={[texto.subtitulo, { color: paleta.tinta }]}>{s.nombre}</Text>
-              <Text style={[texto.precio, { color: paleta.tinta }]}>
-                {pesos(subtotalAsignadoPorSuper[s.key])}
+      {conCompras.map(s => {
+        const url = linksCarrito[s.key];
+        return (
+          <View
+            key={s.key}
+            style={[styles.tarjetaPlan, { backgroundColor: paleta.superficie, borderColor: paleta.borde }, sombra]}
+          >
+            <View style={[styles.bandaColor, colorIdentidad(paleta, s.key)]} />
+            <View style={styles.planCuerpo}>
+              <View style={styles.planEncabezado}>
+                <Text style={[texto.subtitulo, { color: paleta.tinta }]}>{s.nombre}</Text>
+                <Text style={[texto.precio, { color: paleta.tinta }]}>
+                  {pesos(subtotalAsignadoPorSuper[s.key])}
+                </Text>
+              </View>
+              {requiereOnlinePorSuper[s.key] ? (
+                <Text style={[texto.micro, { color: paleta.alerta }]}>
+                  REQUIERE COMPRAR ONLINE
+                </Text>
+              ) : null}
+              <Text style={[texto.cuerpo, { color: paleta.tintaSuave }]}>
+                {comprasPorSuper[s.key].map(c => c.input).join(' · ')}
               </Text>
+              {url ? (
+                <BotonAbrirCarrito
+                  nombre={s.nombre}
+                  error={!!erroresCarrito[s.key]}
+                  onPress={() => abrirCarrito(s.key, url)}
+                />
+              ) : null}
             </View>
-            {requiereOnlinePorSuper[s.key] ? (
-              <Text style={[texto.micro, { color: paleta.alerta }]}>
-                REQUIERE COMPRAR ONLINE
-              </Text>
-            ) : null}
-            <Text style={[texto.cuerpo, { color: paleta.tintaSuave }]}>
-              {comprasPorSuper[s.key].map(c => c.input).join(' · ')}
-            </Text>
           </View>
-        </View>
-      ))}
+        );
+      })}
+    </View>
+  );
+}
+
+/** Abre el sitio real del super con el carrito ya cargado (link público de VTEX) — el usuario
+ *  termina la compra ahí, con su propia sesión. No soportado en Coto (no es VTEX). */
+function BotonAbrirCarrito({
+  nombre, error, onPress,
+}: { nombre: string; error: boolean; onPress: () => void }) {
+  const { paleta } = useTema();
+
+  return (
+    <View>
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={`Abrir carrito de ${nombre} en el navegador`}
+        style={({ pressed }) => [
+          styles.botonCarrito,
+          { borderColor: paleta.bordeFuerte, opacity: pressed ? 0.7 : 1 },
+        ]}
+      >
+        <Text style={[texto.etiqueta, { color: paleta.tinta }]}>Abrir carrito en {nombre}</Text>
+      </Pressable>
+      {error ? (
+        <Text style={[texto.dato, styles.errorCarrito, { color: paleta.alerta }]}>
+          No se pudo abrir el carrito de {nombre}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -313,6 +364,12 @@ const styles = StyleSheet.create({
   bandaColor: { width: 4 },
   planCuerpo: { flex: 1, padding: espacio.md, gap: 4 },
   planEncabezado: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  botonCarrito: {
+    alignSelf: 'flex-start', marginTop: 4,
+    borderWidth: 1, borderRadius: radio.pill,
+    paddingHorizontal: espacio.md, paddingVertical: espacio.xs,
+  },
+  errorCarrito: { marginTop: 2 },
   tarjetaItem: {
     borderWidth: 1, borderRadius: radio.lg, padding: espacio.md, gap: espacio.md,
   },

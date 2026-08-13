@@ -78,6 +78,9 @@ export type RespuestaComparar = {
     comprasPorSuper: Record<SuperKey, { input: string; esOnlineExclusivo: boolean }[]>;
     requiereOnlinePorSuper: Record<SuperKey, boolean>;
     noEncontrados: string[];
+    /** Link para abrir el carrito ya cargado en el sitio real del super (VTEX). `null` si el
+     *  super no lo soporta (Coto) o no tiene nada asignado. */
+    linksCarrito: Record<SuperKey, string | null>;
   };
   advertencias: string[];
 };
@@ -87,6 +90,7 @@ export type PrecioRapido = {
   ean: string;
   mejor: { key: SuperKey; super: string; tag: string; total: number } | null;
   oferta: string | null;
+  esOnline: boolean;
 };
 
 export type EstadoSalud = {
@@ -146,32 +150,34 @@ async function pedir<T>(ruta: string, init?: RequestInit): Promise<T> {
 export type OrdenBusqueda = 'alfabetico' | 'disponibilidad' | 'precio';
 
 export function buscarProductos(q: string, opciones: {
-  limit?: number; super?: SuperKey | ''; orden?: OrdenBusqueda;
+  limit?: number; supers?: SuperKey[]; orden?: OrdenBusqueda;
 } = {}) {
-  const { limit = 40, super: superFiltro = '', orden = 'alfabetico' } = opciones;
+  const { limit = 40, supers, orden = 'alfabetico' } = opciones;
   const params = new URLSearchParams({
     q, limit: String(limit), orden: orden === 'precio' ? 'alfabetico' : orden,
   });
-  if (superFiltro) params.set('super', superFiltro);
+  if (supers && supers.length) params.set('supers', supers.join(','));
   return pedir<{ disponible: boolean; total: number; resultados: ProductoCatalogo[] }>(
     `/api/catalogo/buscar?${params.toString()}`
   );
 }
 
-export function comparar(items: { ean: string; cantidad: number }[], tarjetas: string[]) {
+export function comparar(
+  items: { ean: string; cantidad: number }[], tarjetas: string[], supers?: SuperKey[]
+) {
   return pedir<RespuestaComparar>('/api/comparar', {
     method: 'POST',
-    body: JSON.stringify({ items, tarjetas }),
+    body: JSON.stringify({ items, tarjetas, supers }),
   });
 }
 
 /** Máximo por lote — tiene que coincidir con MAX_EANS_PRECIOS del backend (routes/comparar.js). */
 export const MAX_EANS_PRECIOS = 40;
 
-export function precios(eans: string[]) {
+export function precios(eans: string[], supers?: SuperKey[]) {
   return pedir<{ generado: string; resultados: PrecioRapido[] }>('/api/precios', {
     method: 'POST',
-    body: JSON.stringify({ eans }),
+    body: JSON.stringify({ eans, supers }),
   });
 }
 

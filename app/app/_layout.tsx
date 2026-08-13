@@ -21,6 +21,7 @@ import React from 'react';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ProveedorCarrito } from '../src/carrito';
+import { ProveedorFiltrosSupers } from '../src/filtrosSupers';
 import { texto } from '../src/theme';
 import { useTema } from '../src/useTema';
 
@@ -54,24 +55,26 @@ export default function LayoutRaiz() {
   return (
     <QueryClientProvider client={cliente}>
       <SafeAreaProvider>
-        <ProveedorCarrito>
-          <StatusBar style={esquema === 'dark' ? 'light' : 'dark'} />
-          <Stack
-            screenOptions={{
-              contentStyle: { backgroundColor: paleta.fondo },
-              headerStyle: { backgroundColor: paleta.fondo },
-              headerShadowVisible: false,
-              headerTintColor: paleta.tinta,
-              headerTitleStyle: { ...texto.subtitulo, color: paleta.tinta },
-            }}
-          >
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen
-              name="resultado"
-              options={{ title: 'Dónde comprar', presentation: 'card' }}
-            />
-          </Stack>
-        </ProveedorCarrito>
+        <ProveedorFiltrosSupers>
+          <ProveedorCarrito>
+            <StatusBar style={esquema === 'dark' ? 'light' : 'dark'} />
+            <Stack
+              screenOptions={{
+                contentStyle: { backgroundColor: paleta.fondo },
+                headerStyle: { backgroundColor: paleta.fondo },
+                headerShadowVisible: false,
+                headerTintColor: paleta.tinta,
+                headerTitleStyle: { ...texto.subtitulo, color: paleta.tinta },
+              }}
+            >
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen
+                name="resultado"
+                options={{ title: 'Dónde comprar', presentation: 'card' }}
+              />
+            </Stack>
+          </ProveedorCarrito>
+        </ProveedorFiltrosSupers>
       </SafeAreaProvider>
     </QueryClientProvider>
   );

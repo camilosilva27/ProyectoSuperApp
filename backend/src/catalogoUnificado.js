@@ -54,26 +54,29 @@ function leerEstadoUnificado() {
 }
 
 /**
- * Busca productos por texto libre y/o categoría, con filtro opcional por supermercado y
- * orden opcional.
+ * Busca productos por texto libre y/o categoría, con filtro opcional por uno o más
+ * supermercados y orden opcional.
+ * @param {string[]} supers si viene con elementos, solo entran productos disponibles en al
+ *   menos uno de esos supers (vacío = sin filtro, entran los 5).
  * @param {string} orden 'alfabetico' (default — es el orden en que ya vienen guardados los
  *   productos, ver unificarCatalogo.js) o 'disponibilidad' (más supers primero; empate
  *   preserva el orden alfabético porque Array#sort de Node es estable).
  * @returns { total, resultados: [{ ean, nombre, variante, categoria, disponibleEn }] }
  */
 function buscar({
-  q = '', categoria = '', super: superFiltro = '', orden = 'alfabetico', limit = limiteBusquedaDefault, offset = 0,
+  q = '', categoria = '', supers = [], orden = 'alfabetico', limit = limiteBusquedaDefault, offset = 0,
 } = {}) {
   const c = cargar();
   if (!c) return { total: 0, resultados: [], disponible: false };
 
   const palabras = q ? palabrasDeBusqueda(q) : [];
   const categoriaNorm = categoria ? normalize(categoria) : '';
+  const supersFiltro = supers.length ? new Set(supers) : null;
 
   const coincidencias = [];
   for (const entrada of c.indice) {
     if (categoriaNorm && !entrada.categoriaNorm.startsWith(categoriaNorm)) continue;
-    if (superFiltro && !entrada.producto.disponibleEn.includes(superFiltro)) continue;
+    if (supersFiltro && !entrada.producto.disponibleEn.some(k => supersFiltro.has(k))) continue;
     if (palabras.length && !matchesBusqueda(entrada.haystackNombre, entrada.haystackVariante, palabras)) continue;
     coincidencias.push(entrada.producto);
   }

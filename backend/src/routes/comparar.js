@@ -24,6 +24,7 @@
 const express = require('express');
 const { buscarPorEAN } = require('../../../AllPromos/core/fetchers');
 const { SUPERMERCADOS } = require('../../../AllPromos/core/fetchers');
+const { armarUrlCarrito } = require('../../../AllPromos/core/fetchers');
 const {
   calcularOpciones, calcularSugerenciaCantidad, calcularMejoresPorSuper, calcularResumenFinal,
 } = require('../../../AllPromos/core/comparador');
@@ -32,6 +33,29 @@ const { esEANvalido } = require('../../../AllPromos/core/catalogo');
 const catalogoUnificado = require('../catalogoUnificado');
 
 const router = express.Router();
+
+const KEYS_SUPERMERCADOS = new Set(SUPERMERCADOS.map(s => s.key));
+
+/** Valida `supers` (array de keys) contra el catálogo de supers conocido. Devuelve un mensaje
+ *  de error, o null si está bien. `undefined`/ausente es válido: significa "sin filtro". */
+function validarSupers(supers) {
+  if (supers === undefined) return null;
+  if (!Array.isArray(supers) || supers.length === 0) {
+    return 'supers tiene que ser un array no vacio de keys de supermercado';
+  }
+  for (const s of supers) {
+    if (!KEYS_SUPERMERCADOS.has(s)) return `super invalido: ${s}`;
+  }
+  return null;
+}
+
+/** SUPERMERCADOS filtrado según lo que el cliente eligió comparar (ver useFiltrosSupers en la
+ *  app) — sin filtro, se sigue comparando contra los 5 de siempre. */
+function filtrarSupermercados(supers) {
+  return Array.isArray(supers) && supers.length
+    ? SUPERMERCADOS.filter(s => supers.includes(s.key))
+    : SUPERMERCADOS;
+}
 
 // Único teaser de "tarjeta propia" implementado hoy en core/fetchers.js (Tarjeta Carrefour,
 // ver interpretarTeaserTarjetaPropia en promo-engine.js). Cencopay (Vea) está investigado en
@@ -98,6 +122,8 @@ function validarBody(body) {
   if (body.tarjetas !== undefined && !Array.isArray(body.tarjetas)) {
     return 'tarjetas tiene que ser un array de strings';
   }
+  const errorSupers = validarSupers(body.supers);
+  if (errorSupers) return errorSupers;
   for (const item of body.items) {
     if (!item || !esEANvalido(String(item.ean ?? ''))) {
       return `EAN invalido: ${JSON.stringify(item?.ean)}`;
@@ -152,6 +178,7 @@ router.post('/comparar', async (req, res) => {
   // Tarjetas que el usuario efectivamente seleccionó — determina qué promos cuentan para
   // el total. No se usa para decidir qué pedirle a las APIs (ver TARJETAS_QUE_AFECTAN_PRODUCTO).
   const tarjetasSeleccionadas = req.body.tarjetas ?? [];
+  const supermercados = filtrarSupermercados(req.body.supers);
   const pedidos = req.body.items.map(i => ({
     ean: String(i.ean).trim(),
     cantidad: Number(i.cantidad ?? 1),
@@ -177,8 +204,8 @@ router.post('/comparar', async (req, res) => {
         ...(await buscarPorEANCacheado(ean, { tarjetas: TARJETAS_QUE_AFECTAN_PRODUCTO, skuIdVea: delCatalogo?.skuIdVea ?? null })),
       };
 
-      const opciones = calcularOpciones(grupo, cantidad, SUPERMERCADOS, tarjetasSeleccionadas);
-      const mejores = calcularMejoresPorSuper([grupo], cantidad, SUPERMERCADOS, tarjetasSeleccionadas);
+      const opciones = calcularOpciones(grupo, cantidad, supermercados, tarjetasSeleccionadas);
+      const mejores = calcularMejoresPorSuper([grupo], cantidad, supermercados, tarjetasSeleccionadas);
 
       return {
         ean,
@@ -189,7 +216,7 @@ router.post('/comparar', async (req, res) => {
         opciones: opciones.map(o => serializarOpcion(o, cantidad, tarjetasSeleccionadas)),
         mejor: opciones.length ? serializarOpcion(opciones[0], cantidad, tarjetasSeleccionadas) : null,
         // Dato, no pregunta: qué cantidades activarían una promo que hoy no se activa.
-        sugerenciaCantidad: calcularSugerenciaCantidad([grupo], cantidad, SUPERMERCADOS, tarjetasSeleccionadas),
+        sugerenciaCantidad: calcularSugerenciaCantidad([grupo], cantidad, supermercados, tarjetasSeleccionadas),
         error: null,
         _mejores: mejores,
       };
@@ -212,21 +239,36 @@ router.post('/comparar', async (req, res) => {
     mejores: p._mejores,
     ambiguo: false, // la app manda un EAN exacto: no hay ambigüedad de nombre que resolver
   }));
-  const resumen = calcularResumenFinal(paraResumen, SUPERMERCADOS);
+  const resumen = calcularResumenFinal(paraResumen, supermercados);
 
   const items = procesados.map(({ _mejores, ...publico }) => publico);
 
+  // Link de "agregar al carrito" en el sitio real de cada super (null si no es VTEX, ej.
+  // Coto, o si no hay nada asignado a ese super) — ver armarUrlCarrito en fetchers.js.
+  const linksCarrito = Object.fromEntries(
+    supermercados.map(s => [s.key, armarUrlCarrito(s.key, resumen.comprasPorSuper[s.key])])
+  );
+  // El público no necesita ean/skuId/sellerId sueltos (solo la URL ya armada arriba) — se
+  // despojan acá para no crecer la superficie de la API con datos que el cliente no usa.
+  const comprasPorSuper = Object.fromEntries(
+    Object.entries(resumen.comprasPorSuper).map(([key, compras]) => [
+      key,
+      compras.map(({ input, esOnlineExclusivo }) => ({ input, esOnlineExclusivo })),
+    ])
+  );
+
   res.json({
     generado: new Date().toISOString(),
-    supermercados: SUPERMERCADOS,
+    supermercados,
     items,
     resumen: {
       totalOptimo: resumen.totalOptimo,
       totalesPorSuper: resumen.totalesPorSuper,
       subtotalAsignadoPorSuper: resumen.subtotalAsignadoPorSuper,
-      comprasPorSuper: resumen.comprasPorSuper,
+      comprasPorSuper,
       requiereOnlinePorSuper: resumen.requiereOnlinePorSuper,
       noEncontrados: resumen.noEncontrados,
+      linksCarrito,
     },
     advertencias,
   });
@@ -258,6 +300,9 @@ router.post('/precios', async (req, res) => {
   for (const ean of eans) {
     if (!esEANvalido(ean)) return res.status(400).json({ error: `EAN invalido: ${ean}` });
   }
+  const errorSupers = validarSupers(req.body?.supers);
+  if (errorSupers) return res.status(400).json({ error: errorSupers });
+  const supermercados = filtrarSupermercados(req.body?.supers);
 
   const resultados = await mapConLimite(eans, ITEMS_EN_PARALELO, async ean => {
     const delCatalogo = catalogoUnificado.porEAN(ean);
@@ -269,7 +314,7 @@ router.post('/precios', async (req, res) => {
           skuIdVea: delCatalogo?.skuIdVea ?? null,
         })),
       };
-      const opciones = calcularOpciones(grupo, 1, SUPERMERCADOS, []);
+      const opciones = calcularOpciones(grupo, 1, supermercados, []);
       if (!opciones.length) return { ean, mejor: null, oferta: null };
 
       const o = opciones[0];
@@ -277,6 +322,7 @@ router.post('/precios', async (req, res) => {
         ean,
         mejor: { key: o.key, super: o.nombre, tag: o.tag, total: o.total },
         oferta: o.mejor.promo?.descripcion ?? null,
+        esOnline: !!o.mejor.promo?.esOnline,
       };
     } catch {
       return { ean, mejor: null, oferta: null };

@@ -12,8 +12,8 @@ import type { SuperKey } from '../api';
 import { espacio, radio, texto } from '../theme';
 import { useTema } from '../useTema';
 
-const ORDEN_SUPERS: SuperKey[] = ['vea', 'carr', 'changomas', 'dia', 'coto'];
-const NOMBRE_SUPER: Record<SuperKey, string> = {
+export const ORDEN_SUPERS: SuperKey[] = ['vea', 'carr', 'changomas', 'dia', 'coto'];
+export const NOMBRE_SUPER: Record<SuperKey, string> = {
   vea: 'Vea', carr: 'Carrefour', changomas: 'Chango Más', dia: 'Día', coto: 'Coto',
 };
 

@@ -20,9 +20,11 @@ import {
 } from '../../src/api';
 import { useCarrito } from '../../src/carrito';
 import {
-  BotonPrincipal, EncabezadoPantalla, Problema, PuntosDisponibilidad, Stepper, Vacio,
+  BotonPrincipal, EncabezadoPantalla, NOMBRE_SUPER, ORDEN_SUPERS, Problema,
+  PuntosDisponibilidad, Stepper, Vacio,
 } from '../../src/componentes/comunes';
 import { FotoProducto } from '../../src/componentes/FotoProducto';
+import { useFiltrosSupers } from '../../src/filtrosSupers';
 import { espacio, pesos, radio, texto } from '../../src/theme';
 import { useTema } from '../../src/useTema';
 
@@ -34,11 +36,21 @@ import { useTema } from '../../src/useTema';
  * (POST /api/precios) para por qué esto no reemplaza /api/catalogo/buscar: ese nunca trae
  * precio, a propósito.
  */
-function usePreciosProgresivos() {
+function usePreciosProgresivos(supersActivos: SuperKey[]) {
   const [precios, setPrecios] = useState<Record<string, PrecioRapido | 'error'>>({});
   const pedidos = useRef(new Set<string>());
   const pendientes = useRef(new Set<string>());
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const supersRef = useRef(supersActivos);
+  supersRef.current = supersActivos;
+
+  // El "mejor precio" depende de qué supers se consideran: si el filtro cambia, lo ya
+  // pedido queda obsoleto y hay que volver a consultarlo.
+  useEffect(() => {
+    setPrecios({});
+    pedidos.current.clear();
+    pendientes.current.clear();
+  }, [supersActivos]);
 
   const pedirLote = useCallback(() => {
     const lote = [...pendientes.current].slice(0, MAX_EANS_PRECIOS);
@@ -46,7 +58,7 @@ function usePreciosProgresivos() {
     if (!lote.length) return;
     lote.forEach(ean => pedidos.current.add(ean));
 
-    pedirPrecios(lote)
+    pedirPrecios(lote, supersRef.current)
       .then(({ resultados }) => {
         setPrecios(prev => {
           const siguiente = { ...prev };
@@ -84,15 +96,6 @@ const OPCIONES_ORDEN: { valor: OrdenBusqueda; etiqueta: string }[] = [
   { valor: 'precio', etiqueta: 'Precio' },
 ];
 
-const OPCIONES_SUPER: { valor: SuperKey | ''; etiqueta: string }[] = [
-  { valor: '', etiqueta: 'Todos' },
-  { valor: 'vea', etiqueta: 'Vea' },
-  { valor: 'carr', etiqueta: 'Carrefour' },
-  { valor: 'changomas', etiqueta: 'Chango Más' },
-  { valor: 'dia', etiqueta: 'Día' },
-  { valor: 'coto', etiqueta: 'Coto' },
-];
-
 /** Espera a que el usuario deje de tipear antes de consultar: menos requests, menos parpadeo. */
 function useTextoDemorado(valor: string, ms = 300) {
   const [demorado, setDemorado] = useState(valor);
@@ -112,18 +115,18 @@ export default function PantallaBuscar() {
   const consultaDemorada = useTextoDemorado(consulta.trim());
   const consultaValida = consultaDemorada.length >= 2;
   const [orden, setOrden] = useState<OrdenBusqueda>('alfabetico');
-  const [superFiltro, setSuperFiltro] = useState<SuperKey | ''>('');
+  const { supersActivos, toggleSuper } = useFiltrosSupers();
 
   const { data, isFetching, error, refetch } = useQuery({
-    queryKey: ['catalogo', consultaDemorada, superFiltro, orden],
-    queryFn: () => buscarProductos(consultaDemorada, { super: superFiltro, orden }),
+    queryKey: ['catalogo', consultaDemorada, supersActivos, orden],
+    queryFn: () => buscarProductos(consultaDemorada, { supers: supersActivos, orden }),
     enabled: consultaValida,
   });
 
   const resultados = data?.resultados ?? [];
   const hayMas = (data?.total ?? 0) > resultados.length;
 
-  const { precios, marcarVisibles } = usePreciosProgresivos();
+  const { precios, marcarVisibles } = usePreciosProgresivos(supersActivos);
   const onViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems: Array<{ item: ProductoCatalogo }> }) => {
       marcarVisibles(viewableItems.map(v => v.item.ean));
@@ -176,24 +179,23 @@ export default function PantallaBuscar() {
         {isFetching ? <ActivityIndicator size="small" color={paleta.tintaTenue} /> : null}
       </View>
 
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filaChips}>
+        {ORDEN_SUPERS.map(key => (
+          <Chip
+            key={key}
+            etiqueta={NOMBRE_SUPER[key]}
+            activo={supersActivos.includes(key)}
+            onPress={() => toggleSuper(key)}
+          />
+        ))}
+      </ScrollView>
+
       {consultaValida ? (
-        <>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filaChips}>
-            {OPCIONES_ORDEN.map(o => (
-              <Chip key={o.valor} etiqueta={o.etiqueta} activo={orden === o.valor} onPress={() => setOrden(o.valor)} />
-            ))}
-          </ScrollView>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filaChips}>
-            {OPCIONES_SUPER.map(o => (
-              <Chip
-                key={o.valor || 'todos'}
-                etiqueta={o.etiqueta}
-                activo={superFiltro === o.valor}
-                onPress={() => setSuperFiltro(o.valor)}
-              />
-            ))}
-          </ScrollView>
-        </>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filaChips}>
+          {OPCIONES_ORDEN.map(o => (
+            <Chip key={o.valor} etiqueta={o.etiqueta} activo={orden === o.valor} onPress={() => setOrden(o.valor)} />
+          ))}
+        </ScrollView>
       ) : null}
 
       {consultaValida && !isFetching && !error ? (
@@ -208,7 +210,7 @@ export default function PantallaBuscar() {
     </View>
   ), [
     consulta, isFetching, error, data?.total, resultados.length, hayMas, paleta, sombra,
-    consultaValida, orden, superFiltro, cargandoOrdenPrecio,
+    consultaValida, orden, supersActivos, toggleSuper, cargandoOrdenPrecio,
   ]);
 
   return (
@@ -401,6 +403,11 @@ function BadgePrecio({ precio }: { precio: PrecioRapido | 'error' | undefined })
           <Text style={[texto.micro, { color: paleta.tinta }]} numberOfLines={1}>{precio.oferta}</Text>
         </View>
       ) : null}
+      {precio.esOnline ? (
+        <View style={[styles.marcaOnline, { borderColor: paleta.borde }]}>
+          <Text style={[texto.micro, { color: paleta.tintaTenue, fontSize: 9 }]}>ONLINE</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -432,6 +439,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderRadius: radio.pill,
     paddingHorizontal: espacio.sm, paddingVertical: 1,
   },
+  marcaOnline: { paddingHorizontal: 5, paddingVertical: 1, borderRadius: radio.sm, borderWidth: 1 },
   masBoton: {
     width: 34, height: 34, borderRadius: radio.pill, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',

@@ -147,7 +147,7 @@ function calcularSugerenciaCantidad(grupos, cantidadActual, supermercados = SUPE
 
 /**
  * Mejor precio de cada super para un ítem, considerando todos los EANs encontrados para él.
- * @returns { [key]: { total, productoNombre, oferta, promo, esOnlineExclusivo } }
+ * @returns { [key]: { total, productoNombre, oferta, promo, esOnlineExclusivo, ean, skuId, sellerId } }
  */
 function calcularMejoresPorSuper(grupos, cantidad, supermercados = SUPERMERCADOS, tarjetasSeleccionadas) {
   const mejores = {};
@@ -169,6 +169,12 @@ function calcularMejoresPorSuper(grupos, cantidad, supermercados = SUPERMERCADOS
           // menos" aunque esa tarjeta no cuente para `total`.
           promo: m.promo,
           esOnlineExclusivo: !!promoRank?.esOnline,
+          // ean/skuId/sellerId: identidad del producto en la API del super, para armar el
+          // link de "agregar al carrito" (ver armarUrlCarrito en fetchers.js). skuId/sellerId
+          // son null en Coto, que no es VTEX.
+          ean: m.ean,
+          skuId: m.skuId ?? null,
+          sellerId: m.sellerId ?? null,
         };
       }
     }
@@ -221,7 +227,10 @@ function calcularResumenFinal(resumen, supermercados = SUPERMERCADOS) {
 
     items.push({ input, cantidad, ambiguo, disponibles, optimo });
 
-    comprasPorSuper[optimo.key].push({ input, esOnlineExclusivo: !!optimo.esOnlineExclusivo });
+    comprasPorSuper[optimo.key].push({
+      input, cantidad, esOnlineExclusivo: !!optimo.esOnlineExclusivo,
+      ean: optimo.ean, skuId: optimo.skuId, sellerId: optimo.sellerId,
+    });
     subtotalAsignadoPorSuper[optimo.key] += optimo.total;
     if (optimo.esOnlineExclusivo) requiereOnlinePorSuper[optimo.key] = true;
 
