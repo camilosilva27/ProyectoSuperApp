@@ -124,7 +124,11 @@ Muestra comparativo + resumen final
 | Host | `https://www.vea.com.ar` |
 | Canal | `sc=34` (único canal activo probado en vea.com.ar — no confirmado que sea "el canal de Luján": ver nota de alcance nacional arriba) |
 | Seller preferido | `jumboargentinav700cordoba700` (constante `VEA_SELLER` en `core/fetchers.js`) |
-| Cookie requerida | `vtex_segment=<valor hardcodeado en buscar-promos.js>` |
+| Cookie | **Ninguna** desde 2026-08-13 (ver quirk de precio desactualizado abajo) — antes se mandaba `vtex_segment=<valor hardcodeado>`, ya no |
+
+**Quirk precio desactualizado con cookie fija (encontrado y corregido 2026-08-13):** las queries en vivo de `core/fetchers.js` (`veaLive`, `veaLiveNombre`, `/_v/search-promotions`) mandaban un `vtex_segment` fijo, capturado una vez, con el `regionId` de una sucursal puntual (Luján). Comparando en vivo con y sin ese cookie sobre 20 productos reales, 4 (20%) mostraban un precio **desactualizado** con el cookie fijo, frente al precio vigente que se obtiene tanto sin ningún cookie como logueado con una cuenta real (bypaseando el caché de CloudFront para descartar que fuera solo una respuesta cacheada). Hipótesis: ese `regionId` puntual queda atado a una foto de precios de esa sucursal que no se actualiza al mismo ritmo que el precio "default" de la web. Fix: se dejó de mandar el cookie por completo — la promo por SKU depende del `seller` en el body, no del cookie, así que no se pierde nada. **No agregar de nuevo un `vtex_segment` fijo sin volver a confirmar que sigue devolviendo precio vigente.**
+
+**Nota sobre el hallazgo de "precio único a nivel país" de abajo:** la comparación entre regiones (Luján/Córdoba/La Plata) que confirmó eso usaba el mismo tipo de cookie de región fija — coincidían entre sí, pero no se comparó contra una sesión sin cookie en ese momento. No se encontró evidencia de que el precio varíe *entre* regiones (sigue sin contradecirse), pero sí de que un cookie de región fija puede quedar desactualizado *en el tiempo* respecto al precio default vigente.
 
 **Quirk seller "1":** al buscar por `skuId`, por EAN o por nombre con `sc=34`, la API siempre devuelve `sellerId = "1"` — nunca `VEA_SELLER` ni ningún otro seller regional (confirmado en vivo el 2026-08-10 contra 5 SKUs distintos, con y sin skuId). Esto es un comportamiento de la plataforma VTEX. El código actual (`parsearProductosVea` en `core/fetchers.js`) hace `sellers.find(s => s.sellerId === VEA_SELLER) || sellers[0]` — como `VEA_SELLER` nunca matchea en la práctica, siempre se usa el fallback `sellers[0]` (que hoy es "1"). La constante `VEA_SELLER` queda como preferencia legacy sin efecto real hoy; no se encontró necesidad de sacarla porque no rompe nada, solo no hace nada.
 **Nota histórica:** este documento describía una variable `requireLujanSeller` para decidir si exigir el seller regional según el método de búsqueda. Al verificar contra el código real (2026-08-10) se confirmó que esa variable **no existe ni existió** en `buscar-promos.js` — era documentación desactualizada de una iteración anterior que nunca se corrigió. `core/fetchers.js` (extraído de `buscar-promos.js` sin cambiar comportamiento) tampoco la tiene.
@@ -325,6 +329,7 @@ El scraper de Chango Más: igual que el de Carrefour (retry en 429 **y 502**), g
 | "357g" no matchea "357 Gr" en catálogo | String concatenado sin espacio falla en includes | UNIDADES_RE extrae el número y matchea solo ese |
 | Totales con $0 de ahorro | Vea sin resultados → mezcla = todo Carrefour | Corregido al solucionar el bug de seller |
 | Decimal "$1.844,999" en resumen | Falta de redondeo antes de `fmt()` | `Math.round(total * 100) / 100` |
+| Precio de Vea desactualizado en ~20% de una muestra | Cookie `vtex_segment` fijo con `regionId` de una sucursal puntual, con una foto de precios vieja | Se dejó de mandar el cookie en las queries en vivo de `core/fetchers.js` (ver quirk arriba) |
 
 ---
 
@@ -334,7 +339,7 @@ El scraper de Chango Más: igual que el de Carrefour (retry en 429 **y 502**), g
 - Solo **productos envasados con EAN real** (no productos al peso: queso, fiambre, carne)
 - **Promos bancarias excluidas** (Tarjeta Carrefour, Cuenta DNI, etc.)
 - El catálogo local puede desincronizarse con productos discontinuados o renombrados
-- La cookie `vtex_segment` de Vea puede expirar — si Vea deja de responder, renovarla desde el browser en vea.com.ar
+- Las queries en vivo de Vea (`core/fetchers.js`) ya no usan cookie `vtex_segment` (ver quirk de precio desactualizado). El scraper de catálogo local (`scraper-promos-vea.js`) todavía la usa para bajar el catálogo masivo — ahí no importa que se desactualice porque `precioBase` del catálogo local nunca se muestra al usuario (ver invariante en `AllPromos/CLAUDE.md`), pero si ese scraper empieza a devolver 0 resultados o errores, sospechar de esa cookie expirada, no de esto.
 - **Los 3 catálogos locales capturan solo una fracción del catálogo real de cada super** (tope de ~2.550 ítems del endpoint legacy de VTEX, ver quirk de Chango Más). Para Vea y Carrefour esto ya era así desde el principio; para Chango Más significa ~2.600 de ~59.826 SKUs reales. La búsqueda por nombre puede no encontrar productos poco comunes que no entraron en ese recorte.
 - **Promos condicionales (NxM, Ndo al X%) de Chango Más sin confirmar**: el código las soporta pero nunca se observó un ejemplo real en producción.
 
@@ -346,7 +351,7 @@ El scraper de Chango Más: igual que el de Carrefour (retry en 429 **y 502**), g
 - ~~Preguntar ante ambigüedad de nombre y ante promos que no llegan a activarse~~ ✅ hecho — ver "Interactividad"
 - Confirmar el formato real de `Teasers`/`PromotionTeasers` de Chango Más cuando aparezca la primera promo condicional (hoy sin verificar)
 - Evaluar migrar los 3 scrapers a la Intelligent Search API de VTEX (`/api/io/_v/api/intelligent-search/...`) para superar el tope de ~2.550 ítems del endpoint legacy — hoy los 3 catálogos locales son un recorte parcial del catálogo real
-- Renovar automáticamente la `vtex_segment` cookie de Vea via browser headless
+- Renovar automáticamente la `vtex_segment` cookie de Vea via browser headless (solo aplica a `scraper-promos-vea.js` — las queries en vivo ya no la usan)
 - Interface web mínima (hoy es solo CLI) — sería un rediseño más grande ahora que el flujo tiene pasos interactivos por consola
 - Si el prompt de cambio de cantidad se siente repetitivo en listas grandes, evaluar la alternativa que se descartó ahora: juntar todas las oportunidades de toda la lista y preguntar una sola vez al final en vez de uno por uno
 - **Día**: scraper listo y probado (`scraper-promos-dia.js`), falta integrarlo a `core/fetchers.js` (agregar a `SUPERMERCADOS`, función `diaLive*`/`parsearProductosDia`), a `core/catalogo.js` (prioridad en `resolverEANporNombre`), a `unificarCatalogo.js`, y al frontend (`SuperKey`, `PuntosDisponibilidad`, colores ya definidos en `app/src/theme.ts`). Ver "API de Día" arriba y `PLAN_FEATURES_APP.md`.

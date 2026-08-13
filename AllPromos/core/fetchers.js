@@ -16,7 +16,6 @@ const {
 } = require('../promo-engine');
 const { skuIdVeaPorEAN } = require('./catalogo');
 
-const VEA_SEGMENT = 'eyJjYW1wYWlnbnMiOm51bGwsImNoYW5uZWwiOiIzNCIsInByaWNlVGFibGVzIjpudWxsLCJyZWdpb25JZCI6IlUxY2phblZ0WW05aGNtZGxiblJwYm1GMk1UWXliSFZxWVc0PSIsInV0bV9jYW1wYWlnbiI6bnVsbCwidXRtX3NvdXJjZSI6bnVsbCwidXRtaV9jYW1wYWlnbiI6bnVsbCwiY3VycmVuY3lDb2RlIjoiQVJTIiwiY3VycmVuY3lTeW1ib2wiOiIkIiwiY291bnRyeUNvZGUiOiJBUkciLCJjdWx0dXJlSW5mbyI6ImVzLUFSIiwiYWRtaW5fY3VsdHVyZUluZm8iOiJlcy1BUiIsImNoYW5uZWxQcml2YWN5IjoicHVibGljIn0';
 const VEA_SELLER = 'jumboargentinav700cordoba700';
 
 // Chango Más migró su web a masonline.com.ar (changomas.com.ar redirige ahí).
@@ -218,14 +217,23 @@ async function changoMasLiveNombre(nombre) {
 // ─── Live: Vea ────────────────────────────────────────────────────────────────
 
 // La API de Vea devuelve seller "1" en vez de VEA_SELLER sin importar el método de búsqueda
-// (skuId, EAN o nombre — confirmado en vivo, no es solo un caso de skuId). Y el precio no
-// varía por región: comparamos el mismo producto con sesiones armadas para Luján, Córdoba y
-// La Plata y dio idéntico en los 5 casos probados (ver CONTEXTO_TECNICO.md) — sc=34 no es "el
-// canal de Luján", es el único canal activo que encontramos en vea.com.ar. Por eso preferimos
+// (skuId, EAN o nombre — confirmado en vivo, no es solo un caso de skuId). Por eso preferimos
 // VEA_SELLER cuando aparece, pero NUNCA lo exigimos como condición excluyente — antes esto
 // rechazaba resultados válidos (ej. "Detergente En Polvo X 1 Kg Finish Classic", que existe en
 // Vea pero se descartaba porque exigíamos el seller exacto) en el fallback en vivo por nombre
 // y en la búsqueda por EAN sin catálogo local.
+//
+// sc=34 sigue siendo necesario (es el único canal activo que encontramos en vea.com.ar), pero
+// las queries NO llevan cookie `vtex_segment` a propósito desde 2026-08-13: un cookie fijo
+// (capturado una vez, con un regionId de una sucursal puntual — "Luján") venía devolviendo
+// precios DESACTUALIZADOS para un subconjunto de productos (~20% en una muestra de 20),
+// mientras que una sesión 100% anónima (sin cookie) y una sesión logueada daban, ambas, el
+// mismo precio correcto/vigente — confirmado bypaseando el caché de CloudFront para descartar
+// que fuera solo una respuesta cacheada. La hipótesis más probable es que ese regionId puntual
+// esté atado a una foto de precios de esa sucursal que no se actualiza al mismo ritmo que el
+// precio "default" de la web. La promo por SKU (`/_v/search-promotions`) tampoco depende de
+// este cookie — depende del `seller` que se manda en el body, ya confirmado en vivo. No volver
+// a agregar un `vtex_segment` fijo sin volver a confirmar que sigue devolviendo precio vigente.
 async function parsearProductosVea(products) {
   const candidatos = [];
   for (const p of products) {
@@ -244,7 +252,7 @@ async function parsearProductosVea(products) {
 
   const promoRes = await fetch('https://www.vea.com.ar/_v/search-promotions', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Cookie': `vtex_segment=${VEA_SEGMENT}` },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ seller: VEA_SELLER, skus: candidatos.map(s => s.skuId) }),
   });
   const promos = promoRes.ok
@@ -271,7 +279,7 @@ async function veaLive(ean, skuIdVea = null) {
   const query = skuIdVea ? `fq=skuId:${skuIdVea}` : `fq=alternateIds_Ean:${ean}`;
   const res = await fetch(
     `https://www.vea.com.ar/api/catalog_system/pub/products/search?${query}&sc=34`,
-    { headers: { 'Cookie': `vtex_segment=${VEA_SEGMENT}`, Accept: 'application/json' } }
+    { headers: { Accept: 'application/json' } }
   );
   return res.ok ? parsearProductosVea(await res.json()) : [];
 }
@@ -279,7 +287,7 @@ async function veaLive(ean, skuIdVea = null) {
 async function veaLiveNombre(nombre) {
   const res = await fetch(
     `https://www.vea.com.ar/api/catalog_system/pub/products/search?fq=productName:${encodeURIComponent(nombre)}&_from=0&_to=9&sc=34`,
-    { headers: { 'Cookie': `vtex_segment=${VEA_SEGMENT}`, Accept: 'application/json' } }
+    { headers: { Accept: 'application/json' } }
   );
   return res.ok ? parsearProductosVea(await res.json()) : [];
 }
@@ -502,7 +510,6 @@ async function buscarPorNombreEnVivo(nombre, { tarjetas = [] } = {}) {
 }
 
 module.exports = {
-  VEA_SEGMENT,
   VEA_SELLER,
   CHANGOMAS_HOST,
   CHANGOMAS_SELLER,
