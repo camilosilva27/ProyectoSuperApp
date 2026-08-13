@@ -208,9 +208,19 @@ export default function PantallaBuscar() {
             autoCorrect={false}
             autoCapitalize="none"
             returnKeyType="search"
-            clearButtonMode="while-editing"
             accessibilityLabel="Buscar productos"
           />
+          {consulta.length > 0 ? (
+            <Pressable
+              onPress={() => setConsulta('')}
+              accessibilityRole="button"
+              accessibilityLabel="Borrar búsqueda"
+              hitSlop={12}
+              style={[styles.botonLimpiar, { backgroundColor: paleta.superficieAlt }]}
+            >
+              <Text style={[texto.etiqueta, { color: paleta.tintaTenue }]}>✕</Text>
+            </Pressable>
+          ) : null}
           {isFetching ? <ActivityIndicator size="small" color={paleta.tintaTenue} /> : null}
         </View>
         {/* Sin barra de supers antes de una búsqueda válida: todavía no hay nada que filtrar
@@ -452,7 +462,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: espacio.sm,
     backgroundColor: '#FFFFFF', borderRadius: radio.md, paddingHorizontal: espacio.md, height: 50,
   },
-  input: { flex: 1 },
+  input: { flex: 1, outlineWidth: 0 },
+  botonLimpiar: {
+    width: 20, height: 20, borderRadius: radio.pill, alignItems: 'center', justifyContent: 'center',
+  },
   filaContador: {
     flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
     paddingBottom: espacio.md,
