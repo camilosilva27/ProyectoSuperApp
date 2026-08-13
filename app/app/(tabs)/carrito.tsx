@@ -127,13 +127,18 @@ export default function PantallaCarrito() {
               ))}
             </View>
 
-            <View style={[styles.tarjetaDescuentos, { borderColor: paleta.borde }]}>
+            {/* Vista previa, no el editor — tocar el bloque entero lleva a Mis descuentos
+                (pantalla propia, turno 5a), que es donde se prende/apaga cada una con su
+                descripción de qué desbloquea. Los chips acá son de solo lectura. */}
+            <Pressable
+              onPress={() => router.push('/mis-descuentos')}
+              accessibilityRole="button"
+              style={[styles.tarjetaDescuentos, { borderColor: paleta.borde }]}
+            >
               <View style={[styles.cabeceraDescuentos, { backgroundColor: paleta.oferta }]}>
                 <Text style={[texto.micro, { color: paleta.ofertaTinta, letterSpacing: 1.2 }]}>
                   MIS DESCUENTOS · {carrito.tarjetas.length}
                 </Text>
-                {/* Aclara para qué sirve marcarlas — no es una lista, es lo que suma al comparar
-                    (SPEC § 3d). */}
                 <Text style={[texto.micro, { color: paleta.ofertaTinta, opacity: 0.7, letterSpacing: 0.7 }]}>
                   SUMAN SUS PROMOS
                 </Text>
@@ -142,17 +147,8 @@ export default function PantallaCarrito() {
                 {TARJETAS_DISPONIBLES.map(tarjeta => {
                   const activa = carrito.tarjetas.includes(tarjeta);
                   return (
-                    <Pressable
+                    <View
                       key={tarjeta}
-                      onPress={() =>
-                        carrito.setTarjetas(
-                          activa
-                            ? carrito.tarjetas.filter(t => t !== tarjeta)
-                            : [...carrito.tarjetas, tarjeta]
-                        )
-                      }
-                      accessibilityRole="checkbox"
-                      accessibilityState={{ checked: activa }}
                       style={[
                         styles.chip,
                         activa
@@ -163,11 +159,11 @@ export default function PantallaCarrito() {
                       <Text style={[texto.etiqueta, { color: activa ? paleta.superficie : paleta.tintaSuave }]}>
                         {tarjeta}
                       </Text>
-                    </Pressable>
+                    </View>
                   );
                 })}
               </View>
-            </View>
+            </Pressable>
 
             <Pressable
               onPress={() => setMostrarConfirmarVaciar(true)}

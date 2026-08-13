@@ -185,6 +185,24 @@ export function salud() {
   return pedir<EstadoSalud>('/api/health');
 }
 
+/** Una fila de la pantalla Mis descuentos (turno 5a): qué desbloquea una tarjeta/app/club,
+ *  agregado en vivo de las promos bancarias de Vea, Carrefour y Chango Más. `disponible:
+ *  false` significa que hoy no hay ninguna promo vigente para esa tarjeta (no que no exista). */
+export type Descuento = {
+  nombre: string;
+  disponible: boolean;
+  descuentoPct: number | null;
+  dias: string[];
+  tope: number | null;
+  supers: SuperKey[];
+};
+
+export function misDescuentos() {
+  return pedir<{ generado: string; descuentos: Descuento[]; advertencias: string[] }>(
+    '/api/mis-descuentos'
+  );
+}
+
 /** `producto.imagen` es una ruta relativa (ej. "/imagenes/779...jpg") — esto la completa. */
 export function urlImagen(ruta: string | null): string | null {
   return ruta ? `${URL_BASE}${ruta}` : null;

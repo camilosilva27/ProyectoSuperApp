@@ -74,6 +74,10 @@ export default function LayoutRaiz() {
                   name="resultado"
                   options={{ headerShown: false, presentation: 'card' }}
                 />
+                <Stack.Screen
+                  name="mis-descuentos"
+                  options={{ headerShown: false, presentation: 'card' }}
+                />
               </Stack>
             </ProveedorCarritosGuardados>
           </ProveedorCarrito>

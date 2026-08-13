@@ -338,6 +338,25 @@ function elegirMejorDia(diasCalculados) {
 // ─── Orquestador ────────────────────────────────────────────────────────────────
 
 /**
+ * Igual que obtenerPromosBancarias() pero SIN filtrar por mis-tarjetas.json — esa lectura
+ * es estado local de la CLI (una persona, un archivo); no tiene sentido en un backend
+ * multiusuario, donde cada usuario de la app tiene sus propias tarjetas del lado del
+ * cliente (ver carrito.tarjetas en app/src/carrito.tsx). Pensada para "Mis descuentos" en
+ * la app (backend/src/routes/misDescuentos.js): necesita ver TODAS las promos conocidas
+ * para poder mostrar, tarjeta por tarjeta, qué desbloquea — incluso de las que el usuario
+ * todavía no marcó como propias.
+ * @returns { vea: {promos,error}, carr: {promos,error}, changomas: {promos,error} }
+ */
+async function obtenerTodasLasPromosBancarias() {
+  const [vea, carr, changomas] = await Promise.all([
+    fetchVea().catch(() => ({ promos: [], error: 'fetch_failed' })),
+    fetchCarrefour().catch(() => ({ promos: [], error: 'fetch_failed' })),
+    fetchChangoMas().catch(() => ({ promos: [], error: 'fetch_failed' })),
+  ]);
+  return { vea, carr, changomas };
+}
+
+/**
  * Trae y normaliza las promos bancarias de los 3 supers, ya filtradas por las tarjetas
  * propias del usuario (mis-tarjetas.json). No filtra por día ni canal (eso es
  * promosAplicablesHoy, que se llama al momento de mostrar, no acá).
@@ -688,6 +707,10 @@ function imprimirPlanFinalReoptimizado(supermercados, items, resultado, totalOpt
 
 module.exports = {
   obtenerPromosBancarias,
+  obtenerTodasLasPromosBancarias,
+  // Nombres canónicos de tarjeta que el resto del sistema puede reusar en vez de duplicar
+  // esta lista (ya duplicada una vez en app/src/carrito.tsx como TARJETAS_DISPONIBLES).
+  TARJETAS_CONOCIDAS: Object.keys(ALIAS_TARJETAS),
   promosAplicablesHoy,
   mejorPromoTicket,
   imprimirSeccionBancaria,
