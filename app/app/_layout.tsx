@@ -21,6 +21,7 @@ import React from 'react';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ProveedorCarrito } from '../src/carrito';
+import { ProveedorCarritosGuardados } from '../src/carritosGuardados';
 import { ProveedorFiltrosSupers } from '../src/filtrosSupers';
 import { texto } from '../src/theme';
 import { useTema } from '../src/useTema';
@@ -57,22 +58,24 @@ export default function LayoutRaiz() {
       <SafeAreaProvider>
         <ProveedorFiltrosSupers>
           <ProveedorCarrito>
-            <StatusBar style={esquema === 'dark' ? 'light' : 'dark'} />
-            <Stack
-              screenOptions={{
-                contentStyle: { backgroundColor: paleta.fondo },
-                headerStyle: { backgroundColor: paleta.fondo },
-                headerShadowVisible: false,
-                headerTintColor: paleta.tinta,
-                headerTitleStyle: { ...texto.subtitulo, color: paleta.tinta },
-              }}
-            >
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen
-                name="resultado"
-                options={{ headerShown: false, presentation: 'card' }}
-              />
-            </Stack>
+            <ProveedorCarritosGuardados>
+              <StatusBar style={esquema === 'dark' ? 'light' : 'dark'} />
+              <Stack
+                screenOptions={{
+                  contentStyle: { backgroundColor: paleta.fondo },
+                  headerStyle: { backgroundColor: paleta.fondo },
+                  headerShadowVisible: false,
+                  headerTintColor: paleta.tinta,
+                  headerTitleStyle: { ...texto.subtitulo, color: paleta.tinta },
+                }}
+              >
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen
+                  name="resultado"
+                  options={{ headerShown: false, presentation: 'card' }}
+                />
+              </Stack>
+            </ProveedorCarritosGuardados>
           </ProveedorCarrito>
         </ProveedorFiltrosSupers>
       </SafeAreaProvider>

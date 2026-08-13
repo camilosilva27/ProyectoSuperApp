@@ -10,17 +10,20 @@
  * ("Mis descuentos" — el nombre completo y la pantalla propia son turno 5, todavía no
  * implementados acá), y confirmación antes de vaciar (era deuda de UX, ver SPEC § 7.1).
  *
- * "Carritos guardados" (turno 4, con su hoja de guardado) queda para esa fase: necesita
- * estado persistente propio que todavía no existe, no solo un reskin.
+ * Turno 4: carritos guardados (§ 4.4) — guardar es una foto de la compra actual, no la vacía;
+ * cargar reemplaza la compra actual entera por la guardada.
  */
 
 import { useRouter } from 'expo-router';
-import React from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TARJETAS_DISPONIBLES, useCarrito } from '../../src/carrito';
+import { useCarritosGuardados, type CarritoGuardado } from '../../src/carritosGuardados';
+import { ConfirmacionModal } from '../../src/componentes/Confirmacion';
 import { Stepper, Vacio } from '../../src/componentes/comunes';
 import { FotoProducto } from '../../src/componentes/FotoProducto';
+import { GuardarCarritoHoja, ToastGuardado } from '../../src/componentes/GuardarCarritoHoja';
 import { HeaderNegro, TituloHeader } from '../../src/componentes/HeaderNegro';
 import { espacio, radio, texto } from '../../src/theme';
 import { useTema } from '../../src/useTema';
@@ -30,18 +33,24 @@ export default function PantallaCarrito() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const carrito = useCarrito();
+  const carritosGuardados = useCarritosGuardados();
+  const [mostrarHoja, setMostrarHoja] = useState(false);
+  const [recienGuardadoId, setRecienGuardadoId] = useState<string | null>(null);
+  const [toastNombre, setToastNombre] = useState<string | null>(null);
+  const [mostrarConfirmarVaciar, setMostrarConfirmarVaciar] = useState(false);
 
   const vacia = carrito.items.length === 0;
 
-  const confirmarVaciar = () => {
-    Alert.alert(
-      'Vaciar carrito',
-      `Se van a borrar los ${carrito.items.length} productos que agregaste.`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Vaciar', style: 'destructive', onPress: carrito.vaciar },
-      ]
-    );
+  const vaciarConfirmado = () => {
+    setMostrarConfirmarVaciar(false);
+    carrito.vaciar();
+  };
+
+  const guardarCarrito = (nombre: string) => {
+    const nuevo = carritosGuardados.guardar(nombre, carrito.items);
+    setRecienGuardadoId(nuevo.id);
+    setToastNombre(nuevo.nombre);
+    setMostrarHoja(false);
   };
 
   return (
@@ -59,6 +68,38 @@ export default function PantallaCarrito() {
         contentContainerStyle={[styles.contenido, { paddingBottom: vacia ? espacio.xl : 140 }]}
         keyboardShouldPersistTaps="handled"
       >
+        {/* Vive fuera del "vacia ? …" de abajo a propósito: si el carrito activo está vacío,
+            es justo cuando hace falta poder cargar uno guardado — no solo cuando ya hay algo
+            para guardar. */}
+        {!vacia || carritosGuardados.carritos.length > 0 ? (
+          <View style={styles.seccion}>
+            <View style={styles.filaCabeceraGuardados}>
+              <Text style={[texto.micro, { color: paleta.tintaTenue }]}>CARRITOS GUARDADOS</Text>
+              {!vacia ? (
+                <Pressable
+                  onPress={() => setMostrarHoja(true)}
+                  accessibilityRole="button"
+                  style={[styles.botonGuardarCarrito, { backgroundColor: paleta.oferta }]}
+                >
+                  <Text style={[texto.etiqueta, { color: paleta.ofertaTinta }]}>Guardar carrito</Text>
+                </Pressable>
+              ) : null}
+            </View>
+            {carritosGuardados.carritos.length > 0 ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filaCarritosGuardados}>
+                {carritosGuardados.carritos.map(guardado => (
+                  <TarjetaCarritoGuardado
+                    key={guardado.id}
+                    guardado={guardado}
+                    destacado={guardado.id === recienGuardadoId}
+                    onCargar={() => carrito.reemplazarItems(guardado.items)}
+                  />
+                ))}
+              </ScrollView>
+            ) : null}
+          </View>
+        ) : null}
+
         {vacia ? (
           <Vacio
             titulo="Todavía no elegiste nada"
@@ -128,7 +169,11 @@ export default function PantallaCarrito() {
               </View>
             </View>
 
-            <Pressable onPress={confirmarVaciar} accessibilityRole="button" style={styles.vaciar}>
+            <Pressable
+              onPress={() => setMostrarConfirmarVaciar(true)}
+              accessibilityRole="button"
+              style={styles.vaciar}
+            >
               <Text style={[texto.etiqueta, { color: paleta.tintaTenue, textDecorationLine: 'underline' }]}>
                 Vaciar carrito
               </Text>
@@ -141,7 +186,10 @@ export default function PantallaCarrito() {
         <View
           style={[
             styles.barraInferior,
-            { borderTopColor: paleta.borde, paddingBottom: Math.max(insets.bottom, espacio.md) },
+            {
+              backgroundColor: paleta.superficie, borderTopColor: paleta.borde,
+              paddingBottom: Math.max(insets.bottom, espacio.md),
+            },
           ]}
         >
           <Pressable
@@ -155,8 +203,56 @@ export default function PantallaCarrito() {
             <Text style={[texto.tituloHeader, styles.textoComparar]}>Comparar precios</Text>
             <View style={[styles.puntoAmarillo, { backgroundColor: paleta.oferta }]} />
           </Pressable>
+          <ToastGuardado nombre={toastNombre} onFin={() => setToastNombre(null)} />
         </View>
       ) : null}
+
+      <GuardarCarritoHoja
+        visible={mostrarHoja}
+        productos={carrito.items.length}
+        unidades={carrito.totalUnidades}
+        onCancelar={() => setMostrarHoja(false)}
+        onGuardar={guardarCarrito}
+      />
+
+      <ConfirmacionModal
+        visible={mostrarConfirmarVaciar}
+        titulo="Vaciar carrito"
+        mensaje={`Se van a borrar los ${carrito.items.length} productos que agregaste.`}
+        textoConfirmar="Vaciar"
+        onCancelar={() => setMostrarConfirmarVaciar(false)}
+        onConfirmar={vaciarConfirmado}
+      />
+    </View>
+  );
+}
+
+function TarjetaCarritoGuardado({
+  guardado, destacado, onCargar,
+}: { guardado: CarritoGuardado; destacado: boolean; onCargar: () => void }) {
+  const { paleta } = useTema();
+  const unidades = guardado.items.reduce((n, i) => n + i.cantidad, 0);
+
+  return (
+    <View
+      style={[
+        styles.tarjetaGuardado,
+        destacado
+          ? { borderWidth: 2, borderColor: paleta.oferta }
+          : { borderWidth: 1, borderColor: paleta.borde },
+      ]}
+    >
+      <Text style={[texto.tituloHeader, styles.nombreGuardado, { color: paleta.tinta }]} numberOfLines={2}>
+        {guardado.nombre}
+      </Text>
+      <Text style={[texto.dato, { color: paleta.tintaSuave }]}>
+        {guardado.items.length} producto{guardado.items.length === 1 ? '' : 's'} · {unidades} u
+      </Text>
+      <Pressable onPress={onCargar} accessibilityRole="button" style={styles.linkCargar}>
+        <Text style={[texto.cuerpoMedio, { color: paleta.tinta, textDecorationLine: 'underline' }]}>
+          Cargar
+        </Text>
+      </Pressable>
     </View>
   );
 }
@@ -167,6 +263,21 @@ const styles = StyleSheet.create({
   subtituloHeader: { color: '#FFFFFF', opacity: 0.7 },
   contenido: { paddingHorizontal: espacio.pantalla, paddingTop: espacio.pantalla, gap: espacio.pantalla },
   seccion: { gap: espacio.sm },
+  filaCabeceraGuardados: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  botonGuardarCarrito: {
+    height: 44, paddingHorizontal: espacio.md, borderRadius: radio.sm,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  filaCarritosGuardados: { marginTop: espacio.xs },
+  tarjetaGuardado: {
+    width: 180, borderRadius: radio.md, padding: espacio.md, gap: espacio.xs,
+    marginRight: espacio.sm,
+  },
+  nombreGuardado: { fontSize: 19, lineHeight: 20, letterSpacing: 0.4 },
+  linkCargar: {
+    alignSelf: 'flex-start', height: 44, justifyContent: 'center',
+    marginTop: -espacio.xs, marginBottom: -espacio.sm,
+  },
   filaProducto: {
     flexDirection: 'row', alignItems: 'center', gap: espacio.md,
     borderRadius: radio.md, padding: espacio.md, marginTop: espacio.sm,

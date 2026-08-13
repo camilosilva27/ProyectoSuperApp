@@ -32,6 +32,7 @@ type Accion =
   | { tipo: 'quitar'; ean: string }
   | { tipo: 'cantidad'; ean: string; cantidad: number }
   | { tipo: 'vaciar' }
+  | { tipo: 'reemplazarItems'; items: ItemCarrito[] }
   | { tipo: 'tarjetas'; tarjetas: string[] };
 
 /** Las mismas que soporta promos-bancarias.js; el usuario marca las que tiene. */
@@ -96,6 +97,11 @@ function reducir(estado: Estado, accion: Accion): Estado {
     case 'vaciar':
       return { ...estado, items: [] };
 
+    // Cargar un carrito guardado (turno 4): reemplaza la compra actual entera, no la mezcla
+    // con lo que ya había — "cargar" es abrir esa lista, no sumarle a la de ahora.
+    case 'reemplazarItems':
+      return { ...estado, items: accion.items };
+
     case 'tarjetas':
       return { ...estado, tarjetas: accion.tarjetas };
 
@@ -109,6 +115,7 @@ type Contexto = Estado & {
   quitar: (ean: string) => void;
   cambiarCantidad: (ean: string, cantidad: number) => void;
   vaciar: () => void;
+  reemplazarItems: (items: ItemCarrito[]) => void;
   setTarjetas: (t: string[]) => void;
   cantidadDe: (ean: string) => number;
   totalUnidades: number;
@@ -149,6 +156,7 @@ export function ProveedorCarrito({ children }: { children: React.ReactNode }) {
     quitar: ean => despachar({ tipo: 'quitar', ean }),
     cambiarCantidad: (ean, cantidad) => despachar({ tipo: 'cantidad', ean, cantidad }),
     vaciar: () => despachar({ tipo: 'vaciar' }),
+    reemplazarItems: items => despachar({ tipo: 'reemplazarItems', items }),
     setTarjetas: tarjetas => despachar({ tipo: 'tarjetas', tarjetas }),
     cantidadDe: ean => estado.items.find(i => i.ean === ean)?.cantidad ?? 0,
     totalUnidades: estado.items.reduce((n, i) => n + i.cantidad, 0),
