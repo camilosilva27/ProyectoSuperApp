@@ -5,38 +5,60 @@
  * comparar. El resultado siempre muestra qué promos de tarjeta existen para cada producto,
  * y se pueden activar ahí mismo con un toque — esto es solo para no tener que activarlas
  * cada vez si siempre pagás con las mismas.
+ *
+ * Rediseño v2 (SPEC.md § 4.3): header negro, filas de producto sin EAN, bloque de tarjetas
+ * ("Mis descuentos" — el nombre completo y la pantalla propia son turno 5, todavía no
+ * implementados acá), y confirmación antes de vaciar (era deuda de UX, ver SPEC § 7.1).
+ *
+ * "Carritos guardados" (turno 4, con su hoja de guardado) queda para esa fase: necesita
+ * estado persistente propio que todavía no existe, no solo un reskin.
  */
 
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TARJETAS_DISPONIBLES, useCarrito } from '../../src/carrito';
-import { BotonPrincipal, EncabezadoPantalla, Stepper, Vacio } from '../../src/componentes/comunes';
+import { Stepper, Vacio } from '../../src/componentes/comunes';
 import { FotoProducto } from '../../src/componentes/FotoProducto';
+import { HeaderNegro, TituloHeader } from '../../src/componentes/HeaderNegro';
 import { espacio, radio, texto } from '../../src/theme';
 import { useTema } from '../../src/useTema';
 
 export default function PantallaCarrito() {
-  const { paleta, sombra } = useTema();
+  const { paleta } = useTema();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const carrito = useCarrito();
-  const [mostrarTarjetas, setMostrarTarjetas] = useState(false);
 
   const vacia = carrito.items.length === 0;
 
+  const confirmarVaciar = () => {
+    Alert.alert(
+      'Vaciar carrito',
+      `Se van a borrar los ${carrito.items.length} productos que agregaste.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Vaciar', style: 'destructive', onPress: carrito.vaciar },
+      ]
+    );
+  };
+
   return (
-    <View style={[styles.pantalla, { backgroundColor: paleta.fondo, paddingTop: insets.top + espacio.md }]}>
+    <View style={[styles.pantalla, { backgroundColor: paleta.fondo }]}>
+      <HeaderNegro paddingTop={insets.top + espacio.xl} estilo={styles.headerCarrito}>
+        <TituloHeader>Carrito</TituloHeader>
+        {!vacia ? (
+          <Text style={[texto.etiqueta, styles.subtituloHeader]}>
+            {carrito.items.length} producto{carrito.items.length === 1 ? '' : 's'} · {carrito.totalUnidades} u
+          </Text>
+        ) : null}
+      </HeaderNegro>
+
       <ScrollView
         contentContainerStyle={[styles.contenido, { paddingBottom: vacia ? espacio.xl : 140 }]}
         keyboardShouldPersistTaps="handled"
       >
-        <EncabezadoPantalla
-          titulo="Carrito"
-          bajada={vacia ? undefined : `${carrito.items.length} producto${carrito.items.length === 1 ? '' : 's'} · ${carrito.totalUnidades} unidad${carrito.totalUnidades === 1 ? '' : 'es'}`}
-        />
-
         {vacia ? (
           <Vacio
             titulo="Todavía no elegiste nada"
@@ -44,48 +66,33 @@ export default function PantallaCarrito() {
           />
         ) : (
           <>
-            <View style={[styles.tarjeta, { backgroundColor: paleta.superficie, borderColor: paleta.borde }, sombra]}>
-              {carrito.items.map((item, i) => (
-                <View key={item.ean}>
-                  {i > 0 ? <View style={[styles.separador, { backgroundColor: paleta.borde }]} /> : null}
-                  <View style={styles.fila}>
-                    <FotoProducto nombre={item.nombre} imagen={item.imagen} tamano={40} />
-                    <View style={styles.filaTexto}>
-                      <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]} numberOfLines={2}>
-                        {item.nombre}
-                      </Text>
-                      <Text style={[texto.dato, { color: paleta.tintaTenue }]}>{item.ean}</Text>
-                    </View>
-                    <Stepper
-                      cantidad={item.cantidad}
-                      onCambiar={n => carrito.cambiarCantidad(item.ean, n)}
-                      compacto
-                    />
-                  </View>
+            <View style={styles.seccion}>
+              <Text style={[texto.micro, { color: paleta.tintaTenue }]}>EN ESTA COMPRA</Text>
+              {carrito.items.map(item => (
+                <View
+                  key={item.ean}
+                  style={[styles.filaProducto, { backgroundColor: paleta.superficieAlt }]}
+                >
+                  <FotoProducto nombre={item.nombre} imagen={item.imagen} tamano={44} />
+                  <Text style={[texto.cuerpoMedio, styles.filaNombre, { color: paleta.tinta }]} numberOfLines={2}>
+                    {item.nombre}
+                  </Text>
+                  <Stepper
+                    cantidad={item.cantidad}
+                    onCambiar={n => carrito.cambiarCantidad(item.ean, n)}
+                    compacto
+                  />
                 </View>
               ))}
             </View>
 
-            <Pressable
-              onPress={() => setMostrarTarjetas(v => !v)}
-              accessibilityRole="button"
-              style={[styles.tarjeta, styles.filaTarjetas, { backgroundColor: paleta.superficie, borderColor: paleta.borde }, sombra]}
-            >
-              <View style={styles.filaTexto}>
-                <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>Tus tarjetas (opcional)</Text>
-                <Text style={[texto.etiqueta, { color: paleta.tintaSuave }]} numberOfLines={1}>
-                  {carrito.tarjetas.length
-                    ? carrito.tarjetas.join(' · ')
-                    : 'Vas a ver todas las promos igual; elegí acá las que usás siempre'}
+            <View style={[styles.tarjetaDescuentos, { borderColor: paleta.borde }]}>
+              <View style={[styles.cabeceraDescuentos, { backgroundColor: paleta.oferta }]}>
+                <Text style={[texto.micro, { color: paleta.ofertaTinta, letterSpacing: 1.2 }]}>
+                  MIS DESCUENTOS · {carrito.tarjetas.length} ACTIVO{carrito.tarjetas.length === 1 ? '' : 'S'}
                 </Text>
               </View>
-              <Text style={[texto.subtitulo, { color: paleta.tintaTenue }]}>
-                {mostrarTarjetas ? '×' : '›'}
-              </Text>
-            </Pressable>
-
-            {mostrarTarjetas ? (
-              <View style={styles.chips}>
+              <View style={styles.chipsDescuentos}>
                 {TARJETAS_DISPONIBLES.map(tarjeta => {
                   const activa = carrito.tarjetas.includes(tarjeta);
                   return (
@@ -102,10 +109,9 @@ export default function PantallaCarrito() {
                       accessibilityState={{ checked: activa }}
                       style={[
                         styles.chip,
-                        {
-                          backgroundColor: activa ? paleta.tinta : paleta.superficie,
-                          borderColor: activa ? paleta.tinta : paleta.borde,
-                        },
+                        activa
+                          ? { backgroundColor: paleta.tinta }
+                          : { borderWidth: 1, borderColor: paleta.borde },
                       ]}
                     >
                       <Text style={[texto.etiqueta, { color: activa ? paleta.superficie : paleta.tintaSuave }]}>
@@ -115,13 +121,9 @@ export default function PantallaCarrito() {
                   );
                 })}
               </View>
-            ) : null}
+            </View>
 
-            <Pressable
-              onPress={carrito.vaciar}
-              accessibilityRole="button"
-              style={styles.vaciar}
-            >
+            <Pressable onPress={confirmarVaciar} accessibilityRole="button" style={styles.vaciar}>
               <Text style={[texto.etiqueta, { color: paleta.tintaTenue, textDecorationLine: 'underline' }]}>
                 Vaciar carrito
               </Text>
@@ -134,19 +136,20 @@ export default function PantallaCarrito() {
         <View
           style={[
             styles.barraInferior,
-            {
-              backgroundColor: paleta.superficie,
-              borderTopColor: paleta.borde,
-              paddingBottom: Math.max(insets.bottom, espacio.md),
-            },
+            { borderTopColor: paleta.borde, paddingBottom: Math.max(insets.bottom, espacio.md) },
           ]}
         >
-          <BotonPrincipal
+          <Pressable
             onPress={() => router.push('/resultado')}
-            subtitulo="Precios en vivo de los 5 supermercados"
+            accessibilityRole="button"
+            style={({ pressed }) => [
+              styles.botonComparar,
+              { backgroundColor: paleta.tinta, opacity: pressed ? 0.9 : 1 },
+            ]}
           >
-            Comparar precios
-          </BotonPrincipal>
+            <Text style={[texto.tituloHeader, styles.textoComparar]}>Comparar precios</Text>
+            <View style={[styles.puntoAmarillo, { backgroundColor: paleta.oferta }]} />
+          </Pressable>
         </View>
       ) : null}
     </View>
@@ -155,23 +158,32 @@ export default function PantallaCarrito() {
 
 const styles = StyleSheet.create({
   pantalla: { flex: 1 },
-  contenido: { paddingHorizontal: espacio.lg, gap: espacio.md },
-  tarjeta: { borderWidth: 1, borderRadius: radio.lg, paddingHorizontal: espacio.md },
-  filaTarjetas: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    gap: espacio.md, paddingVertical: espacio.md,
+  headerCarrito: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
+  subtituloHeader: { color: '#FFFFFF', opacity: 0.7 },
+  contenido: { paddingHorizontal: espacio.pantalla, paddingTop: espacio.pantalla, gap: espacio.pantalla },
+  seccion: { gap: espacio.sm },
+  filaProducto: {
+    flexDirection: 'row', alignItems: 'center', gap: espacio.md,
+    borderRadius: radio.md, padding: espacio.md, marginTop: espacio.sm,
   },
-  fila: {
-    flexDirection: 'row', alignItems: 'center', gap: espacio.md, paddingVertical: espacio.md,
+  filaNombre: { flex: 1 },
+  tarjetaDescuentos: { borderWidth: 1, borderRadius: radio.tarjeta, overflow: 'hidden' },
+  cabeceraDescuentos: { paddingHorizontal: espacio.md, paddingVertical: espacio.sm },
+  chipsDescuentos: { flexDirection: 'row', flexWrap: 'wrap', gap: espacio.sm, padding: espacio.md },
+  chip: { paddingHorizontal: espacio.md, paddingVertical: espacio.sm, borderRadius: radio.sm },
+  vaciar: {
+    alignSelf: 'center', height: 44, paddingHorizontal: espacio.md,
+    alignItems: 'center', justifyContent: 'center',
   },
-  filaTexto: { flex: 1, gap: 3 },
-  separador: { height: StyleSheet.hairlineWidth },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: espacio.sm },
-  chip: { paddingHorizontal: espacio.md, paddingVertical: 7, borderRadius: radio.pill, borderWidth: 1 },
-  vaciar: { alignSelf: 'center', paddingVertical: espacio.md },
   barraInferior: {
     position: 'absolute', left: 0, right: 0, bottom: 0,
     borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: espacio.lg, paddingTop: espacio.md,
+    paddingHorizontal: espacio.pantalla, paddingTop: espacio.md,
   },
+  botonComparar: {
+    borderRadius: radio.md, minHeight: 56,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: espacio.sm,
+  },
+  textoComparar: { fontSize: 24, lineHeight: 26, textTransform: 'uppercase', color: '#FFFFFF' },
+  puntoAmarillo: { width: 8, height: 8, borderRadius: radio.pill },
 });

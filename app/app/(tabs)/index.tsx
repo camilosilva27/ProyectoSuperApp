@@ -5,13 +5,17 @@
  * terminal, "pepitos 357 gr" puede matchear tres productos distintos y hay que preguntar cuál
  * es; acá los tres aparecen juntos, con su nombre real y en qué supers están, y el usuario
  * toca el que quiere. La ambigüedad no se resuelve: no llega a existir.
+ *
+ * Rediseño v2 (ver design_handoff_allpromos_v2/SPEC.md § 4.2): header negro con buscador y
+ * barra de supers siempre visibles, banda de disponibilidad de 8px por resultado, mejor
+ * precio con el nombre del super en su color.
  */
 
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -20,10 +24,10 @@ import {
 } from '../../src/api';
 import { useCarrito } from '../../src/carrito';
 import {
-  BotonPrincipal, EncabezadoPantalla, NOMBRE_SUPER, ORDEN_SUPERS, Problema,
-  PuntosDisponibilidad, Stepper, Vacio,
+  BandaDisponibilidad, BotonPrincipal, Problema, Stepper, Vacio,
 } from '../../src/componentes/comunes';
 import { FotoProducto } from '../../src/componentes/FotoProducto';
+import { BarraSupers, HeaderNegro, TituloHeader } from '../../src/componentes/HeaderNegro';
 import { useFiltrosSupers } from '../../src/filtrosSupers';
 import { espacio, pesos, radio, texto } from '../../src/theme';
 import { useTema } from '../../src/useTema';
@@ -107,7 +111,7 @@ function useTextoDemorado(valor: string, ms = 300) {
 }
 
 export default function PantallaBuscar() {
-  const { paleta, sombra } = useTema();
+  const { paleta } = useTema();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const carrito = useCarrito();
@@ -157,75 +161,69 @@ export default function PantallaBuscar() {
     });
   }, [resultados, orden, precios, cargandoOrdenPrecio]);
 
-  const encabezado = useMemo(() => (
-    <View>
-      <EncabezadoPantalla
-        titulo="Qué vas a comprar"
-        bajada="Buscá el producto y tocalo para sumarlo al carrito."
-      />
-      <View style={[styles.buscador, { backgroundColor: paleta.superficie, borderColor: paleta.borde }, sombra]}>
-        <TextInput
-          value={consulta}
-          onChangeText={setConsulta}
-          placeholder="yerba, fideos, shampoo…"
-          placeholderTextColor={paleta.tintaTenue}
-          style={[texto.cuerpo, styles.input, { color: paleta.tinta }]}
-          autoCorrect={false}
-          autoCapitalize="none"
-          returnKeyType="search"
-          clearButtonMode="while-editing"
-          accessibilityLabel="Buscar productos"
-        />
-        {isFetching ? <ActivityIndicator size="small" color={paleta.tintaTenue} /> : null}
-      </View>
+  const supersEnResultados = useMemo(
+    () => new Set(resultadosMostrados.flatMap(p => p.disponibleEn.filter(k => supersActivos.includes(k)))).size,
+    [resultadosMostrados, supersActivos]
+  );
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filaChips}>
-        {ORDEN_SUPERS.map(key => (
-          <Chip
-            key={key}
-            etiqueta={NOMBRE_SUPER[key]}
-            activo={supersActivos.includes(key)}
-            onPress={() => toggleSuper(key)}
-          />
-        ))}
-      </ScrollView>
+  const cicloOrden = () => {
+    const i = OPCIONES_ORDEN.findIndex(o => o.valor === orden);
+    setOrden(OPCIONES_ORDEN[(i + 1) % OPCIONES_ORDEN.length].valor);
+  };
 
-      {consultaValida ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filaChips}>
-          {OPCIONES_ORDEN.map(o => (
-            <Chip key={o.valor} etiqueta={o.etiqueta} activo={orden === o.valor} onPress={() => setOrden(o.valor)} />
-          ))}
-        </ScrollView>
-      ) : null}
-
-      {consultaValida && !isFetching && !error ? (
-        <Text style={[texto.micro, styles.contador, { color: paleta.tintaTenue }]}>
+  const encabezadoLista = useMemo(() => (
+    consultaValida ? (
+      <View style={styles.filaContador}>
+        <Text style={[texto.micro, { color: paleta.tintaTenue }]}>
           {cargandoOrdenPrecio
             ? 'ORDENANDO POR PRECIO…'
             : data?.total === 0
               ? 'SIN RESULTADOS'
-              : `${data?.total} RESULTADO${data?.total === 1 ? '' : 'S'}${hayMas ? ` · MOSTRANDO ${resultados.length}` : ''}`}
+              : `${data?.total} RESULTADO${data?.total === 1 ? '' : 'S'} EN ${supersEnResultados} SUPER${supersEnResultados === 1 ? '' : 'S'}`}
         </Text>
-      ) : null}
-    </View>
-  ), [
-    consulta, isFetching, error, data?.total, resultados.length, hayMas, paleta, sombra,
-    consultaValida, orden, supersActivos, toggleSuper, cargandoOrdenPrecio,
-  ]);
+        <Pressable onPress={cicloOrden} accessibilityRole="button" style={styles.selectorOrden}>
+          <Text style={[texto.etiqueta, styles.subrayado, { color: paleta.tinta }]}>
+            {OPCIONES_ORDEN.find(o => o.valor === orden)?.etiqueta}
+          </Text>
+          <Text style={[texto.cuerpo, { color: paleta.tintaTenue }]}>⌄</Text>
+        </Pressable>
+      </View>
+    ) : null
+  ), [consultaValida, cargandoOrdenPrecio, data?.total, supersEnResultados, orden, paleta]);
 
   return (
-    <View style={[styles.pantalla, { backgroundColor: paleta.fondo, paddingTop: insets.top + espacio.md }]}>
+    <View style={[styles.pantalla, { backgroundColor: paleta.fondo }]}>
+      <HeaderNegro paddingTop={insets.top + espacio.xl}>
+        <TituloHeader>Qué vas a comprar</TituloHeader>
+        <View style={styles.buscador}>
+          <TextInput
+            value={consulta}
+            onChangeText={setConsulta}
+            placeholder="yerba, fideos, shampoo…"
+            placeholderTextColor={paleta.tintaTenue}
+            style={[texto.cuerpo, styles.input, { color: paleta.tinta }]}
+            autoCorrect={false}
+            autoCapitalize="none"
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+            accessibilityLabel="Buscar productos"
+          />
+          {isFetching ? <ActivityIndicator size="small" color={paleta.tintaTenue} /> : null}
+        </View>
+        <BarraSupers activos={supersActivos} onToggle={toggleSuper} />
+      </HeaderNegro>
+
       <FlatList
         data={resultadosMostrados}
         keyExtractor={p => p.ean}
-        ListHeaderComponent={encabezado}
+        ListHeaderComponent={encabezadoLista}
         contentContainerStyle={[
           styles.lista,
           { paddingBottom: carrito.items.length ? 120 : espacio.xl },
         ]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
-        ItemSeparatorComponent={() => <View style={[styles.separador, { backgroundColor: paleta.borde }]} />}
+        ItemSeparatorComponent={() => <View style={{ height: espacio.sm }} />}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
         renderItem={({ item }) => (
@@ -257,7 +255,7 @@ export default function PantallaBuscar() {
           ) : !consultaValida ? (
             <Vacio
               titulo="Empezá a escribir"
-              detalle="Con dos letras alcanza. Los puntos de color muestran en qué supermercados existe cada producto."
+              detalle="Con dos letras alcanza. La banda de color muestra en qué supermercados existe cada producto."
             />
           ) : null
         }
@@ -286,27 +284,6 @@ export default function PantallaBuscar() {
   );
 }
 
-function Chip({ etiqueta, activo, onPress }: { etiqueta: string; activo: boolean; onPress: () => void }) {
-  const { paleta } = useTema();
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityState={{ selected: activo }}
-      style={({ pressed }) => [
-        styles.chip,
-        {
-          backgroundColor: activo ? paleta.tinta : 'transparent',
-          borderColor: activo ? paleta.tinta : paleta.borde,
-          opacity: pressed ? 0.7 : 1,
-        },
-      ]}
-    >
-      <Text style={[texto.etiqueta, { color: activo ? paleta.fondo : paleta.tinta }]}>{etiqueta}</Text>
-    </Pressable>
-  );
-}
-
 /**
  * OJO — bug ya encontrado y corregido acá: la fila entera no puede ser un único Pressable
  * con accessibilityRole="button" cuando ya está en el carrito, porque adentro el Stepper
@@ -331,41 +308,34 @@ function FilaProducto({
 
   const contenido = (
     <>
-      <FotoProducto nombre={producto.nombre} imagen={producto.imagen} />
+      <BandaDisponibilidad disponibleEn={producto.disponibleEn} />
+      <View style={styles.filaCuerpo}>
+        <FotoProducto nombre={producto.nombre} imagen={producto.imagen} tamano={48} />
 
-      <View style={styles.filaTexto}>
-        <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]} numberOfLines={2}>
-          {producto.nombre}
-        </Text>
-        {producto.variante ? (
-          <Text style={[texto.etiqueta, { color: paleta.tintaTenue }]} numberOfLines={1}>
-            {producto.variante}
+        <View style={styles.filaTexto}>
+          <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]} numberOfLines={2}>
+            {producto.nombre}
           </Text>
-        ) : null}
-        <View style={styles.filaMeta}>
-          <PuntosDisponibilidad disponibleEn={producto.disponibleEn} />
-          {producto.categoria ? (
-            <Text style={[texto.micro, { color: paleta.tintaTenue }]} numberOfLines={1}>
-              {producto.categoria.split('>').pop()?.trim().toUpperCase()}
-            </Text>
-          ) : null}
+          <BadgePrecio precio={precio} />
         </View>
-        <BadgePrecio precio={precio} />
-      </View>
 
-      {enLista ? (
-        <Stepper cantidad={cantidad} onCambiar={onCambiarCantidad} compacto />
-      ) : (
-        <View style={[styles.masBoton, { borderColor: paleta.bordeFuerte }]}>
-          <Text style={[texto.subtitulo, { color: paleta.tinta }]}>+</Text>
-        </View>
-      )}
+        {enLista ? (
+          <Stepper cantidad={cantidad} onCambiar={onCambiarCantidad} compacto />
+        ) : (
+          <View style={[styles.masBoton, { backgroundColor: paleta.oferta }]}>
+            <Text style={[texto.subtitulo, { color: paleta.ofertaTinta }]}>+</Text>
+          </View>
+        )}
+      </View>
     </>
   );
 
   if (enLista) {
     return (
-      <View style={styles.fila} accessibilityLabel={`${producto.nombre}, ${cantidad} en el carrito`}>
+      <View
+        style={[styles.fila, { borderColor: paleta.borde }]}
+        accessibilityLabel={`${producto.nombre}, ${cantidad} en el carrito`}
+      >
         {contenido}
       </View>
     );
@@ -376,7 +346,7 @@ function FilaProducto({
       onPress={onAgregar}
       accessibilityRole="button"
       accessibilityLabel={`${producto.nombre}, agregar al carrito`}
-      style={({ pressed }) => [styles.fila, { opacity: pressed ? 0.6 : 1 }]}
+      style={({ pressed }) => [styles.fila, { borderColor: paleta.borde, opacity: pressed ? 0.6 : 1 }]}
     >
       {contenido}
     </Pressable>
@@ -394,13 +364,15 @@ function BadgePrecio({ precio }: { precio: PrecioRapido | 'error' | undefined })
 
   return (
     <View style={styles.badgePrecio}>
-      <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>{pesos(precio.mejor.total)}</Text>
-      <Text style={[texto.micro, { color: paleta.supers[precio.mejor.key] }]} numberOfLines={1}>
-        {precio.mejor.tag} {precio.mejor.super}
+      <Text style={[texto.precioChico, { color: paleta.tinta }]}>{pesos(precio.mejor.total)}</Text>
+      <Text style={[texto.microSuper, { color: paleta.supers[precio.mejor.key] }]} numberOfLines={1}>
+        {precio.mejor.super.toUpperCase()}
       </Text>
       {precio.oferta ? (
-        <View style={[styles.pillOferta, { backgroundColor: paleta.ofertaSuave, borderColor: paleta.oferta }]}>
-          <Text style={[texto.micro, { color: paleta.tinta }]} numberOfLines={1}>{precio.oferta}</Text>
+        <View style={[styles.pillOferta, { backgroundColor: paleta.oferta }]}>
+          <Text style={[texto.micro, { color: paleta.ofertaTinta, letterSpacing: 0.5 }]} numberOfLines={1}>
+            {precio.oferta}
+          </Text>
         </View>
       ) : null}
       {precio.esOnline ? (
@@ -414,40 +386,39 @@ function BadgePrecio({ precio }: { precio: PrecioRapido | 'error' | undefined })
 
 const styles = StyleSheet.create({
   pantalla: { flex: 1 },
-  lista: { paddingHorizontal: espacio.lg },
+  lista: { paddingHorizontal: espacio.pantalla, paddingTop: espacio.md },
   buscador: {
     flexDirection: 'row', alignItems: 'center', gap: espacio.sm,
-    borderWidth: 1, borderRadius: radio.md, paddingHorizontal: espacio.md,
+    backgroundColor: '#FFFFFF', borderRadius: radio.md, paddingHorizontal: espacio.md, height: 50,
   },
-  input: { flex: 1, paddingVertical: 13 },
-  filaChips: { marginTop: espacio.sm },
-  chip: {
-    borderWidth: 1, borderRadius: radio.pill,
-    paddingHorizontal: espacio.md, paddingVertical: espacio.xs,
-    marginRight: espacio.sm,
+  input: { flex: 1 },
+  filaContador: {
+    flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
+    paddingBottom: espacio.md,
   },
-  contador: { paddingTop: espacio.md, paddingBottom: espacio.xs },
+  selectorOrden: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    height: 44, paddingHorizontal: espacio.sm, marginRight: -espacio.sm, marginVertical: -espacio.md,
+  },
+  subrayado: { textDecorationLine: 'underline' },
   cargandoOrden: { paddingVertical: espacio.xl },
   fila: {
-    flexDirection: 'row', alignItems: 'center', gap: espacio.md,
-    paddingVertical: espacio.md,
+    flexDirection: 'row', borderWidth: 1, borderRadius: radio.tarjeta, overflow: 'hidden',
   },
-  filaTexto: { flex: 1, gap: 3 },
-  filaMeta: { flexDirection: 'row', alignItems: 'center', gap: espacio.sm, paddingTop: 2 },
-  badgePrecio: { flexDirection: 'row', alignItems: 'center', gap: espacio.sm, paddingTop: 4 },
-  pillOferta: {
-    borderWidth: 1, borderRadius: radio.pill,
-    paddingHorizontal: espacio.sm, paddingVertical: 1,
+  filaCuerpo: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: espacio.md, padding: espacio.md,
   },
+  filaTexto: { flex: 1, gap: 4 },
+  badgePrecio: { flexDirection: 'row', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' },
+  pillOferta: { borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
   marcaOnline: { paddingHorizontal: 5, paddingVertical: 1, borderRadius: radio.sm, borderWidth: 1 },
   masBoton: {
-    width: 34, height: 34, borderRadius: radio.pill, borderWidth: 1,
+    width: 36, height: 36, borderRadius: radio.sm,
     alignItems: 'center', justifyContent: 'center',
   },
-  separador: { height: StyleSheet.hairlineWidth },
   barraInferior: {
     position: 'absolute', left: 0, right: 0, bottom: 0,
     borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: espacio.lg, paddingTop: espacio.md,
+    paddingHorizontal: espacio.pantalla, paddingTop: espacio.md,
   },
 });

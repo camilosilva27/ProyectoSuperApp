@@ -37,9 +37,14 @@ const superBordes = {
 
 const paletas = {
   light: {
-    fondo: '#EEF0F2',
+    // Rediseño v2: fondo blanco, no gris — las tarjetas se distinguen por borde, no por
+    // contraste de fondo (ver `sombra`, que casi no se usa en claro a propósito).
+    fondo: '#FFFFFF',
     superficie: '#FFFFFF',
     superficieAlt: '#F6F7F9',
+    // Un escalón más oscuro que `superficieAlt`: banda "no disponible", pistas de progreso.
+    // Nunca para tarjetas ni texto — para eso está `superficieAlt`.
+    superficie2: '#E4E7EA',
     borde: '#DFE3E7',
     bordeFuerte: '#C6CCD3',
     tinta: '#14161A',
@@ -58,6 +63,9 @@ const paletas = {
     fondo: '#0F1114',
     superficie: '#181B20',
     superficieAlt: '#20242B',
+    // Placeholder: el tema oscuro del rediseño todavía no está diseñado (ver SPEC § 7.5).
+    // Valor de continuidad con la escala existente, a revisar cuando se encare ese turno.
+    superficie2: '#2B3138',
     borde: '#2B3138',
     bordeFuerte: '#3C444D',
     tinta: '#F1F3F5',
@@ -96,6 +104,13 @@ export const fuentes = {
 
 /** Escala tipográfica. Los tamaños de `precio` son mayores porque la fuente es condensada. */
 export const texto = {
+  // Título del header negro (rediseño v2): siempre mayúscula, ver TituloHeader en
+  // componentes/HeaderNegro.tsx — el `textTransform` vive ahí, no acá, porque el label de
+  // Resultado ("Dónde comprar") entra por props ya en minúscula normal.
+  tituloHeader: {
+    fontFamily: fuentes.precio, fontSize: 34, lineHeight: 34, letterSpacing: 1,
+    textTransform: 'uppercase' as const,
+  },
   precioHero:   { fontFamily: fuentes.precio, fontSize: 40, lineHeight: 42 },
   precioGrande: { fontFamily: fuentes.precio, fontSize: 28, lineHeight: 30 },
   precio:       { fontFamily: fuentes.precio, fontSize: 22, lineHeight: 24 },
@@ -106,12 +121,17 @@ export const texto = {
   cuerpoMedio:  { fontFamily: fuentes.medio, fontSize: 15, lineHeight: 21 },
   etiqueta:     { fontFamily: fuentes.medio, fontSize: 13, lineHeight: 18 },
   micro:        { fontFamily: fuentes.medio, fontSize: 11, lineHeight: 14, letterSpacing: 0.7 },
+  // Nombre de super bajo la barrita de BarraSupers — letter-spacing más chico que `micro`
+  // porque acompaña una barra angosta, no encabeza una sección.
+  microSuper:   { fontFamily: fuentes.medio, fontSize: 11, lineHeight: 14, letterSpacing: 0.4 },
   dato:         { fontFamily: fuentes.dato, fontSize: 12, lineHeight: 16 },
 } as const;
 
-export const espacio = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
+export const espacio = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, pantalla: 20 } as const;
 
-export const radio = { sm: 6, md: 10, lg: 14, pill: 999 } as const;
+// `pantalla`/`tarjeta` son los radios explícitos del rediseño v2 (16 y 12 — ver SPEC § 1);
+// sm/md/lg quedan para lo que todavía no migró a ese lenguaje visual.
+export const radio = { sm: 6, md: 10, lg: 14, pill: 999, pantalla: 16, tarjeta: 12 } as const;
 
 export function sombra(esquema: Esquema) {
   if (esquema === 'dark') return {};

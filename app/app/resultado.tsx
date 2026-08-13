@@ -2,18 +2,19 @@
  * Pantalla Resultado: el veredicto.
  *
  * La pregunta que responde no es "cuánto sale cada cosa" sino "¿me conviene ir a dos
- * supermercados o compro todo en uno?". Por eso arranca con el total repartido y cuánto se
- * ahorra contra la mejor opción de un solo super, y después detalla producto por producto
- * con la barra de diferencia.
+ * supermercados o comprar todo en uno?". Por eso arranca con el total repartido y cuánto se
+ * ahorra contra la mejor opción de un solo super.
  *
- * La sugerencia de cantidad se muestra como aviso con un botón, nunca como pregunta que
- * bloquee: los números de cada cantidad posible ya vienen en la respuesta, así que se puede
- * mostrar el "y si llevás 3" sin volver a consultar nada. Solo al aceptar se recalcula.
+ * Rediseño v2 (SPEC.md § 4.6, versión de un solo total — el header con los DOS totales de
+ * 3c/5b queda para esa fase): header negro con el total, el ahorro y un aviso de promos sin
+ * aplicar; PLAN DE COMPRA con un bloque grande por super; PROMOS SIN APLICAR agrupadas (solo
+ * las de tarjeta: la sugerencia por cantidad sigue en "Producto por producto", ver comentario
+ * en PromosSinAplicar); y "si comprás todo en uno" como gráfico de barras.
  */
 
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
@@ -23,8 +24,9 @@ import {
 } from '../src/api';
 import { useCarrito } from '../src/carrito';
 import { BarraDiferencia } from '../src/componentes/BarraDiferencia';
-import { EncabezadoPantalla, Problema, Vacio } from '../src/componentes/comunes';
+import { Problema, Vacio } from '../src/componentes/comunes';
 import { FotoProducto } from '../src/componentes/FotoProducto';
+import { HeaderNegro } from '../src/componentes/HeaderNegro';
 import { useFiltrosSupers } from '../src/filtrosSupers';
 import { espacio, pesos, radio, texto } from '../src/theme';
 import { useTema } from '../src/useTema';
@@ -38,11 +40,48 @@ function colorIdentidad(paleta: ReturnType<typeof useTema>['paleta'], key: Super
   };
 }
 
+/** Verde de "ya aplicada" en la fila de estado (§3.6) — no es identidad de ningún super,
+ *  es el mismo valor que usa el diseño aprobado para ese punto con ✓. */
+const VERDE_APLICADA = '#12874A';
+
+/** Una promo de tarjeta sin activar, en el super donde el producto ya quedó asignado —
+ *  ver PromosSinAplicar para por qué solo estas entran acá. */
+type PromoSinAplicar = {
+  ean: string;
+  producto: string;
+  super: string;
+  ahorro: number;
+  quedaEn: number;
+  descripcion: string;
+  tarjeta: string;
+};
+
+function promosSinAplicarDe(items: ItemComparado[]): PromoSinAplicar[] {
+  const promos: PromoSinAplicar[] = [];
+  for (const item of items) {
+    const mejor = item.mejor;
+    if (!mejor?.promo || mejor.promo.tarjetaActiva || !mejor.promo.requiereTarjeta) continue;
+    if (mejor.totalConTarjeta == null) continue;
+    promos.push({
+      ean: item.ean,
+      producto: item.nombre ?? item.ean,
+      super: mejor.super,
+      ahorro: mejor.total - mejor.totalConTarjeta,
+      quedaEn: mejor.totalConTarjeta,
+      descripcion: mejor.promo.descripcion,
+      tarjeta: mejor.promo.requiereTarjeta,
+    });
+  }
+  return promos;
+}
+
 export default function PantallaResultado() {
   const { paleta } = useTema();
   const insets = useSafeAreaInsets();
   const carrito = useCarrito();
   const { supersActivos } = useFiltrosSupers();
+  const scrollRef = useRef<ScrollView>(null);
+  const yPromos = useRef(0);
 
   const pedido = carrito.items.map(i => ({ ean: i.ean, cantidad: i.cantidad }));
   const clave = JSON.stringify({ pedido, tarjetas: carrito.tarjetas, supersActivos });
@@ -84,37 +123,68 @@ export default function PantallaResultado() {
     );
   }
 
+  const promos = promosSinAplicarDe(data.items);
+  const montoPromos = promos.reduce((n, p) => n + p.ahorro, 0);
+
   return (
-    <ScrollView
-      style={{ backgroundColor: paleta.fondo }}
-      contentContainerStyle={[styles.contenido, { paddingBottom: insets.bottom + espacio.xl }]}
-    >
-      <Veredicto data={data} />
+    <View style={{ flex: 1, backgroundColor: paleta.fondo }}>
+      <HeaderVeredicto
+        data={data}
+        insets={insets}
+        promos={promos}
+        montoPromos={montoPromos}
+        onVerPromos={() => scrollRef.current?.scrollTo({ y: yPromos.current, animated: true })}
+      />
 
-      {data.advertencias.length ? (
-        <Problema mensaje={data.advertencias.join('\n')} />
-      ) : null}
+      <ScrollView
+        ref={scrollRef}
+        style={{ backgroundColor: paleta.fondo }}
+        contentContainerStyle={[styles.contenido, { paddingBottom: insets.bottom + espacio.xl }]}
+      >
+        {data.advertencias.length ? (
+          <Problema mensaje={data.advertencias.join('\n')} />
+        ) : null}
 
-      <PlanDeCompra data={data} />
+        <PlanDeCompra data={data} />
 
-      <View style={styles.seccion}>
-        <Text style={[texto.micro, { color: paleta.tintaTenue }]}>PRODUCTO POR PRODUCTO</Text>
-        {data.items.map((item, i) => (
-          <TarjetaItem key={item.ean} item={item} indice={i} />
-        ))}
-      </View>
+        {promos.length ? (
+          <View style={styles.seccion} onLayout={e => { yPromos.current = e.nativeEvent.layout.y; }}>
+            <Text style={[texto.micro, { color: paleta.tintaTenue }]}>PROMOS SIN APLICAR · {promos.length}</Text>
+            {promos.map(promo => (
+              <BloquePromo
+                key={promo.ean}
+                promo={promo}
+                onAplicar={() => {
+                  if (!carrito.tarjetas.includes(promo.tarjeta)) {
+                    carrito.setTarjetas([...carrito.tarjetas, promo.tarjeta]);
+                  }
+                }}
+              />
+            ))}
+          </View>
+        ) : null}
 
-      <Text style={[texto.dato, styles.pie, { color: paleta.tintaTenue }]}>
-        Precios consultados {new Date(data.generado).toLocaleString('es-AR')}
-        {isFetching ? ' · actualizando…' : ''}
-      </Text>
-    </ScrollView>
+        <SiComprasTodoEnUno data={data} />
+
+        <DetalleProductoPorProducto data={data} isFetching={isFetching} />
+      </ScrollView>
+    </View>
   );
 }
 
-/** Hero: total repartido vs. la mejor opción de comprar todo en un solo super. */
-function Veredicto({ data }: { data: RespuestaComparar }) {
-  const { paleta, sombra } = useTema();
+/** Header negro: total repartido, ahorro contra la mejor opción de un solo super, y aviso
+ *  de promos sin aplicar si hay alguna (ver SPEC § 4.6, versión turno v2 — un solo total). */
+function HeaderVeredicto({
+  data, insets, promos, montoPromos, onVerPromos,
+}: {
+  data: RespuestaComparar;
+  insets: { top: number };
+  promos: PromoSinAplicar[];
+  montoPromos: number;
+  onVerPromos: () => void;
+}) {
+  const { paleta } = useTema();
+  const router = useRouter();
   const { totalOptimo, totalesPorSuper } = data.resumen;
 
   const supersConTotal = data.supermercados
@@ -126,53 +196,74 @@ function Veredicto({ data }: { data: RespuestaComparar }) {
   const ahorroRepartiendo = mejorUnico ? mejorUnico.total - totalOptimo : 0;
   const valeRepartir = ahorroRepartiendo >= 1;
 
+  const paradasNombres = data.supermercados
+    .filter(s => (data.resumen.subtotalAsignadoPorSuper[s.key] ?? 0) > 0)
+    .map(s => s.nombre);
+
   return (
-    <View style={[styles.hero, { backgroundColor: paleta.superficie, borderColor: paleta.borde }, sombra]}>
-      <Text style={[texto.micro, { color: paleta.tintaTenue }]}>
-        {valeRepartir ? 'REPARTIENDO LA COMPRA' : 'TOTAL DE TU CARRITO'}
-      </Text>
-      <Text style={[texto.precioHero, { color: paleta.tinta }]}>{pesos(totalOptimo)}</Text>
+    <HeaderNegro paddingTop={insets.top + espacio.md} estilo={{ gap: espacio.md }}>
+      <Pressable onPress={() => router.back()} accessibilityRole="button" style={styles.filaVolver}>
+        <Text style={styles.flechaVolver}>‹</Text>
+        <Text style={[texto.micro, styles.labelHeaderOscuro]}>DÓNDE COMPRAR</Text>
+      </Pressable>
+
+      <View style={{ gap: 6 }}>
+        <Text style={[texto.precioHero, styles.totalHero]}>{pesos(totalOptimo)}</Text>
+        {paradasNombres.length > 1 ? (
+          <Text style={[texto.etiqueta, styles.subtitutloHero]}>
+            repartiendo entre {paradasNombres.join(', ')}
+          </Text>
+        ) : null}
+      </View>
 
       {valeRepartir && mejorUnico ? (
-        <View style={[styles.destacado, { backgroundColor: paleta.ofertaSuave, borderColor: paleta.oferta }]}>
-          <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>
-            Ahorrás {pesos(ahorroRepartiendo)}
-          </Text>
-          <Text style={[texto.etiqueta, { color: paleta.tintaSuave }]}>
-            contra comprar todo en {mejorUnico.nombre} ({pesos(mejorUnico.total)})
-          </Text>
+        <View style={[styles.bloqueAhorro, { backgroundColor: paleta.oferta }]}>
+          <Text style={[texto.cuerpoMedio, { color: paleta.ofertaTinta }]}>Ahorro vs. una sola parada</Text>
+          <Text style={[texto.precioGrande, { color: paleta.ofertaTinta }]}>{pesos(ahorroRepartiendo)}</Text>
         </View>
-      ) : mejorUnico ? (
-        <Text style={[texto.cuerpo, { color: paleta.tintaSuave }]}>
-          Comprando todo en {mejorUnico.nombre} pagás lo mismo: no hace falta un segundo viaje.
-        </Text>
       ) : null}
 
-      <View style={[styles.comparativaUnicos, { borderTopColor: paleta.borde }]}>
-        {supersConTotal.map(s => (
-          <View key={s.key} style={styles.filaUnico}>
-            <View style={styles.identidadUnico}>
-              <View style={[styles.punto, colorIdentidad(paleta, s.key)]} />
-              <Text style={[texto.etiqueta, { color: paleta.tintaSuave }]}>Todo en {s.nombre}</Text>
-            </View>
-            <Text style={[texto.precioChico, { color: paleta.tintaSuave }]}>
-              {s.total === totalOptimo ? pesos(s.total) : `+${pesos(s.total - totalOptimo)}`}
+      {promos.length ? (
+        <Pressable onPress={onVerPromos} accessibilityRole="button" style={styles.bloqueAvisoPromos}>
+          <View style={[styles.puntoAviso, { backgroundColor: paleta.oferta }]} />
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={[texto.cuerpoMedio, { color: '#FFFFFF' }]}>
+              {promos.length} promoción{promos.length === 1 ? '' : 'es'} sin aplicar
             </Text>
+            <Text style={[texto.dato, { color: paleta.oferta }]}>{pesos(montoPromos)} más de ahorro</Text>
           </View>
-        ))}
-      </View>
-    </View>
+          <View style={styles.pillVer}>
+            <Text style={[texto.etiqueta, { color: '#FFFFFF' }]}>Ver</Text>
+          </View>
+        </Pressable>
+      ) : null}
+    </HeaderNegro>
   );
 }
 
-/** El itinerario: qué comprar en cada super. Es la instrucción accionable de la pantalla. */
+/** El itinerario: un bloque grande por super, con sus productos y el botón de exportar. */
 function PlanDeCompra({ data }: { data: RespuestaComparar }) {
-  const { paleta, sombra } = useTema();
-  const { comprasPorSuper, subtotalAsignadoPorSuper, requiereOnlinePorSuper, linksCarrito } = data.resumen;
+  const { paleta } = useTema();
+  const carrito = useCarrito();
+  const { subtotalAsignadoPorSuper, requiereOnlinePorSuper, linksCarrito } = data.resumen;
   const [erroresCarrito, setErroresCarrito] = useState<Partial<Record<SuperKey, boolean>>>({});
 
-  const conCompras = data.supermercados.filter(s => (comprasPorSuper[s.key] ?? []).length > 0);
-  if (conCompras.length <= 1) return null;
+  const itemsPorSuper = useMemo(() => {
+    const mapa = new Map<SuperKey, ItemComparado[]>();
+    for (const item of data.items) {
+      if (!item.mejor) continue;
+      const lista = mapa.get(item.mejor.key) ?? [];
+      lista.push(item);
+      mapa.set(item.mejor.key, lista);
+    }
+    return mapa;
+  }, [data.items]);
+
+  const paradas = data.supermercados
+    .filter(s => (itemsPorSuper.get(s.key) ?? []).length > 0)
+    .sort((a, b) => (subtotalAsignadoPorSuper[b.key] ?? 0) - (subtotalAsignadoPorSuper[a.key] ?? 0));
+
+  if (!paradas.length) return null;
 
   const abrirCarrito = async (key: SuperKey, url: string) => {
     try {
@@ -186,31 +277,66 @@ function PlanDeCompra({ data }: { data: RespuestaComparar }) {
   return (
     <View style={styles.seccion}>
       <Text style={[texto.micro, { color: paleta.tintaTenue }]}>PLAN DE COMPRA</Text>
-      {conCompras.map(s => {
+      {paradas.map(s => {
         const url = linksCarrito[s.key];
+        const tarjetasAplicadas = new Set(
+          (itemsPorSuper.get(s.key) ?? [])
+            .map(i => i.mejor?.promo?.tarjetaActiva ? i.mejor.promo.requiereTarjeta : null)
+            .filter((t): t is string => !!t)
+        );
+
         return (
-          <View
-            key={s.key}
-            style={[styles.tarjetaPlan, { backgroundColor: paleta.superficie, borderColor: paleta.borde }, sombra]}
-          >
-            <View style={[styles.bandaColor, colorIdentidad(paleta, s.key)]} />
-            <View style={styles.planCuerpo}>
-              <View style={styles.planEncabezado}>
-                <Text style={[texto.subtitulo, { color: paleta.tinta }]}>{s.nombre}</Text>
-                <Text style={[texto.precio, { color: paleta.tinta }]}>
-                  {pesos(subtotalAsignadoPorSuper[s.key])}
-                </Text>
-              </View>
-              {requiereOnlinePorSuper[s.key] ? (
-                <Text style={[texto.micro, { color: paleta.alerta }]}>
-                  REQUIERE COMPRAR ONLINE
-                </Text>
-              ) : null}
-              <Text style={[texto.cuerpo, { color: paleta.tintaSuave }]}>
-                {comprasPorSuper[s.key].map(c => c.input).join(' · ')}
+          <View key={s.key} style={[styles.bloqueSuper, { borderColor: paleta.borde }]}>
+            <View style={[styles.cabeceraSuper, colorIdentidad(paleta, s.key)]}>
+              <Text style={[texto.precioGrande, styles.nombreSuper]}>{s.nombre}</Text>
+              <Text style={[texto.precioGrande, styles.totalSuper]}>
+                {pesos(subtotalAsignadoPorSuper[s.key])}
               </Text>
+            </View>
+            <View style={styles.cuerpoSuper}>
+              {(itemsPorSuper.get(s.key) ?? []).map(item => (
+                <View key={item.ean} style={styles.filaItemSuper}>
+                  <View style={styles.nombreItemSuper}>
+                    <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]} numberOfLines={1}>
+                      {item.nombre ?? item.ean}
+                    </Text>
+                  </View>
+                  <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>×{item.cantidad}</Text>
+                  <Text style={[texto.precioChico, { color: paleta.tintaSuave }]}>
+                    {pesos(item.mejor!.total)}
+                  </Text>
+                </View>
+              ))}
+
+              {requiereOnlinePorSuper[s.key] ? (
+                <View style={[styles.avisoOnline, { backgroundColor: paleta.alertaFondo }]}>
+                  <Text style={[texto.micro, { color: paleta.alerta, letterSpacing: 0.7 }]}>
+                    REQUIERE COMPRAR ONLINE
+                  </Text>
+                </View>
+              ) : null}
+
+              {[...tarjetasAplicadas].map(tarjeta => (
+                <View key={tarjeta} style={[styles.filaEstado, { backgroundColor: paleta.superficieAlt, borderColor: paleta.borde }]}>
+                  <View style={styles.checkAplicada}>
+                    <Text style={styles.checkTexto}>✓</Text>
+                  </View>
+                  <View style={{ flex: 1, gap: 1 }}>
+                    <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>{tarjeta} aplicada</Text>
+                    <Text style={[texto.dato, { color: paleta.tintaTenue }]}>ya está en el total de arriba</Text>
+                  </View>
+                  <Pressable
+                    onPress={() => carrito.setTarjetas(carrito.tarjetas.filter(t => t !== tarjeta))}
+                    accessibilityRole="button"
+                    style={[styles.botonQuitar, { borderColor: paleta.bordeFuerte, backgroundColor: paleta.superficie }]}
+                  >
+                    <Text style={[texto.etiqueta, { color: paleta.tintaSuave }]}>Quitar</Text>
+                  </Pressable>
+                </View>
+              ))}
+
               {url ? (
-                <BotonAbrirCarrito
+                <BloqueExportar
                   nombre={s.nombre}
                   error={!!erroresCarrito[s.key]}
                   onPress={() => abrirCarrito(s.key, url)}
@@ -226,29 +352,131 @@ function PlanDeCompra({ data }: { data: RespuestaComparar }) {
 
 /** Abre el sitio real del super con el carrito ya cargado (link público de VTEX) — el usuario
  *  termina la compra ahí, con su propia sesión. No soportado en Coto (no es VTEX). */
-function BotonAbrirCarrito({
+function BloqueExportar({
   nombre, error, onPress,
 }: { nombre: string; error: boolean; onPress: () => void }) {
   const { paleta } = useTema();
-
   return (
-    <View>
+    <View style={{ gap: 4, marginTop: 4 }}>
       <Pressable
         onPress={onPress}
         accessibilityRole="button"
-        accessibilityLabel={`Abrir carrito de ${nombre} en el navegador`}
+        accessibilityLabel={`Exportar a ${nombre}`}
         style={({ pressed }) => [
-          styles.botonCarrito,
-          { borderColor: paleta.bordeFuerte, opacity: pressed ? 0.7 : 1 },
+          styles.botonExportar,
+          { backgroundColor: paleta.tinta, opacity: pressed ? 0.9 : 1 },
         ]}
       >
-        <Text style={[texto.etiqueta, { color: paleta.tinta }]}>Abrir carrito en {nombre}</Text>
+        <Text style={[texto.cuerpoMedio, { color: paleta.superficie }]}>Exportar a {nombre}</Text>
       </Pressable>
-      {error ? (
-        <Text style={[texto.dato, styles.errorCarrito, { color: paleta.alerta }]}>
-          No se pudo abrir el carrito de {nombre}
+      <Text style={[texto.dato, styles.leyendaExportar, { color: paleta.tintaTenue }]}>
+        {error ? `No se pudo abrir el carrito de ${nombre}` : 'abre el sitio del super · iniciá sesión y el carrito se carga solo'}
+      </Text>
+    </View>
+  );
+}
+
+/**
+ * Bloques amarillos agrupados (SPEC § 3.5 y § 4.6.2): solo promos de tarjeta sin activar en
+ * el super donde el producto ya quedó asignado. Las sugerencias por cantidad (3x2, etc.)
+ * siguen en "Producto por producto" con su propia vista previa por cantidad — juntarlas acá
+ * exigiría inventar un "ahorro por unidad" que el backend no devuelve tal cual, y ya hay un
+ * componente (AvisoCantidad, en DetalleProductoPorProducto) que las muestra bien.
+ */
+function BloquePromo({ promo, onAplicar }: { promo: PromoSinAplicar; onAplicar: () => void }) {
+  const { paleta } = useTema();
+  return (
+    <View style={[styles.bloquePromoContenedor, { borderColor: paleta.oferta }]}>
+      <View style={[styles.bloquePromoArriba, { backgroundColor: paleta.oferta }]}>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={[texto.etiqueta, styles.labelPromo, { color: paleta.ofertaTinta }]} numberOfLines={1}>
+            {promo.producto.toUpperCase()} · {promo.super.toUpperCase()}
+          </Text>
+          <Text style={[texto.precio, styles.montoPromo, { color: paleta.ofertaTinta }]}>
+            −{pesos(promo.ahorro)}
+          </Text>
+        </View>
+        <Text style={[texto.dato, { color: paleta.ofertaTinta, textAlign: 'right' }]}>
+          queda en{'\n'}{pesos(promo.quedaEn)}
         </Text>
-      ) : null}
+      </View>
+      <View style={[styles.bloquePromoAbajo, { backgroundColor: paleta.ofertaSuave }]}>
+        <Text style={[texto.dato, { color: paleta.tintaSuave, flex: 1 }]}>{promo.descripcion}</Text>
+        <Pressable
+          onPress={onAplicar}
+          accessibilityRole="button"
+          accessibilityLabel={`Aplicar ${promo.tarjeta} para ${promo.producto}`}
+          style={[styles.botonAplicar, { backgroundColor: paleta.tinta }]}
+        >
+          <Text style={[texto.cuerpoMedio, { color: paleta.superficie }]}>Aplicar</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+/** SPEC § 4.6.4: sobrecosto de comprar todo en un solo super, como barras — alturas
+ *  proporcionales y ancladas abajo. */
+function SiComprasTodoEnUno({ data }: { data: RespuestaComparar }) {
+  const { paleta } = useTema();
+  const { totalOptimo, totalesPorSuper } = data.resumen;
+
+  const barras = data.supermercados
+    .map(s => ({ ...s, delta: (totalesPorSuper[s.key] ?? 0) - totalOptimo }))
+    .filter(s => (totalesPorSuper[s.key] ?? 0) > 0)
+    .sort((a, b) => a.delta - b.delta);
+
+  if (barras.length < 2) return null;
+  const maxDelta = Math.max(...barras.map(b => b.delta), 1);
+
+  return (
+    <View style={styles.seccion}>
+      <Text style={[texto.micro, { color: paleta.tintaTenue }]}>SI COMPRÁS TODO EN UNO</Text>
+      <View style={styles.grafico}>
+        {barras.map(b => (
+          <View key={b.key} style={styles.columnaBarra}>
+            <Text style={[texto.precioChico, { color: paleta.tintaSuave, fontSize: 12, lineHeight: 14 }]}>
+              +{pesos(b.delta).replace(/,\d{2}$/, '')}
+            </Text>
+            <View
+              style={[
+                styles.barraVertical,
+                colorIdentidad(paleta, b.key),
+                { height: Math.max(6, (b.delta / maxDelta) * 100) },
+              ]}
+            />
+            <Text style={[texto.micro, { color: paleta.tintaTenue, fontSize: 10 }]}>{b.tag} {b.nombre.slice(0, 6).toUpperCase()}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+/** Detalle por producto, colapsado por default (link "Producto por producto" al pie, SPEC
+ *  § 4.6.5) — acá vive la comparación con BarraDiferencia y el aviso de cantidad, que el
+ *  agrupado de arriba no reemplaza (ver comentario de BloquePromo). */
+function DetalleProductoPorProducto({ data, isFetching }: { data: RespuestaComparar; isFetching: boolean }) {
+  const { paleta } = useTema();
+  const [mostrar, setMostrar] = useState(false);
+
+  return (
+    <View style={styles.seccion}>
+      <View style={styles.pieDetalle}>
+        <Text style={[texto.dato, { color: paleta.tintaTenue }]}>
+          {new Date(data.generado).toLocaleString('es-AR')}
+          {isFetching ? ' · actualizando…' : ''}
+        </Text>
+        <Pressable onPress={() => setMostrar(v => !v)} accessibilityRole="button" style={styles.linkDetalle}>
+          <Text style={[texto.etiqueta, { color: paleta.tinta, textDecorationLine: 'underline' }]}>
+            Producto por producto
+          </Text>
+        </Pressable>
+      </View>
+
+      {mostrar ? data.items.map((item, i) => (
+        <TarjetaItem key={item.ean} item={item} indice={i} />
+      )) : null}
     </View>
   );
 }
@@ -271,7 +499,7 @@ function TarjetaItem({ item, indice }: { item: ItemComparado; indice: number }) 
         <Text style={[texto.etiqueta, { color: paleta.alerta }]}>{item.error}</Text>
       ) : item.opciones.length === 0 ? (
         <Text style={[texto.etiqueta, { color: paleta.tintaTenue }]}>
-          No está disponible en ninguno de los tres.
+          No está disponible en ninguno de los supers activos.
         </Text>
       ) : (
         <BarraDiferencia
@@ -347,37 +575,81 @@ function AvisoCantidad({
 }
 
 const styles = StyleSheet.create({
-  contenido: { padding: espacio.lg, gap: espacio.lg },
+  contenido: { padding: espacio.pantalla, gap: espacio.pantalla },
   centrado: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: espacio.xl, gap: espacio.md },
-  hero: { borderWidth: 1, borderRadius: radio.lg, padding: espacio.lg, gap: espacio.sm },
-  destacado: {
-    borderWidth: 1, borderRadius: radio.md, padding: espacio.md, gap: 2,
+
+  filaVolver: { flexDirection: 'row', alignItems: 'center', gap: espacio.md },
+  flechaVolver: { fontSize: 22, color: '#FFFFFF' },
+  labelHeaderOscuro: { color: '#FFFFFF', opacity: 0.6, letterSpacing: 1.2 },
+  totalHero: { color: '#FFFFFF' },
+  subtitutloHero: { color: '#FFFFFF', opacity: 0.7 },
+  bloqueAhorro: {
+    borderRadius: radio.md, padding: espacio.md,
+    flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
   },
-  comparativaUnicos: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: espacio.md, gap: espacio.sm },
-  filaUnico: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  identidadUnico: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  punto: { width: 9, height: 9, borderRadius: radio.pill },
+  bloqueAvisoPromos: {
+    backgroundColor: '#20242B', borderRadius: radio.md, padding: espacio.sm,
+    flexDirection: 'row', alignItems: 'center', gap: espacio.sm, minHeight: 48,
+  },
+  puntoAviso: { width: 8, height: 8, borderRadius: radio.pill },
+  pillVer: {
+    height: 44, paddingHorizontal: espacio.md, borderWidth: 1, borderColor: '#3C444D',
+    borderRadius: radio.pill, alignItems: 'center', justifyContent: 'center',
+  },
+
   seccion: { gap: espacio.sm },
-  tarjetaPlan: {
-    flexDirection: 'row', borderWidth: 1, borderRadius: radio.lg, overflow: 'hidden',
+  bloqueSuper: { borderWidth: 1, borderRadius: radio.tarjeta, overflow: 'hidden' },
+  cabeceraSuper: {
+    paddingHorizontal: espacio.md, paddingVertical: espacio.md,
+    flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
   },
-  bandaColor: { width: 4 },
-  planCuerpo: { flex: 1, padding: espacio.md, gap: 4 },
-  planEncabezado: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
-  botonCarrito: {
-    alignSelf: 'flex-start', marginTop: 4,
-    borderWidth: 1, borderRadius: radio.pill,
-    paddingHorizontal: espacio.md, paddingVertical: espacio.xs,
+  nombreSuper: { color: '#FFFFFF', textTransform: 'uppercase', letterSpacing: 1 },
+  totalSuper: { color: '#FFFFFF' },
+  cuerpoSuper: { padding: espacio.md, gap: espacio.sm },
+  filaItemSuper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: espacio.sm },
+  nombreItemSuper: { flex: 1 },
+  avisoOnline: { borderRadius: radio.sm, paddingHorizontal: espacio.sm, paddingVertical: espacio.xs },
+  filaEstado: {
+    flexDirection: 'row', alignItems: 'center', gap: espacio.sm,
+    borderWidth: 1, borderRadius: radio.sm, padding: espacio.sm, minHeight: 44,
   },
-  errorCarrito: { marginTop: 2 },
-  tarjetaItem: {
-    borderWidth: 1, borderRadius: radio.lg, padding: espacio.md, gap: espacio.md,
+  checkAplicada: {
+    width: 18, height: 18, borderRadius: radio.pill, backgroundColor: VERDE_APLICADA,
+    alignItems: 'center', justifyContent: 'center',
   },
+  checkTexto: { color: '#FFFFFF', fontSize: 11, fontWeight: '600' },
+  botonQuitar: {
+    height: 44, paddingHorizontal: espacio.md, borderWidth: 1, borderRadius: radio.pill,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  botonExportar: { minHeight: 48, borderRadius: radio.md, alignItems: 'center', justifyContent: 'center' },
+  leyendaExportar: { textAlign: 'center' },
+
+  bloquePromoContenedor: { borderWidth: 1, borderRadius: radio.tarjeta, overflow: 'hidden' },
+  bloquePromoArriba: {
+    padding: espacio.md, flexDirection: 'row', alignItems: 'flex-end',
+    justifyContent: 'space-between', gap: espacio.md,
+  },
+  labelPromo: { textTransform: 'uppercase', opacity: 0.65, fontSize: 11 },
+  montoPromo: { fontSize: 34, lineHeight: 32 },
+  bloquePromoAbajo: { padding: espacio.md, flexDirection: 'row', alignItems: 'center', gap: espacio.md },
+  botonAplicar: {
+    height: 44, paddingHorizontal: espacio.lg, borderRadius: radio.pill,
+    alignItems: 'center', justifyContent: 'center',
+  },
+
+  grafico: { flexDirection: 'row', alignItems: 'flex-end', gap: espacio.sm, height: 130 },
+  columnaBarra: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 6 },
+  barraVertical: { width: '100%', borderTopLeftRadius: 4, borderTopRightRadius: 4 },
+
+  pieDetalle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  linkDetalle: { height: 44, paddingHorizontal: espacio.sm, alignItems: 'center', justifyContent: 'center' },
+
+  tarjetaItem: { borderWidth: 1, borderRadius: radio.lg, padding: espacio.md, gap: espacio.md, marginTop: espacio.sm },
   itemEncabezado: { flexDirection: 'row', alignItems: 'flex-start', gap: espacio.sm },
   aviso: { borderWidth: 1, borderRadius: radio.md, padding: espacio.md, gap: espacio.sm },
   opcionPrevia: {
     flexDirection: 'row', alignItems: 'center', gap: espacio.sm,
     borderTopWidth: StyleSheet.hairlineWidth, paddingTop: espacio.sm,
   },
-  pie: { textAlign: 'center' },
 });

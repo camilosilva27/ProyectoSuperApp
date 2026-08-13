@@ -1,6 +1,7 @@
 /**
- * Dos pestañas: buscar productos y ver la lista. El resultado no es una pestaña — es la
- * consecuencia de una acción ("Comparar precios"), así que se abre apilado encima.
+ * Tres pestañas (rediseño v2 — antes eran dos): buscar productos, ver la lista, y Ajustes.
+ * El resultado no es una pestaña — es la consecuencia de una acción ("Comparar precios"),
+ * así que se abre apilado encima.
  *
  * El contador de la pestaña "Carrito" muestra unidades, no productos distintos: es lo que
  * el usuario está por comparar.
@@ -45,6 +46,13 @@ export default function LayoutPestanas() {
           tabBarIcon: ({ color }) => <IconoLista color={color} cantidad={totalUnidades} />,
         }}
       />
+      <Tabs.Screen
+        name="ajustes"
+        options={{
+          title: 'Ajustes',
+          tabBarIcon: ({ color }) => <IconoAjustes color={color} />,
+        }}
+      />
     </Tabs>
   );
 }
@@ -80,6 +88,18 @@ function IconoLista({ color, cantidad }: { color: ColorValue; cantidad: number }
   );
 }
 
+function IconoAjustes({ color }: { color: ColorValue }) {
+  return (
+    <View style={styles.icono}>
+      <View style={styles.lineasAjustes}>
+        {[0, 1, 2].map(i => (
+          <View key={i} style={[styles.linea, { backgroundColor: color, width: 18 }]} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   icono: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
   lupaAro: { width: 14, height: 14, borderRadius: radio.pill, borderWidth: 2 },
@@ -88,6 +108,7 @@ const styles = StyleSheet.create({
     right: 4, bottom: 3, transform: [{ rotate: '-45deg' }],
   },
   lineas: { gap: 3 },
+  lineasAjustes: { gap: 4, alignItems: 'center' },
   linea: { height: 2, borderRadius: 1 },
   globo: {
     position: 'absolute', top: -4, right: -6, minWidth: 16, height: 16,

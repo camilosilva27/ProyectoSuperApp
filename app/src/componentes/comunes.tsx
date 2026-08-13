@@ -48,6 +48,41 @@ export function PuntosDisponibilidad({ disponibleEn }: { disponibleEn: SuperKey[
   );
 }
 
+/**
+ * Banda de disponibilidad (rediseño v2, SPEC § 3.3): columna de 8px pegada al borde
+ * izquierdo de cada resultado de búsqueda, 5 segmentos en el orden fijo de ORDEN_SUPERS.
+ * El orden nunca cambia — es lo que la hace legible de un vistazo. Reemplaza a
+ * PuntosDisponibilidad en la fila de resultado (esa queda para otros usos más compactos).
+ */
+export function BandaDisponibilidad({ disponibleEn }: { disponibleEn: SuperKey[] }) {
+  const { paleta } = useTema();
+  return (
+    <View
+      style={styles.banda}
+      accessibilityLabel={`Disponible en ${disponibleEn.map(k => NOMBRE_SUPER[k]).join(', ')}`}
+    >
+      {ORDEN_SUPERS.map(key => {
+        const presente = disponibleEn.includes(key);
+        const bordeIdentidad = (paleta.supersBorde as Partial<Record<SuperKey, string>>)[key];
+        return (
+          <View
+            key={key}
+            style={[
+              styles.segmentoBanda,
+              presente
+                ? {
+                    backgroundColor: paleta.supers[key],
+                    ...(bordeIdentidad ? { borderWidth: 1, borderColor: bordeIdentidad } : null),
+                  }
+                : { backgroundColor: paleta.superficie2 },
+            ]}
+          />
+        );
+      })}
+    </View>
+  );
+}
+
 export function Stepper({
   cantidad, onCambiar, compacto = false,
 }: { cantidad: number; onCambiar: (n: number) => void; compacto?: boolean }) {
@@ -175,6 +210,8 @@ export function EncabezadoPantalla({ titulo, bajada }: { titulo: string; bajada?
 const styles = StyleSheet.create({
   puntos: { flexDirection: 'row', gap: 4, alignItems: 'center' },
   punto: { width: 8, height: 8, borderRadius: radio.pill },
+  banda: { width: 8, alignSelf: 'stretch', flexDirection: 'column' },
+  segmentoBanda: { flex: 1 },
   stepper: {
     flexDirection: 'row', alignItems: 'center', borderWidth: 1,
     borderRadius: radio.pill, paddingHorizontal: 2,

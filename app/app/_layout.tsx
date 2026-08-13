@@ -70,7 +70,7 @@ export default function LayoutRaiz() {
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen
                 name="resultado"
-                options={{ title: 'Dónde comprar', presentation: 'card' }}
+                options={{ headerShown: false, presentation: 'card' }}
               />
             </Stack>
           </ProveedorCarrito>

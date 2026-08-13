@@ -156,7 +156,7 @@ function FilaSuper({
           </View>
         ) : (
           <View style={styles.zonaBarra}>
-            <View style={[styles.canal, { backgroundColor: paleta.superficieAlt }]}>
+            <View style={[styles.canal, { backgroundColor: paleta.superficie2 }]}>
               <Animated.View style={[styles.barra, { width: ancho, backgroundColor: paleta.tintaTenue }]} />
             </View>
             <Text style={[texto.dato, { color: paleta.tintaTenue }]}>+{pesos(delta)}</Text>
