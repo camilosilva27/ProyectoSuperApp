@@ -1,10 +1,8 @@
 /**
  * GET /api/mis-descuentos — para la pantalla "Mis descuentos" del rediseño v2 (turno 5a,
  * ver design_handoff_allpromos_v2/SPEC.md § 4.7): qué desbloquea cada tarjeta/app/club
- * conocido, con qué día y con qué tope, agregando las promos bancarias EN VIVO de Vea,
- * Carrefour, Chango Más y Día (AllPromos/promos-bancarias.js — Coto sigue sin cubrir: no es
- * VTEX y no se encontró un feed equivalente de %-por-banco-por-día, ver su propio comentario
- * de alcance).
+ * conocido, con qué día y con qué tope, agregando las promos bancarias EN VIVO de los 5
+ * supers (AllPromos/promos-bancarias.js).
  *
  * Usa `obtenerTodasLasPromosBancarias()`, NO `obtenerPromosBancarias()`: esa segunda función
  * filtra por mis-tarjetas.json, que es estado de UNA persona en la CLI — acá hace falta ver
@@ -27,8 +25,8 @@ function nombresDeDias(numerosDeDia) {
 
 // Las promos bancarias son campañas recurrentes por día de semana, no precios: cambian
 // mucho menos seguido que un precio de producto. Un caché más largo que el de /comparar
-// (3 min) evita disparar ~8 requests en vivo (3 por Carrefour y Chango Más + 1 Vea + 1 Día)
-// en cada apertura de la pantalla, sin que el dato deje de ser efectivamente "de hoy".
+// (3 min) evita disparar ~9 requests en vivo (3 por Carrefour y Chango Más + 1 cada uno de
+// Vea/Día/Coto) en cada apertura de la pantalla, sin que el dato deje de ser efectivamente "de hoy".
 const CACHE_TTL_MS = 15 * 60 * 1000;
 let cache = null; // { expira, promise }
 

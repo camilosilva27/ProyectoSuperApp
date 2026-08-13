@@ -342,15 +342,24 @@ function canalesDesdeCardDia(availableOn) {
   return canales.length ? canales : null;
 }
 
-// extraerTope() genérico busca "reintegro...$X", pero el legal de Día suele incluir
-// ejemplos ilustrativos tipo "SI REALIZA UNA COMPRA DE $30.000 RECIBIRÁ UN REINTEGRO DE
-// $3.000" — el regex genérico confunde ese monto de ejemplo con el tope real, incluso
-// cuando el mismo texto dice explícitamente "SIN TOPE DE REINTEGRO" (confirmado en vivo
-// con la promo real de Cuenta DNI, 2026-08-13). La negación explícita es un dato más
-// confiable que el regex genérico, así que gana siempre que esté presente.
-function extraerTopeDia(terms) {
-  if (/\bsin\s+tope\b/.test(normalizar(terms))) return null;
-  return extraerTope(terms);
+// extraerTope() genérico busca "reintegro/tope...$X", pero el legal de Día y Coto tiene dos
+// formas concretas de hacer que eso adivine mal (confirmado en vivo, 2026-08-13):
+//   1. Ejemplos ilustrativos tipo "SI REALIZA UNA COMPRA DE $30.000 RECIBIRÁ UN REINTEGRO DE
+//      $3.000" — el regex genérico confunde ese monto de ejemplo con el tope real, incluso
+//      cuando el mismo texto dice explícitamente "SIN TOPE DE REINTEGRO" (caso real: Cuenta
+//      DNI en Día). La negación explícita es un dato más confiable que el regex, gana siempre.
+//   2. Texto que describe DOS topes distintos para segmentos/carteras distintas sin decir
+//      cuál aplica (caso real: promo de Comafi en Coto, "cartera general tope $13.000, para
+//      Segmento Único tope $18.000") — no hay forma de saber cuál corresponde sin adivinar,
+//      así que se descarta en vez de elegir uno.
+function extraerTopeTextoLibre(texto) {
+  const t = normalizar(texto);
+  if (/\bsin\s+(?:tope|limite)\b/.test(t)) return null;
+  const valores = new Set();
+  for (const m of t.matchAll(/(?:tope|limite)[^$]{0,40}\$\s?([\d.,]+)/g)) {
+    valores.add(parseInt(m[1].replace(/\./g, '').replace(/,\d+$/, ''), 10));
+  }
+  return valores.size === 1 ? [...valores][0] : null;
 }
 
 async function fetchDia() {
@@ -392,7 +401,7 @@ async function fetchDia() {
         dias: diasDesdeCardDia(card.daysToShow),
         canales: canalesDesdeCardDia(card.availableOn),
         descuentoPct,
-        tope: extraerTopeDia(card.terms || ''),
+        tope: extraerTopeTextoLibre(card.terms || ''),
         montoMinimo: extraerMontoMinimo(card.terms || ''),
         // Día, a diferencia de Vea/Carrefour/Chango Más, no expone fechas de vigencia
         // estructuradas — solo el booleano `active` (ya filtrado arriba). Se usa un rango
@@ -401,6 +410,85 @@ async function fetchDia() {
         vigenciaDesde: new Date(0),
         vigenciaHasta: new Date('2099-12-31'),
         textoLegal: card.terms || '',
+      });
+    }
+    return { promos, error: null };
+  } catch {
+    return { promos: [], error: 'fetch_failed' };
+  }
+}
+
+// ─── Fetch: Coto (REST propio del backend ATG, sin cookie/sesión) ────────────
+
+// A diferencia de Vea/Carrefour/Chango Más/Día, Coto no es VTEX — corre sobre un backend
+// ATG (Oracle Commerce) propio. Encontrado en vivo (2026-08-13) navegando /descuentos: el
+// XHR que arma esa página pega a este endpoint REST, público, sin cookie de sesión
+// (confirmado con curl sin cookies, mismo tamaño de respuesta que con navegador).
+// A diferencia de Día, el % SÍ viene en un campo limpio (`textoDescuento`, ej. "20% DE
+// DESCUENTO") y el día también (`dias[].descripcion`) — solo el tope sigue siendo texto
+// libre (`observacion`), igual que Día.
+const COTO_PROMOS_URL = 'https://www.coto.com.ar/rest/model/atg/actors/cProfileActor/getPromocionesMulticanal?enviroment=ag&pushSite=CotoDigital';
+
+// `dias[].id` de Coto es un id interno (1=domingo...7=sábado, confirmado en vivo) que NO
+// coincide con la convención ISO del proyecto (1=lunes...7=domingo) — se mapea por nombre
+// en vez de por id para no depender de ese esquema numérico no documentado.
+const DIA_ISO_POR_NOMBRE = {
+  lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6, domingo: 7,
+};
+
+function diasDesdeCoto(diasArr) {
+  return (diasArr || [])
+    .map(d => DIA_ISO_POR_NOMBRE[normalizar(d.descripcion)])
+    .filter(Boolean);
+}
+
+// `textoDescuento` mezcla descuentos reales ("20% DE DESCUENTO") con financiación ("18
+// CUOTAS SIN INTERÉS", que se ignora siempre, ver 4.1) y al menos un caso de campaña con
+// typo/formato no numérico ("30 OFF PROMO VISA DÉBITO", sin "%") — exigir el patrón exacto
+// "N% DE DESCUENTO" es información perdida en ese caso puntual, pero evita adivinar qué
+// significa un formato que no se repite en ningún otro lado del feed.
+function extraerDescuentoPctCoto(textoDescuento) {
+  const m = normalizar(textoDescuento || '').match(/^(\d+(?:[.,]\d+)?)\s*%\s*de\s+descuento$/);
+  return m ? Number(m[1].replace(',', '.')) / 100 : null;
+}
+
+async function fetchCoto() {
+  try {
+    const res = await fetch(COTO_PROMOS_URL, { headers: { Accept: 'application/json' } });
+    if (!res.ok) return { promos: [], error: 'fetch_failed' };
+    const data = await res.json();
+    const raiz = data?.result;
+    if (!raiz || !Array.isArray(raiz.promocionesDigitales) || !Array.isArray(raiz.promocionesSucursalesFisicas)) {
+      return { promos: [], error: 'hash_roto' };
+    }
+
+    const promos = [];
+    for (const p of [...raiz.promocionesDigitales, ...raiz.promocionesSucursalesFisicas]) {
+      const descuentoPct = extraerDescuentoPctCoto(p.textoDescuento);
+      if (!(descuentoPct > 0)) continue;
+
+      // `descripcion` es una oración corta ("En un pago con tarjeta de crédito Mercado
+      // Pago..."), no un catálogo de nombres propios como en los otros supers — más
+      // parecido a lo que hacemos con el `terms` de Día que a un campo `banks[].name`. El
+      // banco numérico (`p.banco`) no sirve para identificar la tarjeta: muchas promos sin
+      // relación entre sí comparten `banco: 0` como bolsa genérica.
+      const canonicosPosibles = resolverCanonicosDesdeNombre(p.descripcion || '');
+      if (!canonicosPosibles.length) continue;
+
+      promos.push({
+        canonicosPosibles,
+        super: 'Coto',
+        dias: diasDesdeCoto(p.dias),
+        canales: [p.isDigital ? 'ecommerce' : 'tienda'],
+        descuentoPct,
+        tope: extraerTopeTextoLibre(p.observacion || ''),
+        montoMinimo: extraerMontoMinimo(p.observacion || ''),
+        // Coto tampoco expone fechas de vigencia estructuradas (vigenciaDesde/vigenciaHasta
+        // vienen siempre null en el feed real) — mismo criterio que Día: rango amplio, la
+        // vigencia real es "está en la respuesta de este fetch en vivo".
+        vigenciaDesde: new Date(0),
+        vigenciaHasta: new Date('2099-12-31'),
+        textoLegal: p.observacion || p.descripcion || '',
       });
     }
     return { promos, error: null };
@@ -481,32 +569,33 @@ function elegirMejorDia(diasCalculados) {
  * la app (backend/src/routes/misDescuentos.js): necesita ver TODAS las promos conocidas
  * para poder mostrar, tarjeta por tarjeta, qué desbloquea — incluso de las que el usuario
  * todavía no marcó como propias.
- * @returns { vea, carr, changomas, dia: {promos,error} } — Coto sigue sin cubrir (no es
- *   VTEX y no se encontró un feed equivalente de %-por-banco-por-día).
+ * @returns { vea, carr, changomas, dia, coto: {promos,error} }
  */
 async function obtenerTodasLasPromosBancarias() {
-  const [vea, carr, changomas, dia] = await Promise.all([
+  const [vea, carr, changomas, dia, coto] = await Promise.all([
     fetchVea().catch(() => ({ promos: [], error: 'fetch_failed' })),
     fetchCarrefour().catch(() => ({ promos: [], error: 'fetch_failed' })),
     fetchChangoMas().catch(() => ({ promos: [], error: 'fetch_failed' })),
     fetchDia().catch(() => ({ promos: [], error: 'fetch_failed' })),
+    fetchCoto().catch(() => ({ promos: [], error: 'fetch_failed' })),
   ]);
-  return { vea, carr, changomas, dia };
+  return { vea, carr, changomas, dia, coto };
 }
 
 /**
  * Trae y normaliza las promos bancarias de los supers cubiertos, ya filtradas por las
  * tarjetas propias del usuario (mis-tarjetas.json). No filtra por día ni canal (eso es
  * promosAplicablesHoy, que se llama al momento de mostrar, no acá).
- * @returns { vea, carr, changomas, dia: {promos,error} }
+ * @returns { vea, carr, changomas, dia, coto: {promos,error} }
  */
 async function obtenerPromosBancarias() {
   const misTarjetas = leerMisTarjetas();
-  const [vea, carr, changomas, dia] = await Promise.all([
+  const [vea, carr, changomas, dia, coto] = await Promise.all([
     fetchVea().catch(() => ({ promos: [], error: 'fetch_failed' })),
     fetchCarrefour().catch(() => ({ promos: [], error: 'fetch_failed' })),
     fetchChangoMas().catch(() => ({ promos: [], error: 'fetch_failed' })),
     fetchDia().catch(() => ({ promos: [], error: 'fetch_failed' })),
+    fetchCoto().catch(() => ({ promos: [], error: 'fetch_failed' })),
   ]);
 
   const filtrarPorTarjetasPropias = resultado => {
@@ -522,6 +611,7 @@ async function obtenerPromosBancarias() {
     carr: filtrarPorTarjetasPropias(carr),
     changomas: filtrarPorTarjetasPropias(changomas),
     dia: filtrarPorTarjetasPropias(dia),
+    coto: filtrarPorTarjetasPropias(coto),
   };
 }
 
