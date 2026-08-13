@@ -6,16 +6,17 @@
  * es; acá los tres aparecen juntos, con su nombre real y en qué supers están, y el usuario
  * toca el que quiere. La ambigüedad no se resuelve: no llega a existir.
  *
- * Rediseño v2 (ver design_handoff_allpromos_v2/SPEC.md § 4.2): header negro con buscador y
- * barra de supers siempre visibles, banda de disponibilidad de 8px por resultado, mejor
- * precio con el nombre del super en su color.
+ * Rediseño v2 (ver design_handoff_allpromos_v2/SPEC.md § 4.2 y § 4.1): header negro con
+ * buscador; la barra de supers y los resultados solo aparecen una vez que hay una búsqueda
+ * válida — antes de eso (3a) el header no tiene nada que filtrar, y el cuerpo explica qué es
+ * la app en vez de mostrar un estado vacío genérico.
  */
 
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -24,8 +25,9 @@ import {
 } from '../../src/api';
 import { useCarrito } from '../../src/carrito';
 import {
-  BandaDisponibilidad, BotonPrincipal, Problema, Stepper, Vacio,
+  BandaDisponibilidad, BotonPrincipal, NOMBRE_SUPER, ORDEN_SUPERS, Problema, Stepper, Vacio,
 } from '../../src/componentes/comunes';
+import { ComoFunciona } from '../../src/componentes/ComoFunciona';
 import { FotoProducto } from '../../src/componentes/FotoProducto';
 import { BarraSupers, HeaderNegro, TituloHeader } from '../../src/componentes/HeaderNegro';
 import { useFiltrosSupers } from '../../src/filtrosSupers';
@@ -119,6 +121,7 @@ export default function PantallaBuscar() {
   const consultaDemorada = useTextoDemorado(consulta.trim());
   const consultaValida = consultaDemorada.length >= 2;
   const [orden, setOrden] = useState<OrdenBusqueda>('alfabetico');
+  const [mostrarComoFunciona, setMostrarComoFunciona] = useState(false);
   const { supersActivos, toggleSuper } = useFiltrosSupers();
 
   const { data, isFetching, error, refetch } = useQuery({
@@ -210,56 +213,59 @@ export default function PantallaBuscar() {
           />
           {isFetching ? <ActivityIndicator size="small" color={paleta.tintaTenue} /> : null}
         </View>
-        <BarraSupers activos={supersActivos} onToggle={toggleSuper} />
+        {/* Sin barra de supers antes de una búsqueda válida: todavía no hay nada que filtrar
+            (SPEC § 4.1, gana sobre el turno v2 que la mostraba siempre). */}
+        {consultaValida ? <BarraSupers activos={supersActivos} onToggle={toggleSuper} /> : null}
       </HeaderNegro>
 
-      <FlatList
-        data={resultadosMostrados}
-        keyExtractor={p => p.ean}
-        ListHeaderComponent={encabezadoLista}
-        contentContainerStyle={[
-          styles.lista,
-          { paddingBottom: carrito.items.length ? 120 : espacio.xl },
-        ]}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        ItemSeparatorComponent={() => <View style={{ height: espacio.sm }} />}
-        onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={viewabilityConfig}
-        renderItem={({ item }) => (
-          <FilaProducto
-            producto={item}
-            cantidad={carrito.cantidadDe(item.ean)}
-            precio={precios[item.ean]}
-            onAgregar={() => carrito.agregar(item)}
-            onCambiarCantidad={n => carrito.cambiarCantidad(item.ean, n)}
-          />
-        )}
-        ListEmptyComponent={
-          error ? (
-            <Problema
-              mensaje={
-                error instanceof ErrorApi
-                  ? error.message
-                  : 'No se pudo buscar en el catálogo.'
-              }
-              onReintentar={refetch}
+      {!consultaValida ? (
+        <EstadoInicial onAbrirComoFunciona={() => setMostrarComoFunciona(true)} />
+      ) : (
+        <FlatList
+          data={resultadosMostrados}
+          keyExtractor={p => p.ean}
+          ListHeaderComponent={encabezadoLista}
+          contentContainerStyle={[
+            styles.lista,
+            { paddingBottom: carrito.items.length ? 120 : espacio.xl },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          ItemSeparatorComponent={() => <View style={{ height: espacio.sm }} />}
+          onViewableItemsChanged={onViewableItemsChanged}
+          viewabilityConfig={viewabilityConfig}
+          renderItem={({ item }) => (
+            <FilaProducto
+              producto={item}
+              cantidad={carrito.cantidadDe(item.ean)}
+              precio={precios[item.ean]}
+              onAgregar={() => carrito.agregar(item)}
+              onCambiarCantidad={n => carrito.cambiarCantidad(item.ean, n)}
             />
-          ) : cargandoOrdenPrecio ? (
-            <ActivityIndicator style={styles.cargandoOrden} color={paleta.tintaTenue} />
-          ) : consultaValida && !isFetching ? (
-            <Vacio
-              titulo="Nada con ese nombre"
-              detalle="Probá con menos palabras o con el nombre de la marca. El catálogo local es un recorte: puede faltar algún producto poco común."
-            />
-          ) : !consultaValida ? (
-            <Vacio
-              titulo="Empezá a escribir"
-              detalle="Con dos letras alcanza. La banda de color muestra en qué supermercados existe cada producto."
-            />
-          ) : null
-        }
-      />
+          )}
+          ListEmptyComponent={
+            error ? (
+              <Problema
+                mensaje={
+                  error instanceof ErrorApi
+                    ? error.message
+                    : 'No se pudo buscar en el catálogo.'
+                }
+                onReintentar={refetch}
+              />
+            ) : cargandoOrdenPrecio ? (
+              <ActivityIndicator style={styles.cargandoOrden} color={paleta.tintaTenue} />
+            ) : !isFetching ? (
+              <Vacio
+                titulo="Nada con ese nombre"
+                detalle="Probá con menos palabras o con el nombre de la marca. El catálogo local es un recorte: puede faltar algún producto poco común."
+              />
+            ) : null
+          }
+        />
+      )}
+
+      <ComoFunciona visible={mostrarComoFunciona} onClose={() => setMostrarComoFunciona(false)} />
 
       {carrito.items.length > 0 ? (
         <View
@@ -281,6 +287,61 @@ export default function PantallaBuscar() {
         </View>
       ) : null}
     </View>
+  );
+}
+
+/** Estado inicial de Buscar (SPEC § 4.1): lo que se ve antes de escribir nada. Es donde el
+ *  usuario entiende qué es esto — nunca se vio antes en la app. */
+function EstadoInicial({ onAbrirComoFunciona }: { onAbrirComoFunciona: () => void }) {
+  const { paleta } = useTema();
+
+  return (
+    <ScrollView contentContainerStyle={styles.estadoInicial} keyboardShouldPersistTaps="handled">
+      <View style={{ gap: espacio.sm }}>
+        <Text style={[texto.titulo, { color: paleta.tinta }]}>Un carrito, cinco supermercados</Text>
+        <Text style={[texto.cuerpo, { color: paleta.tintaSuave }]}>
+          Armá la lista una sola vez. Al final un botón calcula, con promos y tarjetas
+          incluidas, qué conviene comprar en cada lugar.
+        </Text>
+      </View>
+
+      <View style={{ gap: espacio.md }}>
+        <Text style={[texto.micro, { color: paleta.tintaTenue }]}>CADA SUPER TIENE SU COLOR</Text>
+        <View style={{ gap: espacio.sm }}>
+          {ORDEN_SUPERS.map(key => {
+            const bordeIdentidad = (paleta.supersBorde as Partial<Record<SuperKey, string>>)[key];
+            return (
+              <View key={key} style={styles.filaLeyendaSuper}>
+                <View
+                  style={[
+                    styles.barraLeyendaSuper,
+                    {
+                      backgroundColor: paleta.supers[key],
+                      ...(bordeIdentidad ? { borderWidth: 1, borderColor: bordeIdentidad } : null),
+                    },
+                  ]}
+                />
+                <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>{NOMBRE_SUPER[key]}</Text>
+              </View>
+            );
+          })}
+        </View>
+        <Text style={[texto.dato, { color: paleta.tintaTenue }]}>
+          El color siempre dice de qué super es un precio. El amarillo, en cambio, siempre dice ahorro.
+        </Text>
+      </View>
+
+      <View style={[styles.filaOnboarding, { borderTopColor: paleta.borde }]}>
+        <Text style={[texto.cuerpo, { color: paleta.tintaSuave, flex: 1 }]}>Primera vez acá?</Text>
+        <Pressable
+          onPress={onAbrirComoFunciona}
+          accessibilityRole="button"
+          style={[styles.botonComoFunciona, { borderColor: paleta.tinta }]}
+        >
+          <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>Cómo funciona</Text>
+        </Pressable>
+      </View>
+    </ScrollView>
   );
 }
 
@@ -420,5 +481,16 @@ const styles = StyleSheet.create({
     position: 'absolute', left: 0, right: 0, bottom: 0,
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: espacio.pantalla, paddingTop: espacio.md,
+  },
+  estadoInicial: { padding: espacio.pantalla, gap: espacio.xl },
+  filaLeyendaSuper: { flexDirection: 'row', alignItems: 'center', gap: espacio.md },
+  barraLeyendaSuper: { width: 36, height: 8, borderRadius: radio.pill },
+  filaOnboarding: {
+    borderTopWidth: StyleSheet.hairlineWidth, paddingTop: espacio.lg,
+    flexDirection: 'row', alignItems: 'center', gap: espacio.md,
+  },
+  botonComoFunciona: {
+    height: 44, paddingHorizontal: espacio.lg, borderWidth: 1, borderRadius: radio.sm,
+    alignItems: 'center', justifyContent: 'center',
   },
 });

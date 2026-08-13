@@ -89,7 +89,12 @@ export default function PantallaCarrito() {
             <View style={[styles.tarjetaDescuentos, { borderColor: paleta.borde }]}>
               <View style={[styles.cabeceraDescuentos, { backgroundColor: paleta.oferta }]}>
                 <Text style={[texto.micro, { color: paleta.ofertaTinta, letterSpacing: 1.2 }]}>
-                  MIS DESCUENTOS · {carrito.tarjetas.length} ACTIVO{carrito.tarjetas.length === 1 ? '' : 'S'}
+                  MIS DESCUENTOS · {carrito.tarjetas.length}
+                </Text>
+                {/* Aclara para qué sirve marcarlas — no es una lista, es lo que suma al comparar
+                    (SPEC § 3d). */}
+                <Text style={[texto.micro, { color: paleta.ofertaTinta, opacity: 0.7, letterSpacing: 0.7 }]}>
+                  SUMAN SUS PROMOS
                 </Text>
               </View>
               <View style={styles.chipsDescuentos}>
@@ -168,7 +173,10 @@ const styles = StyleSheet.create({
   },
   filaNombre: { flex: 1 },
   tarjetaDescuentos: { borderWidth: 1, borderRadius: radio.tarjeta, overflow: 'hidden' },
-  cabeceraDescuentos: { paddingHorizontal: espacio.md, paddingVertical: espacio.sm },
+  cabeceraDescuentos: {
+    paddingHorizontal: espacio.md, paddingVertical: espacio.sm,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: espacio.sm,
+  },
   chipsDescuentos: { flexDirection: 'row', flexWrap: 'wrap', gap: espacio.sm, padding: espacio.md },
   chip: { paddingHorizontal: espacio.md, paddingVertical: espacio.sm, borderRadius: radio.sm },
   vaciar: {

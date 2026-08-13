@@ -200,6 +200,11 @@ function HeaderVeredicto({
     .filter(s => (data.resumen.subtotalAsignadoPorSuper[s.key] ?? 0) > 0)
     .map(s => s.nombre);
 
+  // Dos totales lado a lado (SPEC § 4.6 / turno 3c): el contraste entre "repartiendo" y "un
+  // solo super" es lo que explica qué significa repartir — no hay texto que lo defina. Solo
+  // tiene sentido si hay algo con qué comparar (más de una parada y un total de "todo junto").
+  const dosTotales = paradasNombres.length > 1 && !!mejorUnico;
+
   return (
     <HeaderNegro paddingTop={insets.top + espacio.md} estilo={{ gap: espacio.md }}>
       <Pressable onPress={() => router.back()} accessibilityRole="button" style={styles.filaVolver}>
@@ -207,18 +212,40 @@ function HeaderVeredicto({
         <Text style={[texto.micro, styles.labelHeaderOscuro]}>DÓNDE COMPRAR</Text>
       </Pressable>
 
-      <View style={{ gap: 6 }}>
-        <Text style={[texto.precioHero, styles.totalHero]}>{pesos(totalOptimo)}</Text>
-        {paradasNombres.length > 1 ? (
-          <Text style={[texto.etiqueta, styles.subtitutloHero]}>
-            repartiendo entre {paradasNombres.join(', ')}
-          </Text>
-        ) : null}
-      </View>
+      {dosTotales ? (
+        <View style={styles.filaDosTotales}>
+          <View style={{ flex: 1, gap: 4 }}>
+            <Text style={[texto.micro, { color: paleta.oferta, letterSpacing: 0.7 }]}>
+              REPARTIENDO EN {paradasNombres.length} PARADAS
+            </Text>
+            <Text style={[texto.precioHero, styles.totalHero, styles.totalPrincipal]}>
+              {pesos(totalOptimo)}
+            </Text>
+            <Text style={[texto.dato, styles.textoMutedOscuro]}>{paradasNombres.join(' · ')}</Text>
+          </View>
+          <View style={styles.divisorVertical} />
+          <View style={styles.columnaTotalUnico}>
+            <Text style={[texto.micro, styles.textoMutedOscuro, { letterSpacing: 0.7 }]}>
+              EN UN SOLO SUPER
+            </Text>
+            <Text style={[texto.precioGrande, styles.totalSecundario]}>{pesos(mejorUnico!.total)}</Text>
+            <Text style={[texto.dato, styles.textoMutedOscuro]}>todo en {mejorUnico!.nombre}</Text>
+          </View>
+        </View>
+      ) : (
+        <View style={{ gap: 6 }}>
+          <Text style={[texto.precioHero, styles.totalHero]}>{pesos(totalOptimo)}</Text>
+          {mejorUnico ? (
+            <Text style={[texto.etiqueta, styles.subtitutloHero]}>
+              Comprando todo en {mejorUnico.nombre} pagás lo mismo: no hace falta un segundo viaje.
+            </Text>
+          ) : null}
+        </View>
+      )}
 
       {valeRepartir && mejorUnico ? (
         <View style={[styles.bloqueAhorro, { backgroundColor: paleta.oferta }]}>
-          <Text style={[texto.cuerpoMedio, { color: paleta.ofertaTinta }]}>Ahorro vs. una sola parada</Text>
+          <Text style={[texto.cuerpoMedio, { color: paleta.ofertaTinta }]}>Repartiendo ahorrás</Text>
           <Text style={[texto.precioGrande, { color: paleta.ofertaTinta }]}>{pesos(ahorroRepartiendo)}</Text>
         </View>
       ) : null}
@@ -322,8 +349,8 @@ function PlanDeCompra({ data }: { data: RespuestaComparar }) {
                     <Text style={styles.checkTexto}>✓</Text>
                   </View>
                   <View style={{ flex: 1, gap: 1 }}>
-                    <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>{tarjeta} aplicada</Text>
-                    <Text style={[texto.dato, { color: paleta.tintaTenue }]}>ya está en el total de arriba</Text>
+                    <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>{tarjeta} está en Mis descuentos</Text>
+                    <Text style={[texto.dato, { color: paleta.tintaTenue }]}>el descuento ya está en el total</Text>
                   </View>
                   <Pressable
                     onPress={() => carrito.setTarjetas(carrito.tarjetas.filter(t => t !== tarjeta))}
@@ -405,10 +432,14 @@ function BloquePromo({ promo, onAplicar }: { promo: PromoSinAplicar; onAplicar: 
         <Pressable
           onPress={onAplicar}
           accessibilityRole="button"
-          accessibilityLabel={`Aplicar ${promo.tarjeta} para ${promo.producto}`}
+          accessibilityLabel={`Marcar que tenés ${promo.tarjeta}, para ${promo.producto}`}
           style={[styles.botonAplicar, { backgroundColor: paleta.tinta }]}
         >
-          <Text style={[texto.cuerpoMedio, { color: paleta.superficie }]}>Aplicar</Text>
+          {/* "Tengo {nombre}", no "Activar": es una declaración del usuario, no una acción
+              técnica — ver SPEC § 4.7. */}
+          <Text style={[texto.cuerpoMedio, { color: paleta.superficie }]} numberOfLines={1}>
+            Tengo {promo.tarjeta}
+          </Text>
         </Pressable>
       </View>
     </View>
@@ -583,6 +614,14 @@ const styles = StyleSheet.create({
   labelHeaderOscuro: { color: '#FFFFFF', opacity: 0.6, letterSpacing: 1.2 },
   totalHero: { color: '#FFFFFF' },
   subtitutloHero: { color: '#FFFFFF', opacity: 0.7 },
+  filaDosTotales: { flexDirection: 'row', alignItems: 'flex-end', gap: espacio.md },
+  totalPrincipal: { fontSize: 52, lineHeight: 48 },
+  // Grises fijos del header negro (no de la paleta clara/oscura del resto de la app): este
+  // header siempre es oscuro, lleve el sistema el tema que lleve — ver useTema.ts.
+  textoMutedOscuro: { color: '#727B85' },
+  divisorVertical: { width: 1, alignSelf: 'stretch', backgroundColor: '#3C444D' },
+  columnaTotalUnico: { width: 118, gap: 4 },
+  totalSecundario: { color: '#A6AEB8' },
   bloqueAhorro: {
     borderRadius: radio.md, padding: espacio.md,
     flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
