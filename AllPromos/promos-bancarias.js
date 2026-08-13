@@ -37,6 +37,15 @@ const CHANGOMAS_HASH_PROMOS     = '1a071ebc5dc407a3f65e687b0f4c0a3b8d12a0c45d8d1
 const CHANGOMAS_HASH_BANKS      = '968d464317be357766de0e3beb313a55e0ebf7f45f2ef4a02c99fdf4ebca0876';
 const CHANGOMAS_HASH_CARDS      = 'b3aa47c5a259fd0c6ea4b9d29d553170da26dfcead2be3acafa026b9b9084b3a';
 
+// Día no es VTEX IO en esta parte del sitio (a diferencia de su catálogo de productos):
+// las promos bancarias son un bloque de CMS server-renderizado, embebido como JSON crudo
+// dentro de un <script> de la página — no hay endpoint GraphQL ni Master Data que consultar
+// aparte. DIA_BLOQUE_MARCA es el ancla estable (id de bloque, no contenido de campaña) para
+// encontrar ese <script> dentro del HTML — ver fetchDia().
+const DIA_HOST         = 'https://diaonline.supermercadosdia.com.ar';
+const DIA_PROMOS_PATH  = '/medios-de-pago-y-promociones';
+const DIA_BLOQUE_MARCA = 'landing-medios-pago#props":{';
+
 // Tarjetas/billeteras que el usuario pidió modelar (4.7) + las propias de cada super.
 // Los valores son substrings normalizados (sin tildes, minúsculas) a buscar en el
 // nombre de banco YA RESUELTO (no en el string crudo de Carrefour/Chango Más, que son
@@ -273,6 +282,133 @@ async function fetchChangoMas() {
   });
 }
 
+// ─── Fetch: Día (bloque de CMS embebido en el HTML, sin API estructurada) ─────
+
+// A diferencia de Vea (campo `discount`) y Carrefour/Chango Más (`discount_percentage`),
+// el bloque de CMS de Día NO tiene ningún campo numérico de % — solo texto legal libre
+// (`terms`). Se decidió (2026-08-13) parsearlo con regex en vez de dejar Día sin cubrir,
+// con una regla dura para no adivinar: si ninguno de estos patrones matchea, o si matchean
+// valores de % DISTINTOS entre sí en el mismo texto (pasa con tarjetas que agrupan varios
+// niveles en un solo `terms`, ej. "Sidecreer Verde/Platinum/Black" con 10/20/25% mezclados),
+// la promo se descarta sin promo — mismo criterio que ya usa el proyecto para no inferir
+// canal en Vea con regex (ver nota arriba, "sería adivinar").
+const PATRONES_PCT_DIA = [
+  /(\d+(?:[.,]\d+)?)\s*%\s*(?:\([^)]*\)\s*)?de\s+(?:reintegro|descuento|ahorro)/g,
+  /bonificacion\s+del\s+(\d+(?:[.,]\d+)?)\s*%/g,
+  /consiste\s+en\s+(?:un\s+)?(\d+(?:[.,]\d+)?)\s*%/g,
+  /otorgar[a]\s+(?:un\s+)?(\d+(?:[.,]\d+)?)\s*%/g,
+];
+
+function extraerDescuentoPctDia(terms) {
+  const t = normalizar(terms);
+  const valores = new Set();
+  for (const patron of PATRONES_PCT_DIA) {
+    for (const m of t.matchAll(patron)) valores.add(Number(m[1].replace(',', '.')));
+  }
+  return valores.size === 1 ? [...valores][0] / 100 : null;
+}
+
+/** Extrae el primer objeto JSON balanceado que arranca en `texto[inicio]` (debe ser '{'). */
+function extraerBloqueBalanceado(texto, inicio) {
+  let profundidad = 0, dentroDeString = false, escapando = false;
+  for (let i = inicio; i < texto.length; i++) {
+    const c = texto[i];
+    if (escapando) { escapando = false; continue; }
+    if (c === '\\') { escapando = true; continue; }
+    if (c === '"') { dentroDeString = !dentroDeString; continue; }
+    if (dentroDeString) continue;
+    if (c === '{') profundidad++;
+    else if (c === '}') {
+      profundidad--;
+      if (profundidad === 0) return texto.slice(inicio, i + 1);
+    }
+  }
+  return null;
+}
+
+function diasDesdeCardDia(daysToShow) {
+  if (!daysToShow) return [];
+  return DIAS_SEMANA_KEYS.map((k, i) => (daysToShow[k] === true ? i + 1 : null)).filter(Boolean);
+}
+
+// availableOn: {online, store} son booleanos reales (no strings como en Carrefour/Chango
+// Más) — se traducen al mismo vocabulario que usa promoAplicaEnCanal ('ecommerce' para
+// online; cualquier tag != 'ecommerce' vale para físico, se usa 'tienda').
+function canalesDesdeCardDia(availableOn) {
+  if (!availableOn) return null;
+  const canales = [];
+  if (availableOn.online) canales.push('ecommerce');
+  if (availableOn.store) canales.push('tienda');
+  return canales.length ? canales : null;
+}
+
+// extraerTope() genérico busca "reintegro...$X", pero el legal de Día suele incluir
+// ejemplos ilustrativos tipo "SI REALIZA UNA COMPRA DE $30.000 RECIBIRÁ UN REINTEGRO DE
+// $3.000" — el regex genérico confunde ese monto de ejemplo con el tope real, incluso
+// cuando el mismo texto dice explícitamente "SIN TOPE DE REINTEGRO" (confirmado en vivo
+// con la promo real de Cuenta DNI, 2026-08-13). La negación explícita es un dato más
+// confiable que el regex genérico, así que gana siempre que esté presente.
+function extraerTopeDia(terms) {
+  if (/\bsin\s+tope\b/.test(normalizar(terms))) return null;
+  return extraerTope(terms);
+}
+
+async function fetchDia() {
+  try {
+    const res = await fetch(`${DIA_HOST}${DIA_PROMOS_PATH}`, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    if (!res.ok) return { promos: [], error: 'fetch_failed' };
+    const html = await res.text();
+
+    // Si esta marca desaparece, Día cambió la estructura del bloque de CMS — hay que
+    // volver a inspeccionar el sitio con el navegador, igual que con un hash de GraphQL roto.
+    const idxBloque = html.indexOf(DIA_BLOQUE_MARCA);
+    if (idxBloque === -1) return { promos: [], error: 'hash_roto' };
+    const idxProps = html.indexOf('"props":{', idxBloque);
+    if (idxProps === -1) return { promos: [], error: 'hash_roto' };
+    const bloque = extraerBloqueBalanceado(html, idxProps + '"props":'.length);
+    if (!bloque) return { promos: [], error: 'hash_roto' };
+
+    let cards;
+    try {
+      cards = JSON.parse(bloque).cards;
+    } catch {
+      return { promos: [], error: 'hash_roto' };
+    }
+    if (!Array.isArray(cards)) return { promos: [], error: 'hash_roto' };
+
+    const promos = [];
+    for (const card of cards) {
+      if (card.active === false) continue;
+      const descuentoPct = extraerDescuentoPctDia(card.terms || '');
+      if (!(descuentoPct > 0)) continue;
+
+      const nombresBanco = (card.associatedBanks || []).map(b => b.__editorItemTitle).filter(Boolean);
+      const canonicosPosibles = [...new Set(nombresBanco.flatMap(resolverCanonicosDesdeNombre))];
+      if (!canonicosPosibles.length) continue;
+
+      promos.push({
+        canonicosPosibles,
+        super: 'Día',
+        dias: diasDesdeCardDia(card.daysToShow),
+        canales: canalesDesdeCardDia(card.availableOn),
+        descuentoPct,
+        tope: extraerTopeDia(card.terms || ''),
+        montoMinimo: extraerMontoMinimo(card.terms || ''),
+        // Día, a diferencia de Vea/Carrefour/Chango Más, no expone fechas de vigencia
+        // estructuradas — solo el booleano `active` (ya filtrado arriba). Se usa un rango
+        // amplio para que promosAplicablesHoy/mejoresDiasTicket no la descarten por fecha;
+        // el único control de vigencia real es que `active` se vuelva a consultar en cada fetch.
+        vigenciaDesde: new Date(0),
+        vigenciaHasta: new Date('2099-12-31'),
+        textoLegal: card.terms || '',
+      });
+    }
+    return { promos, error: null };
+  } catch {
+    return { promos: [], error: 'fetch_failed' };
+  }
+}
+
 // ─── Funciones puras de cálculo (testeables sin red) ──────────────────────────
 
 /** Filtra por día de la semana + ventana de vigencia. No filtra por canal (Fase 1, decisión confirmada). */
@@ -345,29 +481,32 @@ function elegirMejorDia(diasCalculados) {
  * la app (backend/src/routes/misDescuentos.js): necesita ver TODAS las promos conocidas
  * para poder mostrar, tarjeta por tarjeta, qué desbloquea — incluso de las que el usuario
  * todavía no marcó como propias.
- * @returns { vea: {promos,error}, carr: {promos,error}, changomas: {promos,error} }
+ * @returns { vea, carr, changomas, dia: {promos,error} } — Coto sigue sin cubrir (no es
+ *   VTEX y no se encontró un feed equivalente de %-por-banco-por-día).
  */
 async function obtenerTodasLasPromosBancarias() {
-  const [vea, carr, changomas] = await Promise.all([
+  const [vea, carr, changomas, dia] = await Promise.all([
     fetchVea().catch(() => ({ promos: [], error: 'fetch_failed' })),
     fetchCarrefour().catch(() => ({ promos: [], error: 'fetch_failed' })),
     fetchChangoMas().catch(() => ({ promos: [], error: 'fetch_failed' })),
+    fetchDia().catch(() => ({ promos: [], error: 'fetch_failed' })),
   ]);
-  return { vea, carr, changomas };
+  return { vea, carr, changomas, dia };
 }
 
 /**
- * Trae y normaliza las promos bancarias de los 3 supers, ya filtradas por las tarjetas
- * propias del usuario (mis-tarjetas.json). No filtra por día ni canal (eso es
+ * Trae y normaliza las promos bancarias de los supers cubiertos, ya filtradas por las
+ * tarjetas propias del usuario (mis-tarjetas.json). No filtra por día ni canal (eso es
  * promosAplicablesHoy, que se llama al momento de mostrar, no acá).
- * @returns { vea: {promos,error}, carr: {promos,error}, changomas: {promos,error} }
+ * @returns { vea, carr, changomas, dia: {promos,error} }
  */
 async function obtenerPromosBancarias() {
   const misTarjetas = leerMisTarjetas();
-  const [vea, carr, changomas] = await Promise.all([
+  const [vea, carr, changomas, dia] = await Promise.all([
     fetchVea().catch(() => ({ promos: [], error: 'fetch_failed' })),
     fetchCarrefour().catch(() => ({ promos: [], error: 'fetch_failed' })),
     fetchChangoMas().catch(() => ({ promos: [], error: 'fetch_failed' })),
+    fetchDia().catch(() => ({ promos: [], error: 'fetch_failed' })),
   ]);
 
   const filtrarPorTarjetasPropias = resultado => {
@@ -382,6 +521,7 @@ async function obtenerPromosBancarias() {
     vea: filtrarPorTarjetasPropias(vea),
     carr: filtrarPorTarjetasPropias(carr),
     changomas: filtrarPorTarjetasPropias(changomas),
+    dia: filtrarPorTarjetasPropias(dia),
   };
 }
 
@@ -390,7 +530,7 @@ async function obtenerPromosBancarias() {
 /** Común a las dos secciones de abajo: imprime el aviso de error si corresponde. @returns true si imprimió (el caller debe hacer continue). */
 function imprimirAvisoErrorSiCorresponde(s, datos) {
   if (datos.error === 'hash_roto') {
-    console.log(`  ⚠️  ${s.nombre}: la consulta de promos bancarias dejó de funcionar (hash de GraphQL desactualizado) — hay que recapturarlo con el navegador`);
+    console.log(`  ⚠️  ${s.nombre}: la consulta de promos bancarias dejó de funcionar (la fuente cambió de forma: hash de GraphQL o bloque de CMS desactualizado) — hay que recapturarla con el navegador`);
     return true;
   }
   if (datos.error) {
@@ -545,7 +685,7 @@ function calcularPlanFinal(supermercados, datosPorSuper, subtotalPorSuper, canal
 }
 
 function describirOportunidad(p, hoy) {
-  if (p.errorBanco === 'hash_roto') return '⚠️  promo bancaria no disponible (hash de GraphQL desactualizado)';
+  if (p.errorBanco === 'hash_roto') return '⚠️  promo bancaria no disponible (la fuente cambió de forma: hash de GraphQL o bloque de CMS desactualizado)';
   if (p.errorBanco) return '⚠️  no se pudo consultar la promo bancaria (error de red)';
   if (!p.oportunidad) return 'sin promo bancaria aplicable en los próximos 7 días';
   const { fecha, mejor, canal } = p.oportunidad;
