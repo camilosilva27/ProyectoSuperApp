@@ -38,6 +38,9 @@ export type OpcionSuper = {
   super: string;
   tag: string;
   total: number;
+  /** Lo que pagarías sin ninguna promo (precio de lista real, aunque haya promos apiladas
+   *  una sobre otra) — igual a `total` cuando no hay ninguna promo activa. */
+  totalSinPromo: number;
   precioUnitario: number;
   productoNombre: string;
   variante: string | null;
@@ -73,6 +76,9 @@ export type RespuestaComparar = {
   items: ItemComparado[];
   resumen: {
     totalOptimo: number;
+    /** Mismo plan óptimo que `totalOptimo` (mismo producto en el mismo super) pero sin
+     *  aplicar ninguna promo — para mostrar cuánto ahorran las promos en total. */
+    totalSinPromo: number;
     /** `null` si ese super no vende TODOS los productos del carrito — "todo ahí" no es una
      *  compra real que se pueda hacer, así que se excluye en vez de completar el hueco con el
      *  precio óptimo de otro lado (ver AllPromos/core/comparador.js). */

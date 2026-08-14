@@ -185,11 +185,12 @@ function HeaderVeredicto({
 }) {
   const { paleta } = useTema();
   const router = useRouter();
-  const { totalOptimo, totalesPorSuper } = data.resumen;
+  const { totalOptimo, totalSinPromo, totalesPorSuper } = data.resumen;
+  const hayAhorroPorPromos = totalSinPromo > totalOptimo;
 
   const supersConTotal = data.supermercados
     .map(s => ({ ...s, total: totalesPorSuper[s.key] }))
-    .filter(s => typeof s.total === 'number' && s.total > 0)
+    .filter((s): s is typeof s & { total: number } => typeof s.total === 'number' && s.total > 0)
     .sort((a, b) => a.total - b.total);
 
   const mejorUnico = supersConTotal[0];
@@ -218,6 +219,9 @@ function HeaderVeredicto({
             <Text style={[texto.micro, { color: paleta.oferta, letterSpacing: 0.7 }]}>
               REPARTIENDO EN {paradasNombres.length} PARADAS
             </Text>
+            {hayAhorroPorPromos ? (
+              <Text style={[texto.dato, styles.precioSinPromoHero]}>{pesos(totalSinPromo)}</Text>
+            ) : null}
             <Text style={[texto.precioHero, styles.totalHero, styles.totalPrincipal]}>
               {pesos(totalOptimo)}
             </Text>
@@ -234,6 +238,9 @@ function HeaderVeredicto({
         </View>
       ) : (
         <View style={{ gap: 6 }}>
+          {hayAhorroPorPromos ? (
+            <Text style={[texto.dato, styles.precioSinPromoHero]}>{pesos(totalSinPromo)}</Text>
+          ) : null}
           <Text style={[texto.precioHero, styles.totalHero]}>{pesos(totalOptimo)}</Text>
           {mejorUnico ? (
             <Text style={[texto.etiqueta, styles.subtitutloHero]}>
@@ -286,6 +293,16 @@ function PlanDeCompra({ data }: { data: RespuestaComparar }) {
     return mapa;
   }, [data.items]);
 
+  // Suma de lo que pagarías en cada super sin ninguna promo — para contrastar con
+  // subtotalAsignadoPorSuper (que ya tiene las promos aplicadas).
+  const subtotalSinPromoPorSuper = useMemo(() => {
+    const mapa = new Map<SuperKey, number>();
+    for (const [key, items] of itemsPorSuper) {
+      mapa.set(key, items.reduce((acc, it) => acc + (it.mejor?.totalSinPromo ?? 0), 0));
+    }
+    return mapa;
+  }, [itemsPorSuper]);
+
   const paradas = data.supermercados
     .filter(s => (itemsPorSuper.get(s.key) ?? []).length > 0)
     .sort((a, b) => (subtotalAsignadoPorSuper[b.key] ?? 0) - (subtotalAsignadoPorSuper[a.key] ?? 0));
@@ -316,9 +333,16 @@ function PlanDeCompra({ data }: { data: RespuestaComparar }) {
           <View key={s.key} style={[styles.bloqueSuper, { borderColor: paleta.borde }]}>
             <View style={[styles.cabeceraSuper, colorIdentidad(paleta, s.key)]}>
               <Text style={[texto.precioGrande, styles.nombreSuper]}>{s.nombre}</Text>
-              <Text style={[texto.precioGrande, styles.totalSuper]}>
-                {pesos(subtotalAsignadoPorSuper[s.key])}
-              </Text>
+              <View style={{ alignItems: 'flex-end' }}>
+                {(subtotalSinPromoPorSuper.get(s.key) ?? 0) > subtotalAsignadoPorSuper[s.key] ? (
+                  <Text style={[texto.micro, styles.precioSinPromoTachado]}>
+                    {pesos(subtotalSinPromoPorSuper.get(s.key) ?? 0)}
+                  </Text>
+                ) : null}
+                <Text style={[texto.precioGrande, styles.totalSuper]}>
+                  {pesos(subtotalAsignadoPorSuper[s.key])}
+                </Text>
+              </View>
             </View>
             <View style={styles.cuerpoSuper}>
               {(itemsPorSuper.get(s.key) ?? []).map(item => (
@@ -622,6 +646,7 @@ const styles = StyleSheet.create({
   // Grises fijos del header negro (no de la paleta clara/oscura del resto de la app): este
   // header siempre es oscuro, lleve el sistema el tema que lleve — ver useTema.ts.
   textoMutedOscuro: { color: '#727B85' },
+  precioSinPromoHero: { color: '#727B85', textDecorationLine: 'line-through' },
   divisorVertical: { width: 1, alignSelf: 'stretch', backgroundColor: '#3C444D' },
   columnaTotalUnico: { width: 118, gap: 4 },
   totalSecundario: { color: '#A6AEB8' },
@@ -647,6 +672,7 @@ const styles = StyleSheet.create({
   },
   nombreSuper: { color: '#FFFFFF', textTransform: 'uppercase', letterSpacing: 1 },
   totalSuper: { color: '#FFFFFF' },
+  precioSinPromoTachado: { color: 'rgba(255,255,255,0.7)', textDecorationLine: 'line-through' },
   cuerpoSuper: { padding: espacio.md, gap: espacio.sm },
   filaItemSuper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: espacio.sm },
   nombreItemSuper: { flex: 1 },

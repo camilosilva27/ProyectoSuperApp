@@ -149,8 +149,14 @@ function validarBody(body) {
   return null;
 }
 
-/** Da forma pública a una opción de super: precios en vivo, sin estructuras internas. */
-function serializarOpcion(o, cantidad, tarjetasSeleccionadas) {
+/**
+ * Da forma pública a una opción de super: precios en vivo, sin estructuras internas.
+ * @param {number} precioLista precio de lista SIN NINGUNA promo para este super — puede ser
+ *   más alto que `o.mejor.precioBase` cuando hay promos apiladas (ej. Carrefour: 30% de
+ *   descuento directo ya aplicado sobre `precioBase`, más 15% de Mi Carrefour encima de eso).
+ *   Ver cálculo en el caller (máximo precioBase entre todas las opciones del super).
+ */
+function serializarOpcion(o, cantidad, tarjetasSeleccionadas, precioLista) {
   const promo = o.mejor.promo;
   const tarjetaActiva = !promo?.requiereTarjeta || tarjetasSeleccionadas.includes(promo.requiereTarjeta);
 
@@ -159,6 +165,9 @@ function serializarOpcion(o, cantidad, tarjetasSeleccionadas) {
     super: o.nombre,
     tag: o.tag,
     total: o.total,
+    // Lo que pagarías sin ninguna promo (ni la de esta opción, ni ninguna otra apilada antes)
+    // — el precio de lista real, no solo "antes de la última promo que ganó".
+    totalSinPromo: Math.round(precioLista * cantidad * 100) / 100,
     precioUnitario: o.mejor.precioBase,
     productoNombre: o.mejor.productName,
     variante: o.mejor.skuName && o.mejor.skuName !== o.mejor.productName ? o.mejor.skuName : null,
@@ -220,14 +229,25 @@ router.post('/comparar', async (req, res) => {
       const opciones = calcularOpciones(grupo, cantidad, supermercados, tarjetasSeleccionadas);
       const mejores = calcularMejoresPorSuper([grupo], cantidad, supermercados, tarjetasSeleccionadas);
 
+      // Precio de lista por super = el precioBase más alto entre TODAS las variantes de promo
+      // que devolvió ese super para este producto (no solo la que terminó ganando). Con una
+      // sola promo (el caso normal) coincide con o.mejor.precioBase; con promos apiladas
+      // (Carrefour: % directo + tarjeta propia encima) es más alto, porque la entrada de
+      // tarjeta propia usa como precioBase el precio YA con el % directo aplicado.
+      const precioListaPorKey = Object.fromEntries(
+        supermercados.map(s => [s.key, Math.max(0, ...(grupo[s.key] || []).map(e => e.precioBase))])
+      );
+
       return {
         ean,
         nombre,
         imagen,
         cantidad,
         enCatalogoLocal: !!delCatalogo,
-        opciones: opciones.map(o => serializarOpcion(o, cantidad, tarjetasSeleccionadas)),
-        mejor: opciones.length ? serializarOpcion(opciones[0], cantidad, tarjetasSeleccionadas) : null,
+        opciones: opciones.map(o => serializarOpcion(o, cantidad, tarjetasSeleccionadas, precioListaPorKey[o.key])),
+        mejor: opciones.length
+          ? serializarOpcion(opciones[0], cantidad, tarjetasSeleccionadas, precioListaPorKey[opciones[0].key])
+          : null,
         // Dato, no pregunta: qué cantidades activarían una promo que hoy no se activa.
         sugerenciaCantidad: calcularSugerenciaCantidad([grupo], cantidad, supermercados, tarjetasSeleccionadas),
         error: null,
@@ -256,6 +276,12 @@ router.post('/comparar', async (req, res) => {
 
   const items = procesados.map(({ _mejores, ...publico }) => publico);
 
+  // Mismo plan óptimo (mismo producto en el mismo super que totalOptimo) pero sin aplicar
+  // ninguna promo — para mostrar "esto es lo que te ahorran las promos" en el total general.
+  const totalSinPromo = Math.round(
+    items.reduce((acc, it) => acc + (it.mejor?.totalSinPromo ?? 0), 0) * 100
+  ) / 100;
+
   // Link de "agregar al carrito" en el sitio real de cada super (null si no es VTEX, ej.
   // Coto, o si no hay nada asignado a ese super) — ver armarUrlCarrito en fetchers.js.
   const linksCarrito = Object.fromEntries(
@@ -276,6 +302,7 @@ router.post('/comparar', async (req, res) => {
     items,
     resumen: {
       totalOptimo: resumen.totalOptimo,
+      totalSinPromo,
       totalesPorSuper: resumen.totalesPorSuper,
       subtotalAsignadoPorSuper: resumen.subtotalAsignadoPorSuper,
       comprasPorSuper,
