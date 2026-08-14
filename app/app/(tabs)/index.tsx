@@ -229,7 +229,10 @@ export default function PantallaBuscar() {
       </HeaderNegro>
 
       {!consultaValida ? (
-        <EstadoInicial onAbrirComoFunciona={() => setMostrarComoFunciona(true)} />
+        <EstadoInicial
+          onAbrirComoFunciona={() => setMostrarComoFunciona(true)}
+          conCarritoFlotante={carrito.items.length > 0}
+        />
       ) : (
         <FlatList
           data={resultadosMostrados}
@@ -302,11 +305,23 @@ export default function PantallaBuscar() {
 
 /** Estado inicial de Buscar (SPEC § 4.1): lo que se ve antes de escribir nada. Es donde el
  *  usuario entiende qué es esto — nunca se vio antes en la app. */
-function EstadoInicial({ onAbrirComoFunciona }: { onAbrirComoFunciona: () => void }) {
+function EstadoInicial({
+  onAbrirComoFunciona,
+  conCarritoFlotante,
+}: {
+  onAbrirComoFunciona: () => void;
+  conCarritoFlotante: boolean;
+}) {
   const { paleta } = useTema();
 
   return (
-    <ScrollView contentContainerStyle={styles.estadoInicial} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      contentContainerStyle={[
+        styles.estadoInicial,
+        conCarritoFlotante ? { paddingBottom: 120 } : null,
+      ]}
+      keyboardShouldPersistTaps="handled"
+    >
       <View style={{ gap: espacio.sm }}>
         <Text style={[texto.titulo, { color: paleta.tinta }]}>Un carrito, cinco supermercados</Text>
         <Text style={[texto.cuerpo, { color: paleta.tintaSuave }]}>
@@ -462,7 +477,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: espacio.sm,
     backgroundColor: '#FFFFFF', borderRadius: radio.md, paddingHorizontal: espacio.md, height: 50,
   },
-  input: { flex: 1, outlineWidth: 0 },
+  input: { flex: 1, outlineWidth: 0, outlineStyle: 'none' },
   botonLimpiar: {
     width: 20, height: 20, borderRadius: radio.pill, alignItems: 'center', justifyContent: 'center',
   },

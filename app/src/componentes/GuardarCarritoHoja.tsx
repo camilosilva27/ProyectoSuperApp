@@ -140,7 +140,10 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: radio.pantalla, borderTopRightRadius: radio.pantalla,
     padding: espacio.pantalla, gap: espacio.lg,
   },
-  input: { height: 52, borderWidth: 1, borderRadius: radio.sm, paddingHorizontal: espacio.md },
+  input: {
+    height: 52, borderWidth: 1, borderRadius: radio.sm, paddingHorizontal: espacio.md,
+    outlineWidth: 0, outlineStyle: 'none',
+  },
   filaBotones: { flexDirection: 'row', gap: espacio.sm },
   botonCancelar: {
     width: 110, height: 50, borderWidth: 1, borderRadius: radio.sm,

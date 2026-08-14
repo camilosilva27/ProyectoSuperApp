@@ -484,12 +484,12 @@ function SiComprasTodoEnUno({ data }: { data: RespuestaComparar }) {
   );
 }
 
-/** Detalle por producto, colapsado por default (link "Producto por producto" al pie, SPEC
- *  § 4.6.5) — acá vive la comparación con BarraDiferencia y el aviso de cantidad, que el
+/** Detalle por producto, visible por default (se puede ocultar con el link al pie) —
+ *  acá vive la comparación con BarraDiferencia y el aviso de cantidad, que el
  *  agrupado de arriba no reemplaza (ver comentario de BloquePromo). */
 function DetalleProductoPorProducto({ data, isFetching }: { data: RespuestaComparar; isFetching: boolean }) {
   const { paleta } = useTema();
-  const [mostrar, setMostrar] = useState(false);
+  const [mostrar, setMostrar] = useState(true);
 
   return (
     <View style={styles.seccion}>
@@ -500,7 +500,7 @@ function DetalleProductoPorProducto({ data, isFetching }: { data: RespuestaCompa
         </Text>
         <Pressable onPress={() => setMostrar(v => !v)} accessibilityRole="button" style={styles.linkDetalle}>
           <Text style={[texto.etiqueta, { color: paleta.tinta, textDecorationLine: 'underline' }]}>
-            Producto por producto
+            {mostrar ? 'Ocultar producto por producto' : 'Producto por producto'}
           </Text>
         </Pressable>
       </View>
