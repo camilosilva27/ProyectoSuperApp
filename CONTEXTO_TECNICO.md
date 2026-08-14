@@ -37,9 +37,11 @@ AllPromos/
 backend/                        ← API HTTP para la app mobile (Express)
 ├── src/server.js               ← rate limit + API key por token compartido
 ├── src/routes/catalogo.js      ← GET /api/catalogo/buscar|categorias (SIN precios)
-├── src/routes/comparar.js      ← POST /api/comparar (precios en vivo, mismo cálculo que la CLI)
-├── src/routes/health.js        ← GET /api/health (frescura de catálogos + último cron)
-├── src/catalogoUnificado.js    ← búsqueda en memoria sobre catalogo-unificado.json
+├── src/routes/comparar.js      ← POST /api/comparar (precio cacheado primero, en vivo solo como fallback)
+├── src/routes/health.js        ← GET /api/health (frescura de catálogos + caché de precio + último cron)
+├── src/catalogoUnificado.js    ← búsqueda en memoria sobre catalogo-unificado.json (nombre/EAN, sin precio)
+├── src/precioCache.js          ← índice de precio+promo derivado de catalogo-*.json (ver más abajo)
+├── src/limitadorGlobal.js      ← semáforo global (no por IP) para el fallback en vivo
 ├── src/cron/unificarCatalogo.js   ← dedupe de los 3 catálogos por EAN (escritura atómica)
 └── src/cron/refrescarCatalogos.js ← corre los 3 scrapers como subprocesos + sonda de promos bancarias
 
@@ -50,11 +52,16 @@ app/                            ← App mobile (React Native + Expo SDK 57, expo
 └── src/                        ← theme.ts (tokens), api.ts, carrito.tsx, componentes/
 ```
 
-**Invariante nuevo a respetar:** `catalogo-unificado.json` (el índice que ve la app) se genera excluyendo a propósito los campos `precioBase`/`precioActual`/`promocion`/`descuentoDirecto` que sí traen los `catalogo-*.json`. Esos precios son de la fecha del scraping; mostrarlos en la app sería mostrar un precio viejo como vigente. La app pide precios en vivo con `POST /api/comparar`.
+**Invariante que sigue vigente para la CLI y para `catalogo-unificado.json`:** el índice que ve la app para buscar/seleccionar productos (`catalogo-unificado.json`) sigue excluyendo a propósito los campos de precio — solo resuelve nombre → EAN (+ skuId en Vea). La CLI (`buscar-promos.js`, `AllPromos/core/*`) tampoco cambió: sigue pidiendo precio y promo en vivo en el 100% de los casos, sin caché, como siempre.
+
+**Lo que SÍ cambió (2026-08-13), solo en el backend — `POST /api/comparar` y `POST /api/precios`:** dejaron de pedir precio en vivo a los 5 supers en cada request. Con tráfico concurrente eso multiplicaba conexiones contra Carrefour/Chango Más, que ya rate-limitean con el uso normal de una sola familia (ver `sondaEnVivo.js`). Ahora:
+
+1. **Camino común — `src/precioCache.js`:** lee precio+promo directo de `catalogo-{vea,carrefour,changomas,dia,coto}.json` — los mismos archivos que ya escriben los scrapers diarios y que, además de EAN/nombre, siempre trajeron `precioBase`/`descuentoDirecto`/`promosInternas`/`promosBancarias`/`promocion` capturados en el momento del scraping (antes se descartaban a propósito para el precio; ahora se usan). No reinterpreta promociones por su cuenta: traduce esa forma ya calculada por el scraper a la misma forma que devuelven los parsers en vivo de `core/fetchers.js`, llamando a las mismas funciones de `promo-engine.js` — no hay una segunda lógica de promos que pueda divergir.
+2. **Fallback angosto — solo para EANs que el paso 1 no encuentra** (fuera del recorte de ~2550 SKUs por super que ya capturan los scrapers, o producto nuevo): ahí sí se pide en vivo con `AllPromos/core/fetchers.js` sin cambios, pero protegido por un semáforo **global** (`src/limitadorGlobal.js`, no por IP): como mucho 2 búsquedas de este fallback en vuelo a la vez, sin importar cuántos usuarios distintos las disparen. Es lo que evita que el problema de rate-limit original (fetch en vivo en el camino común, multiplicado por usuarios concurrentes) se reintroduzca por otra puerta.
+3. **Frescura:** el precio que ve la app tiene la frescura del cron (ver `refrescarCatalogos.js` — se subió la frecuencia a cada 1-2 hs, antes 1 vez por día), no la del momento exacto del click. `GET /api/health` expone `cachePrecio.fuentes[].fecha` para ver esto de un vistazo.
 
 **Cambio de firma en los fetchers:** `parsearProductosCarrefour`/`buscarPorEAN` reciben `{ tarjetas }` por parámetro en vez de leer `mis-tarjetas.json` a nivel de módulo. La CLI le pasa `leerMisTarjetas()` (comportamiento idéntico al anterior); el backend recibe la lista en cada request, porque cada teléfono de la familia puede tener tarjetas distintas.
 
-**Importante:** `catalogo-*.json` NUNCA se usan para precios. Solo para resolver nombre → EAN y (en Vea) → skuId. Los precios y promos siempre se traen en vivo.
 ---
 
 ## Cómo correr la app

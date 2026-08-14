@@ -14,6 +14,7 @@ const fs = require('fs');
 const express = require('express');
 const { estadoCatalogos } = require('../../../AllPromos/core/catalogo');
 const { leerEstadoUnificado } = require('../catalogoUnificado');
+const precioCache = require('../precioCache');
 const { diasMaximoCatalogo, rutaLogs, entorno } = require('../config');
 const sondaEnVivo = require('../sondaEnVivo');
 const path = require('path');
@@ -60,6 +61,10 @@ router.get('/health', (req, res) => {
     ahora: new Date().toISOString(),
     catalogos,
     catalogoUnificado: unificado,
+    // Misma fecha que ya reportan `catalogos[].vencido` arriba (es la fuente de
+    // precioCache.js) — se repite acá para ver de un vistazo si /comparar y /precios están
+    // sirviendo precio de hace 1 hora o de hace 3 semanas, sin tener que cruzar campos.
+    cachePrecio: { fuentes: precioCache.estadoFuentes() },
     ultimoRefresco,
     sondaEnVivo: sonda,
     problemas,

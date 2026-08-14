@@ -15,8 +15,10 @@
  * endpoints que ya rate-limitean.
  *
  * Uso: node src/cron/refrescarCatalogos.js   (o npm run refrescar)
- * Crontab sugerido en el VPS (5:30 AM):
- *   30 5 * * * cd /ruta/ProyectoSuperApp/backend && /usr/bin/node src/cron/refrescarCatalogos.js >> logs/cron.log 2>&1
+ * Crontab sugerido en el VPS — ver backend/README.md ("Cron") para el valor vigente y por qué
+ * cambió de 1 vez por día a cada 1-2 hs (desde que src/precioCache.js sirve el precio de la app
+ * a partir de estos mismos catalogo-*.json, la frecuencia de este cron pasó a ser la frescura
+ * real del precio, no solo la del nombre/EAN).
  */
 
 const fs = require('fs');

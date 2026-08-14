@@ -31,6 +31,8 @@ const {
 const { calcularCosto } = require('../../../AllPromos/promo-engine');
 const { esEANvalido } = require('../../../AllPromos/core/catalogo');
 const catalogoUnificado = require('../catalogoUnificado');
+const precioCache = require('../precioCache');
+const { crearLimitador } = require('../limitadorGlobal');
 
 const router = express.Router();
 
@@ -69,32 +71,43 @@ const MAX_ITEMS = 60;
 // pocos ítems para no abrir 300 conexiones de golpe con un carrito grande.
 const ITEMS_EN_PARALELO = 4;
 
-// Caché corto de la consulta en vivo por EAN — evita pedir de nuevo a los 5 supers si dos
-// requests llegan casi al mismo tiempo para el mismo producto (recargar la app, o dos
-// integrantes de la familia mirando el mismo carrito). TTL corto a propósito: sigue siendo
-// "en vivo" para cualquier propósito práctico (nadie nota una diferencia de 3 min en un
-// precio de supermercado) y no viola el invariante de "nunca mostrar precio del catálogo
-// local" (ver AllPromos/CLAUDE.md) porque el dato sigue viniendo de un fetch en vivo, solo se
-// reutiliza por un rato corto. Se cachea la Promise, no el resultado ya resuelto: así dos
-// requests que llegan casi juntos comparten el mismo fetch en vuelo en vez de disparar dos.
+// Camino común: leer de precioCache (derivado de catalogo-*.json, refrescado por el cron cada
+// 1-2 hs). Cubre el recorte de ~2550 SKUs por super que ya capturan los scrapers — la enorme
+// mayoría de lo que se compara habitualmente. Ver backend/README.md para el detalle de por qué
+// se dejó de pedir en vivo en el camino común.
 //
-// `tarjetas` no forma parte de la key porque este endpoint siempre pide con la misma
-// constante (TARJETAS_QUE_AFECTAN_PRODUCTO) independientemente de lo que el usuario haya
-// seleccionado — la selección real se aplica después, en calcularOpciones. Si eso cambia
-// alguna vez, hay que meter tarjetas en la key.
+// Fallback angosto: solo para EANs que precioCache no tiene (fuera de ese recorte, o producto
+// nuevo que el scraper todavía no capturó). Va SIEMPRE detrás de limitadorFallback — un
+// semáforo GLOBAL (no por IP, ver limitadorGlobal.js) que acota cuántas búsquedas en vivo
+// corren a la vez sin importar cuántos usuarios distintas las disparen. El TTL corto de
+// cacheEnVivo evita, además, que dos requests casi simultáneos para el mismo EAN no cacheado
+// disparen dos fetches en vez de compartir uno.
 const CACHE_TTL_MS = 3 * 60 * 1000;
 const cacheEnVivo = new Map(); // ean → { expira, promise }
 
-function buscarPorEANCacheado(ean, opciones) {
+// Mismo ritmo que ya usan los scrapers contra estas APIs sin romper nada (ver
+// scraper-promos-carrefour.js/changomas.js: 500-800ms entre requests, nunca en paralelo) — acá
+// se traduce a "como mucho 2 búsquedas del fallback en vuelo a la vez", en vez de un delay fijo,
+// porque el volumen esperado en este camino es mucho más bajo (solo EANs no cacheados).
+const MAX_FALLBACK_CONCURRENTE = 2;
+const limitadorFallback = crearLimitador(MAX_FALLBACK_CONCURRENTE);
+
+function buscarPorEANFallback(ean, opciones) {
   const ahora = Date.now();
   const entrada = cacheEnVivo.get(ean);
   if (entrada && entrada.expira > ahora) return entrada.promise;
 
-  const promise = buscarPorEAN(ean, opciones);
+  const promise = limitadorFallback.conLimite(() => buscarPorEAN(ean, opciones));
   cacheEnVivo.set(ean, { expira: ahora + CACHE_TTL_MS, promise });
   // Si falla, no dejar la promesa rota cacheada — la próxima consulta reintenta en vivo.
   promise.catch(() => cacheEnVivo.delete(ean));
   return promise;
+}
+
+async function buscarPorEANCacheado(ean, opciones) {
+  const cacheado = precioCache.precioPorEAN(ean);
+  if (cacheado) return cacheado;
+  return buscarPorEANFallback(ean, opciones);
 }
 
 async function mapConLimite(lista, limite, fn) {
