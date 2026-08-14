@@ -137,11 +137,27 @@ function calcularVistaPreviaCantidades(grupos, candidatas, supermercados = SUPER
  * @returns { cantidadesCandidatas, vistaPrevia } | null
  */
 function calcularSugerenciaCantidad(grupos, cantidadActual, supermercados = SUPERMERCADOS, tarjetasSeleccionadas) {
-  const cantidadesCandidatas = detectarCantidadesCandidatas(grupos, cantidadActual, supermercados);
-  if (!cantidadesCandidatas.length) return null;
+  const candidatasCrudas = detectarCantidadesCandidatas(grupos, cantidadActual, supermercados);
+  if (!candidatasCrudas.length) return null;
+
+  // Vara para decidir si vale la pena: precio por unidad de lo que YA es mejor hoy, escalado
+  // a la cantidad candidata. Si ni el super que gatilló la promo (ni ningún otro) le gana a
+  // simplemente comprar más de lo que ya es mejor hoy, la promo es una trampa (ej. un 2x1 con
+  // precio de lista inflado que termina siendo más caro que el % fijo de otro super — caso
+  // real encontrado 2026-08-14) y sugerir el cambio de cantidad sería mala data, no una ayuda.
+  const vistaPreviaHoy = calcularVistaPreviaCantidades(grupos, [cantidadActual], supermercados, tarjetasSeleccionadas)[0];
+  const mejorHoyPorUnidad = vistaPreviaHoy && vistaPreviaHoy.opciones.length
+    ? Math.min(...vistaPreviaHoy.opciones.map(o => o.total)) / cantidadActual
+    : Infinity;
+
+  const vistaPrevia = calcularVistaPreviaCantidades(grupos, candidatasCrudas, supermercados, tarjetasSeleccionadas)
+    .filter(previa => Math.min(...previa.opciones.map(o => o.total)) < mejorHoyPorUnidad * previa.cantidad);
+
+  if (!vistaPrevia.length) return null;
+
   return {
-    cantidadesCandidatas,
-    vistaPrevia: calcularVistaPreviaCantidades(grupos, cantidadesCandidatas, supermercados, tarjetasSeleccionadas),
+    cantidadesCandidatas: vistaPrevia.map(v => v.cantidad),
+    vistaPrevia,
   };
 }
 
