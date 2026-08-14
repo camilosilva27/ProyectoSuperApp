@@ -97,7 +97,7 @@ function buscarPorEANFallback(ean, opciones) {
   const entrada = cacheEnVivo.get(ean);
   if (entrada && entrada.expira > ahora) return entrada.promise;
 
-  const promise = limitadorFallback.conLimite(() => buscarPorEAN(ean, opciones));
+  const promise = limitadorFallback(() => buscarPorEAN(ean, opciones));
   cacheEnVivo.set(ean, { expira: ahora + CACHE_TTL_MS, promise });
   // Si falla, no dejar la promesa rota cacheada — la próxima consulta reintenta en vivo.
   promise.catch(() => cacheEnVivo.delete(ean));
