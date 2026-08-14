@@ -47,9 +47,9 @@ export function ComoFunciona({ visible, onClose }: { visible: boolean; onClose: 
         <Pressable style={StyleSheet.absoluteFill} onPress={cerrar} accessibilityLabel="Cerrar" />
         <View style={[styles.hoja, { backgroundColor: paleta.superficie }]}>
           <View style={styles.filaSuperior}>
-            <Text style={[texto.micro, { color: paleta.tintaTenue }]}>PASO {paso + 1} DE {PASOS.length}</Text>
+            <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>PASO {paso + 1} DE {PASOS.length}</Text>
             <Pressable onPress={cerrar} accessibilityRole="button" style={styles.saltar}>
-              <Text style={[texto.etiqueta, { color: paleta.tintaTenue, textDecorationLine: 'underline' }]}>
+              <Text style={[texto.etiqueta, { color: paleta.tintaSuave, textDecorationLine: 'underline' }]}>
                 Saltar
               </Text>
             </Pressable>
@@ -57,7 +57,7 @@ export function ComoFunciona({ visible, onClose }: { visible: boolean; onClose: 
 
           <View style={{ gap: espacio.sm }}>
             <Text style={[texto.titulo, { color: paleta.tinta, fontSize: 26, lineHeight: 28 }]}>{actual.titulo}</Text>
-            <Text style={[texto.cuerpo, { color: paleta.tintaSuave }]}>{actual.texto}</Text>
+            <Text style={[texto.prosa, { color: paleta.tintaProsa }]}>{actual.texto}</Text>
           </View>
 
           <IlustracionPaso paso={paso} />

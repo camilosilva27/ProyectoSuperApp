@@ -149,7 +149,7 @@ export default function PantallaResultado() {
 
         {promos.length ? (
           <View style={styles.seccion} onLayout={e => { yPromos.current = e.nativeEvent.layout.y; }}>
-            <Text style={[texto.micro, { color: paleta.tintaTenue }]}>PROMOS SIN APLICAR · {promos.length}</Text>
+            <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>PROMOS SIN APLICAR · {promos.length}</Text>
             {promos.map(promo => (
               <BloquePromo
                 key={promo.ean}
@@ -320,7 +320,7 @@ function PlanDeCompra({ data }: { data: RespuestaComparar }) {
 
   return (
     <View style={styles.seccion}>
-      <Text style={[texto.micro, { color: paleta.tintaTenue }]}>PLAN DE COMPRA</Text>
+      <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>PLAN DE COMPRA</Text>
       {paradas.map(s => {
         const url = linksCarrito[s.key];
         const tarjetasAplicadas = new Set(
@@ -374,7 +374,7 @@ function PlanDeCompra({ data }: { data: RespuestaComparar }) {
                   </View>
                   <View style={{ flex: 1, gap: 1 }}>
                     <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>{tarjeta} está en Mis descuentos</Text>
-                    <Text style={[texto.dato, { color: paleta.tintaTenue }]}>el descuento ya está en el total</Text>
+                    <Text style={[texto.dato, { color: paleta.tintaSuave }]}>el descuento ya está en el total</Text>
                   </View>
                   <Pressable
                     onPress={() => carrito.setTarjetas(carrito.tarjetas.filter(t => t !== tarjeta))}
@@ -420,7 +420,7 @@ function BloqueExportar({
       >
         <Text style={[texto.cuerpoMedio, { color: paleta.superficie }]}>Exportar a {nombre}</Text>
       </Pressable>
-      <Text style={[texto.dato, styles.leyendaExportar, { color: paleta.tintaTenue }]}>
+      <Text style={[texto.dato, styles.leyendaExportar, { color: paleta.tintaSuave }]}>
         {error ? `No se pudo abrir el carrito de ${nombre}` : 'abre el sitio del super · iniciá sesión y el carrito se carga solo'}
       </Text>
     </View>
@@ -486,7 +486,7 @@ function SiComprasTodoEnUno({ data }: { data: RespuestaComparar }) {
 
   return (
     <View style={styles.seccion}>
-      <Text style={[texto.micro, { color: paleta.tintaTenue }]}>SI COMPRÁS TODO EN UNO</Text>
+      <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>SI COMPRÁS TODO EN UNO</Text>
       <View style={styles.grafico}>
         {barras.map(b => (
           <View key={b.key} style={styles.columnaBarra}>
@@ -500,7 +500,7 @@ function SiComprasTodoEnUno({ data }: { data: RespuestaComparar }) {
                 { height: Math.max(6, (b.delta / maxDelta) * 100) },
               ]}
             />
-            <Text style={[texto.micro, { color: paleta.tintaTenue, fontSize: 10 }]}>{b.tag} {b.nombre.slice(0, 6).toUpperCase()}</Text>
+            <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave, fontSize: 10 }]}>{b.tag} {b.nombre.slice(0, 6).toUpperCase()}</Text>
           </View>
         ))}
       </View>
@@ -518,7 +518,7 @@ function DetalleProductoPorProducto({ data, isFetching }: { data: RespuestaCompa
   return (
     <View style={styles.seccion}>
       <View style={styles.pieDetalle}>
-        <Text style={[texto.dato, { color: paleta.tintaTenue }]}>
+        <Text style={[texto.dato, { color: paleta.tintaSuave }]}>
           {new Date(data.generado).toLocaleString('es-AR')}
           {isFetching ? ' · actualizando…' : ''}
         </Text>
@@ -547,13 +547,13 @@ function TarjetaItem({ item, indice }: { item: ItemComparado; indice: number }) 
         <Text style={[texto.cuerpoMedio, { color: paleta.tinta, flex: 1 }]} numberOfLines={2}>
           {item.nombre ?? item.ean}
         </Text>
-        <Text style={[texto.etiqueta, { color: paleta.tintaTenue }]}>×{item.cantidad}</Text>
+        <Text style={[texto.etiqueta, { color: paleta.tintaSuave }]}>×{item.cantidad}</Text>
       </View>
 
       {item.error ? (
         <Text style={[texto.etiqueta, { color: paleta.alerta }]}>{item.error}</Text>
       ) : item.opciones.length === 0 ? (
-        <Text style={[texto.etiqueta, { color: paleta.tintaTenue }]}>
+        <Text style={[texto.etiqueta, { color: paleta.tintaSuave }]}>
           No está disponible en ninguno de los supers activos.
         </Text>
       ) : (

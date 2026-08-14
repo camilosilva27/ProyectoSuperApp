@@ -8,9 +8,19 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import type { SuperKey } from '../api';
-import { espacio, texto } from '../theme';
+import { espacio, fuentes, texto } from '../theme';
 import { useTema } from '../useTema';
 import { NOMBRE_SUPER, ORDEN_SUPERS } from './comunes';
+
+/**
+ * Colores de super sobre el header negro, siempre oscuro lleve el sistema el tema que lleve
+ * (ver comentario de `HeaderNegro` y el de `textoMutedOscuro` en resultado.tsx). Son variantes
+ * claras fijas, no `paleta.supers`: esas son para fondo blanco y no contrastan lo suficiente
+ * sobre `tinta` (ver EDICIONES-contraste-y-selector.md § 2.2).
+ */
+const SUPERS_SOBRE_OSCURO: Record<SuperKey, string> = {
+  vea: '#2EA35C', carr: '#4C8DF6', changomas: '#A66FE0', dia: '#FFFFFF', coto: '#F0576A',
+};
 
 export function HeaderNegro({
   children, paddingTop, estilo,
@@ -28,13 +38,14 @@ export function TituloHeader({ children }: { children: string }) {
 }
 
 /**
- * Cinco columnas iguales: una barra de 6px con el color del super, el nombre debajo. Filtra
- * (toca para prender/apagar) y enseña el código de color al mismo tiempo — por eso va antes
- * de los resultados, no en un menú (ver SPEC § 3.2).
+ * Selector de supers, legible como control (turno 7, ver EDICIONES-contraste-y-selector.md
+ * § 2): línea de encabezado que dice qué hace el toque, y cinco celdas tocables — activa con
+ * fondo y barra llena, apagada con borde punteado y nombre tachado. Antes eran cinco barritas
+ * sueltas con el nombre debajo, que se leían como leyenda y no como control.
  *
- * `sobreOscuro`: variante para dentro del header negro (texto blanco/gris claro, barra
- * inactiva `#3C444D`) vs. variante sobre fondo claro (texto tinta/gris, barra inactiva
- * `superficie2`). Día activo necesita su borde de contraste en las dos variantes.
+ * `sobreOscuro`: variante para dentro del header negro (la única en uso hoy, ver Buscar) vs.
+ * variante sobre fondo claro. La línea de encabezado es específica del header oscuro — no
+ * tiene equivalente diseñado sobre claro — así que solo se muestra en esa variante.
  */
 export function BarraSupers({
   activos, onToggle, sobreOscuro = true,
@@ -42,48 +53,91 @@ export function BarraSupers({
   const { paleta } = useTema();
 
   return (
-    <View style={styles.barraSupers} accessibilityRole="none">
-      {ORDEN_SUPERS.map(key => {
-        const activo = activos.includes(key);
-        const bordeIdentidad = (paleta.supersBorde as Partial<Record<SuperKey, string>>)[key];
-        const colorBarra = activo
-          ? paleta.supers[key]
-          : (sobreOscuro ? '#3C444D' : paleta.superficie2);
-        const colorTexto = activo
-          ? (sobreOscuro ? '#FFFFFF' : paleta.tinta)
-          : (sobreOscuro ? '#727B85' : paleta.tintaTenue);
+    <View style={{ gap: 10 }}>
+      {sobreOscuro ? (
+        <View style={styles.filaEncabezadoSelector}>
+          <Text style={styles.tituloComparando}>
+            COMPARANDO {activos.length} DE {ORDEN_SUPERS.length} SUPERS
+          </Text>
+          <View style={styles.divisorEncabezadoSelector} />
+          <Text style={styles.ayudaSelector}>tocá para sacar uno</Text>
+        </View>
+      ) : null}
 
-        return (
-          <Pressable
-            key={key}
-            onPress={() => onToggle(key)}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: activo }}
-            accessibilityLabel={`${NOMBRE_SUPER[key]}, ${activo ? 'incluido' : 'excluido'} del filtro`}
-            style={styles.columnaSuper}
-          >
-            <View
+      <View style={styles.barraSupers} accessibilityRole="none">
+        {ORDEN_SUPERS.map(key => {
+          const activo = activos.includes(key);
+          const bordeIdentidad = (paleta.supersBorde as Partial<Record<SuperKey, string>>)[key];
+          const colorSuper = sobreOscuro ? SUPERS_SOBRE_OSCURO[key] : paleta.supers[key];
+
+          return (
+            <Pressable
+              key={key}
+              onPress={() => onToggle(key)}
+              hitSlop={{ top: 8, bottom: 8 }}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: activo, selected: activo }}
+              accessibilityLabel={`${NOMBRE_SUPER[key]}, ${activo ? 'comparando' : 'sin comparar'}`}
               style={[
-                styles.barritaSuper,
-                {
-                  backgroundColor: colorBarra,
-                  ...(activo && bordeIdentidad ? { borderWidth: 1, borderColor: bordeIdentidad } : null),
-                },
+                styles.celdaSuper,
+                sobreOscuro
+                  ? (activo
+                      ? { backgroundColor: 'rgba(255,255,255,.1)' }
+                      : { borderWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(255,255,255,.35)' })
+                  : (activo
+                      ? { backgroundColor: paleta.superficieAlt }
+                      : { borderWidth: 1, borderStyle: 'dashed', borderColor: paleta.borde }),
               ]}
-            />
-            <Text style={[texto.microSuper, { color: colorTexto }]} numberOfLines={1}>
-              {NOMBRE_SUPER[key]}
-            </Text>
-          </Pressable>
-        );
-      })}
+            >
+              <View
+                style={[
+                  styles.barritaSuper,
+                  activo
+                    ? {
+                        backgroundColor: colorSuper,
+                        ...(bordeIdentidad ? { borderWidth: 1, borderColor: bordeIdentidad } : null),
+                      }
+                    : {
+                        backgroundColor: 'transparent',
+                        borderWidth: 1,
+                        borderColor: sobreOscuro ? 'rgba(255,255,255,.4)' : paleta.bordeFuerte,
+                      },
+                ]}
+              />
+              <Text
+                style={[
+                  texto.microSuper,
+                  activo
+                    ? { fontFamily: fuentes.semi, color: sobreOscuro ? '#FFFFFF' : paleta.tinta }
+                    : {
+                        color: sobreOscuro ? '#C6CCD3' : paleta.tintaSuave,
+                        textDecorationLine: 'line-through',
+                      },
+                ]}
+                numberOfLines={1}
+              >
+                {NOMBRE_SUPER[key]}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   header: { paddingHorizontal: espacio.pantalla, paddingBottom: espacio.pantalla, gap: espacio.md },
+  filaEncabezadoSelector: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  tituloComparando: {
+    fontFamily: fuentes.semi, fontSize: 11, lineHeight: 14, letterSpacing: 1.2, color: '#FFFFFF',
+  },
+  divisorEncabezadoSelector: { flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,.18)' },
+  ayudaSelector: { fontFamily: fuentes.cuerpo, fontSize: 12, lineHeight: 16, color: '#C6CCD3' },
   barraSupers: { flexDirection: 'row', gap: 6 },
-  columnaSuper: { flex: 1, alignItems: 'center', gap: 7 },
+  celdaSuper: {
+    flex: 1, alignItems: 'center', gap: 7, borderRadius: 8,
+    paddingTop: 8, paddingHorizontal: 4, paddingBottom: 7,
+  },
   barritaSuper: { width: '100%', height: 6, borderRadius: 999 },
 });

@@ -159,13 +159,13 @@ function FilaSuper({
             <View style={[styles.canal, { backgroundColor: paleta.superficie2 }]}>
               <Animated.View style={[styles.barra, { width: ancho, backgroundColor: paleta.tintaTenue }]} />
             </View>
-            <Text style={[texto.dato, { color: paleta.tintaTenue }]}>+{pesos(delta)}</Text>
+            <Text style={[texto.dato, { color: paleta.tintaSuave }]}>+{pesos(delta)}</Text>
           </View>
         )}
       </View>
 
       {opcion.promo && opcion.promo.tarjetaActiva ? (
-        <Text style={[texto.dato, { color: paleta.tintaTenue }]} numberOfLines={1}>
+        <Text style={[texto.dato, { color: paleta.tintaSuave }]} numberOfLines={1}>
           {opcion.promo.descripcion}
           {opcion.promo.activa ? '' : ` · necesitás ${opcion.promo.cantidadMinima}`}
         </Text>
@@ -199,7 +199,7 @@ function FilaSuper({
 function Marca({ texto: t, paleta }: { texto: string; paleta: ReturnType<typeof useTema>['paleta'] }) {
   return (
     <View style={[styles.marca, { borderColor: paleta.borde }]}>
-      <Text style={[texto.micro, { color: paleta.tintaTenue, fontSize: 9 }]}>{t}</Text>
+      <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave, fontSize: 9 }]}>{t}</Text>
     </View>
   );
 }

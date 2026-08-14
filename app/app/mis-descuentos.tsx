@@ -11,17 +11,70 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
-  ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, View,
+  ActivityIndicator, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ErrorApi, misDescuentos, type Descuento } from '../src/api';
 import { useCarrito } from '../src/carrito';
 import { NOMBRE_SUPER, ORDEN_SUPERS, Problema } from '../src/componentes/comunes';
 import { HeaderNegro } from '../src/componentes/HeaderNegro';
-import { espacio, pesos, radio, texto } from '../src/theme';
+import { espacio, fuentes, pesos, radio, texto } from '../src/theme';
 import { useTema } from '../src/useTema';
+
+/**
+ * Switch a medida (SPEC turno 6c): el nativo no puede dibujar el anillo interior de 1.5px que
+ * pide el diseño para el estado apagado, así que esto reemplaza al `Switch` de RN acá. Colores
+ * fijos (no de paleta): el diseño los da como valores absolutos, sin variante por tema.
+ */
+const SWITCH_ANCHO = 46;
+const SWITCH_ALTO = 28;
+const SWITCH_PERILLA = 22;
+const SWITCH_INSET = 3;
+
+function SwitchDescuento({
+  activa, onCambiar, accessibilityLabel,
+}: { activa: boolean; onCambiar: (valor: boolean) => void; accessibilityLabel: string }) {
+  const progreso = useRef(new Animated.Value(activa ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.timing(progreso, {
+      toValue: activa ? 1 : 0,
+      duration: 150,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false, // anima translateX en un valor calculado en px, no en layout nativo
+    }).start();
+  }, [activa, progreso]);
+
+  const traslado = progreso.interpolate({
+    inputRange: [0, 1],
+    outputRange: [SWITCH_INSET, SWITCH_ANCHO - SWITCH_PERILLA - SWITCH_INSET],
+  });
+
+  return (
+    <Pressable
+      onPress={() => onCambiar(!activa)}
+      accessibilityRole="switch"
+      accessibilityState={{ checked: activa }}
+      accessibilityLabel={accessibilityLabel}
+      hitSlop={8}
+      style={[
+        styles.switchPista,
+        activa
+          ? { backgroundColor: '#14161A' }
+          : { backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#14161A' },
+      ]}
+    >
+      <Animated.View
+        style={[
+          styles.switchPerilla,
+          { backgroundColor: activa ? '#FFFFFF' : '#14161A', transform: [{ translateX: traslado }] },
+        ]}
+      />
+    </Pressable>
+  );
+}
 
 function descripcionDe(d: Descuento): string {
   if (!d.disponible || d.descuentoPct == null) return 'Sin promo vigente ahora';
@@ -88,25 +141,28 @@ export default function PantallaMisDescuentos() {
                   {i > 0 ? <View style={[styles.separador, { backgroundColor: paleta.borde }]} /> : null}
                   <View style={styles.fila}>
                     <View style={{ flex: 1, gap: 3 }}>
-                      <Text style={[texto.cuerpoMedio, { color: activa ? paleta.tinta : paleta.tintaSuave }]}>
-                        {d.nombre}
-                      </Text>
-                      <Text style={[texto.dato, { color: paleta.tintaTenue }]}>{descripcionDe(d)}</Text>
+                      <View style={styles.filaNombreTag}>
+                        <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>{d.nombre}</Text>
+                        {!activa ? (
+                          <View style={[styles.tagSinUsar, { borderColor: paleta.tinta }]}>
+                            <Text style={[styles.tagSinUsarTexto, { color: paleta.tinta }]}>SIN USAR</Text>
+                          </View>
+                        ) : null}
+                      </View>
+                      <Text style={[texto.dato, { color: paleta.tintaSuave }]}>{descripcionDe(d)}</Text>
                       {supersDe(d) ? (
-                        <Text style={[texto.micro, { color: paleta.tintaTenue }]}>{supersDe(d)}</Text>
+                        <Text style={[texto.micro, { color: paleta.tintaSuave }]}>{supersDe(d)}</Text>
                       ) : null}
                     </View>
-                    <Switch
-                      value={activa}
-                      onValueChange={valor =>
+                    <SwitchDescuento
+                      activa={activa}
+                      onCambiar={valor =>
                         carrito.setTarjetas(
                           valor
                             ? [...carrito.tarjetas, d.nombre]
                             : carrito.tarjetas.filter(t => t !== d.nombre)
                         )
                       }
-                      trackColor={{ false: paleta.borde, true: paleta.oferta }}
-                      thumbColor="#FFFFFF"
                       accessibilityLabel={`${activa ? 'Tengo' : 'No tengo'} ${d.nombre}`}
                     />
                   </View>
@@ -141,4 +197,9 @@ const styles = StyleSheet.create({
   fila: { flexDirection: 'row', alignItems: 'center', gap: espacio.md, paddingVertical: espacio.md },
   separador: { height: StyleSheet.hairlineWidth },
   bloqueInfo: { borderRadius: radio.tarjeta, padding: espacio.md },
+  filaNombreTag: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  tagSinUsar: { borderWidth: 1, borderRadius: 4, paddingHorizontal: 6 },
+  tagSinUsarTexto: { fontFamily: fuentes.semi, fontSize: 10, lineHeight: 14, letterSpacing: 0.6 },
+  switchPista: { width: SWITCH_ANCHO, height: SWITCH_ALTO, borderRadius: radio.pill, justifyContent: 'center' },
+  switchPerilla: { position: 'absolute', width: SWITCH_PERILLA, height: SWITCH_PERILLA, borderRadius: radio.pill },
 });

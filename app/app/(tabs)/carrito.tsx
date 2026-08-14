@@ -74,7 +74,7 @@ export default function PantallaCarrito() {
         {!vacia || carritosGuardados.carritos.length > 0 ? (
           <View style={styles.seccion}>
             <View style={styles.filaCabeceraGuardados}>
-              <Text style={[texto.micro, { color: paleta.tintaTenue }]}>CARRITOS GUARDADOS</Text>
+              <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>CARRITOS GUARDADOS</Text>
               {!vacia ? (
                 <Pressable
                   onPress={() => setMostrarHoja(true)}
@@ -108,7 +108,7 @@ export default function PantallaCarrito() {
         ) : (
           <>
             <View style={styles.seccion}>
-              <Text style={[texto.micro, { color: paleta.tintaTenue }]}>EN ESTA COMPRA</Text>
+              <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>EN ESTA COMPRA</Text>
               {carrito.items.map(item => (
                 <View
                   key={item.ean}
@@ -170,7 +170,7 @@ export default function PantallaCarrito() {
               accessibilityRole="button"
               style={styles.vaciar}
             >
-              <Text style={[texto.etiqueta, { color: paleta.tintaTenue, textDecorationLine: 'underline' }]}>
+              <Text style={[texto.etiqueta, { color: paleta.tintaSuave, textDecorationLine: 'underline' }]}>
                 Vaciar carrito
               </Text>
             </Pressable>

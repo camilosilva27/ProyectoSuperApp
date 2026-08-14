@@ -48,8 +48,15 @@ const paletas = {
     borde: '#DFE3E7',
     bordeFuerte: '#C6CCD3',
     tinta: '#14161A',
+    // Prosa explicativa (onboarding, "Cómo funciona"): más oscura que `tintaSuave` a propósito,
+    // ese texto enseña una mecánica de la app y se lee peor que el resto si se lo trata como
+    // metadato (ver design_handoff_allpromos_v2/EDICIONES-contraste-y-selector.md § 1.2).
+    tintaProsa: '#3C444D',
     tintaSuave: '#565E67',
-    tintaTenue: '#8A929B',
+    // Solo para íconos y elementos gráficos apagados (barras de comparación, spinners). Nunca
+    // para texto: a 3.6:1 no llega al 4.5:1 que pide WCAG AA para texto chico (ver EDICIONES-
+    // contraste-y-selector.md § 1). `tintaSuave` es el piso para cualquier texto sobre blanco.
+    tintaTenue: '#767E88',
     oferta: '#FFD400',
     ofertaTinta: '#14161A',
     ofertaSuave: '#FFF6C9',
@@ -69,6 +76,9 @@ const paletas = {
     borde: '#2B3138',
     bordeFuerte: '#3C444D',
     tinta: '#F1F3F5',
+    // Placeholder, igual que `superficie2`: el tema oscuro del rediseño todavía no está
+    // diseñado, `tintaSuave` sostiene el rol hasta que se encare ese turno.
+    tintaProsa: '#A6AEB8',
     tintaSuave: '#A6AEB8',
     tintaTenue: '#727B85',
     oferta: '#FFD400',
@@ -121,6 +131,14 @@ export const texto = {
   cuerpoMedio:  { fontFamily: fuentes.medio, fontSize: 15, lineHeight: 21 },
   etiqueta:     { fontFamily: fuentes.medio, fontSize: 13, lineHeight: 18 },
   micro:        { fontFamily: fuentes.medio, fontSize: 11, lineHeight: 14, letterSpacing: 0.7 },
+  // Como `micro` pero un escalón más grueso: para los labels de sección en mayúscula
+  // (PLAN DE COMPRA, EN ESTA COMPRA, etc.), que necesitan más peso que un dato o un ícono
+  // para no perderse en `tintaSuave` (ver EDICIONES-contraste-y-selector.md § 1.1).
+  tituloSeccion: { fontFamily: fuentes.semi, fontSize: 11, lineHeight: 14, letterSpacing: 0.7 },
+  // Prosa explicativa: párrafos que enseñan una mecánica de la app (onboarding, "Cómo
+  // funciona"). Más grande y más alto que `cuerpo` a propósito — es el único rol de texto
+  // que se lee como instrucción, no como dato ni como descripción incidental.
+  prosa:        { fontFamily: fuentes.cuerpo, fontSize: 14, lineHeight: 20 },
   // Nombre de super bajo la barrita de BarraSupers — letter-spacing más chico que `micro`
   // porque acompaña una barra angosta, no encabeza una sección.
   microSuper:   { fontFamily: fuentes.medio, fontSize: 11, lineHeight: 14, letterSpacing: 0.4 },

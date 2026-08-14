@@ -177,7 +177,7 @@ export default function PantallaBuscar() {
   const encabezadoLista = useMemo(() => (
     consultaValida ? (
       <View style={styles.filaContador}>
-        <Text style={[texto.micro, { color: paleta.tintaTenue }]}>
+        <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>
           {cargandoOrdenPrecio
             ? 'ORDENANDO POR PRECIO…'
             : data?.total === 0
@@ -331,7 +331,7 @@ function EstadoInicial({
       </View>
 
       <View style={{ gap: espacio.md }}>
-        <Text style={[texto.micro, { color: paleta.tintaTenue }]}>CADA SUPER TIENE SU COLOR</Text>
+        <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>CADA SUPER TIENE SU COLOR</Text>
         <View style={{ gap: espacio.sm }}>
           {ORDEN_SUPERS.map(key => {
             const bordeIdentidad = (paleta.supersBorde as Partial<Record<SuperKey, string>>)[key];
@@ -351,7 +351,7 @@ function EstadoInicial({
             );
           })}
         </View>
-        <Text style={[texto.dato, { color: paleta.tintaTenue }]}>
+        <Text style={[texto.prosa, { color: paleta.tintaProsa }]}>
           El color siempre dice de qué super es un precio. El amarillo, en cambio, siempre dice ahorro.
         </Text>
       </View>
@@ -463,7 +463,7 @@ function BadgePrecio({ precio }: { precio: PrecioRapido | 'error' | undefined })
       ) : null}
       {precio.esOnline ? (
         <View style={[styles.marcaOnline, { borderColor: paleta.borde }]}>
-          <Text style={[texto.micro, { color: paleta.tintaTenue, fontSize: 9 }]}>ONLINE</Text>
+          <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave, fontSize: 9 }]}>ONLINE</Text>
         </View>
       ) : null}
     </View>

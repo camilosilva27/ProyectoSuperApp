@@ -58,7 +58,7 @@ export function GuardarCarritoHoja({
           </View>
 
           <View style={{ gap: espacio.xs }}>
-            <Text style={[texto.micro, { color: paleta.tintaTenue }]}>NOMBRE</Text>
+            <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>NOMBRE</Text>
             <TextInput
               ref={inputRef}
               value={nombre}
@@ -73,7 +73,7 @@ export function GuardarCarritoHoja({
               onSubmitEditing={confirmar}
               accessibilityLabel="Nombre del carrito"
             />
-            <Text style={[texto.dato, { color: paleta.tintaTenue }]}>
+            <Text style={[texto.dato, { color: paleta.tintaSuave }]}>
               {productos} producto{productos === 1 ? '' : 's'} · {unidades} unidad{unidades === 1 ? '' : 'es'}
             </Text>
           </View>
