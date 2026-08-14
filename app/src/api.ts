@@ -73,7 +73,10 @@ export type RespuestaComparar = {
   items: ItemComparado[];
   resumen: {
     totalOptimo: number;
-    totalesPorSuper: Record<SuperKey, number>;
+    /** `null` si ese super no vende TODOS los productos del carrito — "todo ahí" no es una
+     *  compra real que se pueda hacer, así que se excluye en vez de completar el hueco con el
+     *  precio óptimo de otro lado (ver AllPromos/core/comparador.js). */
+    totalesPorSuper: Record<SuperKey, number | null>;
     subtotalAsignadoPorSuper: Record<SuperKey, number>;
     comprasPorSuper: Record<SuperKey, { input: string; esOnlineExclusivo: boolean }[]>;
     requiereOnlinePorSuper: Record<SuperKey, boolean>;

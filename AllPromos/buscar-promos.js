@@ -245,7 +245,11 @@ function imprimirResumenFinal(datos) {
   console.log(`  🏆 Compra óptima (mezclando): $${fmt(datos.totalOptimo)}`);
   for (const s of SUPERMERCADOS) {
     const t = datos.totalesPorSuper[s.key];
-    console.log(`  ${s.tag} Todo en ${(s.nombre + ':').padEnd(anchoNombre)} $${fmt(t)}   (+$${fmt(t - datos.totalOptimo)} vs óptimo)`);
+    if (t === null) {
+      console.log(`  ${s.tag} Todo en ${(s.nombre + ':').padEnd(anchoNombre)} no vende todo el carrito`);
+    } else {
+      console.log(`  ${s.tag} Todo en ${(s.nombre + ':').padEnd(anchoNombre)} $${fmt(t)}   (+$${fmt(t - datos.totalOptimo)} vs óptimo)`);
+    }
   }
 
   const conCompras = SUPERMERCADOS.filter(s => datos.comprasPorSuper[s.key].length);

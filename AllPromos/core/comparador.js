@@ -234,11 +234,22 @@ function calcularResumenFinal(resumen, supermercados = SUPERMERCADOS) {
     subtotalAsignadoPorSuper[optimo.key] += optimo.total;
     if (optimo.esOnlineExclusivo) requiereOnlinePorSuper[optimo.key] = true;
 
-    // Si un super no tiene el producto, no lo penalizamos: sumamos el precio óptimo
-    // (mismo criterio que antes de agregar el 3er super, para no distorsionar "todo en X").
     for (const s of supermercados) {
       const o = disponibles.find(d => d.key === s.key);
-      totalesPorSuper[s.key] += o ? o.total : optimo.total;
+      if (!o) {
+        // Este super no vende este producto: "todo en X" no es una compra real que se pueda
+        // hacer ahí — se descarta la comparación entera para ese super (null), en vez de
+        // completar el hueco con el precio óptimo de otro lado. Antes se sumaba el óptimo acá
+        // ("para no penalizar" al super) pero eso hace que, con carritos sin solapamiento entre
+        // supers (común: marcas propias, productos de nicho), TODOS los "todo en X" terminen
+        // dando exactamente igual a lo repartido — mostrando "ahorro cero" en un caso donde en
+        // realidad ningún super por sí solo puede cubrir el carrito completo. `null` no se
+        // revierte: aunque un ítem posterior sí esté en ese super, ya quedó descalificado (si
+        // sumara acá, `null + o.total` da `o.total` en JS — resucitaría el total a un número).
+        totalesPorSuper[s.key] = null;
+      } else if (totalesPorSuper[s.key] !== null) {
+        totalesPorSuper[s.key] += o.total;
+      }
     }
   }
 
