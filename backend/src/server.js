@@ -22,6 +22,13 @@ const sondaEnVivo = require('./sondaEnVivo');
 
 const app = express();
 
+// Detrás de Caddy (reverse proxy en la misma VM, ver Caddyfile) — sin esto, Express ignora
+// X-Forwarded-For y usa la IP del socket (siempre 127.0.0.1, la conexión local de Caddy a
+// Node), así que TODOS los usuarios comparten el mismo balde de rate limit en vez de uno cada
+// uno. 'loopback' confía en X-Forwarded-For solo cuando quien conecta es un proceso local —
+// no un proxy externo arbitrario, que sería spoofeable.
+app.set('trust proxy', 'loopback');
+
 app.disable('x-powered-by');
 app.use(cors());
 app.use(express.json({ limit: '256kb' }));
