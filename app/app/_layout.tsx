@@ -17,6 +17,7 @@ import { Analytics } from '@vercel/analytics/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
+import Head from 'expo-router/head';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
 import { Platform, View } from 'react-native';
@@ -50,8 +51,15 @@ export default function LayoutRaiz() {
     IBMPlexMono_400Regular,
   });
 
+  // <Head> va afuera del guard de fuentes: si solo estuviera en la rama ya cargada, el
+  // export estático (que renderiza antes de que useFonts resuelva) horneaba un <title> vacío.
   if (!fuentesListas) {
-    return <View style={{ flex: 1, backgroundColor: paleta.fondo }} />;
+    return (
+      <>
+        <Head><title>Super App</title></Head>
+        <View style={{ flex: 1, backgroundColor: paleta.fondo }} />
+      </>
+    );
   }
 
   return (
@@ -60,6 +68,7 @@ export default function LayoutRaiz() {
         <ProveedorFiltrosSupers>
           <ProveedorCarrito>
             <ProveedorCarritosGuardados>
+              <Head><title>Super App</title></Head>
               <StatusBar style={esquema === 'dark' ? 'light' : 'dark'} />
               <Stack
                 screenOptions={{

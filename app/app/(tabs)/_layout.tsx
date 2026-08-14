@@ -88,14 +88,24 @@ function IconoLista({ color, cantidad }: { color: ColorValue; cantidad: number }
   );
 }
 
+// Engranaje clásico: 8 dientes en el mismo truco de rotate+translateY que ya usa lupaMango
+// (cada diente nace centrado en el ícono y el translateY lo empuja hacia afuera sobre su
+// propio eje ya rotado), más un aro con hueco en vez de un círculo relleno.
+const DIENTES_ANGULOS = [0, 45, 90, 135, 180, 225, 270, 315];
+
 function IconoAjustes({ color }: { color: ColorValue }) {
   return (
     <View style={styles.icono}>
-      <View style={styles.lineasAjustes}>
-        {[0, 1, 2].map(i => (
-          <View key={i} style={[styles.linea, { backgroundColor: color, width: 18 }]} />
-        ))}
-      </View>
+      {DIENTES_ANGULOS.map(angulo => (
+        <View
+          key={angulo}
+          style={[
+            styles.diente,
+            { backgroundColor: color, transform: [{ rotate: `${angulo}deg` }, { translateY: -8 }] },
+          ]}
+        />
+      ))}
+      <View style={[styles.aroEngranaje, { borderColor: color }]} />
     </View>
   );
 }
@@ -108,8 +118,15 @@ const styles = StyleSheet.create({
     right: 4, bottom: 3, transform: [{ rotate: '-45deg' }],
   },
   lineas: { gap: 3 },
-  lineasAjustes: { gap: 4, alignItems: 'center' },
   linea: { height: 2, borderRadius: 1 },
+  diente: {
+    position: 'absolute', width: 3, height: 7, borderRadius: 1,
+    top: 8.5, left: 10.5,
+  },
+  aroEngranaje: {
+    position: 'absolute', width: 13, height: 13, borderRadius: radio.pill,
+    borderWidth: 2.5, top: 5.5, left: 5.5,
+  },
   globo: {
     position: 'absolute', top: -4, right: -6, minWidth: 16, height: 16,
     borderRadius: radio.pill, alignItems: 'center', justifyContent: 'center',
