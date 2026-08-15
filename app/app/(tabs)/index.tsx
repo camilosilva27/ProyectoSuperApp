@@ -46,17 +46,10 @@ function usePreciosProgresivos(supersActivos: SuperKey[]) {
   const [precios, setPrecios] = useState<Record<string, PrecioRapido | 'error'>>({});
   const pedidos = useRef(new Set<string>());
   const pendientes = useRef(new Set<string>());
+  const visibles = useRef<string[]>([]);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const supersRef = useRef(supersActivos);
   supersRef.current = supersActivos;
-
-  // El "mejor precio" depende de qué supers se consideran: si el filtro cambia, lo ya
-  // pedido queda obsoleto y hay que volver a consultarlo.
-  useEffect(() => {
-    setPrecios({});
-    pedidos.current.clear();
-    pendientes.current.clear();
-  }, [supersActivos]);
 
   const pedirLote = useCallback(() => {
     const lote = [...pendientes.current].slice(0, MAX_EANS_PRECIOS);
@@ -82,6 +75,7 @@ function usePreciosProgresivos(supersActivos: SuperKey[]) {
   }, []);
 
   const marcarVisibles = useCallback((eans: string[]) => {
+    visibles.current = eans;
     let hayNuevos = false;
     for (const ean of eans) {
       if (pedidos.current.has(ean) || pendientes.current.has(ean)) continue;
@@ -92,6 +86,19 @@ function usePreciosProgresivos(supersActivos: SuperKey[]) {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(pedirLote, 350);
   }, [pedirLote]);
+
+  // El "mejor precio" depende de qué supers se consideran: si el filtro cambia, lo ya
+  // pedido queda obsoleto y hay que volver a consultarlo. No alcanza con esperar a que
+  // `FlatList` dispare `onViewableItemsChanged` de nuevo: si los EAN en pantalla siguen
+  // disponibles en otro super, la lista visible no cambia y ese evento nunca se re-dispara,
+  // dejando el precio vacío para siempre. Por eso se recuerdan los últimos EAN visibles y se
+  // vuelven a pedir a mano acá.
+  useEffect(() => {
+    setPrecios({});
+    pedidos.current.clear();
+    pendientes.current.clear();
+    if (visibles.current.length) marcarVisibles(visibles.current);
+  }, [supersActivos, marcarVisibles]);
 
   return { precios, marcarVisibles };
 }
