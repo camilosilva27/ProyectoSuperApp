@@ -448,12 +448,23 @@ function BadgePrecio({ precio }: { precio: PrecioRapido | 'error' | undefined })
   const { paleta } = useTema();
   if (precio === undefined || precio === 'error' || !precio.mejor) return null;
 
+  const bordeIdentidad = (paleta.supersBorde as Partial<Record<SuperKey, string>>)[precio.mejor.key];
+
   return (
     <View style={styles.badgePrecio}>
       <Text style={[texto.precioChico, { color: paleta.tinta }]}>{pesos(precio.mejor.total)}</Text>
-      <Text style={[texto.microSuper, { color: paleta.supers[precio.mejor.key] }]} numberOfLines={1}>
-        {precio.mejor.super.toUpperCase()}
-      </Text>
+      <View style={styles.filaSuper}>
+        <View
+          style={[
+            styles.puntoSuper,
+            { backgroundColor: paleta.supers[precio.mejor.key] },
+            bordeIdentidad ? { borderWidth: 1, borderColor: bordeIdentidad } : null,
+          ]}
+        />
+        <Text style={[texto.microSuper, { color: paleta.tintaSuave }]} numberOfLines={1}>
+          {precio.mejor.super.toUpperCase()}
+        </Text>
+      </View>
       {precio.oferta ? (
         <View style={[styles.pillOferta, { backgroundColor: paleta.oferta }]}>
           <Text style={[texto.micro, { color: paleta.ofertaTinta, letterSpacing: 0.5 }]} numberOfLines={1}>
@@ -499,6 +510,8 @@ const styles = StyleSheet.create({
   },
   filaTexto: { flex: 1, gap: 4 },
   badgePrecio: { flexDirection: 'row', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' },
+  filaSuper: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  puntoSuper: { width: 8, height: 8, borderRadius: radio.pill },
   pillOferta: { borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
   marcaOnline: { paddingHorizontal: 5, paddingVertical: 1, borderRadius: radio.sm, borderWidth: 1 },
   masBoton: {
