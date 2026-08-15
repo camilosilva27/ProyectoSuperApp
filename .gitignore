@@ -13,7 +13,6 @@ backend/catalogo-unificado.json.tmp
 backend/imagenes/
 
 # Salidas locales
-AllPromos/resultado.html
 backend/logs/
 
 # Config con secretos / personal

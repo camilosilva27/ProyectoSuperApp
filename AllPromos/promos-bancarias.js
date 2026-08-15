@@ -4,10 +4,11 @@
  * A diferencia de promo-engine.js (promos por producto), esto no depende de qué
  * productos comprás — se calcula una vez sobre el subtotal ya armado por super.
  *
- * Fase 1 (PLAN_TARJETAS_Y_BANCOS.md 4.2/5): hoy, sin filtrar por canal (informativo).
- * Fase 2 (4.3/4.4): mismo cálculo repetido para los próximos 7 días y separado por
- * canal (online vs. físico), por super de forma independiente — no busca alinear el
- * mismo día entre supers, y no recalcula qué producto va a cada super (eso ya está fijo).
+ * Cálculo de hoy: sin filtrar por canal (informativo). Cálculo multi-día: mismo cálculo
+ * repetido para los próximos 7 días y separado por canal (online vs. físico), por super de
+ * forma independiente — no busca alinear el mismo día entre supers, y no recalcula qué
+ * producto va a cada super (eso ya está fijo). Ver CONTEXTO_TECNICO.md para el detalle
+ * completo de fuentes por super y decisiones de diseño.
  *
  * Nota sobre canal en Vea: a diferencia de Carrefour/Chango Más (que traen flags
  * hyper/market/ecommerce/express/maxi explícitos), el feed de bankDiscount de Vea NO
@@ -65,7 +66,7 @@ const ALIAS_TARJETAS = {
 
 // "Banco provincia de Neuquén" es una entidad distinta de Banco Provincia de Bs.As.
 // (dueño de Cuenta DNI) pero matchea el substring "banco provincia" — confirmado como
-// riesgo real en la investigación (PLAN_TARJETAS_Y_BANCOS.md sección 2.1). Excluida a mano.
+// riesgo real en la investigación. Excluida a mano.
 const EXCLUSIONES_ALIAS = {
   'Banco Provincia': ['neuquen'],
 };

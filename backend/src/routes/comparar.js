@@ -60,8 +60,8 @@ function filtrarSupermercados(supers) {
 }
 
 // Único teaser de "tarjeta propia" implementado hoy en core/fetchers.js (Tarjeta Carrefour,
-// ver interpretarTeaserTarjetaPropia en promo-engine.js). Cencopay (Vea) está investigado en
-// PLAN_TARJETAS_Y_BANCOS.md pero todavía no tiene el fetcher de cluster implementado — cuando
+// ver interpretarTeaserTarjetaPropia en promo-engine.js). Cencopay (Vea) está investigado
+// (ver CONTEXTO_TECNICO.md) pero todavía no tiene el fetcher de cluster implementado — cuando
 // se agregue, entra en esta lista para que también se detecte sin necesidad de seleccionarla.
 const TARJETAS_QUE_AFECTAN_PRODUCTO = ['Mi Carrefour'];
 

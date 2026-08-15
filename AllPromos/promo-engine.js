@@ -154,10 +154,10 @@ function interpretarPromoCarrefour(teaser) {
 }
 
 /**
- * Promo por producto condicionada a tarjeta propia (tipo 1, PLAN_TARJETAS_Y_BANCOS.md
- * sección 2.2/5 Fase 3): el teaser "Tarjeta Carrefour X%" de Carrefour, identificado por
- * el campo estructurado RestrictionsBins (no por texto — confirmado en vivo que el % real
- * viene del campo `PercentualDiscount` de `<Effects>`, no de parsear el nombre). Nunca
+ * Promo por producto condicionada a tarjeta propia: el teaser "Tarjeta Carrefour X%" de
+ * Carrefour, identificado por el campo estructurado RestrictionsBins (no por texto —
+ * confirmado en vivo que el % real viene del campo `PercentualDiscount` de `<Effects>`,
+ * no de parsear el nombre). Nunca
  * aparecieron bancos de terceros en este campo en la investigación — es siempre Mi Carrefour.
  * El caller decide si mostrar esta promo según si el usuario tiene "Mi Carrefour" en
  * mis-tarjetas.json; esta función solo interpreta el teaser, no filtra por tarjeta.

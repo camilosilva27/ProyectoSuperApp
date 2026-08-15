@@ -24,7 +24,6 @@
  */
 
 const fs       = require('fs');
-const path     = require('path');
 const readline = require('node:readline/promises');
 const { calcularCosto } = require('./promo-engine');
 const {
@@ -32,7 +31,6 @@ const {
   calcularPlanFinal, imprimirPlanFinalIndividual,
   reoptimizarAsignacion, imprimirPlanFinalReoptimizado, leerMisTarjetas,
 } = require('./promos-bancarias');
-const { escribirReporteHTML } = require('./reporte-html');
 const {
   esEANvalido, palabrasDeBusqueda, estadoCatalogos, resolverEANporNombre, skuIdVeaPorEAN,
 } = require('./core/catalogo');
@@ -54,9 +52,9 @@ async function ask(pregunta) {
 }
 
 // Leída una sola vez al arrancar. Se usa para decidir si mostrar el teaser "Tarjeta
-// Carrefour X%" (promo por producto, tipo 1, Fase 3 de PLAN_TARJETAS_Y_BANCOS.md) — si el
-// usuario no tiene Mi Carrefour, ni se pide. El backend recibe esta lista por request en
-// vez de leer el archivo; por eso core/fetchers.js la toma como parámetro.
+// Carrefour X%" (promo por producto condicionada a tarjeta propia) — si el usuario no
+// tiene Mi Carrefour, ni se pide. El backend recibe esta lista por request en vez de leer
+// el archivo; por eso core/fetchers.js la toma como parámetro.
 const MIS_TARJETAS = leerMisTarjetas();
 
 function fmt(n) {
@@ -371,8 +369,8 @@ async function procesarLista(archivoLista, promosBancariasPromise) {
 
   // Plan Final: re-optimiza qué producto va a qué super (puede diferir del "Plan de
   // compra" de arriba) para aprovechar mejor la promo bancaria de cada super — ver
-  // PLAN_TARJETAS_Y_BANCOS.md Fase 4. Usa los precios por super que ya están en
-  // `resumen` (no requiere volver a consultar ninguna API).
+  // reoptimizarAsignacion en promos-bancarias.js / CONTEXTO_TECNICO.md. Usa los precios
+  // por super que ya están en `resumen` (no requiere volver a consultar ninguna API).
   const itemsReopt = itemsParaReoptimizar(resumen, SUPERMERCADOS);
   const resultadoReoptimizado = reoptimizarAsignacion(itemsReopt, promosBancarias, SUPERMERCADOS);
   imprimirPlanFinalReoptimizado(SUPERMERCADOS, itemsReopt, resultadoReoptimizado, totalOptimo);
@@ -396,15 +394,6 @@ async function main() {
   // independiente de qué producto(s) se busquen (promos "por ticket", no por producto).
   const promosBancariasPromise = obtenerPromosBancarias();
 
-  // Captura todo lo que ya se imprime por consola para volcarlo también a un .html —
-  // no duplica el formateo de cada sección, solo espeja lo que ya se ve en pantalla.
-  const lineasCapturadas = [];
-  const logOriginal = console.log.bind(console);
-  console.log = (...partes) => {
-    logOriginal(...partes);
-    lineasCapturadas.push(partes.map(p => (p === undefined ? '' : String(p))).join(' '));
-  };
-
   rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   try {
     if (args[0] === '--lista') {
@@ -415,13 +404,6 @@ async function main() {
     }
   } finally {
     rl.close();
-    console.log = logOriginal;
-    const rutaHTML = path.join(__dirname, 'resultado.html');
-    escribirReporteHTML(rutaHTML, lineasCapturadas, {
-      titulo: 'AllPromos — resultado',
-      subtitulo: `Generado ${new Date().toLocaleString('es-AR')} — ${args[0] === '--lista' ? `lista: ${args[1]}` : `búsqueda: "${args[0]}"`}`,
-    });
-    console.log(`\n📄 Reporte visual: ${rutaHTML}`);
   }
 }
 

@@ -1,6 +1,6 @@
 # Contexto técnico — AllPromos
 
-Herramienta CLI personal e **interactiva** para comparar precios y promociones entre **Vea**, **Carrefour** y **Chango Más**. El usuario (en Luján, Buenos Aires) escribe el nombre del producto (o una lista) y recibe precios en vivo, con promos calculadas correctamente para la cantidad que quiere comprar. La herramienta pregunta por consola (usando `readline` nativo de Node, sin dependencias) cuando hay ambigüedad o cuando cambiar la cantidad activaría una promo — ver "Interactividad" más abajo.
+Herramienta personal para comparar precios y promociones entre **Vea**, **Carrefour**, **Chango Más**, **Día** y **Coto** — 5 supermercados. Empezó como una CLI **interactiva** (`buscar-promos.js`) y hoy tiene además una app mobile/web (`app/`, React Native + Expo) sobre un backend HTTP (`backend/`) que reusa exactamente la misma lógica de `AllPromos/core/*`. El usuario (en Luján, Buenos Aires) busca o escribe el producto (o una lista) y recibe precios en vivo, con promos calculadas correctamente para la cantidad que quiere comprar. La CLI pregunta por consola (usando `readline` nativo de Node, sin dependencias) cuando hay ambigüedad o cuando cambiar la cantidad activaría una promo — ver "Interactividad" más abajo; la app resuelve la ambigüedad de nombre de otra forma (el usuario elige de una lista, ver `app/app/(tabs)/index.tsx`) y muestra la sugerencia de cantidad como un aviso no bloqueante en vez de una pregunta.
 
 **Importante — los 3 supers parecen tener precio único a nivel país, no por sucursal.** Esto se creyó cierto solo para Carrefour y Chango Más durante buena parte del proyecto (ver sus quirks más abajo), pero se asumía que Vea era la excepción "hiperlocal". Confirmado en vivo el 2026-08-10 que **no lo es**: se armaron cookies `vtex_segment` con `regionId` de Luján, Córdoba (700 km de distancia) y La Plata, y se consultaron 5 productos distintos (con y sin promoción activa) — el precio fue idéntico centavo por centavo en los tres casos. El endpoint `/checkout/pub/regions` tampoco filtra por código postal: devuelve la misma lista de sucursales (mezclando Chivilcoy, Santiago del Estero, Tucumán, Chaco, San Luis, Bahía Blanca) para el CP de Luján y el de CABA. Ver el detalle en "API de Vea — quirks críticos" más abajo. Sigue sin confirmarse que el precio online coincida con el de góndola de una sucursal física puntual — lo que se descartó es que varíe *entre* sucursales dentro del canal online.
 
@@ -13,43 +13,48 @@ AllPromos/
 ├── buscar-promos.js            ← CLI: readline + console.log (capa delgada sobre core/)
 ├── core/                       ← Lógica compartida entre el CLI y el backend
 │   ├── catalogo.js             ← nombre → EAN/skuId, estado de frescura (con caché por mtime)
-│   ├── fetchers.js             ← consultas en vivo a las 3 APIs + SUPERMERCADOS
+│   ├── fetchers.js             ← consultas en vivo a las 5 APIs + SUPERMERCADOS
 │   └── comparador.js           ← mejor opción, sugerencia de cantidad, resumen final
-├── promo-engine.js             ← Motor de cálculo de promos
+├── promo-engine.js             ← Motor de cálculo de promos (por producto)
+├── promos-bancarias.js         ← Promos "por ticket": bancos/billeteras/tarjetas propias (ver sección propia más abajo)
+├── mis-tarjetas.json           ← Tarjetas del usuario para la CLI (no versionado — personal, ver .gitignore)
 ├── scraper-promos-vea.js       ← Actualiza catalogo-vea.json
 ├── scraper-promos-carrefour.js ← Actualiza catalogo-carrefour.json
 ├── scraper-promos-changomas.js ← Actualiza catalogo-changomas.json
-├── catalogo-vea.json           ← Diccionario local Vea (nombre → EAN + skuId)
-├── catalogo-carrefour.json     ← Diccionario local Carrefour (nombre → EAN)
-├── catalogo-changomas.json     ← Diccionario local Chango Más (nombre → EAN)
-├── promos-vea.json             ← Subconjunto de catalogo-vea.json con solo SKUs con promo activa
-├── promos-carrefour.json       ← Subconjunto de catalogo-carrefour.json con solo SKUs con descuento
-├── promos-changomas.json       ← Subconjunto de catalogo-changomas.json con solo SKUs con descuento
-├── compras-real.txt            ← Lista de compras real del usuario (20 ítems)
-└── compras-prueba.txt          ← Lista de prueba (10 ítems)
+├── scraper-promos-dia.js       ← Actualiza catalogo-dia.json
+├── scraper-promos-coto.js      ← Actualiza catalogo-coto.json
+├── catalogo-{vea,carrefour,changomas,dia,coto}.json  ← Diccionarios locales (nombre → EAN, + skuId en Vea)
+├── promos-{vea,carrefour,changomas,dia,coto}.json    ← Subconjunto de cada catálogo con solo SKUs con descuento
+├── compras-real.txt            ← Lista de compras real del usuario (no versionada, personal)
+└── compras-prueba.txt          ← Lista de prueba (10 ítems, sí versionada — para probar cambios)
 ```
 
 `promos-*.json` los generan los scrapers como salida secundaria, pensada para inspección manual rápida (ej. ver el top de descuentos sin filtrar el catálogo completo a mano). `buscar-promos.js` no los lee — no forman parte del flujo en vivo.
 
-**Además de la CLI, el repo ahora tiene dos consumidores más de la misma lógica** (ver también el plan de la app mobile):
+**Además de la CLI, el repo tiene dos consumidores más de la misma lógica: el backend y la app mobile/web.**
 
 ```
 backend/                        ← API HTTP para la app mobile (Express)
-├── src/server.js               ← rate limit + API key por token compartido
-├── src/routes/catalogo.js      ← GET /api/catalogo/buscar|categorias (SIN precios)
-├── src/routes/comparar.js      ← POST /api/comparar (precio cacheado primero, en vivo solo como fallback)
-├── src/routes/health.js        ← GET /api/health (frescura de catálogos + caché de precio + último cron)
+├── src/server.js               ← rate limit (sin token, ver backend/README.md § Seguridad)
+├── src/routes/catalogo.js      ← GET /api/catalogo/buscar|categorias|producto/:ean (SIN precios)
+├── src/routes/comparar.js      ← POST /api/comparar y /api/precios (precio cacheado primero, en vivo solo como fallback)
+├── src/routes/misDescuentos.js ← GET /api/mis-descuentos (promos bancarias de TODAS las tarjetas conocidas)
+├── src/routes/health.js        ← GET /api/health (frescura de catálogos + caché de precio + último cron + sonda en vivo)
 ├── src/catalogoUnificado.js    ← búsqueda en memoria sobre catalogo-unificado.json (nombre/EAN, sin precio)
 ├── src/precioCache.js          ← índice de precio+promo derivado de catalogo-*.json (ver más abajo)
 ├── src/limitadorGlobal.js      ← semáforo global (no por IP) para el fallback en vivo
-├── src/cron/unificarCatalogo.js   ← dedupe de los 3 catálogos por EAN (escritura atómica)
-└── src/cron/refrescarCatalogos.js ← corre los 3 scrapers como subprocesos + sonda de promos bancarias
+├── src/sondaEnVivo.js          ← sonda en background que prueba un EAN conocido contra los 5 supers cada 15 min
+├── src/cron/unificarCatalogo.js   ← dedupe de los 5 catálogos por EAN (escritura atómica) + descarga de fotos
+├── src/cron/descargarImagenes.js  ← baja y guarda fotos de producto una sola vez, redimensionadas
+└── src/cron/refrescarCatalogos.js ← corre los 5 scrapers como subprocesos + sonda de promos bancarias
 
-app/                            ← App mobile (React Native + Expo SDK 57, expo-router)
+app/                            ← App mobile/web (React Native + Expo SDK 57, expo-router)
 ├── app/(tabs)/index.tsx        ← Buscar/seleccionar productos
 ├── app/(tabs)/carrito.tsx      ← Carrito + tarjetas con las que se paga
+├── app/(tabs)/ajustes.tsx      ← Placeholder (tema, preferencia online/física — sin diseñar todavía)
 ├── app/resultado.tsx           ← Veredicto: dónde comprar cada cosa
-└── src/                        ← theme.ts (tokens), api.ts, carrito.tsx, componentes/
+├── app/mis-descuentos.tsx      ← Qué desbloquea cada tarjeta/app/club conocido
+└── src/                        ← theme.ts (tokens), api.ts, carrito.tsx, filtrosSupers.tsx, componentes/
 ```
 
 **Invariante que sigue vigente para la CLI y para `catalogo-unificado.json`:** el índice que ve la app para buscar/seleccionar productos (`catalogo-unificado.json`) sigue excluyendo a propósito los campos de precio — solo resuelve nombre → EAN (+ skuId en Vea). La CLI (`buscar-promos.js`, `AllPromos/core/*`) tampoco cambió: sigue pidiendo precio y promo en vivo en el 100% de los casos, sin caché, como siempre.
@@ -93,7 +98,7 @@ heineken 473, 4
 
 1. **Resolución de nombre ambigua** (`resolverCandidatoInteractivo` en `buscar-promos.js`):
    - **0 candidatos en catálogo local** → puede ser un error de tipeo (ej. "arun" en vez de "atun"). Pregunta: `(r)` reintentar con otro texto, `(v)` buscar en vivo igual (fallback existente, menos confiable), `(s)` saltear este ítem. A propósito **no se intenta autocorregir** el texto — el riesgo de "adivinar mal" y comparar el producto equivocado es peor que preguntar.
-   - **2+ candidatos distintos** (ej. "pepitos 357 gr" matchea 3 variantes distintas entre los 3 supers) → pregunta cuál es el correcto, con la opción `0` de comparar los N como antes (comportamiento previo a este cambio).
+   - **2+ candidatos distintos** (ej. "pepitos 357 gr" matchea variantes distintas entre los supers) → pregunta cuál es el correcto, con la opción `0` de comparar los N como antes (comportamiento previo a este cambio).
    - Cualquier respuesta no reconocida (vacío, texto raro) cae al comportamiento más permisivo: "usar todos" para ambigüedad, "mantener cantidad actual" para el punto 2.
 
 2. **Sugerencia de cambio de cantidad** (`detectarCantidadesCandidatas` / `preguntarCambioDeCantidad`): después de mostrar los resultados, si **cualquier** promo de **cualquier** super no llega a activarse con la cantidad pedida (no solo cuando falta 1 unidad — cualquier diferencia cuenta), pregunta si se quiere cambiar la cantidad. Si distintos supers necesitan distintas cantidades para activar promos distintas (ej. Carrefour 2x1 necesita 2, Vea 3x2 necesita 3), **no pregunta dos veces** — muestra una vista previa completa (todos los supers) para cada cantidad candidata en la misma pregunta (`mejorOpcionCombinada()`), y el usuario elige una sola vez con toda la información. Si se acepta un cambio, recalcula y vuelve a mostrar todo con la cantidad nueva — **sin re-consultar las APIs**, porque `precioBase` y `promo` por candidato ya están en memoria y no dependen de la cantidad (solo `calcularCosto()` sí, y ya maneja correctamente los grupos parciales para cualquier cantidad).
@@ -109,18 +114,23 @@ Usuario escribe "coca cola 2.25, 2"
        ↓
 [Catálogo local]  nombre → EAN (7790895000122) + skuId de Vea (si existe)
        ↓
-[API en vivo] — en paralelo:
+[API en vivo] — en paralelo, 5 supers:
   Vea:        GET /api/catalog_system/pub/products/search?fq=skuId:{id}&sc=34
               POST /_v/search-promotions  → promos activas por skuId
   Carrefour:  GET /api/catalog_system/pub/products/search?fq=alternateIds_Ean:{ean}&sc=1
               (promos embebidas en la respuesta del catálogo)
   Chango Más: GET /api/catalog_system/pub/products/search?fq=alternateIds_Ean:{ean}&sc=1
               (promos embebidas, mismo mecanismo que Carrefour — host masonline.com.ar)
+  Día:        GET /api/catalog_system/pub/products/search?fq=alternateIds_Ean:{ean}&sc=1
+              (VTEX, mismo mecanismo que Carrefour/Chango Más — host diaonline.supermercadosdia.com.ar)
+  Coto:       GET .../products/search/{ean}  (Constructor.io — no es VTEX, busca por texto y filtra el EAN exacto)
        ↓
 [promo-engine.js] → calcula costo real para la cantidad deseada
        ↓
-Muestra comparativo + resumen final
+Muestra comparativo + resumen final (+ promos bancarias, ver sección propia)
 ```
+
+En el backend (`backend/src/precioCache.js`) el mismo cálculo corre sobre precio+promo ya capturados por el cron en vez de pegarle en vivo a los 5 supers en cada request — ver `backend/README.md` para el porqué.
 
 ---
 
@@ -267,6 +277,38 @@ Cada resultado de `interpretarPromo*()` incluye `esOnline: bool` que luego se us
 
 **Dos funciones de parseo, no una por super:** `interpretarPromoPorTexto(nombrePromo, effectiveDiscount)` parsea el formato "nombre + descuento efectivo" que expone la API de Vea, y **se reutiliza también para Carrefour** cuando el descuento viene del diff `Price` vs `ListPrice` (se la llama con `nombrePromo=''` para forzar la rama de `effectiveDiscount` genérico). `interpretarPromoCarrefour(teaser)` es aparte porque parsea el formato propio de los teasers de Carrefour (códigos `Reg-N-M`). No están separadas por super sino por formato de origen.
 
+**Promo por producto condicionada a tarjeta propia:** `interpretarTeaserTarjetaPropia(teaser, nombreTarjeta)` interpreta el teaser "Tarjeta Carrefour X%" de Carrefour (único caso implementado hoy — identificado por el campo estructurado `RestrictionsBins`, no por texto). El caller (`core/fetchers.js`, `precioCache.js`) decide si pedirla según si el usuario tiene esa tarjeta.
+
+---
+
+## Promos bancarias "por ticket" (`promos-bancarias.js`)
+
+A diferencia de `promo-engine.js` (promos atadas a un producto), esto cubre el otro tipo de promo: un % de descuento (o cashback) sobre **todo el ticket**, condicionado a día de la semana + banco/tarjeta + a veces canal, con tope de reintegro y a veces monto mínimo — Cencopay, Mi Carrefour, MasClub, y bancos/billeteras de terceros (Santander, Mercado Pago, Cuenta DNI, Banco Provincia, MODO). No depende de qué productos hay en el carrito: se calcula una vez sobre el subtotal ya armado por super.
+
+**Fuente por super — cada uno expone esto de una forma distinta:**
+
+| Super | Mecanismo | Detalle |
+|---|---|---|
+| Vea | Master Data VTEX | `GET /api/dataentities/JN/documents/bankDiscount?_fields=value,id&an=jumboargentina` — sin auth, `value` es un JSON-string con ~40-190 promos. Mismo endpoint responde en `disco.com.ar`/`jumbo.com.ar` (infra compartida de Cencosud). Sin campo de canal confiable (el booleano `checkout` no correlaciona con nada — no se intenta inferir por regex). |
+| Carrefour | GraphQL persistido | 3 operaciones contra `/_v/public/graphql/v1` (`GetPromotions`/`GetBanks`/`GetCards`), identificadas por `sha256Hash` fijo — **pueden romperse sin aviso** si Carrefour actualiza la app `valtech.carrefourar-bank-promotions` (ver `detectarHashRoto`/error `PersistedQueryNotFound`). Trae flags de día y de canal (`hyper`/`market`/`ecommerce`/`express`/`maxi`) estructurados. |
+| Chango Más | GraphQL persistido, mismo patrón | App `valtech.gdn-banks-promotions`, mismo riesgo de hash roto. Tiene además `isMasClub` (booleano propio). |
+| Día | Bloque de CMS embebido en HTML | No es GraphQL en esta parte del sitio: hay que buscar un `<script>` en `/medios-de-pago-y-promociones` por una marca de bloque (`DIA_BLOQUE_MARCA`) y parsear el JSON balanceado de adentro. Sin campo numérico de %: el porcentaje se extrae con regex del texto legal (`terms`), y si el regex encuentra valores distintos en el mismo texto (tarjetas con varios niveles mezclados) se descarta la promo entera antes que adivinar cuál aplica. |
+| Coto | REST propio (ATG/Oracle Commerce) | `getPromocionesMulticanal`, público, sin cookie. El % sí viene limpio (`textoDescuento`, ej. "20% DE DESCUENTO"); el día también. El tope sigue siendo texto libre. |
+
+**Normalización de nombres de banco/tarjeta:** cada super nombra las mismas entidades distinto (ej. "Banco Provincia" solo existe como "Cuenta DNI" en Vea, como dos entidades separadas en Carrefour, y unidas como "Banco Provincia - Cuenta DNI" en Chango Más). `ALIAS_TARJETAS` mapea cada nombre canónico a substrings a buscar, con `EXCLUSIONES_ALIAS` para casos ambiguos (ej. "Banco provincia **de Neuquén**" es una entidad distinta que matchea el substring por error si no se excluye a mano).
+
+**Filtrado conservador:** promos de financiación (cuotas sin interés) se descartan siempre, sin importar la tarjeta — no es un ahorro real de precio. Topes que no se pueden extraer del texto legal con confianza (ejemplos ilustrativos, o dos topes para segmentos distintos sin decir cuál aplica) se dejan en `null` ("sin tope detectado, verificar") en vez de adivinar.
+
+**Qué calcula, en capas:**
+1. `promosAplicablesHoy` + `mejorPromoTicket` — la mejor promo bancaria vigente hoy sobre un subtotal dado (respetando tope y monto mínimo).
+2. `mejoresDiasTicket` / `elegirMejorDia` — lo mismo repetido para los próximos 7 días, por super de forma independiente y opcionalmente por canal (online/físico) — no busca alinear el mismo día entre supers, ni recalcula qué producto va a cada super.
+3. `calcularPlanFinal` — combina, por super, el subtotal ya fijado por las promos de producto con la mejor oportunidad bancaria de los próximos 7 días.
+4. `reoptimizarAsignacion` (modo lista) — el ahorro bancario tiene tope en $, así que la asignación óptima de qué producto va a qué super ya no se puede decidir ítem por ítem de forma aislada. Se resuelve con una heurística iterativa (reasignar cada ítem al super de menor precio efectivo, repetir hasta estabilizar) que nunca puede recomendar algo peor que la asignación de hoy — si no mejora, se descarta.
+
+**`GET /api/mis-descuentos`** (backend) usa `obtenerTodasLasPromosBancarias()` — sin filtrar por tarjetas del usuario — para poder mostrar qué desbloquea cada tarjeta conocida aunque el usuario todavía no la haya marcado como propia. La CLI, en cambio, usa `obtenerPromosBancarias()`, que sí filtra por `mis-tarjetas.json`.
+
+**Pendiente, investigado pero no implementado: Cencopay "por producto" (Vea).** Además de las promos "por ticket" de arriba, Vea tiene un segundo mecanismo para su tarjeta propia: `https://www.vea.com.ar/descuentos-del-dia?type=cencopay` trae un feed JSON de clusters de producto (`{"offerName": "Hasta 2do al 80% en Lácteos", "url": "/61742?map=productClusterIds", ...}`) que ya matchea productos reales del catálogo de Vea (clusters confirmados en vivo: 61742/61740/61747, consultables con `fq=productClusterIds:<id>&sc=34`). El texto de `offerName` ya lo parsea `interpretarPromoPorTexto`. Falta el fetcher que traiga el cluster y lo cruce con el producto buscado — hoy solo está implementado el análogo de Carrefour (`interpretarTeaserTarjetaPropia`, ver arriba). Ojo: algunas entradas del feed son financiación ("15% + 12 CSI con Cencopay"), hay que filtrarlas igual que se filtra en todos lados.
+
 ---
 
 ## Búsqueda por nombre — matchesBusqueda
@@ -286,22 +328,21 @@ La búsqueda **requiere todas las palabras** — "lata" en "lomo atun lata" fall
 ## Resolución nombre → EAN
 
 1. Busca en `catalogo-vea.json` primero (para capturar skuId de Vea)
-2. Busca en `catalogo-carrefour.json` para EANs adicionales
-3. Busca en `catalogo-changomas.json` para EANs adicionales
-4. Cross-referencia: si el EAN vino de Carrefour o Chango Más (skuIdVea=null), intenta igualmente buscarlo en el catálogo de Vea por EAN para obtener el skuId
-5. Si no hay nada en catálogos locales → **ya no cae directo al fallback en vivo**: pregunta al usuario (ver "Interactividad") porque puede ser un error de tipeo. Solo si el usuario confirma explícitamente, hace fallback a búsqueda en vivo por nombre (menos confiable)
+2. Busca en `catalogo-carrefour.json`, `catalogo-changomas.json`, `catalogo-dia.json` y `catalogo-coto.json` (en ese orden) para EANs adicionales
+3. Cross-referencia: si el EAN vino de un super que no sea Vea (skuIdVea=null), intenta igualmente buscarlo en el catálogo de Vea por EAN para obtener el skuId
+4. Si no hay nada en catálogos locales → **ya no cae directo al fallback en vivo**: pregunta al usuario (ver "Interactividad") porque puede ser un error de tipeo. Solo si el usuario confirma explícitamente, hace fallback a búsqueda en vivo por nombre (menos confiable)
 
 ---
 
 ## Modo lista — resumen final
 
-Para cada ítem muestra, por cada uno de los 3 supers que tenga resultado:
+Para cada ítem muestra, por cada uno de los 5 supers que tenga resultado:
 - Precio (mejor variante) + oferta activa + 🌐 si es online
-- Cuál de los 3 conviene
+- Cuál conviene
 
 Al final:
 - **Total óptimo** (mezcla de supermercados, el más barato por ítem)
-- **Total todo en Vea / todo en Carrefour / todo en Chango Más**
+- **Total todo en Vea / todo en Carrefour / todo en Chango Más / todo en Día / todo en Coto**
 - Plan de compra: qué comprar en cada super
 - Ítems no encontrados
 
@@ -317,13 +358,21 @@ Los catálogos capturan el estado en el momento del scraping. Las **promos cambi
 node scraper-promos-vea.js           # ~5 min  → catalogo-vea.json
 node scraper-promos-carrefour.js     # ~10 min → catalogo-carrefour.json
 node scraper-promos-changomas.js     # ~2 min  → catalogo-changomas.json (tope de ~2550 SKUs, ver quirks arriba)
+node scraper-promos-dia.js           # ~2 min  → catalogo-dia.json (tope de ~2550 SKUs, catálogo real más chico)
+node scraper-promos-coto.js          # ~min variable → catalogo-coto.json (sin tope de paginación, 57.623 SKUs reales)
 ```
 
 El scraper de Vea: pagina el catálogo, consulta `/_v/search-promotions` en batches de 10, guarda todo en `catalogo-vea.json` con campo `fecha`.
 
 El scraper de Carrefour: pagina el catálogo con retry en 429, extrae promos de teasers y price diff, guarda en `catalogo-carrefour.json` con campo `fecha`.
 
-El scraper de Chango Más: igual que el de Carrefour (retry en 429 **y 502**), guarda en `catalogo-changomas.json` con campo `fecha`. Al día de escribir esto solo capturó descuentos directos (122 de 2597 SKUs) — ninguna promo tipo teaser, ver quirks arriba.
+El scraper de Chango Más: igual que el de Carrefour (retry en 429 **y 502**), guarda en `catalogo-changomas.json` con campo `fecha`. Solo capturó descuentos directos hasta ahora — ninguna promo tipo teaser confirmada en producción, ver quirks arriba.
+
+El scraper de Día: copia casi textual del de Carrefour (mismo mecanismo VTEX), guarda en `catalogo-dia.json`.
+
+El scraper de Coto: no es VTEX — pagina las categorías de nivel superior de Constructor.io, calcula la moda de `price[]` como `precioBase` (ver "API de Coto" arriba) y guarda en `catalogo-coto.json`.
+
+En producción, los 5 scrapers los corre `backend/src/cron/refrescarCatalogos.js` como subprocesos (ver `backend/README.md`), no hace falta correrlos a mano salvo para debug local.
 
 ---
 
@@ -342,24 +391,27 @@ El scraper de Chango Más: igual que el de Carrefour (retry en 429 **y 502**), g
 
 ## Alcance y limitaciones
 
-- **Los 3 supers (Vea, Carrefour, Chango Más) muestran precio único a nivel país** — confirmado en vivo el 2026-08-10 para Vea (regionId de Luján vs. Córdoba vs. La Plata, 5 productos, precio idéntico) y ya se sabía para Carrefour y Chango Más. No está confirmado que ese precio online coincida con el de góndola de una sucursal física en particular.
+- **4 de los 5 supers (Vea, Carrefour, Chango Más, Día) muestran precio único a nivel país** — confirmado en vivo el 2026-08-10 para Vea (regionId de Luján vs. Córdoba vs. La Plata, 5 productos, precio idéntico) y ya se sabía para Carrefour y Chango Más; Día corre sobre el mismo mecanismo VTEX y no se encontró evidencia de regionalización tampoco. No está confirmado que ese precio online coincida con el de góndola de una sucursal física en particular.
+- **Coto es la excepción: sí varía por sucursal de verdad** (confirmado en vivo, 98% de una muestra de 50 productos con precio distinto entre sucursales). Se usa el precio dominante (moda) como aproximación — ver "API de Coto" arriba para el detalle y las sucursales que sistemáticamente quedan por debajo de esa moda (Flores, Once).
 - Solo **productos envasados con EAN real** (no productos al peso: queso, fiambre, carne)
-- **Promos bancarias excluidas** (Tarjeta Carrefour, Cuenta DNI, etc.)
+- **Promos bancarias por producto excluidas del cálculo salvo Mi Carrefour** (única implementada hoy en `core/fetchers.js`/`precioCache.js`) — las promos "por ticket" (Cencopay, bancos de terceros, MasClub) sí están cubiertas, pero en un módulo aparte (`promos-bancarias.js`, ver sección propia).
 - El catálogo local puede desincronizarse con productos discontinuados o renombrados
 - Las queries en vivo de Vea (`core/fetchers.js`) ya no usan cookie `vtex_segment` (ver quirk de precio desactualizado). El scraper de catálogo local (`scraper-promos-vea.js`) todavía la usa para bajar el catálogo masivo — ahí no importa que se desactualice porque `precioBase` del catálogo local nunca se muestra al usuario (ver invariante en `AllPromos/CLAUDE.md`), pero si ese scraper empieza a devolver 0 resultados o errores, sospechar de esa cookie expirada, no de esto.
-- **Los 3 catálogos locales capturan solo una fracción del catálogo real de cada super** (tope de ~2.550 ítems del endpoint legacy de VTEX, ver quirk de Chango Más). Para Vea y Carrefour esto ya era así desde el principio; para Chango Más significa ~2.600 de ~59.826 SKUs reales. La búsqueda por nombre puede no encontrar productos poco comunes que no entraron en ese recorte.
+- **4 de los 5 catálogos locales capturan solo una fracción del catálogo real** (tope de ~2.550 ítems del endpoint legacy de VTEX — Vea, Carrefour, Chango Más y Día). Coto es la excepción: no tiene ese tope (Constructor.io pagina distinto) y captura sus ~57.623 SKUs reales completos. La búsqueda por nombre puede no encontrar productos poco comunes que no entraron en ese recorte en los otros 4.
 - **Promos condicionales (NxM, Ndo al X%) de Chango Más sin confirmar**: el código las soporta pero nunca se observó un ejemplo real en producción.
+- El formato **"2x$X" (precio fijo total, no %) de Día** no lo interpreta `promo-engine.js` hoy — el scraper lo captura como texto crudo, pero queda sin promo calculada en vez de romper (mismo criterio que un teaser desconocido de cualquier super).
 
 ---
 
 ## Pendientes / ideas futuras
 
-- ~~Agregar Chango Más~~ ✅ hecho — ver secciones de arriba para los quirks encontrados
-- ~~Preguntar ante ambigüedad de nombre y ante promos que no llegan a activarse~~ ✅ hecho — ver "Interactividad"
+- ~~Agregar Chango Más~~ / ~~agregar Día y Coto~~ ✅ hecho — ver las secciones de API de cada uno arriba
+- ~~Preguntar ante ambigüedad de nombre y ante promos que no llegan a activarse~~ ✅ hecho (CLI) — ver "Interactividad"
+- ~~Interfaz web~~ ✅ hecho — `app/` (React Native + Expo, corre igual en web) sobre `backend/`
+- ~~Promos bancarias por ticket (Cencopay, bancos, MasClub)~~ ✅ hecho — ver `promos-bancarias.js` arriba
 - Confirmar el formato real de `Teasers`/`PromotionTeasers` de Chango Más cuando aparezca la primera promo condicional (hoy sin verificar)
-- Evaluar migrar los 3 scrapers a la Intelligent Search API de VTEX (`/api/io/_v/api/intelligent-search/...`) para superar el tope de ~2.550 ítems del endpoint legacy — hoy los 3 catálogos locales son un recorte parcial del catálogo real
+- Evaluar migrar los scrapers VTEX (Vea/Carrefour/Chango Más/Día) a la Intelligent Search API (`/api/io/_v/api/intelligent-search/...`) para superar el tope de ~2.550 ítems del endpoint legacy
 - Renovar automáticamente la `vtex_segment` cookie de Vea via browser headless (solo aplica a `scraper-promos-vea.js` — las queries en vivo ya no la usan)
-- Interface web mínima (hoy es solo CLI) — sería un rediseño más grande ahora que el flujo tiene pasos interactivos por consola
-- Si el prompt de cambio de cantidad se siente repetitivo en listas grandes, evaluar la alternativa que se descartó ahora: juntar todas las oportunidades de toda la lista y preguntar una sola vez al final en vez de uno por uno
-- **Día**: scraper listo y probado (`scraper-promos-dia.js`), falta integrarlo a `core/fetchers.js` (agregar a `SUPERMERCADOS`, función `diaLive*`/`parsearProductosDia`), a `core/catalogo.js` (prioridad en `resolverEANporNombre`), a `unificarCatalogo.js`, y al frontend (`SuperKey`, `PuntosDisponibilidad`, colores ya definidos en `app/src/theme.ts`). Ver "API de Día" arriba y `PLAN_FEATURES_APP.md`.
-- **Coto**: scraper listo y probado (`scraper-promos-coto.js`, 2026-08-10) — pagina las 10 categorías de nivel superior de Constructor.io (excluye "Ofertas", ver comentario del archivo), calcula la moda de `price[]` como `precioBase`, e interpreta `discounts[]` (formatos confirmados en la corrida completa: "X%Dto" y "NxM" tipo 2x1/3x2). Resultado real: **57.623 SKUs, 100% con EAN e imagen** (sin el tope de paginación de VTEX, cobertura mucho mayor que los otros 4 supers). Falta integrarlo al resto del stack — mismo trabajo pendiente que Día: `core/fetchers.js` (`SUPERMERCADOS`, `cotoLive*`/`parsearProductosCoto`), `core/catalogo.js` (prioridad en `resolverEANporNombre`), `unificarCatalogo.js`, y frontend (`SuperKey`, `PuntosDisponibilidad`). Colores ya definidos (`#D6293E` claro / `#F0555F` oscuro).
+- Interpretar el formato "2x$X" (precio fijo) de Día en `promo-engine.js` — ver "Alcance y limitaciones" arriba
+- Promos por producto condicionadas a tarjeta propia más allá de Mi Carrefour: Cencopay (clusters de Vea, investigado pero sin fetcher implementado) y MasClub
+- Si el prompt de cambio de cantidad se siente repetitivo en listas grandes (CLI), evaluar juntar todas las oportunidades de toda la lista y preguntar una sola vez al final en vez de uno por uno

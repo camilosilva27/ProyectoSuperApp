@@ -72,7 +72,7 @@ Esto probablemente vive como una función nueva en `core/comparador.js` (ej. `ca
 
 - **Nativo (si se distribuye por tienda):** `expo-location`.
 - **Web (si se distribuye por link, ver sección 0):** `navigator.geolocation` del browser, sin librería adicional.
-- En ambos casos, el dato que hace falta no es "dónde estoy" en sí, sino "a qué distancia está la sucursal más cercana de cada super" — lo cual requiere tener guardada al menos una dirección por sucursal relevante (hoy el proyecto no tiene ninguna base de sucursales con coordenadas; `sucursales.csv` se menciona en `contexto_proyecto_superapp_v2_1.md` pero es de una etapa anterior del proyecto y no se usa en el código actual). Esto es un dato nuevo a conseguir antes de poder implementar la parte de distancia.
+- En ambos casos, el dato que hace falta no es "dónde estoy" en sí, sino "a qué distancia está la sucursal más cercana de cada super" — lo cual requiere tener guardada al menos una dirección por sucursal relevante (hoy el proyecto no tiene ninguna base de sucursales con coordenadas). Esto es un dato nuevo a conseguir antes de poder implementar la parte de distancia.
 
 ### Explícitamente fuera de alcance por ahora
 
