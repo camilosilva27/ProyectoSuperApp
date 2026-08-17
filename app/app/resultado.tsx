@@ -214,27 +214,27 @@ function HeaderVeredicto({
       </Pressable>
 
       {dosTotales ? (
-        <View style={styles.filaDosTotales}>
+        <View style={hayAhorroPorPromos ? styles.filaDosTotales : { gap: espacio.md }}>
           <View style={{ flex: 1, gap: 4 }}>
             <Text style={[texto.micro, { color: paleta.oferta, letterSpacing: 0.7 }]}>
               REPARTIENDO EN {paradasNombres.length} PARADAS
             </Text>
-            {hayAhorroPorPromos ? (
-              <Text style={[texto.dato, styles.precioSinPromoHero]}>{pesos(totalSinPromo)}</Text>
-            ) : null}
             <Text style={[texto.precioHero, styles.totalHero, styles.totalPrincipal]}>
               {pesos(totalOptimo)}
             </Text>
             <Text style={[texto.dato, styles.textoMutedOscuro]}>{paradasNombres.join(' · ')}</Text>
           </View>
-          <View style={styles.divisorVertical} />
-          <View style={styles.columnaTotalUnico}>
-            <Text style={[texto.micro, styles.textoMutedOscuro, { letterSpacing: 0.7 }]}>
-              EN UN SOLO SUPER
-            </Text>
-            <Text style={[texto.precioGrande, styles.totalSecundario]}>{pesos(mejorUnico!.total)}</Text>
-            <Text style={[texto.dato, styles.textoMutedOscuro]}>todo en {mejorUnico!.nombre}</Text>
-          </View>
+          {hayAhorroPorPromos ? (
+            <>
+              <View style={styles.divisorVertical} />
+              <View style={styles.columnaTotalUnico}>
+                <Text style={[texto.micro, styles.textoMutedOscuro, { letterSpacing: 0.7 }]}>
+                  PRECIO SIN DESCUENTOS
+                </Text>
+                <Text style={[texto.precioGrande, styles.totalSecundario]}>{pesos(totalSinPromo)}</Text>
+              </View>
+            </>
+          ) : null}
         </View>
       ) : (
         <View style={{ gap: 6 }}>
