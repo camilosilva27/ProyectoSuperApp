@@ -1,17 +1,21 @@
 /**
- * Tres pestañas (rediseño v2 — antes eran dos): buscar productos, ver la lista, y Ajustes.
+ * Cuatro pestañas (antes tres): buscar productos, ver la lista, Ahorros, y Ajustes.
  * El resultado no es una pestaña — es la consecuencia de una acción ("Comparar precios"),
  * así que se abre apilado encima.
  *
  * El contador de la pestaña "Carrito" muestra unidades, no productos distintos: es lo que
  * el usuario está por comparar.
+ *
+ * "Ahorros" (PANTALLAS-ahorros-y-paywall.md) tiene su propio `tabBarLabel`: el label inactivo
+ * usa `tintaSuave`, no `tintaTenue` como el ícono — son dos tokens distintos a propósito (ver
+ * theme.ts), así que no alcanza con el `tabBarInactiveTintColor` global de abajo.
  */
 
 import { Tabs } from 'expo-router';
 import React from 'react';
 import { StyleSheet, Text, View, type ColorValue } from 'react-native';
 import { useCarrito } from '../../src/carrito';
-import { radio, texto } from '../../src/theme';
+import { fuentes, radio, texto } from '../../src/theme';
 import { useTema } from '../../src/useTema';
 
 export default function LayoutPestanas() {
@@ -44,6 +48,26 @@ export default function LayoutPestanas() {
         options={{
           title: 'Carrito',
           tabBarIcon: ({ color }) => <IconoLista color={color} cantidad={totalUnidades} />,
+        }}
+      />
+      <Tabs.Screen
+        name="ahorros"
+        options={{
+          title: 'Ahorros',
+          tabBarIcon: ({ color }) => <IconoAhorros color={color} />,
+          tabBarLabel: ({ focused }) => (
+            <Text
+              style={[
+                texto.micro,
+                {
+                  color: focused ? paleta.tinta : paleta.tintaSuave,
+                  fontFamily: focused ? fuentes.semi : fuentes.medio,
+                },
+              ]}
+            >
+              Ahorros
+            </Text>
+          ),
         }}
       />
       <Tabs.Screen
@@ -88,6 +112,20 @@ function IconoLista({ color, cantidad }: { color: ColorValue; cantidad: number }
   );
 }
 
+// Tres barras de altura fija (9/15/20): el ícono no cambia de tamaño entre activo e inactivo,
+// solo de color — a diferencia del "globo" del carrito, acá no hay nada que contar.
+function IconoAhorros({ color }: { color: ColorValue }) {
+  return (
+    <View style={styles.icono}>
+      <View style={styles.barrasAhorro}>
+        <View style={[styles.barraAhorro, { height: 9, backgroundColor: color }]} />
+        <View style={[styles.barraAhorro, { height: 15, backgroundColor: color }]} />
+        <View style={[styles.barraAhorro, { height: 20, backgroundColor: color }]} />
+      </View>
+    </View>
+  );
+}
+
 // Engranaje clásico: 8 dientes en el mismo truco de rotate+translateY que ya usa lupaMango
 // (cada diente nace centrado en el ícono y el translateY lo empuja hacia afuera sobre su
 // propio eje ya rotado), más un aro con hueco en vez de un círculo relleno.
@@ -119,6 +157,8 @@ const styles = StyleSheet.create({
   },
   lineas: { gap: 3 },
   linea: { height: 2, borderRadius: 1 },
+  barrasAhorro: { flexDirection: 'row', alignItems: 'flex-end', gap: 3 },
+  barraAhorro: { width: 4, borderRadius: 1 },
   diente: {
     position: 'absolute', width: 3, height: 7, borderRadius: 1,
     top: 8.5, left: 10.5,
