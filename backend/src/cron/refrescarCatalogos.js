@@ -40,6 +40,16 @@ const SCRAPERS = [
   { nombre: 'La Anónima', archivo: 'scraper-promos-laanonima.js',  timeoutMs: 20 * 60 * 1000 },
 ];
 
+// Corre DESPUÉS del scraper de La Anónima y ANTES del matching por nombre — aplica los EAN
+// reales ya resueltos por resolver-ean-laanonima-flix.js (proceso caro y aparte, que NO corre
+// acá ni en la VM, ver su cabecera) para que el matching por nombre nunca los pise. Barato:
+// solo JSON local, sin red.
+const APLICAR_EAN_FLIX_LAANONIMA = {
+  nombre: 'Aplicar EAN real de Flix (La Anónima)',
+  archivo: 'aplicar-ean-flix-laanonima.js',
+  timeoutMs: 2 * 60 * 1000,
+};
+
 // Corre DESPUÉS de todos los scrapers (necesita catalogo-laanonima.json ya generado) y ANTES
 // de unificar() (unificarCatalogo.js lee catalogo-laanonima.json esperando que `ean` ya esté
 // resuelto donde se pudo — ver cabecera de enriquecer-catalogo-laanonima.js). Si este paso
@@ -114,6 +124,15 @@ async function refrescar() {
   const errores = resultados
     .filter(r => !r.ok)
     .map(r => `El scraper de ${r.nombre} falló (código ${r.codigo}) — catálogo sin actualizar`);
+
+  console.log(`   ▶ ${APLICAR_EAN_FLIX_LAANONIMA.nombre}...`);
+  const resultadoEanFlix = await correrScraper(APLICAR_EAN_FLIX_LAANONIMA);
+  console.log(`   ${resultadoEanFlix.ok ? '✅' : '❌'} ${APLICAR_EAN_FLIX_LAANONIMA.nombre} (${resultadoEanFlix.duracionSeg}s)`);
+  if (!resultadoEanFlix.ok) {
+    console.error(`      ${resultadoEanFlix.error}`);
+    errores.push(`No se pudieron aplicar los EAN reales de Flix para La Anónima (código ${resultadoEanFlix.codigo})`);
+  }
+  resultados.push(resultadoEanFlix);
 
   console.log(`   ▶ ${ENRIQUECIMIENTO_LAANONIMA.nombre}...`);
   const resultadoEnriquecimiento = await correrScraper(ENRIQUECIMIENTO_LAANONIMA);
