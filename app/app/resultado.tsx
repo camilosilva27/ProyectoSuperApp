@@ -14,7 +14,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
@@ -23,11 +23,13 @@ import {
   comparar, ErrorApi, type ItemComparado, type RespuestaComparar, type SuperKey,
 } from '../src/api';
 import { useCarrito } from '../src/carrito';
+import { useCodigoPostalLaAnonima } from '../src/codigoPostalLaAnonima';
 import { BarraDiferencia } from '../src/componentes/BarraDiferencia';
 import { Problema, Vacio } from '../src/componentes/comunes';
 import { FotoProducto } from '../src/componentes/FotoProducto';
 import { HeaderNegro } from '../src/componentes/HeaderNegro';
 import { useFiltrosSupers } from '../src/filtrosSupers';
+import { useHistorialAhorro } from '../src/historialAhorro';
 import { espacio, pesos, radio, texto } from '../src/theme';
 import { useTema } from '../src/useTema';
 
@@ -80,15 +82,21 @@ export default function PantallaResultado() {
   const insets = useSafeAreaInsets();
   const carrito = useCarrito();
   const { supersActivos } = useFiltrosSupers();
+  const cpLaAnonima = useCodigoPostalLaAnonima();
   const scrollRef = useRef<ScrollView>(null);
   const yPromos = useRef(0);
 
+  // Solo relevante para La Anónima (gate de cobertura, ver codigoPostalLaAnonima.tsx).
+  const codigoPostalActivo = cpLaAnonima.estado?.coberturaConfirmada
+    ? cpLaAnonima.estado.codigoPostal ?? undefined
+    : undefined;
+
   const pedido = carrito.items.map(i => ({ ean: i.ean, cantidad: i.cantidad }));
-  const clave = JSON.stringify({ pedido, tarjetas: carrito.tarjetas, supersActivos });
+  const clave = JSON.stringify({ pedido, tarjetas: carrito.tarjetas, supersActivos, codigoPostalActivo });
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['comparar', clave],
-    queryFn: () => comparar(pedido, carrito.tarjetas, supersActivos),
+    queryFn: () => comparar(pedido, carrito.tarjetas, supersActivos, codigoPostalActivo),
     enabled: pedido.length > 0,
     staleTime: 0, // los precios son en vivo: no se reusan entre comparaciones
   });
@@ -185,6 +193,7 @@ function HeaderVeredicto({
 }) {
   const { paleta } = useTema();
   const router = useRouter();
+  const { registrar } = useHistorialAhorro();
   const { totalOptimo, totalSinPromo, totalesPorSuper } = data.resumen;
   const hayAhorroPorPromos = totalSinPromo > totalOptimo;
 
@@ -196,6 +205,16 @@ function HeaderVeredicto({
   const mejorUnico = supersConTotal[0];
   const ahorroRepartiendo = mejorUnico ? mejorUnico.total - totalOptimo : 0;
   const valeRepartir = ahorroRepartiendo >= 1;
+
+  // Historial de ahorro (PANTALLAS-ahorros-y-paywall.md): una comparación vista, un evento —
+  // el ref evita duplicar el registro si este componente vuelve a renderizar sin que `data`
+  // haya cambiado (misma respuesta de /api/comparar).
+  const dataRegistradaRef = useRef<RespuestaComparar | null>(null);
+  useEffect(() => {
+    if (dataRegistradaRef.current === data) return;
+    dataRegistradaRef.current = data;
+    registrar(Math.max(0, ahorroRepartiendo));
+  }, [data, ahorroRepartiendo, registrar]);
 
   const paradasNombres = data.supermercados
     .filter(s => (data.resumen.subtotalAsignadoPorSuper[s.key] ?? 0) > 0)

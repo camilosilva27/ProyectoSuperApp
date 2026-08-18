@@ -35,7 +35,20 @@ const SCRAPERS = [
   { nombre: 'Chango Más', archivo: 'scraper-promos-changomas.js',  timeoutMs: 15 * 60 * 1000 },
   { nombre: 'Día',        archivo: 'scraper-promos-dia.js',        timeoutMs: 15 * 60 * 1000 },
   { nombre: 'Coto',       archivo: 'scraper-promos-coto.js',       timeoutMs: 20 * 60 * 1000 },
+  // Timeout más generoso que el resto: son 134 categorías en serie con espaciado de 1.5s +
+  // backoff de 10s en 403/429/5xx (ver cabecera de scraper-promos-laanonima.js).
+  { nombre: 'La Anónima', archivo: 'scraper-promos-laanonima.js',  timeoutMs: 20 * 60 * 1000 },
 ];
+
+// Corre DESPUÉS de todos los scrapers (necesita catalogo-laanonima.json ya generado) y ANTES
+// de unificar() (unificarCatalogo.js lee catalogo-laanonima.json esperando que `ean` ya esté
+// resuelto donde se pudo — ver cabecera de enriquecer-catalogo-laanonima.js). Si este paso
+// falla, el catálogo de La Anónima queda sin ean (todo "sin match"), no rompe el resto.
+const ENRIQUECIMIENTO_LAANONIMA = {
+  nombre: 'Enriquecimiento La Anónima (matching por nombre)',
+  archivo: 'enriquecer-catalogo-laanonima.js',
+  timeoutMs: 5 * 60 * 1000,
+};
 
 function correrScraper({ nombre, archivo, timeoutMs }) {
   return new Promise(resolve => {
@@ -101,6 +114,15 @@ async function refrescar() {
   const errores = resultados
     .filter(r => !r.ok)
     .map(r => `El scraper de ${r.nombre} falló (código ${r.codigo}) — catálogo sin actualizar`);
+
+  console.log(`   ▶ ${ENRIQUECIMIENTO_LAANONIMA.nombre}...`);
+  const resultadoEnriquecimiento = await correrScraper(ENRIQUECIMIENTO_LAANONIMA);
+  console.log(`   ${resultadoEnriquecimiento.ok ? '✅' : '❌'} ${ENRIQUECIMIENTO_LAANONIMA.nombre} (${resultadoEnriquecimiento.duracionSeg}s)`);
+  if (!resultadoEnriquecimiento.ok) {
+    console.error(`      ${resultadoEnriquecimiento.error}`);
+    errores.push(`El enriquecimiento de La Anónima falló (código ${resultadoEnriquecimiento.codigo}) — su catálogo queda sin EAN asignado`);
+  }
+  resultados.push(resultadoEnriquecimiento);
 
   // El unificado se regenera aunque algún scraper haya fallado: es mejor tener el índice
   // consistente con los catálogos que efectivamente hay en disco que dejarlo desactualizado.

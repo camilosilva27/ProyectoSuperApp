@@ -6,9 +6,9 @@ Una explicación en lenguaje simple de lo que pasa desde que escribís "coca col
 
 ## El problema que resuelve
 
-Querés comprar productos del super. Vea, Carrefour, Chango Más, Día y Coto tienen precios distintos, y encima cada uno tiene sus propias promociones que cambian cada semana: 25% de descuento, 2x1, 3x2, "2do al 80% off". Sin la app, tendrías que ir a los cinco sitios, buscar cada producto, entender la promo, hacer las cuentas a mano, y recién entonces saber cuál conviene.
+Querés comprar productos del super. Vea, Carrefour, Chango Más, Día, Coto y La Anónima tienen precios distintos, y encima cada uno tiene sus propias promociones que cambian cada semana: 25% de descuento, 2x1, 3x2, "2do al 80% off". Sin la app, tendrías que ir a los seis sitios, buscar cada producto, entender la promo, hacer las cuentas a mano, y recién entonces saber cuál conviene.
 
-(El proyecto arrancó pensado para Luján, Buenos Aires, porque ahí es donde vive el usuario — pero 4 de los 5 supers muestran el mismo precio en toda la Argentina, ver "Qué no puede hacer" más abajo. No hace falta estar en Luján para que esto te sirva.)
+(El proyecto arrancó pensado para Luján, Buenos Aires, porque ahí es donde vive el usuario — pero 5 de los 6 supers muestran el mismo precio en toda la Argentina, ver "Qué no puede hacer" más abajo. La excepción real no es de precio: es que La Anónima solo vende supermercado online en algunas provincias — por eso te pide tu código postal la primera vez que la activás, para saber si te sirve.)
 
 AllPromos hace todo eso automáticamente.
 
@@ -24,7 +24,7 @@ El script limpia lo que escribiste: todo en minúsculas, sin tildes, separado en
 
 **2. Busca en el catálogo local**
 
-Tenemos cinco archivos guardados en la computadora: `catalogo-vea.json`, `catalogo-carrefour.json`, `catalogo-changomas.json`, `catalogo-dia.json` y `catalogo-coto.json`. Son como diccionarios con todos los productos de cada super. Cada entrada tiene el nombre del producto, su **EAN** (el código de barras, por ejemplo `7790895000122`) y, en el caso de Vea, un ID interno llamado **skuId**.
+Tenemos seis archivos guardados en la computadora: `catalogo-vea.json`, `catalogo-carrefour.json`, `catalogo-changomas.json`, `catalogo-dia.json`, `catalogo-coto.json` y `catalogo-laanonima.json`. Son como diccionarios con todos los productos de cada super. Cada entrada tiene el nombre del producto, su **EAN** (el código de barras, por ejemplo `7790895000122`) y, en el caso de Vea, un ID interno llamado **skuId**. La Anónima es la excepción: su sitio no expone el EAN de ningún producto, así que se le asigna uno "adivinado" por nombre contra los otros catálogos solo cuando hay un único candidato posible (~1 de cada 5 productos) — el resto queda sin EAN, y por lo tanto sin poder compararse contra los demás supers.
 
 El script revisa estos archivos y busca un producto cuyo nombre contenga **todas** las palabras que escribiste. Encuentra: "Coca Cola Regular 2.25 Lts" con EAN `7790895000122` y skuId `12345`.
 
@@ -32,13 +32,13 @@ Importante: **no usa los precios del catálogo local**. Los precios cambian todo
 
 **Si la búsqueda no es clara, te pregunta antes de seguir** — no intenta adivinar por vos:
 - Si escribiste algo con un error de tipeo (por ejemplo "arun" en vez de "atún") y no encuentra nada parecido, te avisa y te da la opción de escribir de nuevo, de buscar igual en vivo (menos preciso), o de saltear ese producto.
-- Si tu búsqueda matchea varios productos distintos (por ejemplo "pepitos 357 gr" puede encontrar variantes distintas entre los cinco supers), te muestra la lista y te pregunta cuál es el que querés, en vez de compararte todas.
+- Si tu búsqueda matchea varios productos distintos (por ejemplo "pepitos 357 gr" puede encontrar variantes distintas entre los supers), te muestra la lista y te pregunta cuál es el que querés, en vez de compararte todas.
 
 (En la app esto no hace falta preguntarlo: elegís el producto de una lista, así que la ambigüedad no llega a existir.)
 
 **3. Consulta precios en vivo — en paralelo**
 
-Con el EAN y el skuId en mano, hace cinco consultas al mismo tiempo:
+Con el EAN y el skuId en mano, hace varias consultas al mismo tiempo:
 
 - **A Vea:** Le pregunta "dame el precio actual del producto con este skuId". La respuesta incluye el precio. Después hace una segunda consulta para preguntar "¿tiene alguna promoción activa?". Vea devuelve, por ejemplo: sin promo, precio $5.647.
 
@@ -46,11 +46,13 @@ Con el EAN y el skuId en mano, hace cinco consultas al mismo tiempo:
 
 - **A Chango Más y a Día:** Le pregunta lo mismo que a Carrefour ("dame el producto con este EAN"), con el mismo tipo de respuesta (precio + promo en un solo paquete) — los tres corren sobre la misma plataforma (VTEX).
 
-- **A Coto:** No tiene una búsqueda exacta por EAN, así que se busca por texto y se queda con el resultado que coincide exactamente. A diferencia de los otros cuatro, Coto expone un precio por sucursal — se usa el precio más repetido entre sucursales (ver "Qué no puede hacer" más abajo).
+- **A Coto:** No tiene una búsqueda exacta por EAN, así que se busca por texto y se queda con el resultado que coincide exactamente. A diferencia de los otros, Coto expone un precio por sucursal — se usa el precio más repetido entre sucursales (ver "Qué no puede hacer" más abajo).
 
-Cuatro de los cinco (Vea, Carrefour, Chango Más y Día) parecen devolver el mismo precio en toda la Argentina, no algo específico de una sucursal — lo confirmamos probando distintas regiones (ver "Qué no puede hacer" al final). Coto es la excepción.
+- **A La Anónima:** solo si le dijiste tu código postal Y ese código tiene cobertura de supermercado online (si no, ni se le pregunta nada — se salta directo, sin gastar tiempo de red). No tiene búsqueda por EAN tampoco: como no tiene EAN propio, se guardó de antemano en qué categoría de su sitio está el producto, y se vuelve a pedir esa página para leer el precio actual.
 
-Las cinco consultas hablan directo con los servidores de los supermercados, igual que cuando entrás al sitio web desde el browser.
+Cinco de los seis (Vea, Carrefour, Chango Más, Día y La Anónima) devuelven el mismo precio en toda la Argentina, no algo específico de una sucursal — lo confirmamos probando distintas regiones para los primeros cuatro, y para La Anónima confirmamos que la página ni siquiera cambia según la zona (ver "Qué no puede hacer" al final). Coto es la excepción real: su precio sí varía por sucursal.
+
+Las consultas hablan directo con los servidores de los supermercados, igual que cuando entrás al sitio web desde el browser.
 
 **4. Interpreta la promoción**
 
@@ -111,13 +113,13 @@ Para cada super, muestra el producto encontrado, el precio unitario, la promo ac
   Comprando en Carrefour ahorrás $2.744,00 vs Vea y $2.748,00 vs Chango Más
 ```
 
-(El ejemplo muestra 3 supers porque no todos los productos están en los 5 catálogos — se compara contra los que sí lo tienen, nunca se penaliza a un super por no vender algo.)
+(El ejemplo muestra 3 supers porque no todos los productos están en todos los catálogos — se compara contra los que sí lo tienen, nunca se penaliza a un super por no vender algo. Con La Anónima esto es más frecuente: al no tener EAN propio, muchos de sus productos simplemente no tienen forma de cruzarse con el resto, ver más arriba.)
 
 ---
 
 ## El modo lista: varios productos a la vez
 
-Si le pasás un archivo de texto con tu lista de compras, el script procesa cada ítem, busca en los cinco supermercados, y al final muestra un **resumen consolidado**. Las preguntas (nombre ambiguo, promo casi activable) también aparecen acá, ítem por ítem — si tu lista tiene 20 productos, puede que te pregunte varias veces antes de llegar al resumen final. No es "corré y mirá el resultado" como antes; ahora puede pausarse para pedirte una decisión. (En la app esto se resuelve distinto: la ambigüedad de nombre no existe porque elegís de una lista, y la sugerencia de cantidad aparece como un aviso que podés tocar, no como una pregunta que bloquea.)
+Si le pasás un archivo de texto con tu lista de compras, el script procesa cada ítem, busca en los supermercados activos, y al final muestra un **resumen consolidado**. Las preguntas (nombre ambiguo, promo casi activable) también aparecen acá, ítem por ítem — si tu lista tiene 20 productos, puede que te pregunte varias veces antes de llegar al resumen final. No es "corré y mirá el resultado" como antes; ahora puede pausarse para pedirte una decisión. (En la app esto se resuelve distinto: la ambigüedad de nombre no existe porque elegís de una lista, y la sugerencia de cantidad aparece como un aviso que podés tocar, no como una pregunta que bloquea.)
 
 ```
 🛒 RESUMEN FINAL DE COMPRA
@@ -147,7 +149,7 @@ Si le pasás un archivo de texto con tu lista de compras, el script procesa cada
     🟣 Chango Más: ...
 ```
 
-De un vistazo sabés cuánto ahorrás mezclando supermercados versus ir solo a uno, y qué comprar en cada lugar. Si un producto no aparece en alguno de los cinco, simplemente no se lo compara ahí — no te penaliza a favor ni en contra de ese super.
+De un vistazo sabés cuánto ahorrás mezclando supermercados versus ir solo a uno, y qué comprar en cada lugar. Si un producto no aparece en alguno de los supers, simplemente no se lo compara ahí — no te penaliza a favor ni en contra de ese super.
 
 ---
 
@@ -175,13 +177,15 @@ Esto es un cálculo aparte del precio del producto (`promos-bancarias.js`, no `p
 
 ## Los catálogos locales: para qué sirven y cuándo actualizarlos
 
-Los archivos `catalogo-vea.json`, `catalogo-carrefour.json`, `catalogo-changomas.json`, `catalogo-dia.json` y `catalogo-coto.json` son una foto de todos los productos que tiene cada super en un momento dado. Sirven como directorio: cuando buscás "coca cola 2.25", el script no necesita preguntarle al servidor del super "¿tenés coca cola?"... ya sabe de antemano que existe y cuál es su EAN.
+Los archivos `catalogo-vea.json`, `catalogo-carrefour.json`, `catalogo-changomas.json`, `catalogo-dia.json`, `catalogo-coto.json` y `catalogo-laanonima.json` son una foto de todos los productos que tiene cada super en un momento dado. Sirven como directorio: cuando buscás "coca cola 2.25", el script no necesita preguntarle al servidor del super "¿tenés coca cola?"... ya sabe de antemano que existe y cuál es su EAN.
 
 **Esto tiene dos ventajas:**
 - La búsqueda es mucho más rápida
 - La comparación entre supermercados es exacta porque usa el mismo EAN en todos
 
 **Ojo con Vea, Carrefour, Chango Más y Día:** sus catálogos reales tienen decenas de miles de productos (Chango Más ~60.000, Vea ~378.000, Carrefour ~104.000), pero por una limitación técnica de la API solo pudimos guardar los primeros ~2.550 de cada uno (los más relevantes según el propio buscador del super). Esto significa que productos poco comunes pueden no estar en el catálogo local aunque sí existan en el super. **Coto es la excepción:** no tiene esa limitación, así que su catálogo local sí tiene los ~57.600 productos reales completos.
+
+**La Anónima es un caso distinto:** su catálogo local (~8.200 productos) no tiene ninguna limitación de cantidad, pero le falta algo más importante: el EAN. Un paso aparte (`enriquecer-catalogo-laanonima.js`) le asigna un EAN "adivinado" comparando el nombre contra los otros catálogos, solo cuando está seguro (un único candidato posible) — hoy acierta en 1 de cada 5 productos aproximadamente. Los que no matchean (mayormente productos de marca propia "La Anónima") quedan sin comparación posible contra los demás supers, aunque siguen apareciendo en la búsqueda de la app.
 
 **Cuándo actualizar:** Las promos cambian semanalmente pero los productos (EAN, nombres) cambian mucho menos seguido. Actualizalos si encontrás que un producto nuevo no aparece, o antes de una compra grande donde querés estar seguro de tener el catálogo fresco. El script avisa si el catálogo tiene más de 30 días. En producción, esto lo hace solo un cron cada 1-2 horas (ver `CONTEXTO_TECNICO.md`); a mano solo hace falta para debug local:
 
@@ -191,17 +195,21 @@ node scraper-promos-carrefour.js     # demora ~10 minutos
 node scraper-promos-changomas.js     # demora ~2 minutos
 node scraper-promos-dia.js           # demora ~2 minutos
 node scraper-promos-coto.js          # tiempo variable, catálogo completo
+node scraper-promos-laanonima.js     # demora ~5-6 minutos
+node enriquecer-catalogo-laanonima.js # correr siempre después del anterior — le asigna el EAN
 ```
 
 ---
 
 ## Qué no puede hacer (limitaciones)
 
-- **4 de los 5 supers (Vea, Carrefour, Chango Más, Día) parecen tener precio único a nivel país, no por sucursal.** Se creía que Vea era la excepción "hiperlocal" (Luján), pero se confirmó en vivo el 2026-08-10 que no lo es: probando el mismo producto con la sesión armada para Luján, para Córdoba (700 km de distancia) y para La Plata, el precio fue idéntico en los 5 casos probados. Sigue sin confirmarse que ese precio online coincida con el de góndola de una sucursal física puntual — lo que se descartó es que varíe entre sucursales dentro del canal online.
+- **4 de los 5 supers VTEX (Vea, Carrefour, Chango Más, Día) parecen tener precio único a nivel país, no por sucursal.** Se creía que Vea era la excepción "hiperlocal" (Luján), pero se confirmó en vivo el 2026-08-10 que no lo es: probando el mismo producto con la sesión armada para Luján, para Córdoba (700 km de distancia) y para La Plata, el precio fue idéntico en los 5 casos probados. Sigue sin confirmarse que ese precio online coincida con el de góndola de una sucursal física puntual — lo que se descartó es que varíe entre sucursales dentro del canal online.
 - **Coto es la excepción: su precio SÍ varía por sucursal.** En una muestra de 50 productos comunes, el 98% tuvo un precio distinto según la sucursal — con dos sucursales de Capital Federal (Flores y Once) casi siempre más baratas que el resto. La herramienta usa el precio más repetido entre sucursales como aproximación, no el de tu sucursal específica.
+- **La Anónima no vende supermercado online en todo el país.** Solo tiene cobertura confirmada en Patagonia y La Pampa — en el resto del país (incluida el AMBA) no hay venta de supermercado por internet, solo electrodomésticos. Por eso pide tu código postal la primera vez que la activás: si no hay cobertura en tu zona, simplemente no se la incluye en la comparación, sin que tengas que desactivarla a mano.
+- **La Anónima no tiene EAN propio**, así que solo una parte de su catálogo (~1 de cada 5 productos) puede compararse contra los demás supers — ver la sección de catálogos locales más arriba.
 - **Solo productos con código de barras.** Queso al corte, fiambre, carne, frutas y verduras no tienen EAN estándar y no se pueden comparar.
 - **Las promos bancarias por producto están casi todas excluidas** — solo Mi Carrefour (Carrefour) está implementada hoy. Cencopay (Vea) está investigada pero todavía no tiene el fetcher que la traiga (ver `CONTEXTO_TECNICO.md`). Las promos bancarias "por ticket" sí están cubiertas (ver sección de arriba).
-- **Los catálogos pueden desfasarse y son un recorte parcial** en 4 de los 5 supers (ver arriba). Si un producto fue discontinuado, renombrado, o simplemente no entró en ese recorte, puede que no aparezca bien.
+- **Los catálogos pueden desfasarse y son un recorte parcial** en 4 de los 5 supers VTEX (ver arriba). Si un producto fue discontinuado, renombrado, o simplemente no entró en ese recorte, puede que no aparezca bien.
 - **Las promos tipo "3x2" o "2do al X%" de Chango Más no están confirmadas** — el sistema sabe interpretarlas si aparecen, pero todavía no vimos ningún ejemplo real.
 - **El formato "2x$2500" (precio fijo, no %) de Día** todavía no lo calcula la herramienta — lo guarda pero no lo interpreta.
 
@@ -209,4 +217,4 @@ node scraper-promos-coto.js          # tiempo variable, catálogo completo
 
 ## Resumen en una frase
 
-Escribís el nombre del producto, el script lo identifica por su EAN en el catálogo local, consulta los precios y promos en vivo en los cinco supermercados, calcula el costo real para la cantidad que querés (sumando también las promos bancarias si le contaste qué tarjetas tenés), y te dice exactamente dónde comprarlo y cuánto ahorrás.
+Escribís el nombre del producto, el script lo identifica por su EAN en el catálogo local, consulta los precios y promos en vivo en los supermercados activos (La Anónima solo si tenés cobertura confirmada en tu zona), calcula el costo real para la cantidad que querés (sumando también las promos bancarias si le contaste qué tarjetas tenés), y te dice exactamente dónde comprarlo y cuánto ahorrás.

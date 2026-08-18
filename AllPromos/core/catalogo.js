@@ -22,6 +22,11 @@ const CATALOGOS = [
   { key: 'changomas', archivo: 'catalogo-changomas.json', scraper: 'scraper-promos-changomas.js' },
   { key: 'dia',       archivo: 'catalogo-dia.json',       scraper: 'scraper-promos-dia.js' },
   { key: 'coto',      archivo: 'catalogo-coto.json',      scraper: 'scraper-promos-coto.js' },
+  // La Anónima no tiene EAN propio (ver cabecera de scraper-promos-laanonima.js): el `ean`
+  // que trae este catálogo es un best-effort asignado por enriquecer-catalogo-laanonima.js
+  // contra los otros 5 — por eso NO se agrega a la lista de resolverEANporNombre() más abajo,
+  // sería redundante (esos EAN ya son descubribles vía su catálogo de origen).
+  { key: 'laanonima', archivo: 'catalogo-laanonima.json', scraper: 'scraper-promos-laanonima.js' },
 ];
 
 // ─── Utils de texto ───────────────────────────────────────────────────────────
@@ -143,6 +148,21 @@ function skuIdVeaPorEAN(ean) {
   return skusDe('catalogo-vea.json').find(s => s.ean === ean)?.skuId ?? null;
 }
 
+/**
+ * Identidad de La Anónima para un EAN dado — solo existe para el subconjunto que
+ * enriquecer-catalogo-laanonima.js pudo emparejar por nombre (ver su cabecera). `null` si el
+ * EAN no tiene equivalente conocido en La Anónima, igual que cualquier "fuera del recorte".
+ * Devuelve `urlCategoria` (de donde el fetch en vivo saca el precio fresco — La Anónima no
+ * expone precio server-rendered en su página de producto individual, ver
+ * scraper-promos-laanonima.js) e `idInterno` (para ubicar el producto exacto dentro de esa
+ * página de categoría, que trae varios).
+ */
+function urlLaAnonimaPorEAN(ean) {
+  const sku = skusDe('catalogo-laanonima.json').find((s) => s.ean === ean);
+  if (!sku) return null;
+  return { idInterno: sku.idInterno, urlCategoria: sku.urlCategoria };
+}
+
 module.exports = {
   CATALOGOS,
   DIR_DATOS,
@@ -156,4 +176,5 @@ module.exports = {
   estadoCatalogos,
   resolverEANporNombre,
   skuIdVeaPorEAN,
+  urlLaAnonimaPorEAN,
 };

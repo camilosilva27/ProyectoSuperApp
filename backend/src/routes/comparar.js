@@ -1,7 +1,11 @@
 /**
  * POST /api/comparar — el endpoint central: dado un carrito de EANs + cantidades, devuelve
- * precios y promos EN VIVO de los 5 supers, qué conviene comprar dónde, y cuánto se ahorra
- * mezclando versus comprar todo en un solo lugar.
+ * precios y promos EN VIVO de los supers activos, qué conviene comprar dónde, y cuánto se
+ * ahorra mezclando versus comprar todo en un solo lugar. La Anónima es la excepción parcial:
+ * solo entra si el `codigoPostal` del body tiene cobertura confirmada (ver
+ * filtrarPorCoberturaLaAnonima más abajo y AllPromos/core/laanonima-zona.js) — sin CP, o con
+ * un CP sin cobertura, se excluye en silencio, igual que cualquier super que el usuario no
+ * activó en `supers`.
  *
  * Todo el cálculo se delega a AllPromos/core/comparador.js y promo-engine.js — los mismos
  * módulos que usa el CLI. Acá solo se orquesta la consulta y se serializa a JSON, así el
@@ -30,6 +34,7 @@ const {
 } = require('../../../AllPromos/core/comparador');
 const { calcularCosto } = require('../../../AllPromos/promo-engine');
 const { esEANvalido } = require('../../../AllPromos/core/catalogo');
+const { tieneCoberturaCacheada } = require('../../../AllPromos/core/laanonima-zona');
 const catalogoUnificado = require('../catalogoUnificado');
 const precioCache = require('../precioCache');
 const { crearLimitador } = require('../limitadorGlobal');
@@ -52,11 +57,22 @@ function validarSupers(supers) {
 }
 
 /** SUPERMERCADOS filtrado según lo que el cliente eligió comparar (ver useFiltrosSupers en la
- *  app) — sin filtro, se sigue comparando contra los 5 de siempre. */
+ *  app) — sin filtro, se sigue comparando contra los de siempre. */
 function filtrarSupermercados(supers) {
   return Array.isArray(supers) && supers.length
     ? SUPERMERCADOS.filter(s => supers.includes(s.key))
     : SUPERMERCADOS;
+}
+
+/**
+ * Además del filtro de preferencia de arriba, La Anónima se excluye si el CP del usuario no
+ * tiene cobertura (o no mandó CP) — gate binario, no selector de precio (ver
+ * AllPromos/core/laanonima-zona.js). Silencioso a propósito: el resto de la comparación sigue
+ * igual, La Anónima simplemente no aparece, mismo criterio que "este super no tiene el
+ * producto" pero a nivel de super completo.
+ */
+function filtrarPorCoberturaLaAnonima(supermercados, coberturaConfirmada) {
+  return coberturaConfirmada ? supermercados : supermercados.filter(s => s.key !== 'laanonima');
 }
 
 // Único teaser de "tarjeta propia" implementado hoy en core/fetchers.js (Tarjeta Carrefour,
@@ -135,6 +151,9 @@ function validarBody(body) {
   if (body.tarjetas !== undefined && !Array.isArray(body.tarjetas)) {
     return 'tarjetas tiene que ser un array de strings';
   }
+  if (body.codigoPostal !== undefined && body.codigoPostal !== null && typeof body.codigoPostal !== 'string') {
+    return 'codigoPostal tiene que ser un string';
+  }
   const errorSupers = validarSupers(body.supers);
   if (errorSupers) return errorSupers;
   for (const item of body.items) {
@@ -200,7 +219,9 @@ router.post('/comparar', async (req, res) => {
   // Tarjetas que el usuario efectivamente seleccionó — determina qué promos cuentan para
   // el total. No se usa para decidir qué pedirle a las APIs (ver TARJETAS_QUE_AFECTAN_PRODUCTO).
   const tarjetasSeleccionadas = req.body.tarjetas ?? [];
-  const supermercados = filtrarSupermercados(req.body.supers);
+  const codigoPostal = req.body.codigoPostal ? String(req.body.codigoPostal).trim() || null : null;
+  const coberturaConfirmada = await tieneCoberturaCacheada(codigoPostal);
+  const supermercados = filtrarPorCoberturaLaAnonima(filtrarSupermercados(req.body.supers), coberturaConfirmada);
   const pedidos = req.body.items.map(i => ({
     ean: String(i.ean).trim(),
     cantidad: Number(i.cantidad ?? 1),
@@ -223,7 +244,12 @@ router.post('/comparar', async (req, res) => {
         productName: nombre,
         // Siempre se pide la promo de tarjeta propia si existe, independientemente de si el
         // usuario la seleccionó — así se puede avisar sin obligar a elegir nada antes.
-        ...(await buscarPorEANCacheado(ean, { tarjetas: TARJETAS_QUE_AFECTAN_PRODUCTO, skuIdVea: delCatalogo?.skuIdVea ?? null })),
+        ...(await buscarPorEANCacheado(ean, {
+          tarjetas: TARJETAS_QUE_AFECTAN_PRODUCTO,
+          skuIdVea: delCatalogo?.skuIdVea ?? null,
+          codigoPostal,
+          coberturaConfirmada,
+        })),
       };
 
       const opciones = calcularOpciones(grupo, cantidad, supermercados, tarjetasSeleccionadas);
@@ -342,7 +368,9 @@ router.post('/precios', async (req, res) => {
   }
   const errorSupers = validarSupers(req.body?.supers);
   if (errorSupers) return res.status(400).json({ error: errorSupers });
-  const supermercados = filtrarSupermercados(req.body?.supers);
+  const codigoPostal = req.body?.codigoPostal ? String(req.body.codigoPostal).trim() || null : null;
+  const coberturaConfirmada = await tieneCoberturaCacheada(codigoPostal);
+  const supermercados = filtrarPorCoberturaLaAnonima(filtrarSupermercados(req.body?.supers), coberturaConfirmada);
 
   const resultados = await mapConLimite(eans, ITEMS_EN_PARALELO, async ean => {
     const delCatalogo = catalogoUnificado.porEAN(ean);
@@ -352,6 +380,8 @@ router.post('/precios', async (req, res) => {
         ...(await buscarPorEANCacheado(ean, {
           tarjetas: TARJETAS_QUE_AFECTAN_PRODUCTO,
           skuIdVea: delCatalogo?.skuIdVea ?? null,
+          codigoPostal,
+          coberturaConfirmada,
         })),
       };
       const opciones = calcularOpciones(grupo, 1, supermercados, []);

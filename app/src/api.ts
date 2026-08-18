@@ -6,7 +6,7 @@
  * permite controlar el ritmo de requests en un solo lugar en vez de en cada teléfono.
  */
 
-export type SuperKey = 'vea' | 'carr' | 'changomas' | 'dia' | 'coto';
+export type SuperKey = 'vea' | 'carr' | 'changomas' | 'dia' | 'coto' | 'laanonima';
 
 export type Supermercado = { key: SuperKey; nombre: string; tag: string };
 
@@ -172,22 +172,36 @@ export function buscarProductos(q: string, opciones: {
 }
 
 export function comparar(
-  items: { ean: string; cantidad: number }[], tarjetas: string[], supers?: SuperKey[]
+  items: { ean: string; cantidad: number }[],
+  tarjetas: string[],
+  supers?: SuperKey[],
+  /** Específico de La Anónima (ver codigoPostalLaAnonima.tsx) — gate de cobertura, no
+   *  selector de precio. Sin esto, o sin cobertura confirmada en el backend, La Anónima
+   *  queda excluida de la comparación sin afectar al resto. */
+  codigoPostal?: string
 ) {
   return pedir<RespuestaComparar>('/api/comparar', {
     method: 'POST',
-    body: JSON.stringify({ items, tarjetas, supers }),
+    body: JSON.stringify({ items, tarjetas, supers, codigoPostal }),
   });
 }
 
 /** Máximo por lote — tiene que coincidir con MAX_EANS_PRECIOS del backend (routes/comparar.js). */
 export const MAX_EANS_PRECIOS = 40;
 
-export function precios(eans: string[], supers?: SuperKey[]) {
+export function precios(eans: string[], supers?: SuperKey[], codigoPostal?: string) {
   return pedir<{ generado: string; resultados: PrecioRapido[] }>('/api/precios', {
     method: 'POST',
-    body: JSON.stringify({ eans, supers }),
+    body: JSON.stringify({ eans, supers, codigoPostal }),
   });
+}
+
+/** La app la usa al momento de guardar el CP del usuario (ver codigoPostalLaAnonima.tsx), para
+ *  avisar "sin cobertura" antes de activar el super — no en cada comparación. */
+export function verificarCoberturaLaAnonima(cp: string) {
+  return pedir<{ codigoPostal: string; coberturaConfirmada: boolean }>(
+    `/api/laanonima/cobertura?cp=${encodeURIComponent(cp)}`
+  );
 }
 
 export function salud() {

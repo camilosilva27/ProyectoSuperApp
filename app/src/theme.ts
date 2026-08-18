@@ -20,8 +20,8 @@ import { Platform } from 'react-native';
 export type Esquema = 'light' | 'dark';
 
 const superColores = {
-  light: { vea: '#12874A', carr: '#1B5FD9', changomas: '#7A3FB8', coto: '#D6293E', dia: '#FFFFFF' },
-  dark:  { vea: '#2FBE7A', carr: '#6A97F7', changomas: '#B085DE', coto: '#F0555F', dia: '#FFFFFF' },
+  light: { vea: '#12874A', carr: '#1B5FD9', changomas: '#7A3FB8', coto: '#D6293E', dia: '#FFFFFF', laanonima: '#A65E2E' },
+  dark:  { vea: '#2FBE7A', carr: '#6A97F7', changomas: '#B085DE', coto: '#F0555F', dia: '#FFFFFF', laanonima: '#E0904F' },
 };
 
 // Bordes SOLO para identidades cuyo relleno no contrasta por sí solo contra el fondo — hoy

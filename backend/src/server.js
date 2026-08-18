@@ -18,6 +18,7 @@ const healthRouter = require('./routes/health');
 const catalogoRouter = require('./routes/catalogo');
 const compararRouter = require('./routes/comparar');
 const misDescuentosRouter = require('./routes/misDescuentos');
+const laAnonimaRouter = require('./routes/laanonima');
 const sondaEnVivo = require('./sondaEnVivo');
 
 const app = express();
@@ -71,7 +72,7 @@ app.use('/api', rateLimit({
   message: { error: 'Demasiadas comparaciones seguidas, esperá un momento' },
   skip: req => !req.path.startsWith('/comparar') && !req.path.startsWith('/precios')
     && !req.path.startsWith('/mis-descuentos'),
-}), catalogoRouter, compararRouter, misDescuentosRouter);
+}), catalogoRouter, compararRouter, misDescuentosRouter, laAnonimaRouter);
 
 app.use((req, res) => res.status(404).json({ error: 'Ruta no encontrada' }));
 

@@ -24,12 +24,14 @@ import {
   type ProductoCatalogo, type PrecioRapido, type SuperKey, type OrdenBusqueda,
 } from '../../src/api';
 import { useCarrito } from '../../src/carrito';
+import { useCodigoPostalLaAnonima } from '../../src/codigoPostalLaAnonima';
 import {
   BandaDisponibilidad, BotonPrincipal, NOMBRE_SUPER, ORDEN_SUPERS, Problema, Stepper, Vacio,
 } from '../../src/componentes/comunes';
 import { ComoFunciona } from '../../src/componentes/ComoFunciona';
 import { FotoProducto } from '../../src/componentes/FotoProducto';
 import { BarraSupers, HeaderNegro, TituloHeader } from '../../src/componentes/HeaderNegro';
+import { ModalCodigoPostalLaAnonima } from '../../src/componentes/ModalCodigoPostalLaAnonima';
 import { useFiltrosSupers } from '../../src/filtrosSupers';
 import { espacio, pesos, radio, texto } from '../../src/theme';
 import { useTema } from '../../src/useTema';
@@ -42,7 +44,7 @@ import { useTema } from '../../src/useTema';
  * (POST /api/precios) para por qué esto no reemplaza /api/catalogo/buscar: ese nunca trae
  * precio, a propósito.
  */
-function usePreciosProgresivos(supersActivos: SuperKey[]) {
+function usePreciosProgresivos(supersActivos: SuperKey[], codigoPostal: string | undefined) {
   const [precios, setPrecios] = useState<Record<string, PrecioRapido | 'error'>>({});
   const pedidos = useRef(new Set<string>());
   const pendientes = useRef(new Set<string>());
@@ -50,6 +52,8 @@ function usePreciosProgresivos(supersActivos: SuperKey[]) {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const supersRef = useRef(supersActivos);
   supersRef.current = supersActivos;
+  const codigoPostalRef = useRef(codigoPostal);
+  codigoPostalRef.current = codigoPostal;
 
   const pedirLote = useCallback(() => {
     const lote = [...pendientes.current].slice(0, MAX_EANS_PRECIOS);
@@ -57,7 +61,7 @@ function usePreciosProgresivos(supersActivos: SuperKey[]) {
     if (!lote.length) return;
     lote.forEach(ean => pedidos.current.add(ean));
 
-    pedirPrecios(lote, supersRef.current)
+    pedirPrecios(lote, supersRef.current, codigoPostalRef.current)
       .then(({ resultados }) => {
         setPrecios(prev => {
           const siguiente = { ...prev };
@@ -98,7 +102,7 @@ function usePreciosProgresivos(supersActivos: SuperKey[]) {
     pedidos.current.clear();
     pendientes.current.clear();
     if (visibles.current.length) marcarVisibles(visibles.current);
-  }, [supersActivos, marcarVisibles]);
+  }, [supersActivos, codigoPostal, marcarVisibles]);
 
   return { precios, marcarVisibles };
 }
@@ -129,7 +133,9 @@ export default function PantallaBuscar() {
   const consultaValida = consultaDemorada.length >= 2;
   const [orden, setOrden] = useState<OrdenBusqueda>('alfabetico');
   const [mostrarComoFunciona, setMostrarComoFunciona] = useState(false);
+  const [modalCPVisible, setModalCPVisible] = useState(false);
   const { supersActivos, toggleSuper } = useFiltrosSupers();
+  const cpLaAnonima = useCodigoPostalLaAnonima();
 
   const { data, isFetching, error, refetch } = useQuery({
     queryKey: ['catalogo', consultaDemorada, supersActivos, orden],
@@ -140,7 +146,23 @@ export default function PantallaBuscar() {
   const resultados = data?.resultados ?? [];
   const hayMas = (data?.total ?? 0) > resultados.length;
 
-  const { precios, marcarVisibles } = usePreciosProgresivos(supersActivos);
+  // Solo relevante para La Anónima (gate de cobertura, ver codigoPostalLaAnonima.tsx) — el
+  // resto de los supers ignora esto por completo, tanto acá como en el backend.
+  const codigoPostalActivo = cpLaAnonima.estado?.coberturaConfirmada
+    ? cpLaAnonima.estado.codigoPostal ?? undefined
+    : undefined;
+
+  // Activar La Anónima por primera vez dispara el modal de CP en vez de activarla directo; el
+  // resto de los supers (y desactivar) se comporta exactamente igual que antes.
+  const onToggleSuper = (key: SuperKey) => {
+    if (key === 'laanonima' && !supersActivos.includes('laanonima') && !cpLaAnonima.estado?.coberturaConfirmada) {
+      setModalCPVisible(true);
+      return;
+    }
+    toggleSuper(key);
+  };
+
+  const { precios, marcarVisibles } = usePreciosProgresivos(supersActivos, codigoPostalActivo);
   const onViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems: Array<{ item: ProductoCatalogo }> }) => {
       marcarVisibles(viewableItems.map(v => v.item.ean));
@@ -187,9 +209,11 @@ export default function PantallaBuscar() {
         <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>
           {cargandoOrdenPrecio
             ? 'ORDENANDO POR PRECIO…'
-            : data?.total === 0
-              ? 'SIN RESULTADOS'
-              : `${data?.total} RESULTADO${data?.total === 1 ? '' : 'S'} EN ${supersEnResultados} SUPER${supersEnResultados === 1 ? '' : 'S'}`}
+            : isFetching && data === undefined
+              ? 'BUSCANDO…'
+              : data?.total === 0
+                ? 'SIN RESULTADOS'
+                : `${data?.total} RESULTADO${data?.total === 1 ? '' : 'S'} EN ${supersEnResultados} SUPER${supersEnResultados === 1 ? '' : 'S'}`}
         </Text>
         <Pressable onPress={cicloOrden} accessibilityRole="button" style={styles.selectorOrden}>
           <Text style={[texto.etiqueta, styles.subrayado, { color: paleta.tinta }]}>
@@ -199,7 +223,7 @@ export default function PantallaBuscar() {
         </Pressable>
       </View>
     ) : null
-  ), [consultaValida, cargandoOrdenPrecio, data?.total, supersEnResultados, orden, paleta]);
+  ), [consultaValida, cargandoOrdenPrecio, isFetching, data, supersEnResultados, orden, paleta]);
 
   return (
     <View style={[styles.pantalla, { backgroundColor: paleta.fondo }]}>
@@ -232,7 +256,7 @@ export default function PantallaBuscar() {
         </View>
         {/* Sin barra de supers antes de una búsqueda válida: todavía no hay nada que filtrar
             (SPEC § 4.1, gana sobre el turno v2 que la mostraba siempre). */}
-        {consultaValida ? <BarraSupers activos={supersActivos} onToggle={toggleSuper} /> : null}
+        {consultaValida ? <BarraSupers activos={supersActivos} onToggle={onToggleSuper} /> : null}
       </HeaderNegro>
 
       {!consultaValida ? (
@@ -286,6 +310,18 @@ export default function PantallaBuscar() {
       )}
 
       <ComoFunciona visible={mostrarComoFunciona} onClose={() => setMostrarComoFunciona(false)} />
+
+      <ModalCodigoPostalLaAnonima
+        visible={modalCPVisible}
+        cpPrevio={cpLaAnonima.estado && !cpLaAnonima.estado.coberturaConfirmada ? cpLaAnonima.estado.codigoPostal : null}
+        onConfirmar={async cp => {
+          const coberturaConfirmada = await cpLaAnonima.guardar(cp);
+          if (coberturaConfirmada) toggleSuper('laanonima');
+          return coberturaConfirmada;
+        }}
+        onOmitir={() => cpLaAnonima.omitir()}
+        onCerrar={() => setModalCPVisible(false)}
+      />
 
       {carrito.items.length > 0 ? (
         <View

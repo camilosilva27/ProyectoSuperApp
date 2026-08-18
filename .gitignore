@@ -5,6 +5,7 @@ node_modules/
 # Ojo: son necesarios para correr el CLI/backend — regenerar con los scraper-promos-*.js
 AllPromos/catalogo-*.json
 AllPromos/promos-*.json
+AllPromos/laanonima-reporte-matching.json
 backend/catalogo-unificado.json
 backend/catalogo-unificado.json.tmp
 
@@ -20,6 +21,7 @@ backend/logs/
 .env.*
 !.env.example
 AllPromos/mis-tarjetas.json
+AllPromos/mi-codigo-postal.json
 
 # Listas de compra personales
 AllPromos/compras-*.txt
