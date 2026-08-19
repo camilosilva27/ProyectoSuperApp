@@ -237,7 +237,15 @@ function HeaderVeredicto({
 
   return (
     <HeaderNegro paddingTop={insets.top + espacio.md} estilo={{ gap: espacio.md }}>
-      <Pressable onPress={() => router.back()} accessibilityRole="button" style={styles.filaVolver}>
+      {/* router.back() sin más falla con "GO_BACK not handled" si no hay historial previo
+          (recargar la página en /resultado, o entrar por URL directa) — el botón quedaba sin
+          responder en ese caso. canGoBack() lo detecta y cae a Carrito, que es de donde se
+          llega siempre en el flujo normal. */}
+      <Pressable
+        onPress={() => (router.canGoBack() ? router.back() : router.replace('/carrito'))}
+        accessibilityRole="button"
+        style={styles.filaVolver}
+      >
         <Text style={styles.flechaVolver}>‹</Text>
         <Text style={[texto.micro, styles.labelHeaderOscuro]}>DÓNDE COMPRAR</Text>
       </Pressable>

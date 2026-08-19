@@ -111,7 +111,14 @@ export default function PantallaMisDescuentos() {
   return (
     <View style={{ flex: 1, backgroundColor: paleta.fondo }}>
       <HeaderNegro paddingTop={insets.top + espacio.md} estilo={{ gap: espacio.sm }}>
-        <Pressable onPress={() => router.back()} accessibilityRole="button" style={styles.filaVolver}>
+        {/* router.back() sin más falla con "GO_BACK not handled" si no hay historial previo
+            (recargar la página acá, o entrar por URL directa) — canGoBack() lo detecta y cae
+            a Carrito, que es de donde se llega siempre en el flujo normal. */}
+        <Pressable
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/carrito'))}
+          accessibilityRole="button"
+          style={styles.filaVolver}
+        >
           <Text style={styles.flecha}>‹</Text>
           <Text style={[texto.tituloHeader, styles.titulo]}>Mis descuentos</Text>
         </Pressable>
