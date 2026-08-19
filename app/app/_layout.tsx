@@ -22,6 +22,7 @@ import { StatusBar } from 'expo-status-bar';
 import React from 'react';
 import { Platform, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { AuthProvider } from '../src/auth';
 import { ProveedorCarrito } from '../src/carrito';
 import { ProveedorCarritosGuardados } from '../src/carritosGuardados';
 import { ProveedorCodigoPostalLaAnonima } from '../src/codigoPostalLaAnonima';
@@ -67,39 +68,41 @@ export default function LayoutRaiz() {
   return (
     <QueryClientProvider client={cliente}>
       <SafeAreaProvider>
-        <ProveedorFiltrosSupers>
-          <ProveedorCodigoPostalLaAnonima>
-            <ProveedorCarrito>
-              <ProveedorCarritosGuardados>
-                <ProveedorHistorialAhorro>
-                  <Head><title>Super App</title></Head>
-                  <StatusBar style={esquema === 'dark' ? 'light' : 'dark'} />
-                  <Stack
-                    screenOptions={{
-                      contentStyle: { backgroundColor: paleta.fondo },
-                      headerStyle: { backgroundColor: paleta.fondo },
-                      headerShadowVisible: false,
-                      headerTintColor: paleta.tinta,
-                      headerTitleStyle: { ...texto.subtitulo, color: paleta.tinta },
-                    }}
-                  >
-                    <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                    <Stack.Screen
-                      name="resultado"
-                      options={{ headerShown: false, presentation: 'card' }}
-                    />
-                    <Stack.Screen
-                      name="mis-descuentos"
-                      options={{ headerShown: false, presentation: 'card' }}
-                    />
-                  </Stack>
-                  {/* @vercel/analytics/react manipula document.head — no existe en iOS/Android */}
-                  {Platform.OS === 'web' ? <Analytics /> : null}
-                </ProveedorHistorialAhorro>
-              </ProveedorCarritosGuardados>
-            </ProveedorCarrito>
-          </ProveedorCodigoPostalLaAnonima>
-        </ProveedorFiltrosSupers>
+        <AuthProvider>
+          <ProveedorFiltrosSupers>
+            <ProveedorCodigoPostalLaAnonima>
+              <ProveedorCarrito>
+                <ProveedorCarritosGuardados>
+                  <ProveedorHistorialAhorro>
+                    <Head><title>Super App</title></Head>
+                    <StatusBar style={esquema === 'dark' ? 'light' : 'dark'} />
+                    <Stack
+                      screenOptions={{
+                        contentStyle: { backgroundColor: paleta.fondo },
+                        headerStyle: { backgroundColor: paleta.fondo },
+                        headerShadowVisible: false,
+                        headerTintColor: paleta.tinta,
+                        headerTitleStyle: { ...texto.subtitulo, color: paleta.tinta },
+                      }}
+                    >
+                      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                      <Stack.Screen
+                        name="resultado"
+                        options={{ headerShown: false, presentation: 'card' }}
+                      />
+                      <Stack.Screen
+                        name="mis-descuentos"
+                        options={{ headerShown: false, presentation: 'card' }}
+                      />
+                    </Stack>
+                    {/* @vercel/analytics/react manipula document.head — no existe en iOS/Android */}
+                    {Platform.OS === 'web' ? <Analytics /> : null}
+                  </ProveedorHistorialAhorro>
+                </ProveedorCarritosGuardados>
+              </ProveedorCarrito>
+            </ProveedorCodigoPostalLaAnonima>
+          </ProveedorFiltrosSupers>
+        </AuthProvider>
       </SafeAreaProvider>
     </QueryClientProvider>
   );

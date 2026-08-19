@@ -6,12 +6,17 @@
  * volver a tocarla cada vez que abre la app. Afecta tanto la búsqueda de catálogo como la
  * comparación de precios en vivo (ver buscarProductos/comparar/precios en api.ts) — un super
  * apagado acá no aparece en ninguna de las dos.
+ *
+ * Anónimo: AsyncStorage. Logueado (Fase 1, Plan_Usuarios_y_cobros.md): sincroniza con
+ * `perfil_usuario.supers_activos` en Supabase — ver `useSincronizacionPersistente`. Es la
+ * misma razón por la que esto sincroniza entre dispositivos: qué supers te sirven es un dato
+ * sobre la persona, no sobre el aparato que tiene en la mano.
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useMemo, useState } from 'react';
 import type { SuperKey } from './api';
 import { ORDEN_SUPERS } from './componentes/comunes';
+import { useSincronizacionPersistente } from './sincronizacionPersistente';
 
 const CLAVE = 'allpromos:supersActivos:v1';
 
@@ -28,28 +33,27 @@ type Contexto = {
 
 const FiltrosSupersContext = createContext<Contexto | null>(null);
 
+type FilaPerfil = { supers_activos: SuperKey[] };
+
 export function ProveedorFiltrosSupers({ children }: { children: React.ReactNode }) {
   const [supersActivos, setSupersActivos] = useState<SuperKey[]>(SUPERS_ACTIVOS_POR_DEFECTO);
   const [cargado, setCargado] = useState(false);
 
-  useEffect(() => {
-    AsyncStorage.getItem(CLAVE)
-      .then(crudo => {
-        if (!crudo) return;
-        const guardado = JSON.parse(crudo);
-        const limpio = Array.isArray(guardado)
-          ? guardado.filter((k: string) => ORDEN_SUPERS.includes(k as SuperKey))
-          : [];
-        if (limpio.length) setSupersActivos(limpio);
-      })
-      .catch(() => { /* si falla la lectura, se queda con los 5 activos por defecto */ })
-      .finally(() => setCargado(true));
-  }, []);
-
-  useEffect(() => {
-    if (!cargado) return; // no sobreescribir lo guardado antes de hidratar
-    AsyncStorage.setItem(CLAVE, JSON.stringify(supersActivos)).catch(() => {});
-  }, [supersActivos, cargado]);
+  useSincronizacionPersistente<SuperKey[], FilaPerfil>({
+    clave: CLAVE,
+    columnas: ['supers_activos'],
+    valor: cargado ? supersActivos : null,
+    aFila: local => ({ supers_activos: local }),
+    deFila: fila => fila.supers_activos,
+    filaVacia: fila => fila.supers_activos.length === 0,
+    onHidratar: local => {
+      const limpio = Array.isArray(local)
+        ? local.filter((k: string) => ORDEN_SUPERS.includes(k as SuperKey))
+        : [];
+      if (limpio.length) setSupersActivos(limpio);
+      setCargado(true);
+    },
+  });
 
   const valor = useMemo<Contexto>(() => ({
     supersActivos,

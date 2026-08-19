@@ -1,16 +1,18 @@
 /**
  * Estado del carrito de compra.
  *
- * Vive solo en el teléfono (AsyncStorage): sincronizar una lista familiar entre dispositivos
- * exigiría estado y autenticación en el backend, y no hace falta para la primera versión.
+ * Anónimo: vive solo en el teléfono (AsyncStorage). Logueado (Fase 1,
+ * Plan_Usuarios_y_cobros.md): sincroniza con `perfil_usuario` en Supabase entre dispositivos —
+ * ver `useSincronizacionPersistente`, que decide contra cuál de las dos hidratar/persistir.
+ * El reducer de abajo no sabe nada de eso, es la misma fuente de verdad en los dos casos.
  *
  * Las tarjetas del usuario también se guardan acá porque viajan en cada comparación: el
  * backend no lee mis-tarjetas.json (eso es del CLI), las recibe por request.
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { createContext, useContext, useEffect, useMemo, useReducer } from 'react';
+import React, { createContext, useContext, useMemo, useReducer } from 'react';
 import type { ProductoCatalogo } from './api';
+import { useSincronizacionPersistente } from './sincronizacionPersistente';
 
 export type ItemCarrito = {
   ean: string;
@@ -123,32 +125,30 @@ type Contexto = Estado & {
 
 const CarritoContext = createContext<Contexto | null>(null);
 
+/** Forma que viaja por AsyncStorage — sin cambios, para no perder lo que ya tenga guardado
+ *  cualquiera que use la app hoy. Distinta de la fila de Supabase (`carrito_items`/
+ *  `carrito_tarjetas`), que se traduce en las funciones de abajo. */
+type BlobLocal = { items: ItemCarrito[]; tarjetas: string[] };
+type FilaPerfil = { carrito_items: ItemCarrito[]; carrito_tarjetas: string[] };
+
 export function ProveedorCarrito({ children }: { children: React.ReactNode }) {
   const [estado, despachar] = useReducer(reducir, INICIAL);
 
-  useEffect(() => {
-    AsyncStorage.getItem(CLAVE)
-      .then(crudo => {
-        if (!crudo) return despachar({ tipo: 'hidratar', estado: {} });
-        const guardado = JSON.parse(crudo);
-        despachar({
-          tipo: 'hidratar',
-          estado: {
-            items: Array.isArray(guardado.items) ? guardado.items : [],
-            tarjetas: Array.isArray(guardado.tarjetas) ? guardado.tarjetas : INICIAL.tarjetas,
-          },
-        });
-      })
-      .catch(() => despachar({ tipo: 'hidratar', estado: {} }));
-  }, []);
-
-  useEffect(() => {
-    if (!estado.cargado) return; // no sobreescribir lo guardado antes de hidratar
-    AsyncStorage.setItem(
-      CLAVE,
-      JSON.stringify({ items: estado.items, tarjetas: estado.tarjetas })
-    ).catch(() => { /* si falla el guardado no hay nada útil que hacer en la UI */ });
-  }, [estado.items, estado.tarjetas, estado.cargado]);
+  useSincronizacionPersistente<BlobLocal, FilaPerfil>({
+    clave: CLAVE,
+    columnas: ['carrito_items', 'carrito_tarjetas'],
+    valor: estado.cargado ? { items: estado.items, tarjetas: estado.tarjetas } : null,
+    aFila: local => ({ carrito_items: local.items, carrito_tarjetas: local.tarjetas }),
+    deFila: fila => ({
+      items: Array.isArray(fila.carrito_items) ? fila.carrito_items : [],
+      tarjetas: Array.isArray(fila.carrito_tarjetas) ? fila.carrito_tarjetas : [],
+    }),
+    filaVacia: fila => fila.carrito_items.length === 0 && fila.carrito_tarjetas.length === 0,
+    // `local` es null si no había nada guardado (usuario anónimo nuevo, o error leyendo el
+    // perfil) — se despacha igual con `{}` para que el reducer marque `cargado: true` y
+    // arranque a persistir, mismo criterio que el fallback que ya tenía esto antes.
+    onHidratar: local => despachar({ tipo: 'hidratar', estado: local ?? {} }),
+  });
 
   const valor = useMemo<Contexto>(() => ({
     ...estado,
