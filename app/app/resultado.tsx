@@ -46,6 +46,13 @@ function colorIdentidad(paleta: ReturnType<typeof useTema>['paleta'], key: Super
  *  es el mismo valor que usa el diseño aprobado para ese punto con ✓. */
 const VERDE_APLICADA = '#12874A';
 
+/** Algunos bancos escriben su propio tope legal como un número absurdamente alto (ej.
+ *  Mercado Pago: "$ 9999999 por usuario") para decir, en la práctica, "sin tope" — es el
+ *  texto real de la promo, no un error de parseo. Por encima de este umbral (bien por
+ *  arriba de lo que puede costar un ticket de supermercado real) no tiene sentido mostrarle
+ *  el número al usuario como si fuera un límite que puede llegar a tocar. */
+const TOPE_PRACTICO_MAXIMO = 1_000_000;
+
 /** Una promo de tarjeta sin activar, en el super donde el producto ya quedó asignado —
  *  ver PromosSinAplicar para por qué solo estas entran acá. */
 type PromoSinAplicar = {
@@ -426,7 +433,9 @@ function PlanDeCompra({ data }: { data: RespuestaComparar }) {
                     </Text>
                     <Text style={[texto.dato, { color: paleta.tintaSuave }]}>
                       {Math.round(ahorroBancario.descuentoPct * 100)}% de descuento
-                      {ahorroBancario.topeDetectado ? ` (tope ${pesos(ahorroBancario.tope!)})` : ''}
+                      {ahorroBancario.topeDetectado && ahorroBancario.tope! <= TOPE_PRACTICO_MAXIMO
+                        ? ` (tope ${pesos(ahorroBancario.tope!)})`
+                        : ''}
                       {' '}— ya está restado del total
                     </Text>
                   </View>

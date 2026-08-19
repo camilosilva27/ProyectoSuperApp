@@ -81,9 +81,9 @@ function filtrarPorCoberturaLaAnonima(supermercados, coberturaConfirmada) {
 }
 
 // Único teaser de "tarjeta propia" implementado hoy en core/fetchers.js (Tarjeta Carrefour,
-// ver interpretarTeaserTarjetaPropia en promo-engine.js). Cencopay (Vea) está investigado
-// (ver CONTEXTO_TECNICO.md) pero todavía no tiene el fetcher de cluster implementado — cuando
-// se agregue, entra en esta lista para que también se detecte sin necesidad de seleccionarla.
+// ver interpretarTeaserTarjetaPropia en promo-engine.js). Cencopay (Vea) se investigó y se
+// descartó — ver "Cerrado, no implementar" en CONTEXTO_TECNICO.md: la fuente de datos está
+// abandonada por Vea (0 ofertas vigentes, la última hace 9 meses).
 const TARJETAS_QUE_AFECTAN_PRODUCTO = ['Mi Carrefour'];
 
 const MAX_ITEMS = 60;

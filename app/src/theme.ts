@@ -6,8 +6,10 @@
  * 1. Los colores de los supermercados son DATOS, no decoración. Vea verde, Carrefour azul,
  *    Chango Más violeta, Coto rojo y Día blanco (con borde propio, ver `superBordes`) es la
  *    misma convención que ya se lee en la salida del CLI, así que el color de un precio
- *    siempre dice "de qué super es" y nunca "esto está bien/mal". Tampoco usamos logos ni
- *    los colores de marca reales: la app no está afiliada a ninguna cadena y no debe parecerlo.
+ *    siempre dice "de qué super es" y nunca "esto está bien/mal". No son necesariamente los
+ *    colores de marca reales de cada cadena — el criterio acá es consistencia de lectura,
+ *    no branding. Los logos reales sí se usan para identificar cada cadena en otros puntos
+ *    de la UI (ver `assets/logos/`).
  *
  * 2. El ahorro se marca con amarillo de cartel de oferta, no con el verde de "éxito".
  *    El verde ya está ocupado por Vea como dato; si además significara "ahorro", un precio
