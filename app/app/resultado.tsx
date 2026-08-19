@@ -386,6 +386,10 @@ function PlanDeCompra({ data }: { data: RespuestaComparar }) {
             .filter((t): t is string => !!t)
         );
         const ahorroBancario = bancario?.porSuper[s.key] ?? null;
+        // Tope real pero absurdamente alto (ej. Mercado Pago: "$9.999.999 por usuario", texto
+        // legal real, no un error) — ni el número ni "ya está restado del total" se muestran
+        // para este caso.
+        const topeIrreal = !!ahorroBancario?.topeDetectado && ahorroBancario.tope! > TOPE_PRACTICO_MAXIMO;
 
         return (
           <View key={s.key} style={[styles.bloqueSuper, { borderColor: paleta.borde }]}>
@@ -436,10 +440,10 @@ function PlanDeCompra({ data }: { data: RespuestaComparar }) {
                     </Text>
                     <Text style={[texto.dato, { color: paleta.tintaSuave }]}>
                       {Math.round(ahorroBancario.descuentoPct * 100)}% de descuento
-                      {ahorroBancario.topeDetectado && ahorroBancario.tope! <= TOPE_PRACTICO_MAXIMO
+                      {ahorroBancario.topeDetectado && !topeIrreal
                         ? ` (tope ${pesos(ahorroBancario.tope!)})`
                         : ''}
-                      {' '}— ya está restado del total
+                      {!topeIrreal ? ' — ya está restado del total' : ''}
                     </Text>
                   </View>
                 </View>
