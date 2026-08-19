@@ -47,9 +47,28 @@
  * ninguno de estos dos campos se usa para mostrar un precio en vivo al usuario — son solo para
  * `catalogo-coto.json`/`promos-coto.json` (inspección + resolución nombre→EAN).
  *
+ * CAPADO A PROPÓSITO A ~5.000 SKUs (2026-08-19, antes capturaba el catálogo real completo,
+ * ~57.789 SKUs): decisión explícita del usuario, por dos motivos. Primero, un producto que
+ * existe SOLO en Coto no le sirve al fin de la app (comparar entre supers) — no hay nada con
+ * qué compararlo, así que tenerlo en el catálogo local solo agrega ruido, no valor. Segundo,
+ * Coto era el responsable de que el catálogo unificado (`catalogo-unificado.json`, lo que
+ * carga entero en memoria `backend/src/catalogoUnificado.js` en cada búsqueda de la app) fuera
+ * ~5x más grande que la suma de los otros 4 supers juntos — con margen justo de RAM en la VM
+ * de producción (e2-micro, 958MB, ver CONTEXTO_TECNICO.md § "Alcance y limitaciones" para la
+ * medición completa que probó que ampliar esto en vez de recortarlo directamente crashea el
+ * proceso por out-of-memory). Sin pasar `sort_by`, Constructor.io ya devuelve "lo más
+ * relevante" primero (`sort_options[].status === "selected"` para `relevance` por default,
+ * confirmado en vivo) — no es exactamente "más vendidos" como el `OrderByTopSaleDESC` de VTEX
+ * (Constructor.io no expone un sort de ventas), pero es la mejor aproximación disponible a
+ * "lo que más le importa a la mayoría", y es gratis: no hay que cambiar ningún parámetro.
+ * `repartirPresupuesto()` reparte el objetivo de ~5.000 entre las 10 categorías proporcional al
+ * tamaño real de cada una (`total_num_results`, con un pedido liviano de 1 solo resultado por
+ * categoría antes de scrapear en serio) — así una categoría grande como Almacén no queda
+ * subrepresentada frente a una chica como Aire Libre.
+ *
  * Salida:
- *   catalogo-coto.json  — todos los SKUs con EAN, precio dominante y promo
- *   promos-coto.json    — solo los SKUs con algún tipo de descuento
+ *   catalogo-coto.json  — ~5.000 SKUs más relevantes por categoría (no el catálogo completo)
+ *   promos-coto.json    — solo los SKUs con algún tipo de descuento, dentro de esos ~5.000
  */
 
 const fs = require('fs');
@@ -57,7 +76,8 @@ const fs = require('fs');
 const KEY = 'key_r6xzz4IAoTWcipni';
 const BASE_URL = 'https://api.coto.com.ar/api/v1/ms-digital-sitio-bff-web/api/v1/products/categories';
 const PAGE_SIZE = 200;
-const MAX_PAGINAS = 60; // red de seguridad — en la práctica corta antes por página vacía
+const MAX_PAGINAS = 60; // red de seguridad absoluta — el presupuesto por categoría (más abajo) corta mucho antes
+const TOTAL_OBJETIVO_SKUS = 5000; // ver nota arriba — antes no existía este tope, se traía todo
 
 const CATEGORIAS = [
   { id: 'catv00001254', nombre: 'Almacén' },
@@ -170,6 +190,29 @@ async function getCategoryPage(categoryId, page, retries = 3) {
   return data.response?.results || [];
 }
 
+/** Pedido liviano (1 solo resultado) solo para conocer el tamaño real de la categoría antes de
+ *  decidir cuántas páginas scrapear en serio — ver repartirPresupuesto(). */
+async function contarCategoria(categoryId) {
+  const url = `${BASE_URL}/${categoryId}?key=${KEY}&num_results_per_page=1&page=1`;
+  const res = await fetch(url, { headers: HEADERS });
+  if (!res.ok) throw new Error(`Conteo de categoría ${categoryId} falló: ${res.status} ${res.statusText}`);
+  const data = await res.json();
+  return data.response?.total_num_results || 0;
+}
+
+/** Reparte TOTAL_OBJETIVO_SKUS entre las categorías, proporcional a su tamaño real, para que
+ *  una categoría grande (Almacén) no quede tan subrepresentada como una chica (Aire Libre)
+ *  frente a un reparto parejo. Devuelve páginas por categoría (mínimo 1, para no dejar
+ *  ninguna categoría en cero). */
+function repartirPresupuesto(totalesPorCategoria) {
+  const sumaTotal = totalesPorCategoria.reduce((acc, t) => acc + t, 0);
+  if (!sumaTotal) return totalesPorCategoria.map(() => 1);
+  return totalesPorCategoria.map(total => {
+    const skusObjetivo = (TOTAL_OBJETIVO_SKUS * total) / sumaTotal;
+    return Math.max(1, Math.round(skusObjetivo / PAGE_SIZE));
+  });
+}
+
 function parsearProducto(item) {
   const d = item.data;
   const precios = (d.price || [])
@@ -195,10 +238,11 @@ function parsearProducto(item) {
   };
 }
 
-async function scrapearCategoria(categoria, vistos, allSkus) {
+async function scrapearCategoria(categoria, vistos, allSkus, paginasPresupuestadas) {
   let page = 1;
   let nuevos = 0;
-  while (page <= MAX_PAGINAS) {
+  const tope = Math.min(paginasPresupuestadas, MAX_PAGINAS);
+  while (page <= tope) {
     let resultados;
     try {
       resultados = await getCategoryPage(categoria.id, page);
@@ -226,13 +270,24 @@ async function scrapearCategoria(categoria, vistos, allSkus) {
 
 async function main() {
   console.log('=== Scraper Coto — Catálogo + Promociones ===\n');
-  console.log('📦 Paginando por categoría...');
+  console.log(`📏 Midiendo tamaño real de cada categoría (para repartir el objetivo de ~${TOTAL_OBJETIVO_SKUS} SKUs)...`);
+
+  const totalesPorCategoria = [];
+  for (const categoria of CATEGORIAS) {
+    const total = await contarCategoria(categoria.id);
+    totalesPorCategoria.push(total);
+    console.log(`  ${categoria.nombre}: ${total} SKUs reales`);
+    await sleep(300);
+  }
+  const paginasPorCategoria = repartirPresupuesto(totalesPorCategoria);
+  console.log('\n📦 Paginando por categoría (recortado a lo más relevante de cada una)...');
 
   const vistos = new Set();
   const allSkus = [];
 
-  for (const categoria of CATEGORIAS) {
-    const nuevos = await scrapearCategoria(categoria, vistos, allSkus);
+  for (let i = 0; i < CATEGORIAS.length; i++) {
+    const categoria = CATEGORIAS[i];
+    const nuevos = await scrapearCategoria(categoria, vistos, allSkus, paginasPorCategoria[i]);
     console.log(`\n  ✅ ${categoria.nombre}: ${nuevos} SKUs nuevos (${allSkus.length} acumulados)`);
   }
 
