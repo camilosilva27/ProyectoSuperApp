@@ -6,18 +6,50 @@
  * dónde hidratar/persistir — AsyncStorage si es anónimo, Supabase si está logueado. Por eso
  * este provider envuelve a los demás en _layout.tsx, no al revés.
  *
- * Todavía no expone signUp/signIn/signOut — eso se agrega junto con la UI de login en
- * ajustes.tsx (turno siguiente). Este paso solo deja el estado de sesión disponible.
+ * Expone signUp/signIn/signOut (turno del prompt de cuenta + Ajustes) — el resto de la app
+ * nunca llama a `supabase.auth` directo, pasa siempre por acá.
  */
 
 import type { Session } from '@supabase/supabase-js';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from './supabase';
 
+/** Mapea los errores más comunes de Supabase Auth a un mensaje en español, entendible sin
+ *  jerga. Supabase oculta a propósito si un mail ya existe (para no revelar cuentas por fuerza
+ *  bruta) — por eso el mensaje de "ya existe" es un fallback genérico, no una detección segura. */
+function mensajeError(error: unknown): string {
+  const codigo = (error as { code?: string } | null)?.code;
+  const bruto = error instanceof Error ? error.message : '';
+
+  if (codigo === 'over_email_send_rate_limit') {
+    return 'Se mandaron demasiados mails en poco tiempo — esperá unos minutos y probá de nuevo.';
+  }
+  if (codigo === 'user_already_exists' || /already registered/i.test(bruto)) {
+    return 'Ya existe una cuenta con este mail — probá iniciar sesión en vez de registrarte.';
+  }
+  if (codigo === 'invalid_credentials' || /invalid login credentials/i.test(bruto)) {
+    return 'Mail o contraseña incorrectos.';
+  }
+  if (codigo === 'weak_password' || /password/i.test(bruto)) {
+    return 'La contraseña tiene que tener al menos 6 caracteres.';
+  }
+  if (codigo === 'email_address_invalid') {
+    return 'Ese mail no es válido.';
+  }
+  return bruto || 'Ocurrió un error — probá de nuevo.';
+}
+
 type Contexto = {
   session: Session | null;
   /** true hasta que se resuelve la sesión guardada la primera vez (AsyncStorage → Supabase). */
   cargando: boolean;
+  /** `necesitaConfirmarMail`: true si Supabase no devolvió sesión (confirmación de mail
+   *  activada) — no significa que el registro haya fallado. */
+  registrarse: (
+    email: string, password: string
+  ) => Promise<{ error: string | null; necesitaConfirmarMail: boolean }>;
+  iniciarSesion: (email: string, password: string) => Promise<{ error: string | null }>;
+  cerrarSesion: () => Promise<void>;
 };
 
 const AuthContext = createContext<Contexto | null>(null);
@@ -41,7 +73,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => suscripcion.subscription.unsubscribe();
   }, []);
 
-  return <AuthContext.Provider value={{ session, cargando }}>{children}</AuthContext.Provider>;
+  const valor: Contexto = {
+    session,
+    cargando,
+    registrarse: async (email, password) => {
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) return { error: mensajeError(error), necesitaConfirmarMail: false };
+      return { error: null, necesitaConfirmarMail: !data.session };
+    },
+    iniciarSesion: async (email, password) => {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      return { error: error ? mensajeError(error) : null };
+    },
+    cerrarSesion: async () => {
+      await supabase.auth.signOut();
+    },
+  };
+
+  return <AuthContext.Provider value={valor}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): Contexto {
