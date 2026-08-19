@@ -140,7 +140,9 @@ async function main() {
   const catalogo = JSON.parse(fs.readFileSync(ARCHIVO_CATALOGO, 'utf8'));
   const mapa = leerMapa();
 
-  const pendientes = catalogo.skus.filter((s) => !(s.idInterno in mapa) && s.urlProducto);
+  // Reintenta también los que quedaron con error (ej. bloqueo/circuit-breaker de una corrida
+  // anterior) — un error de red o de bloqueo no es lo mismo que "confirmado sin EAN en Flix".
+  const pendientes = catalogo.skus.filter((s) => (!(s.idInterno in mapa) || mapa[s.idInterno].error) && s.urlProducto);
   const aProcesar = soloLimite ? pendientes.slice(0, soloLimite) : pendientes;
 
   console.log(`Total SKUs: ${catalogo.skus.length}`);

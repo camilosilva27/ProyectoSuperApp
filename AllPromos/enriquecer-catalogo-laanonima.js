@@ -8,11 +8,17 @@
  * Criterio CONSERVADOR (decisión explícita del usuario, 2026-08-18): solo se asigna un EAN
  * si hay un único candidato inequívoco en los otros 5 catálogos, comparando por firma de
  * nombre normalizada (marca + palabras significativas + tamaño/peso). Ante cualquier
- * ambigüedad (0 candidatos, candidatos con EANs distintos, o sin tamaño detectable en el
- * nombre de La Anónima) NO se asigna EAN — mismo criterio de "ante ambigüedad, no adivinar"
- * que ya usa el proyecto en otros lados. Los productos marca propia de La Anónima (sin
- * equivalente en otro super) quedan sin EAN a propósito: no es un bug, es que no existen en
- * los otros catálogos.
+ * ambigüedad (0 candidatos o candidatos con EANs distintos) NO se asigna EAN — mismo criterio
+ * de "ante ambigüedad, no adivinar" que ya usa el proyecto en otros lados. Los productos marca
+ * propia de La Anónima (sin equivalente en otro super) quedan sin EAN a propósito: no es un
+ * bug, es que no existen en los otros catálogos.
+ *
+ * SIN TAMAÑO DETECTABLE (agregado 2026-08-19): productos de fiambrería/carnicería vendidos
+ * "(Kg)" sin peso fijo no tienen ningún tamaño que extraer del nombre — antes se descartaban
+ * de entrada. Ahora `codigoTamano === null` es un valor de tamaño más ("SIN_TAMANO"), así que
+ * estos SKUs matchean entre sí por firma exacta con el mismo criterio de siempre. Nunca pueden
+ * matchear contra un producto con tamaño fijo (firma distinta por construcción), así que esto
+ * no mezcla variable con fijo.
  *
  * INVARIANTE (decisión explícita del usuario, 2026-08-18): este script es de solo lectura
  * sobre los otros 5 catálogos — nunca los modifica, y su prioridad más baja en
@@ -57,7 +63,7 @@ const ARCHIVO_REPORTE = path.join(__dirname, 'laanonima-reporte-matching.json');
 
 const OTROS_CATALOGOS = ['catalogo-vea.json', 'catalogo-carrefour.json', 'catalogo-changomas.json', 'catalogo-dia.json', 'catalogo-coto.json'];
 
-const UNIDAD_RE = /(\d+(?:[.,]\d+)?)\s*(kgs?|grs?|g|mls?|cc|lts?|l|un|u|unid)\b/i;
+const UNIDAD_RE = /(\d+(?:[.,]\d+)?)\s*(kgs?|grs?|g|mls?|cc|cm3|lts?|l|unidades|unid|un|u)\b/i;
 const STOPWORDS = new Set(['x', 'de', 'del', 'la', 'el', 'los', 'las', 'un', 'una', 'con', 'sin', 'c', 's', 'y', 'en']);
 // Tipo de envase/empaque: un lado del matching lo menciona y el otro no, sin que eso signifique
 // un producto distinto (ver nota en la cabecera del archivo).
@@ -76,7 +82,7 @@ function unidadCanonica(match) {
   if (/^kgs?$/.test(unidad)) return `PESO:${Math.round(valor * 1000)}`;
   if (/^grs?$|^g$/.test(unidad)) return `PESO:${Math.round(valor)}`;
   if (/^lts?$|^l$/.test(unidad)) return `VOL:${Math.round(valor * 1000)}`;
-  if (/^mls?$|^cc$/.test(unidad)) return `VOL:${Math.round(valor)}`;
+  if (/^mls?$|^cc$|^cm3$/.test(unidad)) return `VOL:${Math.round(valor)}`;
   return `UNID:${Math.round(valor)}`;
 }
 
@@ -186,18 +192,17 @@ function main() {
 
   const matcheados = [];
   const ambiguos = [];
-  const sinTamano = [];
   const sinCandidato = [];
 
   for (const sku of catalogo.skus) {
     if (sku.eanFuente === 'flix') continue; // ya resuelto con la fuente real, no matchear por nombre
 
+    // codigoTamano === null (p.ej. fiambrería/carnicería vendida "(Kg)", sin peso fijo) es un
+    // valor de tamaño más: no se descarta, se matchea contra otros SIN_TAMANO por firma exacta
+    // con el mismo criterio conservador — nunca contra un candidato con tamaño fijo (distinta
+    // firma por construcción), así que no hay riesgo de mezclar variable con fijo.
     const { firma, palabrasUnicas, codigoTamano } = firmaDeNombre(sku.nombre);
 
-    if (!codigoTamano) {
-      sinTamano.push(sku);
-      continue;
-    }
     if (palabrasUnicas.length < 2) {
       sinCandidato.push(sku);
       continue;
@@ -248,12 +253,11 @@ function main() {
 
   fs.writeFileSync(ARCHIVO_CATALOGO, JSON.stringify(catalogo, null, 2));
 
-  const totalSinMatch = sinTamano.length + sinCandidato.length + ambiguos.length;
+  const totalSinMatch = sinCandidato.length + ambiguos.length;
   console.log('=== RESULTADO ===');
   console.log(`  Total SKUs La Anónima:        ${catalogo.skus.length}`);
   console.log(`  Matcheados (ean asignado):    ${matcheados.length}`);
   console.log(`  Ambiguos (varios EAN, no se asignó): ${ambiguos.length}`);
-  console.log(`  Sin tamaño detectable:        ${sinTamano.length}`);
   console.log(`  Sin candidato:                ${sinCandidato.length}`);
   console.log(`  TOTAL sin match:              ${totalSinMatch}\n`);
 
@@ -273,7 +277,6 @@ function main() {
       totalSkus: catalogo.skus.length,
       matcheados: matcheados.length,
       ambiguos: ambiguos.length,
-      sinTamano: sinTamano.length,
       sinCandidato: sinCandidato.length,
       totalSinMatch,
     },
@@ -284,7 +287,6 @@ function main() {
       precioBase: sku.precioBase,
       candidatosConEanDistinto: [...new Set(candidatos.map((c) => c.ean))],
     })),
-    sinTamanoDetectable: sinTamano.map((s) => ({ idInterno: s.idInterno, nombre: s.nombre, categoria: s.categoria, precioBase: s.precioBase })),
     sinCandidato: sinCandidato.map((s) => ({ idInterno: s.idInterno, nombre: s.nombre, categoria: s.categoria, precioBase: s.precioBase })),
   }, null, 2));
 
