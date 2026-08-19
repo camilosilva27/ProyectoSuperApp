@@ -15,8 +15,9 @@ const express = require('express');
 const { estadoCatalogos } = require('../../../AllPromos/core/catalogo');
 const { leerEstadoUnificado } = require('../catalogoUnificado');
 const precioCache = require('../precioCache');
-const { diasMaximoCatalogo, rutaLogs, entorno } = require('../config');
+const { diasMaximoCatalogo, horasMaximoPromosBancarias, rutaLogs, entorno } = require('../config');
 const sondaEnVivo = require('../sondaEnVivo');
+const { fechaGeneracionPromosBancarias } = require('../promosBancariasCache');
 const path = require('path');
 
 const router = express.Router();
@@ -34,6 +35,10 @@ router.get('/health', (req, res) => {
   const unificado = leerEstadoUnificado();
   const ultimoRefresco = leerUltimoRefresco();
   const sonda = sondaEnVivo.estadoActual();
+  const generadoPromosBancarias = fechaGeneracionPromosBancarias();
+  const horasPromosBancarias = generadoPromosBancarias
+    ? (Date.now() - new Date(generadoPromosBancarias).getTime()) / 3_600_000
+    : null;
 
   const problemas = [];
   for (const c of catalogos) {
@@ -54,6 +59,11 @@ router.get('/health', (req, res) => {
       if (!r.ok) problemas.push(`Comparación en vivo de ${r.nombre} sin resultados para el EAN de prueba (${key}) — puede estar rota`);
     }
   }
+  if (!generadoPromosBancarias) {
+    problemas.push('Falta logs/promos-bancarias.json — el cron todavía no lo generó, o se perdió (correlo con: npm run refrescar)');
+  } else if (horasPromosBancarias > horasMaximoPromosBancarias) {
+    problemas.push(`logs/promos-bancarias.json tiene ${horasPromosBancarias.toFixed(1)}hs — como estas promos son día-específicas, un cache viejo puede mostrar el día equivocado (regeneralo con: npm run refrescar)`);
+  }
 
   res.json({
     ok: problemas.length === 0,
@@ -65,6 +75,7 @@ router.get('/health', (req, res) => {
     // precioCache.js) — se repite acá para ver de un vistazo si /comparar y /precios están
     // sirviendo precio de hace 1 hora o de hace 3 semanas, sin tener que cruzar campos.
     cachePrecio: { fuentes: precioCache.estadoFuentes() },
+    promosBancarias: { generado: generadoPromosBancarias, horas: horasPromosBancarias },
     ultimoRefresco,
     sondaEnVivo: sonda,
     problemas,

@@ -19,6 +19,10 @@ module.exports = {
   rutaImagenes: path.join(RAIZ_BACKEND, 'imagenes'),
   // Cuántos días puede tener un catálogo antes de considerarse vencido (mismo umbral que el CLI).
   diasMaximoCatalogo: 30,
+  // El cache de promos bancarias se refresca cada 2hs (cron); a diferencia de los catálogos
+  // (que cambian poco), estas promos son día-específicas (ej. "solo miércoles y jueves"), así
+  // que un cache viejo por unas pocas horas ya puede estar mostrando el día equivocado.
+  horasMaximoPromosBancarias: 6,
   // Límite de resultados que devuelve la búsqueda de catálogo por request.
   limiteBusquedaDefault: 50,
   limiteBusquedaMaximo: 200,
