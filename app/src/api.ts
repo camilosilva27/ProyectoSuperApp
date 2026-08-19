@@ -84,12 +84,35 @@ export type RespuestaComparar = {
      *  precio óptimo de otro lado (ver AllPromos/core/comparador.js). */
     totalesPorSuper: Record<SuperKey, number | null>;
     subtotalAsignadoPorSuper: Record<SuperKey, number>;
-    comprasPorSuper: Record<SuperKey, { input: string; esOnlineExclusivo: boolean }[]>;
+    /** `ean` permite cruzar cada compra con `items` de forma confiable — `input` es el texto
+     *  de búsqueda, no una clave única (dos EANs distintos pueden compartir nombre). */
+    comprasPorSuper: Record<SuperKey, { input: string; ean: string; esOnlineExclusivo: boolean }[]>;
     requiereOnlinePorSuper: Record<SuperKey, boolean>;
     noEncontrados: string[];
     /** Link para abrir el carrito ya cargado en el sitio real del super (VTEX). `null` si el
      *  super no lo soporta (Coto) o no tiene nada asignado. */
     linksCarrito: Record<SuperKey, string | null>;
+    /** Ahorro por pagar con una tarjeta/banco (Cencopay, Mi Carrefour, MasClub, bancos de
+     *  terceros), aparte del precio de producto. `null` cuando no se seleccionó ninguna
+     *  tarjeta, o cuando ninguna de las seleccionadas tiene promo vigente hoy. Cuando está
+     *  presente, `comprasPorSuper`/`subtotalAsignadoPorSuper`/`totalOptimo` de arriba ya
+     *  reflejan la reasignación que maximiza este ahorro (puede haber movido productos a un
+     *  super que no era el más barato por unidad). */
+    bancario: {
+      tarjetasConsideradas: string[];
+      ahorroTotal: number;
+      porSuper: Record<SuperKey, {
+        tarjeta: string;
+        descuentoPct: number;
+        /** `null` = sin tope (no se pudo detectar del texto legal, o la promo no tiene). */
+        tope: number | null;
+        /** `false` cuando `tope` es `null` porque no se detectó (a diferencia de una promo
+         *  que de verdad no tiene tope) — la app debería avisar "verificar" en ese caso. */
+        topeDetectado: boolean;
+        descuento: number;
+        subtotalFinal: number;
+      } | null>;
+    } | null;
   };
   advertencias: string[];
 };

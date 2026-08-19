@@ -298,26 +298,51 @@ function HeaderVeredicto({
 function PlanDeCompra({ data }: { data: RespuestaComparar }) {
   const { paleta } = useTema();
   const carrito = useCarrito();
-  const { subtotalAsignadoPorSuper, requiereOnlinePorSuper, linksCarrito } = data.resumen;
+  const { subtotalAsignadoPorSuper, requiereOnlinePorSuper, linksCarrito, bancario } = data.resumen;
   const [erroresCarrito, setErroresCarrito] = useState<Partial<Record<SuperKey, boolean>>>({});
 
+  // Sin promo bancaria: cada producto va al super donde es más barato por unidad
+  // (item.mejor.key). Con promo bancaria aplicada, comprasPorSuper puede haber movido algún
+  // producto a un super que no es el más barato por unidad (para maximizar el reintegro
+  // dentro del tope) — hay que agrupar por ahí, si no la lista de productos no va a coincidir
+  // con subtotalAsignadoPorSuper.
   const itemsPorSuper = useMemo(() => {
     const mapa = new Map<SuperKey, ItemComparado[]>();
-    for (const item of data.items) {
-      if (!item.mejor) continue;
-      const lista = mapa.get(item.mejor.key) ?? [];
-      lista.push(item);
-      mapa.set(item.mejor.key, lista);
+    if (bancario) {
+      const eanASuper = new Map<string, SuperKey>();
+      for (const [key, compras] of Object.entries(data.resumen.comprasPorSuper)) {
+        for (const compra of compras) eanASuper.set(compra.ean, key as SuperKey);
+      }
+      for (const item of data.items) {
+        const key = eanASuper.get(item.ean);
+        if (!key) continue;
+        const lista = mapa.get(key) ?? [];
+        lista.push(item);
+        mapa.set(key, lista);
+      }
+    } else {
+      for (const item of data.items) {
+        if (!item.mejor) continue;
+        const lista = mapa.get(item.mejor.key) ?? [];
+        lista.push(item);
+        mapa.set(item.mejor.key, lista);
+      }
     }
     return mapa;
-  }, [data.items]);
+  }, [data.items, data.resumen.comprasPorSuper, bancario]);
+
+  /** La opción de este ítem en `key` — no siempre es `item.mejor` (que es la opción más
+   *  barata por producto, sin importar el super): con reasignación bancaria el ítem puede
+   *  estar agrupado bajo un super distinto. */
+  const opcionEnSuper = (item: ItemComparado, key: SuperKey) =>
+    item.opciones.find(o => o.key === key) ?? item.mejor;
 
   // Suma de lo que pagarías en cada super sin ninguna promo — para contrastar con
   // subtotalAsignadoPorSuper (que ya tiene las promos aplicadas).
   const subtotalSinPromoPorSuper = useMemo(() => {
     const mapa = new Map<SuperKey, number>();
     for (const [key, items] of itemsPorSuper) {
-      mapa.set(key, items.reduce((acc, it) => acc + (it.mejor?.totalSinPromo ?? 0), 0));
+      mapa.set(key, items.reduce((acc, it) => acc + (opcionEnSuper(it, key)?.totalSinPromo ?? 0), 0));
     }
     return mapa;
   }, [itemsPorSuper]);
@@ -344,9 +369,13 @@ function PlanDeCompra({ data }: { data: RespuestaComparar }) {
         const url = linksCarrito[s.key];
         const tarjetasAplicadas = new Set(
           (itemsPorSuper.get(s.key) ?? [])
-            .map(i => i.mejor?.promo?.tarjetaActiva ? i.mejor.promo.requiereTarjeta : null)
+            .map(i => {
+              const opcion = opcionEnSuper(i, s.key);
+              return opcion?.promo?.tarjetaActiva ? opcion.promo.requiereTarjeta : null;
+            })
             .filter((t): t is string => !!t)
         );
+        const ahorroBancario = bancario?.porSuper[s.key] ?? null;
 
         return (
           <View key={s.key} style={[styles.bloqueSuper, { borderColor: paleta.borde }]}>
@@ -373,7 +402,7 @@ function PlanDeCompra({ data }: { data: RespuestaComparar }) {
                   </View>
                   <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>×{item.cantidad}</Text>
                   <Text style={[texto.precioChico, { color: paleta.tintaSuave }]}>
-                    {pesos(item.mejor!.total)}
+                    {pesos(opcionEnSuper(item, s.key)!.total)}
                   </Text>
                 </View>
               ))}
@@ -382,6 +411,32 @@ function PlanDeCompra({ data }: { data: RespuestaComparar }) {
                 <View style={[styles.avisoOnline, { backgroundColor: paleta.alertaFondo }]}>
                   <Text style={[texto.micro, { color: paleta.alerta, letterSpacing: 0.7 }]}>
                     REQUIERE COMPRAR ONLINE
+                  </Text>
+                </View>
+              ) : null}
+
+              {ahorroBancario ? (
+                <View style={[styles.filaEstado, { backgroundColor: paleta.superficieAlt, borderColor: paleta.borde }]}>
+                  <View style={styles.checkAplicada}>
+                    <Text style={styles.checkTexto}>✓</Text>
+                  </View>
+                  <View style={{ flex: 1, gap: 1 }}>
+                    <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>
+                      Pagando con {ahorroBancario.tarjeta} ahorrás {pesos(ahorroBancario.descuento)}
+                    </Text>
+                    <Text style={[texto.dato, { color: paleta.tintaSuave }]}>
+                      {Math.round(ahorroBancario.descuentoPct * 100)}% de descuento
+                      {ahorroBancario.topeDetectado ? ` (tope ${pesos(ahorroBancario.tope!)})` : ''}
+                      {' '}— ya está restado del total
+                    </Text>
+                  </View>
+                </View>
+              ) : null}
+
+              {ahorroBancario && !ahorroBancario.topeDetectado ? (
+                <View style={[styles.avisoOnline, { backgroundColor: paleta.alertaFondo }]}>
+                  <Text style={[texto.micro, { color: paleta.alerta, letterSpacing: 0.7 }]}>
+                    NO SE DETECTÓ EL TOPE DE {ahorroBancario.tarjeta.toUpperCase()} — VERIFICÁ EL DESCUENTO
                   </Text>
                 </View>
               ) : null}

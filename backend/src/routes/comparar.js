@@ -31,13 +31,18 @@ const { SUPERMERCADOS } = require('../../../AllPromos/core/fetchers');
 const { armarUrlCarrito } = require('../../../AllPromos/core/fetchers');
 const {
   calcularOpciones, calcularSugerenciaCantidad, calcularMejoresPorSuper, calcularResumenFinal,
+  itemsReoptimizarDesdeFinal, comprasPorSuperDesdeAsignacion,
 } = require('../../../AllPromos/core/comparador');
 const { calcularCosto } = require('../../../AllPromos/promo-engine');
 const { esEANvalido } = require('../../../AllPromos/core/catalogo');
 const { tieneCoberturaCacheada } = require('../../../AllPromos/core/laanonima-zona');
+const {
+  filtrarPromosBancariasPorTarjetas, promosAplicablesHoy, reoptimizarAsignacion,
+} = require('../../../AllPromos/promos-bancarias');
 const catalogoUnificado = require('../catalogoUnificado');
 const precioCache = require('../precioCache');
 const { crearLimitador } = require('../limitadorGlobal');
+const { leerPromosBancariasCache } = require('../promosBancariasCache');
 
 const router = express.Router();
 
@@ -212,6 +217,83 @@ function serializarOpcion(o, cantidad, tarjetasSeleccionadas, precioLista) {
   };
 }
 
+/**
+ * Reasigna el plan óptimo considerando las promos bancarias "por ticket" (Cencopay, Mi
+ * Carrefour, MasClub, bancos/billeteras) de las tarjetas que el usuario tiene marcadas,
+ * mutando `resumen` en el lugar cuando encuentra algo aplicable. Devuelve el objeto
+ * `resumen.bancario` a agregar a la respuesta (o null si no aplicó nada), y empuja avisos a
+ * `advertencias` cuando un tope no se pudo detectar del texto legal o cuando algún super
+ * falló al consultar sus promos.
+ *
+ * Solo considera promos vigentes HOY (no el rango de 7 días que evalúa por default
+ * reoptimizarAsignacion/mejorOportunidadTicket): las promos de PRODUCTO de los supers cambian
+ * día a día, así que combinar "producto de hoy" con "banco de otro día" daría una
+ * recomendación inconsistente. Por eso se recortan las promos con promosAplicablesHoy() antes
+ * de pasarlas — sin tocar la firma de reoptimizarAsignacion, que la CLI sigue usando igual.
+ */
+function aplicarPromosBancarias(resumen, supermercados, tarjetasSeleccionadas, advertencias) {
+  if (!tarjetasSeleccionadas.length) return null;
+
+  const datosCrudos = leerPromosBancariasCache();
+  if (!datosCrudos) {
+    advertencias.push('El cache de promos bancarias todavía no está listo — probá de nuevo en unos minutos');
+    return null;
+  }
+
+  const hoy = new Date();
+  const datosFiltrados = filtrarPromosBancariasPorTarjetas(datosCrudos, tarjetasSeleccionadas);
+  const datosDeHoy = Object.fromEntries(
+    Object.entries(datosFiltrados).map(([key, resultado]) => [
+      key,
+      resultado.error ? resultado : { ...resultado, promos: promosAplicablesHoy(resultado.promos, { fecha: hoy }) },
+    ])
+  );
+
+  const itemsReopt = itemsReoptimizarDesdeFinal(resumen.items, supermercados);
+  const resultado = reoptimizarAsignacion(itemsReopt, datosDeHoy, supermercados, { hoy });
+
+  const hayAlgoAplicable = Object.values(resultado.oportunidades).some(o => o?.mejor);
+  if (!hayAlgoAplicable) return null;
+
+  resumen.comprasPorSuper = comprasPorSuperDesdeAsignacion(resumen.items, resultado.asignacion, supermercados);
+  resumen.subtotalAsignadoPorSuper = resultado.subtotales;
+  resumen.requiereOnlinePorSuper = Object.fromEntries(
+    supermercados.map(s => [s.key, !!resultado.canalForzado[s.key]])
+  );
+  resumen.totalOptimo = resultado.total;
+
+  const porSuper = {};
+  let ahorroTotal = 0;
+  for (const s of supermercados) {
+    const oportunidad = resultado.oportunidades[s.key];
+    if (!oportunidad?.mejor) { porSuper[s.key] = null; continue; }
+    const { promo, descuento } = oportunidad.mejor;
+    porSuper[s.key] = {
+      tarjeta: promo.bancoCanonico,
+      descuentoPct: promo.descuentoPct,
+      tope: promo.tope,
+      topeDetectado: promo.tope != null,
+      descuento: Math.round(descuento * 100) / 100,
+      subtotalFinal: Math.round((resultado.subtotales[s.key] - descuento) * 100) / 100,
+    };
+    ahorroTotal += descuento;
+    if (promo.tope == null) {
+      advertencias.push(`Tope de ${promo.bancoCanonico} en ${s.nombre} no detectado — verificá el descuento antes de comprar`);
+    }
+  }
+  for (const s of supermercados) {
+    if (resultado.erroresPorSuper[s.key]) {
+      advertencias.push(`No se pudieron consultar las promos bancarias de ${s.nombre}`);
+    }
+  }
+
+  return {
+    tarjetasConsideradas: tarjetasSeleccionadas,
+    ahorroTotal: Math.round(ahorroTotal * 100) / 100,
+    porSuper,
+  };
+}
+
 router.post('/comparar', async (req, res) => {
   const error = validarBody(req.body);
   if (error) return res.status(400).json({ error });
@@ -300,6 +382,11 @@ router.post('/comparar', async (req, res) => {
   }));
   const resumen = calcularResumenFinal(paraResumen, supermercados);
 
+  // Reasigna comprasPorSuper/subtotalAsignadoPorSuper/requiereOnlinePorSuper/totalOptimo (en
+  // el lugar, dentro de `resumen`) considerando el ahorro bancario de las tarjetas
+  // seleccionadas, si hay alguna. Ver cabecera de aplicarPromosBancarias().
+  const bancario = aplicarPromosBancarias(resumen, supermercados, tarjetasSeleccionadas, advertencias);
+
   const items = procesados.map(({ _mejores, ...publico }) => publico);
 
   // Mismo plan óptimo (mismo producto en el mismo super que totalOptimo) pero sin aplicar
@@ -313,12 +400,14 @@ router.post('/comparar', async (req, res) => {
   const linksCarrito = Object.fromEntries(
     supermercados.map(s => [s.key, armarUrlCarrito(s.key, resumen.comprasPorSuper[s.key])])
   );
-  // El público no necesita ean/skuId/sellerId sueltos (solo la URL ya armada arriba) — se
-  // despojan acá para no crecer la superficie de la API con datos que el cliente no usa.
+  // El público no necesita skuId/sellerId sueltos (solo la URL ya armada arriba) — se
+  // despojan acá para no crecer la superficie de la API con datos que el cliente no usa. `ean`
+  // sí viaja: la app lo necesita para cruzar cada compra contra `items` de forma confiable
+  // (`input` es el texto de búsqueda, no una clave única).
   const comprasPorSuper = Object.fromEntries(
     Object.entries(resumen.comprasPorSuper).map(([key, compras]) => [
       key,
-      compras.map(({ input, esOnlineExclusivo }) => ({ input, esOnlineExclusivo })),
+      compras.map(({ input, ean, esOnlineExclusivo }) => ({ input, ean, esOnlineExclusivo })),
     ])
   );
 
@@ -335,6 +424,7 @@ router.post('/comparar', async (req, res) => {
       requiereOnlinePorSuper: resumen.requiereOnlinePorSuper,
       noEncontrados: resumen.noEncontrados,
       linksCarrito,
+      bancario,
     },
     advertencias,
   });

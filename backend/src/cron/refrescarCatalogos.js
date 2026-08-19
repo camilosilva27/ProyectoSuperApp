@@ -85,26 +85,39 @@ function correrScraper({ nombre, archivo, timeoutMs }) {
 }
 
 /**
- * Sonda de salud de las promos bancarias. No refresca nada: solo detecta los dos modos de
- * falla silenciosa que si no se reportan se ven igual que "hoy no hay promos" —
- * `hash_roto` (el sha256Hash de la persisted query de GraphQL cambió porque el super
- * actualizó su app) y errores de red/cookie.
+ * Trae las promos bancarias crudas (TODAS las tarjetas conocidas, sin filtrar — el filtro por
+ * tarjeta del usuario lo hace cada consumidor con filtrarPromosBancariasPorTarjetas) de los 5
+ * supers cubiertos, y las persiste en rutaLogs/promos-bancarias.json. Es la ÚNICA fuente que
+ * pega en vivo a esos supers: /api/comparar y /api/mis-descuentos leen este archivo
+ * (backend/src/promosBancariasCache.js), nunca hacen el fetch ellos mismos — mismo criterio
+ * que ya se usa para precios (ver backend/src/precioCache.js), para que el volumen de
+ * requests hacia los supers dependa solo de este cron y no de cuántos usuarios comparan a la
+ * vez. De paso detecta los dos modos de falla silenciosa que si no se reportan se ven igual
+ * que "hoy no hay promos" — `hash_roto` (el sha256Hash de la persisted query de GraphQL
+ * cambió porque el super actualizó su app) y errores de red/cookie.
  */
-async function probarPromosBancarias() {
+async function refrescarPromosBancarias() {
   try {
-    const { obtenerPromosBancarias } = require(path.join(DIR_ALLPROMOS, 'promos-bancarias.js'));
-    const datos = await obtenerPromosBancarias();
+    const { obtenerTodasLasPromosBancarias } = require(path.join(DIR_ALLPROMOS, 'promos-bancarias.js'));
+    const datosPorSuper = await obtenerTodasLasPromosBancarias();
     const errores = [];
-    for (const [key, valor] of Object.entries(datos)) {
+    for (const [key, valor] of Object.entries(datosPorSuper)) {
       if (valor.error === 'hash_roto') {
         errores.push(`Promos bancarias de ${key}: hash de GraphQL desactualizado — hay que recapturarlo con el navegador`);
       } else if (valor.error) {
         errores.push(`Promos bancarias de ${key}: no se pudo consultar (${valor.error})`);
       }
     }
+
+    fs.mkdirSync(rutaLogs, { recursive: true });
+    fs.writeFileSync(
+      path.join(rutaLogs, 'promos-bancarias.json'),
+      JSON.stringify({ generado: new Date().toISOString(), datosPorSuper }, null, 2)
+    );
+
     return { ok: errores.length === 0, errores };
   } catch (err) {
-    return { ok: false, errores: [`No se pudo probar promos bancarias: ${err.message}`] };
+    return { ok: false, errores: [`No se pudo refrescar promos bancarias: ${err.message}`] };
   }
 }
 
@@ -155,7 +168,8 @@ async function refrescar() {
     console.error(`   ❌ catálogo unificado: ${err.message}`);
   }
 
-  const sonda = await probarPromosBancarias();
+  console.log(`   ▶ Promos bancarias...`);
+  const sonda = await refrescarPromosBancarias();
   errores.push(...sonda.errores);
   console.log(`   ${sonda.ok ? '✅' : '⚠️ '} promos bancarias: ${sonda.ok ? 'OK' : sonda.errores.join(' | ')}`);
 
@@ -188,4 +202,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { refrescar, probarPromosBancarias };
+module.exports = { refrescar, refrescarPromosBancarias };

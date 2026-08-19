@@ -281,6 +281,66 @@ function calcularResumenFinal(resumen, supermercados = SUPERMERCADOS) {
 }
 
 /**
+ * Reconstruye comprasPorSuper (mismo shape que ya arma calcularResumenFinal: input, cantidad,
+ * esOnlineExclusivo, ean, skuId, sellerId) a partir de la asignación que eligió
+ * reoptimizarAsignacion() de promos-bancarias.js, en vez de "el super más barato por
+ * producto". No se modifica calcularResumenFinal — es una reconstrucción aparte para no
+ * arriesgar el comportamiento que ya usan la CLI y la comparación base sin promos bancarias.
+ *
+ * IMPORTANTE: `items` tiene que ser `calcularResumenFinal(...).items` (ya filtrado a los
+ * ítems encontrados y recortado a `supermercados`) y `asignacion` tiene que venir de llamar
+ * reoptimizarAsignacion() con un array de ítems construido a partir de ESE MISMO `items`
+ * (uno por índice, en el mismo orden) — nunca desde el `resumen` crudo previo a
+ * calcularResumenFinal. Si se usa el crudo, un ítem puede tener `mejores` no vacío pero quedar
+ * fuera de `items` (por no tener ningún `disponibles` bajo el subconjunto de `supermercados`
+ * pedido), desalineando los índices entre `asignacion` y `items`.
+ *
+ * @param items      calcularResumenFinal(...).items
+ * @param asignacion array paralelo a `items`: superKey elegido por índice, o null
+ * @returns { [superKey]: [{input, cantidad, esOnlineExclusivo, ean, skuId, sellerId}] }
+ */
+function comprasPorSuperDesdeAsignacion(items, asignacion, supermercados = SUPERMERCADOS) {
+  const comprasPorSuper = Object.fromEntries(supermercados.map(s => [s.key, []]));
+  items.forEach((item, i) => {
+    const key = asignacion[i];
+    if (!key) return;
+    const opcion = item.disponibles.find(d => d.key === key);
+    if (!opcion) return; // no debería pasar si `asignacion` viene de un items[] construido desde este mismo `items`
+    comprasPorSuper[key].push({
+      input: item.input,
+      cantidad: item.cantidad,
+      esOnlineExclusivo: !!opcion.esOnlineExclusivo,
+      ean: opcion.ean,
+      skuId: opcion.skuId,
+      sellerId: opcion.sellerId,
+    });
+  });
+  return comprasPorSuper;
+}
+
+/**
+ * Igual que itemsParaReoptimizar(), pero a partir de calcularResumenFinal(...).items (con
+ * `disponibles` en vez de `mejores`) en lugar del `resumen` crudo. Usar esta variante — no
+ * itemsParaReoptimizar() — cuando el resultado se vaya a cruzar después con
+ * comprasPorSuperDesdeAsignacion(), para garantizar el mismo orden/índices que `items`: es un
+ * `.map()` sin filtrar ningún elemento, así el índice i-ésimo del resultado corresponde
+ * siempre al ítem i-ésimo de `items`.
+ */
+function itemsReoptimizarDesdeFinal(items, supermercados = SUPERMERCADOS) {
+  return items.map(item => ({
+    id: item.input,
+    preciosPorSuper: Object.fromEntries(supermercados.map(s => {
+      const d = item.disponibles.find(x => x.key === s.key);
+      return [s.key, d ? d.total : null];
+    })),
+    esOnlineExclusivoPorSuper: Object.fromEntries(supermercados.map(s => {
+      const d = item.disponibles.find(x => x.key === s.key);
+      return [s.key, !!(d && d.esOnlineExclusivo)];
+    })),
+  }));
+}
+
+/**
  * Ítems en el formato que espera reoptimizarAsignacion() de promos-bancarias.js.
  * Usa los precios por super que ya están calculados — no vuelve a consultar ninguna API.
  */
@@ -307,4 +367,6 @@ module.exports = {
   calcularMejoresPorSuper,
   calcularResumenFinal,
   itemsParaReoptimizar,
+  itemsReoptimizarDesdeFinal,
+  comprasPorSuperDesdeAsignacion,
 };

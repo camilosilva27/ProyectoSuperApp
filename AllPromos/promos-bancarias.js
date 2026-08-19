@@ -584,6 +584,30 @@ async function obtenerTodasLasPromosBancarias() {
 }
 
 /**
+ * Recorta el resultado de obtenerTodasLasPromosBancarias()/fetchX() a las promos que
+ * aplican a `tarjetas` (nombres canónicos, ver ALIAS_TARJETAS). Nivel de módulo (no closure)
+ * para que el backend HTTP pueda filtrar por las tarjetas de CADA usuario sobre un mismo
+ * cache crudo, sin tener que volver a pedir nada en vivo — ver promosBancariasCache.js.
+ * @returns { vea, carr, changomas, dia, coto: {promos,error} }
+ */
+function filtrarPromosBancariasPorTarjetas(datosPorSuper, tarjetas) {
+  const filtrarPorTarjetasPropias = resultado => {
+    if (resultado.error) return resultado;
+    const promos = resultado.promos
+      .filter(p => p.canonicosPosibles.some(c => tarjetas.includes(c)))
+      .map(p => ({ ...p, bancoCanonico: p.canonicosPosibles.find(c => tarjetas.includes(c)) }));
+    return { promos, error: null };
+  };
+  return {
+    vea: filtrarPorTarjetasPropias(datosPorSuper.vea),
+    carr: filtrarPorTarjetasPropias(datosPorSuper.carr),
+    changomas: filtrarPorTarjetasPropias(datosPorSuper.changomas),
+    dia: filtrarPorTarjetasPropias(datosPorSuper.dia),
+    coto: filtrarPorTarjetasPropias(datosPorSuper.coto),
+  };
+}
+
+/**
  * Trae y normaliza las promos bancarias de los supers cubiertos, ya filtradas por las
  * tarjetas propias del usuario (mis-tarjetas.json). No filtra por día ni canal (eso es
  * promosAplicablesHoy, que se llama al momento de mostrar, no acá).
@@ -591,29 +615,8 @@ async function obtenerTodasLasPromosBancarias() {
  */
 async function obtenerPromosBancarias() {
   const misTarjetas = leerMisTarjetas();
-  const [vea, carr, changomas, dia, coto] = await Promise.all([
-    fetchVea().catch(() => ({ promos: [], error: 'fetch_failed' })),
-    fetchCarrefour().catch(() => ({ promos: [], error: 'fetch_failed' })),
-    fetchChangoMas().catch(() => ({ promos: [], error: 'fetch_failed' })),
-    fetchDia().catch(() => ({ promos: [], error: 'fetch_failed' })),
-    fetchCoto().catch(() => ({ promos: [], error: 'fetch_failed' })),
-  ]);
-
-  const filtrarPorTarjetasPropias = resultado => {
-    if (resultado.error) return resultado;
-    const promos = resultado.promos
-      .filter(p => p.canonicosPosibles.some(c => misTarjetas.includes(c)))
-      .map(p => ({ ...p, bancoCanonico: p.canonicosPosibles.find(c => misTarjetas.includes(c)) }));
-    return { promos, error: null };
-  };
-
-  return {
-    vea: filtrarPorTarjetasPropias(vea),
-    carr: filtrarPorTarjetasPropias(carr),
-    changomas: filtrarPorTarjetasPropias(changomas),
-    dia: filtrarPorTarjetasPropias(dia),
-    coto: filtrarPorTarjetasPropias(coto),
-  };
+  const datosPorSuper = await obtenerTodasLasPromosBancarias();
+  return filtrarPromosBancariasPorTarjetas(datosPorSuper, misTarjetas);
 }
 
 // ─── Display ──────────────────────────────────────────────────────────────────
@@ -939,6 +942,7 @@ function imprimirPlanFinalReoptimizado(supermercados, items, resultado, totalOpt
 module.exports = {
   obtenerPromosBancarias,
   obtenerTodasLasPromosBancarias,
+  filtrarPromosBancariasPorTarjetas,
   // Nombres canónicos de tarjeta que el resto del sistema puede reusar en vez de duplicar
   // esta lista (ya duplicada una vez en app/src/carrito.tsx como TARJETAS_DISPONIBLES).
   TARJETAS_CONOCIDAS: Object.keys(ALIAS_TARJETAS),
