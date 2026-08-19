@@ -127,28 +127,41 @@ export default function PantallaCarrito() {
               ))}
             </View>
 
-            {/* Vista previa, no el editor — tocar el bloque entero lleva a Mis descuentos
-                (pantalla propia, turno 5a), que es donde se prende/apaga cada una con su
-                descripción de qué desbloquea. Los chips acá son de solo lectura. */}
-            <Pressable
-              onPress={() => router.push('/mis-descuentos')}
-              accessibilityRole="button"
-              style={[styles.tarjetaDescuentos, { borderColor: paleta.borde }]}
-            >
-              <View style={[styles.cabeceraDescuentos, { backgroundColor: paleta.oferta }]}>
+            {/* Tocar un chip prende/apaga esa tarjeta directamente (misma fuente de verdad que
+                el switch de Mis descuentos, turno 5a) — no hace falta entrar a esa pantalla
+                para lo que es solo activar/desactivar. Tocar la cabecera sigue llevando a Mis
+                descuentos, que es donde está el detalle de cada promo. Cabecera y chips son
+                Pressables hermanos, no anidados: HTML no permite <button> dentro de <button>,
+                y react-native-web renderiza accessibilityRole="button" como <button>. */}
+            <View style={[styles.tarjetaDescuentos, { borderColor: paleta.borde }]}>
+              <Pressable
+                onPress={() => router.push('/mis-descuentos')}
+                accessibilityRole="button"
+                style={[styles.cabeceraDescuentos, { backgroundColor: paleta.oferta }]}
+              >
                 <Text style={[texto.micro, { color: paleta.ofertaTinta, letterSpacing: 1.2 }]}>
                   MIS DESCUENTOS · {carrito.tarjetas.length}
                 </Text>
                 <Text style={[texto.micro, { color: paleta.ofertaTinta, opacity: 0.7, letterSpacing: 0.7 }]}>
                   SUMAN SUS PROMOS
                 </Text>
-              </View>
+              </Pressable>
               <View style={styles.chipsDescuentos}>
                 {TARJETAS_DISPONIBLES.map(tarjeta => {
                   const activa = carrito.tarjetas.includes(tarjeta);
                   return (
-                    <View
+                    <Pressable
                       key={tarjeta}
+                      onPress={() =>
+                        carrito.setTarjetas(
+                          activa
+                            ? carrito.tarjetas.filter(t => t !== tarjeta)
+                            : [...carrito.tarjetas, tarjeta]
+                        )
+                      }
+                      accessibilityRole="button"
+                      accessibilityLabel={`${activa ? 'Tengo' : 'No tengo'} ${tarjeta}`}
+                      accessibilityState={{ selected: activa }}
                       style={[
                         styles.chip,
                         activa
@@ -159,11 +172,11 @@ export default function PantallaCarrito() {
                       <Text style={[texto.etiqueta, { color: activa ? paleta.superficie : paleta.tintaSuave }]}>
                         {tarjeta}
                       </Text>
-                    </View>
+                    </Pressable>
                   );
                 })}
               </View>
-            </Pressable>
+            </View>
 
             <Pressable
               onPress={() => setMostrarConfirmarVaciar(true)}
