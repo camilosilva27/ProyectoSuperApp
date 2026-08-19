@@ -60,13 +60,20 @@ Confirmamos en vivo que **Vea, Carrefour, Chango Más y Día tienen precio únic
 
 ### Cómo se resolvería el cálculo (boceto, no implementado)
 
-Con solo 3 supers, restringir a K supers es un problema chico y resoluble por fuerza bruta, no hace falta ningún algoritmo sofisticado:
+Escrito originalmente pensando en 3 supers; hoy son 6 activos (`supersActivos` en `filtrosSupers.tsx`) y va a seguir creciendo, así que vale generalizar a **n supers activos, restringir a K**.
 
-- K=3 (sin restricción): es lo que ya hace hoy `calcularResumenFinal()` — cada ítem al super más barato que lo tenga, sin condición.
-- K=2: probar las 3 combinaciones posibles de "qué 2 supers" (Vea+Carrefour, Vea+ChangoMás, Carrefour+ChangoMás), y para cada combinación asignar cada ítem al más barato **entre esos 2** (ignorando el tercero aunque sea más barato). Devolver la combinación de 2 supers con el total más bajo.
-- K=1: el total de "todo en un solo super" para cada uno de los 3 — dato que **ya se calcula hoy** (`totalesPorSuper` en `calcularResumenFinal`), no hay nada nuevo que hacer para este caso.
+**Duda resuelta 2026-08-19: ¿esto se pone más complejo con un carrito grande (ej. 60 productos) o con más supers?** No, y la razón es la que hace que todo el resto de esto sea fuerza bruta trivial: **el precio de cada producto es independiente del resto** — no hay envío mínimo ni descuento por volumen que dependa de qué otros productos van al mismo super. Eso significa que, una vez fijada una combinación de supers, el total de esa combinación es solo "por cada producto, el mínimo entre los precios de esa combinación" — un `min()` por producto, no una búsqueda.
 
-Esto probablemente vive como una función nueva en `core/comparador.js` (ej. `calcularResumenConLimite(resumen, maxSupers, supermercados)`), reusando `calcularResumenFinal` para K=3 y agregando la lógica de "probar combinaciones de K supers" para K<3. No debería tocar `calcularOpciones`/`mejorOpcion` — esas siguen resolviendo "el mejor precio de cada super para este ítem", solo cambia qué se hace con esos números al armar el plan final.
+Consecuencia importante: **no hace falta decidir "qué super dejar afuera" como paso separado.** Ese razonamiento (¿cuál de los 4 saco para quedarme con 3?) sale solo de probar todas las combinaciones válidas y quedarse con la de menor total — no es una reasignación manual de los productos del super excluido, es la misma cuenta de siempre repetida por combinación.
+
+- **Costo real**: para K de n supers activos, hay `C(n, K)` combinaciones a probar. Ejemplo concreto — carrito de 60 productos, 4 supers en la solución óptima sin restricción, usuario pide K=3: `C(4,3) = 4` combinaciones × 60 productos × comparar 3 precios ≈ 720 comparaciones en total. Trivial incluso si n crece a 8–10 supers activos (`C(10,3) = 120`) o el carrito crece a varios cientos de productos — la explosión combinatoria que uno podría temer ahí no existe porque el costo escala lineal en productos y solo combinatorio en supers (n siempre chico).
+- K=n (sin restricción): es lo que ya hace hoy `calcularResumenFinal()` — cada ítem al super más barato que lo tenga, sin condición.
+- K<n: probar las `C(n, K)` combinaciones posibles de "qué K supers", y para cada combinación asignar cada ítem al más barato **entre esos K** (ignorando los demás aunque alguno sea más barato). Devolver la combinación con el total más bajo.
+- K=1: el total de "todo en un solo super" para cada uno de los n — dato que **ya se calcula hoy** (`totalesPorSuper` en `calcularResumenFinal`), no hay nada nuevo que hacer para este caso.
+
+Esto probablemente vive como una función nueva en `core/comparador.js` (ej. `calcularResumenConLimite(resumen, maxSupers, supermercados)`), reusando `calcularResumenFinal` para K=n y agregando la lógica de "probar combinaciones de K supers" para K<n. No debería tocar `calcularOpciones`/`mejorOpcion` — esas siguen resolviendo "el mejor precio de cada super para este ítem", solo cambia qué se hace con esos números al armar el plan final.
+
+**Nota aparte, no de este cálculo sino de la UI que lo va a exponer:** el selector de supers hoy (`BarraSupers`, `app/src/componentes/HeaderNegro.tsx`) es una fila horizontal con una celda de ancho igual por cada super en `ORDEN_SUPERS` — no escala: cada super nuevo angosta todas las celdas y trunca nombres. Rediseñarlo para que aguante el crecimiento de supers es un pendiente en curso, separado de este cálculo pero relacionado (el filtro de "máximo K supers" probablemente vive en esa misma zona de la UI).
 
 ### Geolocalización — de dónde sale
 

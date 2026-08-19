@@ -57,6 +57,14 @@ Los 3 providers existentes **no se reescriben** — conservan el mismo `useReduc
 
 El free tier pausa el proyecto tras **7 días** sin actividad (corregido 2026-08-19 contra la documentación oficial de Supabase — este doc decía 30 días, dato viejo/incorrecto; no se reactiva solo con tráfico normal, hay que entrar al dashboard o hacer un request explícito que lo despierte). Mitigante simple: un ping periódico externo (ej. un cron de GitHub Actions, o sumarlo al cron que ya corre en la VM de GCP) que golpee Supabase **al menos una vez por semana**, con margen, para mantenerla activa. El resto de límites del free tier (500MB DB, 1GB storage, 5GB egress, 50k MAU, 500k invocaciones de Edge Functions, 200 conexiones Realtime, 2 proyectos activos, requests de API ilimitados) están muy por encima de lo que esta app necesita incluso en un lanzamiento público moderado — el upgrade a Pro (US$25/mes) tiene sentido recién cuando haya un lanzamiento real, para eliminar la pausa y tener backups automáticos, no por límite de cuota.
 
+## Proveedor de mail (SMTP) para Auth — decidido, no configurado todavía
+
+El mailer que trae Supabase por defecto manda como mucho **2 mails por hora** (confirmado contra la documentación oficial, 2026-08-19) — se comparte entre todos los proyectos gratuitos de Supabase, así que el límite bajo es a propósito, no un bug. Ya lo tocamos en la práctica: dos registros de prueba seguidos alcanzaron para que el tercero tirara `over_email_send_rate_limit`.
+
+**Decisión (2026-08-19, todavía no implementada):** cuando haga falta más volumen, el proveedor va a ser **Resend** — plan gratis, $0/mes, 3.000 mails/mes con tope de 100/día, dominio propio incluido (hasta 3). Se prefirió sobre Brevo (300/día, más volumen) por ser más simple de integrar y más usado en el ecosistema Supabase/Next.js — a la escala de esta app (confirmaciones de registro + algún reset de contraseña, nada de marketing masivo) 100/día alcanza sobrado.
+
+Mientras tanto, se sigue probando con el mailer default de Supabase — el límite de 2/hora ya obliga a espaciar las pruebas de registro, pero no bloquea nada de lo que ya está construido.
+
 ## Verificación fase 1 (para cuando se implemente)
 
 1. Con las tablas y RLS creadas en Supabase, probar desde `app/` (modo dev, `expo start`) que:
@@ -151,8 +159,7 @@ Al vencer el trial de 30 días (fase 2), en vez de una pantalla de pago genéric
 
 ## Pendiente
 
-- Diseño visual de la pantalla de historial y de la pantalla de fin de trial: se está prompteando aparte en Claude Design, no se avanzó UI todavía en esta sesión.
-- Implementación de fase A: no arrancada.
+- **Fase A ya implementada** (corregido 2026-08-19, este doc estaba desactualizado): `app/src/historialAhorro.tsx` (tracking local) y la pestaña `app/app/(tabs)/ahorros.tsx` (diseño + código) ya están commiteados (`5674546`). También existe `app/src/componentes/PaywallFinTrial.tsx`, ya diseñada y codeada, pero **desactivada a propósito** — no está enrutada en ningún lado (sin `Stack.Screen`, nada la dispara) porque depende de que Fase 2 exista (`plan`/`trial_termina_en` en `perfil_usuario`). Lo único que falta de esta feature es la conexión real: cablear `PaywallFinTrial` como gate cuando Fase 2 esté lista.
 
 ---
 
