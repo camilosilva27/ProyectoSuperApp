@@ -4,8 +4,10 @@
  * Dos decisiones que explican casi todo lo demás:
  *
  * 1. Los colores de los supermercados son DATOS, no decoración. Vea verde, Carrefour azul,
- *    Chango Más violeta, Coto rojo y Día blanco (con borde propio, ver `superBordes`) es la
- *    misma convención que ya se lee en la salida del CLI, así que el color de un precio
+ *    Chango Más violeta, y Coto y Día compartiendo el mismo rojo (Día era blanco y quedaba
+ *    invisible contra el fondo blanco de la app — ver historial de `superBordes` — así que
+ *    se optó por repetir un color en vez de mantener uno que no se ve) es la misma
+ *    convención que ya se lee en la salida del CLI, así que el color de un precio
  *    siempre dice "de qué super es" y nunca "esto está bien/mal". No son necesariamente los
  *    colores de marca reales de cada cadena — el criterio acá es consistencia de lectura,
  *    no branding. Los logos reales sí se usan para identificar cada cadena en otros puntos
@@ -21,20 +23,21 @@ import { Platform } from 'react-native';
 
 export type Esquema = 'light' | 'dark';
 
+// Día usa el mismo rojo que Coto a propósito: el blanco original era invisible contra el
+// fondo blanco de la app (ver el borde de contraste que hacía falta más abajo, hoy sin uso).
 const superColores = {
-  light: { vea: '#12874A', carr: '#1B5FD9', changomas: '#7A3FB8', coto: '#D6293E', dia: '#FFFFFF', laanonima: '#A65E2E' },
-  dark:  { vea: '#2FBE7A', carr: '#6A97F7', changomas: '#B085DE', coto: '#F0555F', dia: '#FFFFFF', laanonima: '#E0904F' },
+  light: { vea: '#12874A', carr: '#1B5FD9', changomas: '#7A3FB8', coto: '#D6293E', dia: '#D6293E', laanonima: '#A65E2E' },
+  dark:  { vea: '#2FBE7A', carr: '#6A97F7', changomas: '#B085DE', coto: '#F0555F', dia: '#F0555F', laanonima: '#E0904F' },
 };
 
-// Bordes SOLO para identidades cuyo relleno no contrasta por sí solo contra el fondo — hoy
-// únicamente Día (blanco): sin este borde, el punto sería invisible contra `superficie`
-// (blanco en modo claro) o se leería como "vacío"/"no disponible" en vez de "es Día". El
-// resto de los supers no lo necesita, sus colores ya contrastan en los dos temas. Los
-// componentes que dibujan el punto de identidad (PuntosDisponibilidad, BarraDiferencia,
-// "Todo en X" y la banda de color del plan de compra en resultado.tsx) leen esto.
+// Bordes SOLO para identidades cuyo relleno no contrasta por sí solo contra el fondo. Vacío
+// hoy (Día, el único caso que lo necesitaba, dejó de ser blanco) — se mantiene la estructura
+// por si algún super nuevo necesita esto. Los componentes que dibujan el punto de identidad
+// (PuntosDisponibilidad, BarraDiferencia, "Todo en X" y la banda de color del plan de compra
+// en resultado.tsx) leen esto.
 const superBordes = {
-  light: { dia: '#C6CCD3' },
-  dark:  { dia: '#3C444D' },
+  light: {} as Partial<Record<keyof typeof superColores.light, string>>,
+  dark: {} as Partial<Record<keyof typeof superColores.dark, string>>,
 };
 
 const paletas = {
