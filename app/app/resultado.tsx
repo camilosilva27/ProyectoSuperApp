@@ -227,10 +227,13 @@ function HeaderVeredicto({
     .filter(s => (data.resumen.subtotalAsignadoPorSuper[s.key] ?? 0) > 0)
     .map(s => s.nombre);
 
-  // Dos totales lado a lado (SPEC § 4.6 / turno 3c): el contraste entre "repartiendo" y "un
-  // solo super" es lo que explica qué significa repartir — no hay texto que lo defina. Solo
-  // tiene sentido si hay algo con qué comparar (más de una parada y un total de "todo junto").
-  const dosTotales = paradasNombres.length > 1 && !!mejorUnico;
+  // Repartiendo en más de una parada: layout de dos columnas (con o sin la de "PRECIO SIN
+  // DESCUENTOS" a la derecha, según hayAhorroPorPromos). No depende de mejorUnico —desde que
+  // a67b4f1 sacó la comparación "en un solo super", esta rama no lo usa— así que un carrito
+  // que necesita repartirse porque NINGÚN super tiene todos los productos (mejorUnico
+  // undefined, ver totalesPorSuper en null en comparador.js) sigue yendo por aquí en vez de
+  // caer al branch de un solo total con el tachado arriba (justo lo que a67b4f1 quiso evitar).
+  const dosTotales = paradasNombres.length > 1;
 
   return (
     <HeaderNegro paddingTop={insets.top + espacio.md} estilo={{ gap: espacio.md }}>
