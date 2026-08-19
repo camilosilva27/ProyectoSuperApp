@@ -10,13 +10,9 @@
  *
  * Teasers confirmados en vivo: "2do al X%", "3x2", "2x1" — mismo formato que Carrefour, así
  * que `interpretarPromoCarrefour()` en promo-engine.js los interpreta sin cambios. También
- * apareció un formato NUEVO no visto en los otros 3: "2x$2500" / "2x$3500" (precio fijo por
- * N unidades, no un % de descuento) — el scraper lo captura igual que cualquier otro teaser
- * (solo guarda el nombre crudo), pero promo-engine.js today no lo interpreta en el cálculo en
- * vivo. No es un problema para este archivo: los precios/promos de catalogo-*.json nunca se
- * usan para mostrar nada al usuario (ver invariante en AllPromos/CLAUDE.md), solo para el
- * top-10 de este log y para promos-dia.json (inspección manual). Si se quiere que el
- * comparador en vivo entienda "2x$X" hay que extender promo-engine.js — decisión aparte.
+ * aparece un formato no visto en los otros 3: "2x$2500" / "2x$3500" (precio fijo por N
+ * unidades, no un % de descuento) — implementado en promo-engine.js (2026-08-19) como tipo
+ * `oferta_precio_fijo`, así que el comparador en vivo también lo entiende.
  *
  * Salida:
  *   catalogo-dia.json  — todos los SKUs con EAN, precio y promo

@@ -14,9 +14,10 @@
  *   cantidadMinima: number // unidades mínimas para activar la promo
  *   // según tipo:
  *   descuentoPct?: number  // 0-1, para pct_directo
- *   nUnidades?: number     // para ndo_al_pct y nxm
+ *   nUnidades?: number     // para ndo_al_pct, nxm y oferta_precio_fijo
  *   descuentoSegunda?: number // 0-1, para ndo_al_pct ("2do al 70%" → 0.70)
  *   pagaM?: number         // para nxm ("3x2" → pagaM=2)
+ *   precioFijoTotal?: number // para oferta_precio_fijo ("2x$1900" → nUnidades=2, precioFijoTotal=1900)
  * }
  */
 
@@ -98,6 +99,21 @@ function interpretarPromoCarrefour(teaser) {
   // También parsear el texto para la descripción legible
   const nxm = nombre.match(/(\d+)x(\d+)/i);
   const ndo = nombre.match(/(\d+)do al (\d+)%/i);
+  // --- Nx$M: precio fijo total por N unidades, no un % (visto en Día, ej. "2x$1900") ---
+  const precioFijo = nombre.match(/^(\d+)x\$(\d+(?:[.,]\d+)?)$/i);
+
+  if (precioFijo) {
+    const n = parseInt(precioFijo[1]);
+    const total = parseFloat(precioFijo[2].replace(',', '.'));
+    return {
+      tipo: 'oferta_precio_fijo',
+      descripcion: `${n}x$${fmt(total)} (precio fijo cada ${n})`,
+      cantidadMinima: n,
+      nUnidades: n,
+      precioFijoTotal: total,
+      esOnline,
+    };
+  }
 
   if (nxm) {
     const n = parseInt(nxm[1]);
@@ -264,6 +280,30 @@ function calcularCosto(promo, precioUnitario, cantidadDeseada) {
         if (gruposCompletos > 0) {
           partes.push(`${gruposCompletos} × ${nUnidades} unidades pagando ${pagaM}: $${fmt(costoGrupos)}`);
         }
+        if (resto > 0) {
+          partes.push(`${resto} al precio lleno: $${fmt(costoResto)}`);
+        }
+        detalle = partes.join(' + ');
+      }
+      break;
+    }
+
+    case 'oferta_precio_fijo': {
+      // Ej: "2x$1900" → cada N unidades, precio TOTAL fijo (no una fracción del unitario)
+      const { nUnidades, precioFijoTotal } = promo;
+      const gruposCompletos = Math.floor(cantidadDeseada / nUnidades);
+      const resto = cantidadDeseada % nUnidades;
+
+      if (gruposCompletos === 0) {
+        totalConPromo = totalSinPromo;
+        detalle = `${cantidadDeseada} × $${fmt(precioUnitario)} = $${fmt(totalConPromo)} (necesitás ${nUnidades} para activar la promo)`;
+      } else {
+        const costoGrupos = precioFijoTotal * gruposCompletos;
+        const costoResto = precioUnitario * resto;
+        totalConPromo = costoGrupos + costoResto;
+
+        const partes = [];
+        partes.push(`${gruposCompletos} × ${nUnidades} unidades a $${fmt(precioFijoTotal)} fijo: $${fmt(costoGrupos)}`);
         if (resto > 0) {
           partes.push(`${resto} al precio lleno: $${fmt(costoResto)}`);
         }
