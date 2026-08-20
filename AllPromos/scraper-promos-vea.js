@@ -3,6 +3,14 @@
  * (El canal `sc=34` no resultó ser específico de Luján ni de ninguna sucursal — el precio es
  * el mismo a nivel país, confirmado en vivo. Ver CONTEXTO_TECNICO.md.)
  *
+ * SIN cookie `vtex_segment` a propósito (encontrado 2026-08-20, mismo motivo ya documentado en
+ * `core/fetchers.js` para las queries en vivo desde 2026-08-13, pero ahí nunca se corrigió este
+ * scraper): un cookie fijo con un regionId de una sucursal puntual devuelve precio y
+ * disponibilidad de una tabla vieja/rota para un subconjunto de productos — confirmado en vivo
+ * un caso real (~9% de una muestra de 2551 SKUs) donde, sacando el cookie, el precio pasó a
+ * coincidir con el de la página real. No volver a agregar un `vtex_segment` fijo sin volver a
+ * confirmar que sigue devolviendo precio vigente.
+ *
  * Salida:
  *   catalogo-vea.json  — todos los SKUs con EAN, precio y promo (null si no tiene)
  *   promos-vea.json    — solo los SKUs con promo activa (para búsqueda rápida)
@@ -10,14 +18,12 @@
 
 const fs = require('fs');
 
-const VTEX_SEGMENT = 'eyJjYW1wYWlnbnMiOm51bGwsImNoYW5uZWwiOiIzNCIsInByaWNlVGFibGVzIjpudWxsLCJyZWdpb25JZCI6IlUxY2phblZ0WW05aGNtZGxiblJwYm1GMk1UWXliSFZxWVc0PSIsInV0bV9jYW1wYWlnbiI6bnVsbCwidXRtX3NvdXJjZSI6bnVsbCwidXRtaV9jYW1wYWlnbiI6bnVsbCwiY3VycmVuY3lDb2RlIjoiQVJTIiwiY3VycmVuY3lTeW1ib2wiOiIkIiwiY291bnRyeUNvZGUiOiJBUkciLCJjdWx0dXJlSW5mbyI6ImVzLUFSIiwiYWRtaW5fY3VsdHVyZUluZm8iOiJlcy1BUiIsImNoYW5uZWxQcml2YWN5IjoicHVibGljIn0';
 const SELLER = 'jumboargentinav700cordoba700';
 const BASE_URL = 'https://www.vea.com.ar';
 const SC = 34;
 
 const HEADERS = {
   'Content-Type': 'application/json',
-  'Cookie': `vtex_segment=${VTEX_SEGMENT}`,
   'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
   'Accept': 'application/json',
 };

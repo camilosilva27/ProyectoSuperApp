@@ -396,6 +396,7 @@ function parsearProductosCoto(results) {
   const resultados = [];
   for (const item of results) {
     const d = item.data || {};
+    if (!(d.store_availability || []).length) continue; // SKU fantasma discontinuado, ver scraper-promos-coto.js
     const ean = d.product_main_ean ? String(d.product_main_ean) : null;
     const productName = d.sku_display_name || d.sku_description || null;
     const precios = (d.price || []).map(p => p.listPrice).filter(p => typeof p === 'number');

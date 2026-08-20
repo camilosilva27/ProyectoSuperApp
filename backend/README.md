@@ -8,7 +8,11 @@ app dan números distintos para la misma compra, es un bug.
 
 La app mobile no habla directo con las APIs de los supermercados por dos razones:
 
-1. La cookie `vtex_segment` de Vea no debe viajar dentro de un binario distribuido.
+1. ~~La cookie `vtex_segment` de Vea no debe viajar dentro de un binario distribuido.~~ Motivo
+   histórico, ya no aplica: desde 2026-08-20 ningún código (ni el fetch en vivo, ni el scraper
+   de catálogo) manda esa cookie — se encontró que causaba precios desactualizados, ver
+   `CONTEXTO_TECNICO.md` § "API de Vea". No queda ninguna credencial de super que no pueda
+   viajar en un binario.
 2. Centralizar las consultas permite controlar el ritmo de requests en un solo lugar en vez
    de en cada teléfono (Carrefour tira 429 y Chango Más además 502 intermitentes).
 

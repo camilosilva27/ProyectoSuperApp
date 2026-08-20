@@ -2,9 +2,11 @@
  * Servidor HTTP de AllPromos.
  *
  * Existe para que la app mobile no tenga que hablar directo con las APIs de los
- * supermercados: la cookie `vtex_segment` de Vea no debe viajar dentro de un binario
- * distribuido, y centralizar las consultas acá permite controlar el ritmo de requests en un
- * solo lugar en vez de en cada teléfono.
+ * supermercados: centralizar las consultas acá permite controlar el ritmo de requests en un
+ * solo lugar en vez de en cada teléfono (Carrefour tira 429, Chango Más también 502
+ * intermitentes). (Motivo histórico que ya no aplica: una cookie `vtex_segment` de Vea que no
+ * debía viajar en el binario — se sacó del código por completo el 2026-08-20, ver
+ * CONTEXTO_TECNICO.md § "API de Vea".)
  *
  * No duplica lógica de negocio: importa AllPromos/core/* igual que el CLI.
  */

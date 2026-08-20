@@ -66,8 +66,19 @@
  * categoría antes de scrapear en serio) — así una categoría grande como Almacén no queda
  * subrepresentada frente a una chica como Aire Libre.
  *
+ * SKUs FANTASMA (encontrado 2026-08-20): Constructor.io mantiene indexados SKUs discontinuados
+ * (packaging viejo, ya no se vende en ninguna sucursal) con un `price[]` congelado de la última
+ * vez que tuvieron stock — a veces muy desactualizado (confirmado un caso real: "Puré de Tomate
+ * Arcor" con 2 variantes discontinuadas a $650 y $110 conviviendo con la vigente a $1110, mismo
+ * producto). El sitio web de Coto los oculta filtrando por disponibilidad de sucursal; esta API
+ * no lo hace sola. `store_availability` (array de sucursales con stock) es la señal — si viene
+ * vacío, el SKU no se vende en ningún lado hoy. Se descarta explícitamente en `scrapearCategoria`
+ * antes de sumarlo a `allSkus`, no se guarda ni con un flag: un producto sin disponibilidad no le
+ * sirve al fin de la app (comparar precios reales), mismo criterio que llevó a capar a ~5.000.
+ *
  * Salida:
- *   catalogo-coto.json  — ~5.000 SKUs más relevantes por categoría (no el catálogo completo)
+ *   catalogo-coto.json  — ~5.000 SKUs más relevantes por categoría (no el catálogo completo),
+ *                         ya excluidos los SKUs fantasma sin disponibilidad
  *   promos-coto.json    — solo los SKUs con algún tipo de descuento, dentro de esos ~5.000
  */
 
@@ -256,6 +267,7 @@ async function scrapearCategoria(categoria, vistos, allSkus, paginasPresupuestad
       const idProducto = item.data.id;
       if (!idProducto || vistos.has(idProducto)) continue;
       vistos.add(idProducto);
+      if (!(item.data.store_availability || []).length) continue; // ver nota "SKUs fantasma" arriba
       allSkus.push(parsearProducto(item));
       nuevos++;
     }

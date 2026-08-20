@@ -3,9 +3,13 @@
  *
  * Existe para detectar sin mirar logs los dos modos de falla silenciosa del proyecto:
  *   1. Catálogos locales vencidos (el scraper dejó de correr).
- *   2. El último refresco del cron falló (cookie `vtex_segment` de Vea expirada, o el
- *      sha256Hash de las queries GraphQL de promos bancarias quedó desactualizado).
+ *   2. El último refresco del cron falló (el sha256Hash de las queries GraphQL de promos
+ *      bancarias quedó desactualizado, u otro error del scraper).
  * Ambos se ven igual que "no hay promos hoy" si no se reportan explícitamente.
+ *
+ * (Ya no aplica como causa de (2): la cookie `vtex_segment` de Vea que podía expirar se sacó
+ * del código por completo el 2026-08-20 — ver CONTEXTO_TECNICO.md § "API de Vea". Si el cron
+ * de Vea falla hoy, no sospechar de una cookie.)
  *
  * No requiere token: es el endpoint que se usa para verificar que el server está vivo.
  */
