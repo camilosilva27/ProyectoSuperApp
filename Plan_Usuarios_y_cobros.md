@@ -75,15 +75,18 @@ Probado en vivo (2026-08-19): el link de confirmación de mail hoy **no** loguea
 - Para que sí quede logueado directo hace falta: (a) configurar Site URL / Redirect URLs en el dashboard para que apunten a la app real (`http://localhost:8081` en dev, el dominio de producción después), y (b) agregar código nuevo en la app que detecte ese `code` en la URL al cargar y llame a `supabase.auth.exchangeCodeForSession(code)` — no es un toggle del dashboard, es una feature chica para construir.
 - El asunto y el cuerpo del mail sí se pueden personalizar ya, sin esto — Authentication → Email Templates en el dashboard, sin código de por medio.
 
-## Verificación fase 1 (para cuando se implemente)
+## Verificación fase 1 — completa (2026-08-19)
 
-1. Con las tablas y RLS creadas en Supabase, probar desde `app/` (modo dev, `expo start`) que:
-   - Un usuario anónimo sigue viendo su carrito/tarjetas/listas guardadas funcionando exactamente igual que hoy (sin sesión, todo sigue en AsyncStorage).
-   - Al registrarse con datos locales existentes, esos datos aparecen en Supabase (verificable desde el dashboard de Supabase, tabla `perfil_usuario`/`carrito_guardado`) y no se pierden.
-   - Al loguearse desde un segundo dispositivo/navegador con la misma cuenta, aparece el mismo carrito/tarjetas/listas — confirma el sync real.
-   - Cerrar sesión no borra lo que había local antes de loguearse (se puede seguir usando anónimo después de un logout).
-2. Confirmar con el dashboard de Supabase que las políticas RLS efectivamente bloquean acceso cruzado (ej. intentar leer `carrito_guardado` de otro `usuario_id` desde la consola SQL simulando un JWT distinto).
-3. Backend Express: correr su test/uso normal de `/api/comparar` para confirmar que no cambió nada (esta fase no lo toca).
+Fase 1 implementada y verificada de punta a punta, con una cuenta real (no solo con un usuario de prueba descartable):
+
+1. ✅ Usuario anónimo sigue viendo su carrito/tarjetas/listas guardadas funcionando exactamente igual que antes (sin sesión, todo sigue en AsyncStorage).
+2. ✅ Registro con datos locales existentes: migraron a Supabase (confirmado por SQL contra `perfil_usuario`/`carrito_guardado`) sin perder nada.
+3. ✅ Segundo dispositivo/navegador con la misma cuenta: mismo carrito/tarjetas/supers — sync real confirmado por el usuario.
+4. ✅ Cerrar sesión no borra lo que había local antes de loguearse — confirmado por el usuario.
+5. ✅ RLS bloquea acceso cruzado entre usuarios (probado con un usuario de prueba descartable, creado y borrado en la misma verificación — el `on delete cascade` limpió perfil y listas correctamente).
+6. Backend Express: no se tocó en toda esta fase — sin re-verificar explícitamente, pero no hay ningún cambio que pudiera haberlo afectado.
+
+Pendiente, no bloqueante (ver arriba): configurar Resend, y que el link de confirmación de mail deje logueado directo (PKCE).
 
 ---
 
