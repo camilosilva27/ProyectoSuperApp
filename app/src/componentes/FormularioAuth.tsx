@@ -27,11 +27,16 @@ export function FormularioAuth({ onExito }: { onExito?: () => void }) {
   // El campo Nombre aparece/desaparece según el modo (solo hace falta al registrarse) — sin
   // esto el cambio se sentía como un salto brusco, no una transición. Fade simple, no algo
   // sofisticado: solo hay que suavizar el corte, no animar cada campo por separado.
+  //
+  // `useNativeDriver: false` a propósito: en web no existe el native driver, y con `true`
+  // react-native-web cae a un fallback silencioso (con warning) — más simple no pedirlo. La
+  // salida es cortita (lo justo para no sentirse instantánea) y la entrada más larga, que es
+  // la parte que en verdad se percibe como "aparece".
   const cambiarModo = () => {
-    Animated.timing(opacidad, { toValue: 0, duration: 120, useNativeDriver: true }).start(() => {
+    Animated.timing(opacidad, { toValue: 0, duration: 100, useNativeDriver: false }).start(() => {
       setModo(m => (m === 'registro' ? 'login' : 'registro'));
       setError(null);
-      Animated.timing(opacidad, { toValue: 1, duration: 150, useNativeDriver: true }).start();
+      Animated.timing(opacidad, { toValue: 1, duration: 250, useNativeDriver: false }).start();
     });
   };
 
