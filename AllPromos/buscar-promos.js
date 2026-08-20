@@ -35,8 +35,6 @@ const {
   esEANvalido, palabrasDeBusqueda, estadoCatalogos, resolverEANporNombre, skuIdVeaPorEAN,
 } = require('./core/catalogo');
 const { SUPERMERCADOS, buscarPorEAN, buscarPorNombreEnVivo } = require('./core/fetchers');
-const { leerMiCodigoPostal, guardarMiCodigoPostal } = require('./mi-codigo-postal');
-const { tieneCobertura } = require('./core/laanonima-zona');
 const {
   calcularOpciones, calcularSugerenciaCantidad, calcularMejoresPorSuper,
   calcularResumenFinal, itemsParaReoptimizar,
@@ -58,39 +56,6 @@ async function ask(pregunta) {
 // tiene Mi Carrefour, ni se pide. El backend recibe esta lista por request en vez de leer
 // el archivo; por eso core/fetchers.js la toma como parámetro.
 const MIS_TARJETAS = leerMisTarjetas();
-
-// A diferencia de MIS_TARJETAS, esto no se puede resolver al toplevel: la primera vez hay
-// que preguntar interactivamente, y `ask()`/`rl` recién existen dentro de main(). Se resuelve
-// una sola vez en main() (ver resolverCodigoPostalInteractivo) y de ahí en adelante se pasa
-// siempre por parámetro a buscarPorEAN, igual que MIS_TARJETAS — core/ nunca lee el archivo.
-let CODIGO_POSTAL = { codigoPostal: null, coberturaConfirmada: false };
-
-/**
- * Solo relevante para La Anónima (ver core/laanonima-zona.js: es un gate de cobertura, no un
- * selector de precio). Pregunta una única vez en la vida del usuario — si ya hay
- * mi-codigo-postal.json (aunque sea "sin CP, ya preguntado"), no vuelve a preguntar.
- */
-async function resolverCodigoPostalInteractivo() {
-  const guardado = leerMiCodigoPostal();
-  if (guardado) {
-    CODIGO_POSTAL = guardado;
-    return;
-  }
-
-  const respuesta = await ask('¿Tu código postal, para incluir a La Anónima si tiene cobertura en tu zona? (Enter para omitir — no se vuelve a preguntar) ');
-  if (!respuesta) {
-    CODIGO_POSTAL = { codigoPostal: null, coberturaConfirmada: false };
-    guardarMiCodigoPostal(CODIGO_POSTAL);
-    return;
-  }
-
-  const coberturaConfirmada = await tieneCobertura(respuesta);
-  CODIGO_POSTAL = { codigoPostal: respuesta, coberturaConfirmada };
-  guardarMiCodigoPostal(CODIGO_POSTAL);
-  console.log(coberturaConfirmada
-    ? '  ✅ Tu zona tiene venta de supermercado de La Anónima — se va a incluir en las comparaciones.'
-    : '  ⚠️  La Anónima no tiene venta de supermercado online en tu zona — no se va a incluir en las comparaciones.');
-}
 
 function fmt(n) {
   return Number(n).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -176,7 +141,7 @@ async function buscarPorNombre(input) {
 
   return Promise.all(
     candidatos.map(async ({ ean, productName, skuIdVea }) => {
-      const resultado = await buscarPorEAN(ean, { tarjetas: MIS_TARJETAS, skuIdVea, ...CODIGO_POSTAL });
+      const resultado = await buscarPorEAN(ean, { tarjetas: MIS_TARJETAS, skuIdVea });
       return { ean, productName, ...resultado };
     })
   );
@@ -309,7 +274,7 @@ async function buscarIndividual(input, cantidadInicial, promosBancariasPromise) 
   let grupos;
   if (esEAN) {
     const ean = input.trim();
-    const resultado = await buscarPorEAN(ean, { tarjetas: MIS_TARJETAS, ...CODIGO_POSTAL });
+    const resultado = await buscarPorEAN(ean, { tarjetas: MIS_TARJETAS });
     grupos = [{ ean, productName: null, ...resultado }];
   } else {
     grupos = await buscarPorNombre(input);
@@ -368,7 +333,7 @@ async function procesarLista(archivoLista, promosBancariasPromise) {
     console.log('='.repeat(60));
 
     const grupos = esEANvalido(input)
-      ? [{ ean: input.trim(), productName: null, ...await buscarPorEAN(input.trim(), { tarjetas: MIS_TARJETAS, ...CODIGO_POSTAL }) }]
+      ? [{ ean: input.trim(), productName: null, ...await buscarPorEAN(input.trim(), { tarjetas: MIS_TARJETAS }) }]
       : await buscarPorNombre(input);
 
     if (!grupos.length) {
@@ -431,7 +396,6 @@ async function main() {
 
   rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   try {
-    await resolverCodigoPostalInteractivo();
     if (args[0] === '--lista') {
       if (!args[1]) { console.error('Falta el archivo. Uso: --lista compras.txt'); process.exit(1); }
       await procesarLista(args[1], promosBancariasPromise);

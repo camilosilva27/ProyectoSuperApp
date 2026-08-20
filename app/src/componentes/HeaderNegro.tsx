@@ -20,7 +20,6 @@ import { NOMBRE_SUPER, ORDEN_SUPERS } from './comunes';
  */
 const SUPERS_SOBRE_OSCURO: Record<SuperKey, string> = {
   vea: '#2EA35C', carr: '#4C8DF6', changomas: '#A66FE0', dia: '#FFFFFF', coto: '#F0576A',
-  laanonima: '#E0904F',
 };
 
 export function HeaderNegro({

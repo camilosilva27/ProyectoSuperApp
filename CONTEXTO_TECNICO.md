@@ -43,10 +43,10 @@ backend/                        ← API HTTP para la app mobile (Express)
 ├── src/catalogoUnificado.js    ← búsqueda en memoria sobre catalogo-unificado.json (nombre/EAN, sin precio)
 ├── src/precioCache.js          ← índice de precio+promo derivado de catalogo-*.json (ver más abajo)
 ├── src/limitadorGlobal.js      ← semáforo global (no por IP) para el fallback en vivo
-├── src/sondaEnVivo.js          ← sonda en background que prueba un EAN conocido cada 15 min (+ uno propio y un CP fijo para La Anónima, que necesita cobertura confirmada para tocar la red)
-├── src/cron/unificarCatalogo.js   ← dedupe de los 6 catálogos por EAN (escritura atómica) + descarga de fotos
+├── src/sondaEnVivo.js          ← sonda en background que prueba un EAN conocido cada 15 min
+├── src/cron/unificarCatalogo.js   ← dedupe de los 5 catálogos por EAN (escritura atómica) + descarga de fotos
 ├── src/cron/descargarImagenes.js  ← baja y guarda fotos de producto una sola vez, redimensionadas
-└── src/cron/refrescarCatalogos.js ← corre los 6 scrapers como subprocesos + enriquecimiento de La Anónima + sonda de promos bancarias
+└── src/cron/refrescarCatalogos.js ← corre los 5 scrapers como subprocesos + sonda de promos bancarias
 
 app/                            ← App mobile/web (React Native + Expo SDK 57, expo-router)
 ├── app/(tabs)/index.tsx        ← Buscar/seleccionar productos
@@ -124,8 +124,6 @@ Usuario escribe "coca cola 2.25, 2"
   Día:        GET /api/catalog_system/pub/products/search?fq=alternateIds_Ean:{ean}&sc=1
               (VTEX, mismo mecanismo que Carrefour/Chango Más — host diaonline.supermercadosdia.com.ar)
   Coto:       GET .../products/search/{ean}  (Constructor.io — no es VTEX, busca por texto y filtra el EAN exacto)
-  La Anónima: GET /{slug}/n3_{id}/  (HTML de categoría, re-pedido desde catalogo-laanonima.json —
-              sin CP con cobertura confirmada, corta antes de pegarle a la red, ver sección propia)
        ↓
 [promo-engine.js] → calcula costo real para la cantidad deseada
        ↓
@@ -266,29 +264,7 @@ Se probó con una muestra de 50 productos de consumo común (arroz, leche, yerba
 
 **SKUs fantasma — productos discontinuados con precio congelado (encontrado y corregido 2026-08-20):** Constructor.io mantiene indexados productos que ya no se venden en ninguna sucursal, con el último `price[]` que tuvieron cuando sí tenían stock — a veces muy viejo. Caso real que disparó la investigación: buscando "puré de tomate arcor" aparecían 3 resultados — $650 y $110 (ambos exclusivos de Coto) más el real a $1.110 (presente en los otros supers también). Los primeros dos no aparecen buscando manualmente en coto.com.ar. La señal es el campo `store_availability` (array de sucursales con stock) — viene vacío (`[]`) en los discontinuados, con 30+ sucursales en los vigentes. Ninguno de los dos EAN coincidía entre sí ni con el real (no es un bug de matching): son 3 SKUs distintos, legítimos como registros, pero 2 de los 3 no deberían mostrarse. Confirmado en la categoría "Puré de Tomate" completa (53 SKUs, el 100% real de Coto para esa categoría): 28 con `store_availability` vacío, 25 con sucursales reales — los 25 reales ocupan los primeros puestos en el orden de relevancia de Constructor.io, los 28 fantasma quedan después (un solo caso, no generaliza que siempre sea así). Fix: `scraper-promos-coto.js` (dentro de `scrapearCategoria`) y `parsearProductosCoto` en `core/fetchers.js` descartan cualquier SKU con `store_availability` vacío, tanto al armar el catálogo como en la consulta en vivo. Efecto en el catálogo completo: bajó de ~5.000 a **2.889 SKUs reales** (ver "Alcance y limitaciones" — la cifra de 5.000/11.586 de la decisión del 19-08 queda desactualizada, la real hoy es más chica).
 
-**Nota — no es lo mismo que el bug de Vea:** en Coto, los SKUs fantasma están genuinamente descatalogados (ausentes del sitio real, EAN propio, no aparecen buscando a mano). El problema de Vea encontrado el mismo día (ver "API de Vea" arriba) es distinto: productos reales y disponibles que mostraban precio/disponibilidad mal por una cookie de sesión vencida, no por estar discontinuados. Se investigó también Carrefour (10/2.559 = 0,4%, genuino — mayormente verdura/fruta fresca con `errMsg` explícito), Chango Más (0/2.550) y Día (0/2.550): ninguno de los tres tiene ninguno de los dos problemas. La Anónima no aplica — es HTML propio sin ningún campo de disponibilidad.
-
----
-
-## API de La Anónima — quirks críticos
-
-**Estado (2026-08-18): investigado en vivo + scraper y fetchers escritos.** El sexto super agregado, y el primero en romper varios supuestos que valían para los otros 5.
-
-**No es VTEX ni un SaaS de terceros.** Es HTML server-rendered propio (Apache detrás de CloudFront). No hay API de catálogo/búsqueda en JSON: cada categoría es una página HTML (`https://www.laanonima.com.ar/{slug}/n3_{id}/`) con los productos embebidos como atributos `data-*` de cada card — `data-codigo` (id interno), `data-nombre`, `data-precio_oferta`, `data-precio_anterior`, `data-rutacategorias` (breadcrumb). `scraper-promos-laanonima.js` los extrae con regex por atributo (no por límite de tag `>`, porque `data-rutacategorias` puede traer un `>` literal en el valor — ver el comentario del parser).
-
-**El precio NO depende de zona/CP.** Se probó explícitamente (spike 2026-08-17): el HTML de una página de categoría es **byte a byte idéntico** pidiéndolo con distintos query params de CP/zona, y `api.laanonima.com.ar/sucursal/{cp}` nunca setea cookie de sesión. Ese endpoint solo informa `super.haySucursalSuper` (¿hay venta de supermercado online en esa zona?) — es un gate de cobertura, no un selector de precio. `core/laanonima-zona.js` lo usa exactamente así.
-
-**Sin EAN.** Ni las cards de categoría ni la página de producto individual (`/{slug}/art_{id}/`) traen EAN, `gtin13`, ni JSON-LD de producto — la única identidad estable es `data-codigo`. `enriquecer-catalogo-laanonima.js` corre después del scraper y le asigna un EAN best-effort emparejando por nombre normalizado (marca + palabras + tamaño/peso, umbral Jaccard 0.8) contra los otros 5 catálogos, solo si hay un único candidato inequívoco (ante ambigüedad, sin EAN). Resultado real: 1794/8197 SKUs (~22%) — el resto son mayormente marca propia "La Anónima" (sin equivalente en otro super, esperado) o variantes que no están en la muestra de ~2550 SKUs de los catálogos VTEX.
-
-**La página de producto individual NO sirve para precio en vivo.** A diferencia de lo esperado, no trae precio server-rendered (se carga por JS aparte contra algún endpoint no identificado). `laAnonimaLiveEAN` en `core/fetchers.js` por eso siempre re-pide `urlCategoria` (guardada por SKU en `catalogo-laanonima.json`) y busca el producto puntual ahí por `data-codigo`, nunca `urlProducto`.
-
-**403 por User-Agent, no rate-limit puro.** El WAF de CloudFront bloquea UAs tipo curl pelado (confirmado: el mismo request con UA de Chrome real funciona). Con espaciado de 1500ms entre categorías y un UA de navegador no volvió a aparecer, salvo picos de requests muy seguidos (por eso el backoff de 10s en 403/429/5xx, igual que Carrefour/Chango Más).
-
-**Sin buscador confiable.** `/catalogo/buscador/{term}` devolvió 403 en el spike (no confirmado si es bloqueo real o transitorio) — `laAnonimaLiveNombre` devuelve `[]` siempre, el camino principal es `buscarPorEAN`.
-
-**Categorías: lista fija de 134 URLs**, obtenida de `sitemap-listados.xml` filtrando a los rubros de supermercado (almacén, bebidas, bebidas alcohólicas, lácteos y frescos, congelados, frutas y verduras, carnicería, limpieza, perfumería, cuidado personal, mascotas) y excluyendo electro/TV/indumentaria/hogar/construcción/celulares — La Anónima vende de todo, pero el comparador es de supermercado. Sin paginación detectada en las categorías probadas.
-
-**Cobertura real:** con cobertura confirmada en Patagonia y La Pampa (Comodoro Rivadavia, Bariloche, Trelew, Santa Rosa, todos zona 8), sin cobertura en Luján/CABA/Bahía Blanca/Mendoza (zona 4, solo división electro). El CP del usuario se guarda en `AllPromos/mi-codigo-postal.json` (CLI, gitignoreado) o en AsyncStorage (app, `allpromos:cpLaAnonima:v1`) — opcional y específico de este super, no se le pregunta a nadie que no lo activa.
+**Nota — no es lo mismo que el bug de Vea:** en Coto, los SKUs fantasma están genuinamente descatalogados (ausentes del sitio real, EAN propio, no aparecen buscando a mano). El problema de Vea encontrado el mismo día (ver "API de Vea" arriba) es distinto: productos reales y disponibles que mostraban precio/disponibilidad mal por una cookie de sesión vencida, no por estar discontinuados. Se investigó también Carrefour (10/2.559 = 0,4%, genuino — mayormente verdura/fruta fresca con `errMsg` explícito), Chango Más (0/2.550) y Día (0/2.550): ninguno de los tres tiene ninguno de los dos problemas.
 
 ---
 
@@ -390,7 +366,7 @@ Para cada ítem muestra, por cada uno de los supers que tenga resultado:
 
 Al final:
 - **Total óptimo** (mezcla de supermercados, el más barato por ítem)
-- **Total todo en Vea / todo en Carrefour / todo en Chango Más / todo en Día / todo en Coto / todo en La Anónima**
+- **Total todo en Vea / todo en Carrefour / todo en Chango Más / todo en Día / todo en Coto**
 - Plan de compra: qué comprar en cada super
 - Ítems no encontrados
 
@@ -408,8 +384,6 @@ node scraper-promos-carrefour.js     # ~10 min → catalogo-carrefour.json
 node scraper-promos-changomas.js     # ~2 min  → catalogo-changomas.json (tope de ~2550 SKUs, ver quirks arriba)
 node scraper-promos-dia.js           # ~2 min  → catalogo-dia.json (tope de ~2550 SKUs, catálogo real más chico)
 node scraper-promos-coto.js          # ~1 min  → catalogo-coto.json (recortado a propósito a ~5.000 SKUs, ver quirks arriba)
-node scraper-promos-laanonima.js     # ~5-6 min → catalogo-laanonima.json (134 categorías, sin EAN todavía)
-node enriquecer-catalogo-laanonima.js # correr SIEMPRE después del anterior → le asigna EAN best-effort (~22% del catálogo)
 ```
 
 El scraper de Vea: pagina el catálogo, consulta `/_v/search-promotions` en batches de 10, guarda todo en `catalogo-vea.json` con campo `fecha`.
@@ -422,9 +396,7 @@ El scraper de Día: copia casi textual del de Carrefour (mismo mecanismo VTEX), 
 
 El scraper de Coto: no es VTEX — pagina las categorías de nivel superior de Constructor.io, calcula la moda de `price[]` como `precioBase` (ver "API de Coto" arriba) y guarda en `catalogo-coto.json`.
 
-El scraper de La Anónima: tampoco es VTEX — HTML server-rendered propio, sin API de catálogo en JSON (ver sección propia más abajo). Recorre 134 categorías fijas parseando atributos `data-*` de cada card, guarda `catalogo-laanonima.json` **sin EAN** (La Anónima no lo expone). `enriquecer-catalogo-laanonima.js` corre después y le asigna un EAN best-effort por nombre contra los otros 5 catálogos — sin este segundo paso, La Anónima queda invisible para cualquier comparación por EAN.
-
-En producción, los scrapers los corre `backend/src/cron/refrescarCatalogos.js` como subprocesos (ver `backend/README.md`), seguidos del enriquecimiento de La Anónima y recién después la unificación — no hace falta correrlos a mano salvo para debug local.
+En producción, los scrapers los corre `backend/src/cron/refrescarCatalogos.js` como subprocesos (ver `backend/README.md`) y recién después la unificación — no hace falta correrlos a mano salvo para debug local.
 
 ---
 
@@ -448,7 +420,6 @@ En producción, los scrapers los corre `backend/src/cron/refrescarCatalogos.js` 
 
 - **4 de los 5 supers VTEX (Vea, Carrefour, Chango Más, Día) muestran precio único a nivel país** — confirmado en vivo el 2026-08-10 para Vea (regionId de Luján vs. Córdoba vs. La Plata, 5 productos, precio idéntico) y ya se sabía para Carrefour y Chango Más; Día corre sobre el mismo mecanismo VTEX y no se encontró evidencia de regionalización tampoco. No está confirmado que ese precio online coincida con el de góndola de una sucursal física en particular.
 - **Coto es la excepción: sí varía por sucursal de verdad** (confirmado en vivo, 98% de una muestra de 50 productos con precio distinto entre sucursales). Se usa el precio dominante (moda) como aproximación — ver "API de Coto" arriba para el detalle y las sucursales que sistemáticamente quedan por debajo de esa moda (Flores, Once).
-- **La Anónima también es precio único** (confirmado byte a byte en el spike, ver "API de La Anónima" arriba), pero por un motivo distinto a los 4 de VTEX: no es que se haya probado que distintas zonas devuelvan el mismo precio, es que el HTML servido no varía nunca según ningún parámetro de zona — no hay mecanismo de regionalización de precio en absoluto en ese sitio. Lo que sí varía es la **cobertura** (si hay venta de supermercado online en esa zona), que es un dato aparte (`haySucursalSuper`), no de precio.
 - Solo **productos envasados con EAN real** (no productos al peso: queso, fiambre, carne)
 - **Promos bancarias por producto excluidas del cálculo salvo Mi Carrefour** (única implementada hoy en `core/fetchers.js`/`precioCache.js`) — las promos "por ticket" (Cencopay, bancos de terceros, MasClub) sí están cubiertas, pero en un módulo aparte (`promos-bancarias.js`, ver sección propia).
 - El catálogo local puede desincronizarse con productos discontinuados o renombrados
@@ -469,8 +440,6 @@ En producción, los scrapers los corre `backend/src/cron/refrescarCatalogos.js` 
   7. **Conclusión revisada: el bloqueante no es solo "indexar la búsqueda" — es la RAM de la VM.** Ampliar cobertura de catálogo con la arquitectura actual (todo el catálogo cargado entero en memoria de un solo proceso Node) directamente no es viable en esta VM sin subir de máquina o cambiar a un motor que no requiera tener todo el dataset en RAM (una base de datos real con índices en disco, por ejemplo). Indexar la búsqueda (punto 5) seguiría haciendo falta para la velocidad, pero primero hay que resolver que el dato ni siquiera entra en memoria.
   8. **Los ~2.550 capturados hoy no son arbitrarios ni cambian de corrida a corrida: son los más vendidos.** Confirmado en vivo en Chango Más: dos requests idénticos devolvieron los mismos productos en el mismo orden (estable, no aleatorio), y el orden default (sin pasar `O=`) resultó **idéntico** al de pedir explícitamente `O=OrderByTopSaleDESC` — la API ordena por ventas cuando no se pide otra cosa. Esto es una buena noticia parcial: lo que falta cubrir por el tope de paginación es la cola larga (productos poco vendidos/de nicho), no una mezcla al azar que podría estar excluyendo productos populares.
 - **Promos condicionales (NxM, Ndo al X%) de Chango Más sin confirmar**: el código las soporta pero nunca se observó un ejemplo real en producción.
-- **La Anónima solo participa en comparaciones por EAN para ~22% de su catálogo** (1794/8197 SKUs, ver "API de La Anónima" arriba) — no tiene EAN propio, así que el resto (mayormente marca propia) queda fuera de toda comparación cruzada con los otros 5 supers, aunque sí es visible en su propio listado/búsqueda de la app.
-- **La Anónima requiere que el usuario tenga cobertura confirmada en su CP** para aparecer en cualquier comparación — sin CP guardado, o con un CP sin venta de supermercado online (todo fuera de Patagonia/La Pampa al momento de escribir esto), se excluye en silencio, igual que cualquier super que el usuario no activó.
 
 ---
 
@@ -488,7 +457,7 @@ En producción, los scrapers los corre `backend/src/cron/refrescarCatalogos.js` 
   2. **Pero el default de la Intelligent Search para una consulta sin filtrar (`query=&map=`) es un orden DISTINTO, no correlaciona con lo anterior** — probado en Día: los IDs devueltos no coinciden en nada con la lista de `OrderByTopSaleDESC`. Además, pasarle `sort=OrderByTopSaleDESC` explícito devuelve `400 "Unsupported sort"`, y la respuesta no expone `sort_options` para saber qué alternativas hay (a diferencia de Coto/Constructor.io, acá viene `"sorts": []` siempre vacío).
   3. **Conclusión:** el endpoint legacy da "más vendidos" gratis pero tiene el techo duro de ~2.550; la Intelligent Search llega a 5.000 pero, sin filtrar por categoría, en un orden que no es de fiar — traer los próximos ~2.450 de ahí no serían "los siguientes más vendidos", sería más bien ruido sin criterio claro. La única forma de llegar a 5.000 por super preservando "más vendidos primero" sería repetir el patrón de Coto (pedir por categoría, con el `O=OrderByTopSaleDESC` del propio legacy esta vez, no la Intelligent Search) — pero a diferencia de las 10 categorías parejas de Coto, acá las categorías son mucho más desparejas (Vea: la categoría raíz "Almacén" sola ya tiene 38.952 ítems, muy por encima de cualquier techo) y requeriría bajar varios niveles con recursión adaptativa (hasta las 458 hojas medidas en Vea) — un scraper bastante más complejo que el de Coto, no un cambio de un número. **Decisión del usuario (2026-08-19): no vale la pena ahora** — el problema urgente (RAM) ya se resolvió con el recorte de Coto; Coto queda con el doble de cobertura (~5.000) que los otros 4 (~2.550), aceptado como asimetría razonable.
 - ~~Renovar automáticamente la `vtex_segment` cookie de Vea via browser headless~~ **descartado (2026-08-20)** — se encontró que la cookie causaba precios desactualizados en ~10% del catálogo (ver quirk de Vea arriba) y que no hace falta ninguna cookie para tener precio correcto. Se sacó del código por completo en vez de automatizar su renovación; no reabrir esto sin antes releer esa nota.
-- **Sacar La Anónima de la app (pendiente, planteado 2026-08-20).** El WAF de CloudFront bloquea la IP de la VM de forma recurrente (ver "API de La Anónima" arriba y memoria `laanonima-403-vm-produccion`) — no es un bloqueo puntual ya resuelto, vuelve una y otra vez, y afecta tanto al scraper como al fetch de precio en vivo (`laAnonimaLiveEAN`) porque ambos pegan desde la misma IP. No se encontró una forma confiable de evitarlo (headers/UA de navegador real ya se usan, no alcanza). Motivo para sacarlo: un super que se cae recurrentemente sin aviso previo (no hay forma de saber cuándo va a estar bloqueado) aporta más ruido/mantenimiento que valor — máxime siendo el super con menos cobertura y sin EAN propio (~22% matcheado por nombre, ver "API de La Anónima"). Decisión final todavía no tomada — esto es la razón documentada para cuando se decida.
+- ~~Sacar La Anónima de la app~~ ✅ hecho (2026-08-20) — el WAF de CloudFront bloqueaba la IP de la VM de forma recurrente (no un bloqueo puntual, volvía una y otra vez, afectando tanto al scraper como al fetch de precio en vivo) sin una forma confiable de evitarlo, y era el super con menos cobertura y sin EAN propio (~22% matcheado por nombre). Se sacó por completo: scrapers y módulos exclusivos borrados (`scraper-promos-laanonima.js`, `enriquecer-catalogo-laanonima.js`, `resolver-ean-laanonima-flix.js`, `aplicar-ean-flix-laanonima.js`, `core/laanonima-zona.js`, `mi-codigo-postal.js`, `backend/src/routes/laanonima.js`), y su entrada removida de `core/catalogo.js`, `core/fetchers.js`, `precioCache.js`, `sondaEnVivo.js`, `comparar.js` (incluido el gate de cobertura por CP y el parámetro `codigoPostal` de `/api/comparar`/`/api/precios`, que ya no tenía otro uso), `unificarCatalogo.js`, `refrescarCatalogos.js` y `server.js`, más el contexto/modal de CP y las listas de supers del frontend (`api.ts`, `comunes.tsx`, `theme.ts`, `HeaderNegro.tsx`, `filtrosSupers.tsx`). Quedan **5 supers activos**: Vea, Carrefour, Chango Más, Día, Coto. Ver `PLAN_SACAR_LAANONIMA.md` para el detalle completo del trabajo.
 - ~~Interpretar el formato "2x$X" (precio fijo) de Día en `promo-engine.js`~~ ✅ hecho (2026-08-19) — tipo `oferta_precio_fijo`, ver "API de Día" arriba
 - ~~Promos por producto condicionadas a tarjeta propia más allá de Mi Carrefour: MasClub~~ descartado (2026-08-19) — ver "Cerrado, no implementar" en "API de Chango Más" arriba, sin evidencia de que exista (mismo cierre que Cencopay, ver sección de promos bancarias)
 - ~~Conectar promos bancarias con tope a `/api/comparar`~~ ✅ hecho (2026-08-19) — ver "`POST /api/comparar` SÍ conecta este módulo" en la sección de promos bancarias arriba

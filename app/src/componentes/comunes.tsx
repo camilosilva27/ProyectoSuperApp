@@ -12,10 +12,9 @@ import type { SuperKey } from '../api';
 import { espacio, radio, texto } from '../theme';
 import { useTema } from '../useTema';
 
-export const ORDEN_SUPERS: SuperKey[] = ['vea', 'carr', 'changomas', 'dia', 'coto', 'laanonima'];
+export const ORDEN_SUPERS: SuperKey[] = ['vea', 'carr', 'changomas', 'dia', 'coto'];
 export const NOMBRE_SUPER: Record<SuperKey, string> = {
   vea: 'Vea', carr: 'Carrefour', changomas: 'Chango Más', dia: 'Día', coto: 'Coto',
-  laanonima: 'La Anónima',
 };
 
 /** En qué supers existe el producto, antes de saber precios. Color = identidad del super. */

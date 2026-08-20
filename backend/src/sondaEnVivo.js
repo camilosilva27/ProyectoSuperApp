@@ -25,34 +25,18 @@ const { buscarPorEAN, SUPERMERCADOS } = require('../../AllPromos/core/fetchers')
 // real — revisar y cambiar el EAN si eso empieza a pasar seguido.
 const EAN_SONDA = '7790060023684';
 
-// La Anónima necesita un EAN propio para la sonda: no tiene EAN nativo, solo el subconjunto
-// que enriquecer-catalogo-laanonima.js pudo emparejar por nombre (~22% del catálogo, ver su
-// cabecera) — usar EAN_SONDA de arriba ahí reportaría `ok:false` siempre por "no matcheó",
-// indistinguible de un fetch roto de verdad. Este EAN SÍ está confirmado emparejado
-// (Acondicionador Keratina Pantene 250cc, confirmado 2026-08-18). También necesita un CP de
-// referencia con cobertura confirmada (Comodoro Rivadavia) — sin CP, laAnonimaLiveEAN corta
-// antes de tocar la red (ver core/fetchers.js), y la sonda nunca detectaría nada.
-const EAN_SONDA_LAANONIMA = '7500435241106';
-const CP_SONDA_LAANONIMA = '9000';
-
 const INTERVALO_MS = 15 * 60 * 1000;
 
 let estado = { ultimaCorrida: null, resultados: null, error: null };
 
 async function correrSonda() {
   try {
-    const [grupo, grupoLaAnonima] = await Promise.all([
-      buscarPorEAN(EAN_SONDA),
-      buscarPorEAN(EAN_SONDA_LAANONIMA, { codigoPostal: CP_SONDA_LAANONIMA, coberturaConfirmada: true }),
-    ]);
+    const grupo = await buscarPorEAN(EAN_SONDA);
     const resultados = {};
     for (const s of SUPERMERCADOS) {
-      if (s.key === 'laanonima') continue; // se evalúa aparte, con su propio EAN/CP
       const encontrados = (grupo[s.key] || []).filter(r => r.precioBase > 0);
       resultados[s.key] = { nombre: s.nombre, ok: encontrados.length > 0 };
     }
-    const encontradosLaAnonima = (grupoLaAnonima.laanonima || []).filter(r => r.precioBase > 0);
-    resultados.laanonima = { nombre: 'La Anónima', ok: encontradosLaAnonima.length > 0 };
     estado = { ultimaCorrida: new Date().toISOString(), resultados, error: null };
   } catch (err) {
     // No se pisa el último resultado bueno conocido — solo se anota que la corrida falló.

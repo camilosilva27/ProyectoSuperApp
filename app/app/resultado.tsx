@@ -23,7 +23,6 @@ import {
   comparar, ErrorApi, type ItemComparado, type RespuestaComparar, type SuperKey,
 } from '../src/api';
 import { useCarrito } from '../src/carrito';
-import { useCodigoPostalLaAnonima } from '../src/codigoPostalLaAnonima';
 import { BarraDiferencia } from '../src/componentes/BarraDiferencia';
 import { Problema, Vacio } from '../src/componentes/comunes';
 import { FotoProducto } from '../src/componentes/FotoProducto';
@@ -89,21 +88,15 @@ export default function PantallaResultado() {
   const insets = useSafeAreaInsets();
   const carrito = useCarrito();
   const { supersActivos } = useFiltrosSupers();
-  const cpLaAnonima = useCodigoPostalLaAnonima();
   const scrollRef = useRef<ScrollView>(null);
   const yPromos = useRef(0);
 
-  // Solo relevante para La Anónima (gate de cobertura, ver codigoPostalLaAnonima.tsx).
-  const codigoPostalActivo = cpLaAnonima.estado?.coberturaConfirmada
-    ? cpLaAnonima.estado.codigoPostal ?? undefined
-    : undefined;
-
   const pedido = carrito.items.map(i => ({ ean: i.ean, cantidad: i.cantidad }));
-  const clave = JSON.stringify({ pedido, tarjetas: carrito.tarjetas, supersActivos, codigoPostalActivo });
+  const clave = JSON.stringify({ pedido, tarjetas: carrito.tarjetas, supersActivos });
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['comparar', clave],
-    queryFn: () => comparar(pedido, carrito.tarjetas, supersActivos, codigoPostalActivo),
+    queryFn: () => comparar(pedido, carrito.tarjetas, supersActivos),
     enabled: pedido.length > 0,
     staleTime: 0, // los precios son en vivo: no se reusan entre comparaciones
   });

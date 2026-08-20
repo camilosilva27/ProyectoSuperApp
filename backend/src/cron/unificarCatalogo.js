@@ -5,9 +5,7 @@
  * Combina los catálogos locales deduplicando por EAN. El orden de prioridad para el
  * nombre canónico es Vea → Carrefour → Chango Más → Día → Coto (el mismo que ya usa
  * resolverEANporNombre() en AllPromos/core/catalogo.js, para que un producto se llame igual
- * en la app y en el CLI) y por último La Anónima, que solo aporta nombre/disponibilidad
- * cuando ningún otro super ya trajo ese EAN (no tiene EAN propio — ver unificarCatalogo.js
- * FUENTES y AllPromos/enriquecer-catalogo-laanonima.js).
+ * en la app y en el CLI).
  *
  * IMPORTANTE — los campos de precio se excluyen a propósito. Los catalogo-*.json traen
  * `precioBase`/`precioActual`/`promocion`/`descuentoDirecto` de la fecha del scraping, que
@@ -37,10 +35,6 @@ const FUENTES = [
   { key: 'changomas', archivo: 'catalogo-changomas.json' },
   { key: 'dia',       archivo: 'catalogo-dia.json' },
   { key: 'coto',      archivo: 'catalogo-coto.json' },
-  // Prioridad más baja a propósito: La Anónima no tiene EAN propio, el que trae acá es un
-  // best-effort asignado por enriquecer-catalogo-laanonima.js contra los otros 5 (ver su
-  // cabecera) — si el mismo EAN ya apareció en un super de mayor prioridad, ese nombre gana.
-  { key: 'laanonima', archivo: 'catalogo-laanonima.json' },
 ];
 
 function construirCatalogoUnificado() {

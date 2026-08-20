@@ -37,17 +37,6 @@ Al leer el código fuente noté un par de cosas que `CONTEXTO_TECNICO.md` no men
 - **Teasers/PromotionTeasers sin verificar.** El parseo de promos condicionales (NxM, Ndo al X%) está implementado por simetría con Carrefour, pero se escanearon ~450 productos reales y nunca apareció un teaser poblado. Si vas a debuggear "por qué no detecta esta promo de Chango Más", empezá por confirmar que el campo realmente tiene datos con `console.log` antes de asumir que el regex está mal.
 - **Límite de ~2.550 ítems en el endpoint legacy de VTEX** (`_from`/`_to` acumulado > ~2550 → 400). Esto no es un bug del scraper: Vea (378k reales) y Carrefour (104k reales) tienen el mismo techo y sus catálogos locales también son un recorte parcial, solo que es menos notorio porque sus catálogos totales visibles son más chicos. No "arreglar" esto con reintentos o backoff — es un límite duro de la API, no un rate limit.
 
-## La Anónima — lo que hay que saber antes de tocar esa parte
-
-- **No es VTEX ni un SaaS de terceros** (a diferencia de los otros 5). Es HTML server-rendered propio: cada categoría (`/slug/n3_id/`) trae sus productos como atributos `data-*` en el `<a>` de cada card (`data-precio_oferta`, `data-precio_anterior`, `data-nombre`, `data-codigo`). `scraper-promos-laanonima.js` y `core/fetchers.js` (`parsearProductoLaAnonima`) parsean ese HTML por regex cada uno por su lado — mismo criterio que el resto de los supers (ver el comentario de `parsearProductosCarrefour`), no comparten código.
-- **El precio NO depende de zona/CP** (confirmado en el spike 2026-08-17: el HTML de una página de categoría es byte a byte idéntico sin importar qué CP se le pase, sin cookie de sesión de por medio). El CP del usuario en `core/laanonima-zona.js` es un **gate binario de cobertura** (¿hay venta de supermercado online en esa zona, según `api.laanonima.com.ar/sucursal/{cp}` → `super.haySucursalSuper`?), nunca un selector de precio. No inventar lógica de "precio por zona" para esto.
-- **Sin EAN propio.** Ni las cards de categoría ni la página de producto individual (`/slug/art_id/`) traen EAN, gtin, ni JSON-LD — solo `data-codigo` (id interno de La Anónima). `enriquecer-catalogo-laanonima.js` corre después del scraper y asigna un EAN best-effort por matching de nombre normalizado contra los otros 5 catálogos (marcado `eanInferido: true`), solo cuando hay un único candidato inequívoco — ante ambigüedad, no asigna nada. Resultado real (2026-08-18): ~22% del catálogo matcheado (1794/8197) tras corregir que Coto usa el campo `nombre` en vez de `productName`/`skuName` (ver "Discrepancias" abajo). El resto queda sin EAN a propósito — no forzar un match dudoso.
-- **La página de producto individual no sirve para precio en vivo** — no trae precio server-rendered (se carga por JS aparte, confirmado en el spike). `laAnonimaLiveEAN` en `core/fetchers.js` siempre re-pide `urlCategoria` (guardada por SKU en `catalogo-laanonima.json`), nunca `urlProducto`.
-- **Los 403 son por User-Agent**, no rate-limit puro: el WAF de CloudFront bloquea UAs tipo curl pelado. Con el UA de navegador real que ya usan el scraper y los fetchers no volvió a aparecer en las pruebas, salvo con requests muy seguidos (por eso el backoff de 10s y el `DELAY_MS` de 1500 entre categorías, más conservador que el resto).
-- **`laAnonimaLiveNombre` siempre devuelve `[]`** — no hay endpoint de búsqueda por texto confiable (`/catalogo/buscador/{term}` dio 403, no confirmado si es bloqueo real o transitorio). El camino principal es `buscarPorEAN`.
-- **CATEGORIAS es una lista fija de 134 URLs** (obtenida de `sitemap-listados.xml` filtrando a rubros de supermercado, excluyendo electro/TV/indumentaria/hogar/celulares — La Anónima vende de todo, el comparador es solo de supermercado), mismo criterio que la lista fija de Coto.
-- **`mi-codigo-postal.json`** (gitignoreado, mismo patrón que `mis-tarjetas.json`) guarda el CP del usuario para la CLI — se pregunta una sola vez en `buscar-promos.js` (`resolverCodigoPostalInteractivo`), nunca se lee dentro de `core/`.
-
 ## Comandos
 
 ```bash
@@ -64,8 +53,6 @@ node buscar-promos.js --lista compras-prueba.txt    # lista de prueba (10 ítems
 node scraper-promos-vea.js           # ~5 min
 node scraper-promos-carrefour.js     # ~10 min
 node scraper-promos-changomas.js     # ~2 min (tope de ~2550 SKUs, no ~10 min a pesar de que el catálogo real es más grande)
-node scraper-promos-laanonima.js         # ~5-6 min, 134 categorías con espaciado
-node enriquecer-catalogo-laanonima.js    # correr SIEMPRE después del scraper de arriba: le asigna EAN best-effort
 ```
 
 No hay test suite. Para validar un cambio, correlo contra `compras-prueba.txt` y revisá manualmente que los totales y promos calculados tengan sentido (comparar contra `COMO_FUNCIONA.md` para ver el formato esperado del resumen).

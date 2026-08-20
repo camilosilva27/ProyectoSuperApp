@@ -14,7 +14,7 @@ const {
   interpretarPromoCarrefour,
   interpretarTeaserTarjetaPropia,
 } = require('../promo-engine');
-const { skuIdVeaPorEAN, urlLaAnonimaPorEAN } = require('./catalogo');
+const { skuIdVeaPorEAN } = require('./catalogo');
 
 const VEA_SELLER = 'jumboargentinav700cordoba700';
 
@@ -46,24 +46,12 @@ const DIA_SELLER = '1';
 const COTO_KEY  = 'key_r6xzz4IAoTWcipni';
 const COTO_HOST = 'https://api.coto.com.ar/api/v1/ms-digital-sitio-bff-web/api/v1/products/search';
 
-// La Anónima no es VTEX ni un SaaS de terceros: HTML server-rendered propio (ver
-// scraper-promos-laanonima.js). El precio NO depende de zona/CP (confirmado en el spike:
-// el HTML de categoría es byte a byte idéntico para cualquier CP) — el CP del usuario es
-// solo un gate binario de cobertura (ver core/laanonima-zona.js), nunca selecciona precio.
-// Sin EAN propio: laAnonimaLiveEAN solo encuentra algo si enriquecer-catalogo-laanonima.js
-// pudo emparejar ese EAN por nombre contra otro super (ver su cabecera).
-const LAANONIMA_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
-  'Accept': 'text/html',
-};
-
 const SUPERMERCADOS = [
   { key: 'vea',       nombre: 'Vea',        tag: '🟢' },
   { key: 'carr',      nombre: 'Carrefour',  tag: '🔵' },
   { key: 'changomas', nombre: 'Chango Más', tag: '🟣' },
   { key: 'dia',       nombre: 'Día',        tag: '🟡' },
   { key: 'coto',      nombre: 'Coto',       tag: '🔴' },
-  { key: 'laanonima', nombre: 'La Anónima', tag: '⚪' },
 ];
 
 // ─── Live: Carrefour ──────────────────────────────────────────────────────────
@@ -455,59 +443,6 @@ async function cotoLiveNombre(nombre) {
   return parsearProductosCoto(await cotoBuscar(nombre));
 }
 
-// ─── Live: La Anónima ─────────────────────────────────────────────────────────
-
-/**
- * Extrae UN producto puntual (por idInterno) del HTML de una página de categoría de La
- * Anónima. No comparte código con scraper-promos-laanonima.js a propósito — mismo criterio
- * que el resto de los supers (ver parsearProductosCarrefour más arriba): el scraper arma el
- * catálogo completo, acá solo interesa releer el precio fresco de un producto ya conocido.
- * La Anónima no tiene página de producto individual con precio server-rendered (confirmado
- * en el spike), por eso esto relee la página de CATEGORÍA que guardó el catálogo local.
- */
-function parsearProductoLaAnonima(html, idInterno, ean) {
-  const inicio = html.indexOf(`id-codigo-producto="${idInterno}"`);
-  if (inicio === -1) return [];
-  const siguienteInicio = html.indexOf('id-codigo-producto="', inicio + 1);
-  const bloque = html.slice(inicio, siguienteInicio === -1 ? Math.min(html.length, inicio + 6000) : siguienteInicio);
-
-  const nombre = bloque.match(/data-nombre\s*=\s*"([^"]*)"/)?.[1] || null;
-  const precioOferta = parseFloat(bloque.match(/data-precio_oferta\s*=\s*"([^"]*)"/)?.[1] || '') || null;
-  const precioAnterior = parseFloat(bloque.match(/data-precio_anterior\s*=\s*"([^"]*)"/)?.[1] || '') || null;
-  if (!nombre || !precioOferta) return [];
-
-  const hayDescuento = precioAnterior && precioAnterior > precioOferta;
-  return [{
-    super: 'La Anónima',
-    skuId: null, sellerId: null,
-    productName: nombre, skuName: null, ean,
-    precioBase: hayDescuento ? precioAnterior : precioOferta,
-    promo: hayDescuento ? interpretarPromoPorTexto('', (1 - precioOferta / precioAnterior).toFixed(4)) : null,
-  }];
-}
-
-/**
- * `codigoPostal`/`coberturaConfirmada` los resuelve quien llama (CLI vía mi-codigo-postal.json,
- * backend vía el body de /comparar) — acá solo se usa el booleano ya resuelto, este módulo no
- * decide cobertura. Sin CP guardado o sin cobertura confirmada: `[]` sin tocar la red, igual
- * que cualquier super que el usuario no activó.
- */
-async function laAnonimaLiveEAN(ean, { codigoPostal, coberturaConfirmada } = {}) {
-  if (!codigoPostal || !coberturaConfirmada) return [];
-  const entrada = urlLaAnonimaPorEAN(ean);
-  if (!entrada) return [];
-  const res = await fetch(entrada.urlCategoria, { headers: LAANONIMA_HEADERS });
-  if (!res.ok) return [];
-  return parsearProductoLaAnonima(await res.text(), entrada.idInterno, ean);
-}
-
-/** No hay endpoint de búsqueda por texto confiable en La Anónima (`/catalogo/buscador/{term}`
- *  dio 403 de CloudFront en el spike, no confirmado si es bloqueo real o transitorio) — el
- *  camino principal es buscarPorEAN; este fallback queda deshabilitado hasta confirmarlo. */
-async function laAnonimaLiveNombre() {
-  return [];
-}
-
 // ─── Link de "agregar al carrito" ─────────────────────────────────────────────
 // Los 4 supers de acá arriba corren VTEX, que ofrece una URL pública pensada justamente
 // para que un comparador de precios arme el carrito directo en el sitio del super
@@ -543,42 +478,36 @@ function armarUrlCarrito(key, items) {
 // ─── Orquestación ─────────────────────────────────────────────────────────────
 
 /**
- * Precios en vivo de un EAN en los 6 supers, en paralelo.
+ * Precios en vivo de un EAN en los 5 supers, en paralelo.
  * @param {string} ean
  * @param {object} opciones
  * @param {string[]} opciones.tarjetas   tarjetas del usuario (habilita promos de tarjeta propia)
  * @param {string|null} opciones.skuIdVea  si ya se conoce, evita releer el catálogo de Vea.
  *                                         Si se omite, se resuelve desde el catálogo local.
- * @param {string|null} opciones.codigoPostal        CP del usuario, solo relevante para La Anónima.
- * @param {boolean} opciones.coberturaConfirmada      si ese CP tiene venta de super online (gate,
- *                                                     no selector de precio — ver laanonima-zona.js).
- * @returns {{ vea: [], carr: [], changomas: [], dia: [], coto: [], laanonima: [] }}
+ * @returns {{ vea: [], carr: [], changomas: [], dia: [], coto: [] }}
  */
-async function buscarPorEAN(ean, { tarjetas = [], skuIdVea, codigoPostal, coberturaConfirmada } = {}) {
+async function buscarPorEAN(ean, { tarjetas = [], skuIdVea } = {}) {
   const sku = skuIdVea === undefined ? skuIdVeaPorEAN(ean) : skuIdVea;
-  const [vea, carr, changomas, dia, coto, laanonima] = await Promise.all([
+  const [vea, carr, changomas, dia, coto] = await Promise.all([
     veaLive(ean, sku),
     carrefourLiveEAN(ean, { tarjetas }),
     changoMasLiveEAN(ean),
     diaLiveEAN(ean),
     cotoLiveEAN(ean),
-    laAnonimaLiveEAN(ean, { codigoPostal, coberturaConfirmada }),
   ]);
-  return { vea, carr, changomas, dia, coto, laanonima };
+  return { vea, carr, changomas, dia, coto };
 }
 
-/** Fallback: búsqueda por nombre directo en las APIs (menos confiable que por EAN). La Anónima
- *  no participa (ver laAnonimaLiveNombre) — siempre devuelve []. */
+/** Fallback: búsqueda por nombre directo en las APIs (menos confiable que por EAN). */
 async function buscarPorNombreEnVivo(nombre, { tarjetas = [] } = {}) {
-  const [vea, carr, changomas, dia, coto, laanonima] = await Promise.all([
+  const [vea, carr, changomas, dia, coto] = await Promise.all([
     veaLiveNombre(nombre),
     carrefourLiveNombre(nombre, { tarjetas }),
     changoMasLiveNombre(nombre),
     diaLiveNombre(nombre),
     cotoLiveNombre(nombre),
-    laAnonimaLiveNombre(),
   ]);
-  return { vea, carr, changomas, dia, coto, laanonima };
+  return { vea, carr, changomas, dia, coto };
 }
 
 module.exports = {
@@ -605,8 +534,6 @@ module.exports = {
   diaLiveNombre,
   cotoLiveEAN,
   cotoLiveNombre,
-  laAnonimaLiveEAN,
-  laAnonimaLiveNombre,
   armarUrlCarrito,
   buscarPorEAN,
   buscarPorNombreEnVivo,

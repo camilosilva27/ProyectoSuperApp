@@ -1,17 +1,10 @@
 /**
- * Índice de precio+promo derivado de catalogo-{vea,carrefour,changomas,dia,coto,laanonima}.json
- * — los mismos archivos que ya escriben los scrapers diarios, que además del EAN/nombre YA traen
+ * Índice de precio+promo derivado de catalogo-{vea,carrefour,changomas,dia,coto}.json — los
+ * mismos archivos que ya escriben los scrapers diarios, que además del EAN/nombre YA traen
  * precio y promo capturados (`descuentoDirecto`/`promosInternas`/`promosBancarias`/`promocion`
  * según el super). Antes se descartaban a propósito para el precio (ver unificarCatalogo.js);
  * acá se usan como la fuente primaria de /api/comparar y /api/precios, refrescada por el cron
  * cada 1-2 hs en vez de en cada request de usuario.
- *
- * La Anónima es un caso aparte: no tiene EAN propio, así que solo entra acá el subconjunto que
- * enriquecer-catalogo-laanonima.js pudo emparejar por nombre contra otro super (ver su cabecera
- * y AllPromos/core/catalogo.js) — el resto de su catálogo queda fuera del índice por EAN, como
- * cualquier producto "fuera del recorte" de cualquier otro super (mismo criterio ya documentado
- * abajo). El gate de cobertura por CP del usuario NO vive acá — este módulo es agnóstico de
- * usuario/request, el filtro de "¿tiene cobertura este CP?" se resuelve en comparar.js.
  *
  * Por qué: antes, cada comparación pegaba en vivo a los 5 supers en el momento del request.
  * Con tráfico concurrente eso multiplica conexiones contra Carrefour/Chango Más, que ya
@@ -41,7 +34,6 @@ const FUENTES = [
   { key: 'changomas', archivo: 'catalogo-changomas.json', nombre: 'Chango Más' },
   { key: 'dia', archivo: 'catalogo-dia.json', nombre: 'Día' },
   { key: 'coto', archivo: 'catalogo-coto.json', nombre: 'Coto' },
-  { key: 'laanonima', archivo: 'catalogo-laanonima.json', nombre: 'La Anónima' },
 ];
 
 // Único teaser de "tarjeta propia" que interpreta hoy el fetch en vivo (ver
@@ -136,28 +128,13 @@ function entradasCoto(sku) {
   return resultados;
 }
 
-/** La Anónima: un solo precio y una sola promo (opcional) por SKU — sin skuId/sellerId (no
- *  es VTEX) y sin promos internas condicionales detectadas en el scraping (ver cabecera de
- *  scraper-promos-laanonima.js). */
-function entradasLaAnonima(sku) {
-  return [{
-    super: 'La Anónima', skuId: null, sellerId: null,
-    productName: sku.nombre, skuName: null, ean: sku.ean,
-    precioBase: sku.precioBase,
-    promo: sku.descuentoDirecto
-      ? interpretarPromoPorTexto('', sku.descuentoDirecto.descuento)
-      : null,
-  }];
-}
-
 function entradasDe(key, sku) {
   if (key === 'vea') return entradasVea(sku);
   if (key === 'coto') return entradasCoto(sku);
-  if (key === 'laanonima') return entradasLaAnonima(sku);
   return entradasVtexConTeasers(sku, FUENTES.find(f => f.key === key).nombre, { conTarjetaPropia: key === 'carr' });
 }
 
-let indice = null; // Map<ean, { vea:[], carr:[], changomas:[], dia:[], coto:[], laanonima:[] }>
+let indice = null; // Map<ean, { vea:[], carr:[], changomas:[], dia:[], coto:[] }>
 let datosVistos = {}; // key -> referencia al objeto que devolvió leerCatalogo la última vez
 let fechasPorFuente = {}; // key -> `fecha` del catalogo-*.json usado para construir el índice
 
@@ -173,7 +150,7 @@ function construirIndice() {
     for (const sku of data.skus) {
       if (!sku.ean) continue;
       if (!nuevoIndice.has(sku.ean)) {
-        nuevoIndice.set(sku.ean, { vea: [], carr: [], changomas: [], dia: [], coto: [], laanonima: [] });
+        nuevoIndice.set(sku.ean, { vea: [], carr: [], changomas: [], dia: [], coto: [] });
       }
       nuevoIndice.get(sku.ean)[key].push(...entradasDe(key, sku));
     }

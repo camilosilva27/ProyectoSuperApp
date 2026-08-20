@@ -26,8 +26,8 @@ export type Esquema = 'light' | 'dark';
 // Día usa el mismo rojo que Coto a propósito: el blanco original era invisible contra el
 // fondo blanco de la app (ver el borde de contraste que hacía falta más abajo, hoy sin uso).
 const superColores = {
-  light: { vea: '#12874A', carr: '#1B5FD9', changomas: '#7A3FB8', coto: '#D6293E', dia: '#D6293E', laanonima: '#A65E2E' },
-  dark:  { vea: '#2FBE7A', carr: '#6A97F7', changomas: '#B085DE', coto: '#F0555F', dia: '#F0555F', laanonima: '#E0904F' },
+  light: { vea: '#12874A', carr: '#1B5FD9', changomas: '#7A3FB8', coto: '#D6293E', dia: '#D6293E' },
+  dark:  { vea: '#2FBE7A', carr: '#6A97F7', changomas: '#B085DE', coto: '#F0555F', dia: '#F0555F' },
 };
 
 // Bordes SOLO para identidades cuyo relleno no contrasta por sí solo contra el fondo. Vacío

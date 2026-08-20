@@ -20,11 +20,7 @@ import { useSincronizacionPersistente } from './sincronizacionPersistente';
 
 const CLAVE = 'allpromos:supersActivos:v1';
 
-// La Anónima no entra en el default: a diferencia del resto, activarla dispara una pregunta
-// de código postal (ver ModalCodigoPostalLaAnonima en app/(tabs)/index.tsx) porque es un gate
-// de cobertura, no una preferencia simple — no tiene sentido "activarla" silenciosamente para
-// alguien que nunca pasó por esa pregunta. Se suma recién cuando el usuario la activa a mano.
-const SUPERS_ACTIVOS_POR_DEFECTO = ORDEN_SUPERS.filter(k => k !== 'laanonima');
+const SUPERS_ACTIVOS_POR_DEFECTO = ORDEN_SUPERS;
 
 type Contexto = {
   supersActivos: SuperKey[];
