@@ -65,6 +65,16 @@ El mailer que trae Supabase por defecto manda como mucho **2 mails por hora** (c
 
 Mientras tanto, se sigue probando con el mailer default de Supabase — el límite de 2/hora ya obliga a espaciar las pruebas de registro, pero no bloquea nada de lo que ya está construido.
 
+**Nota aparte (mismo remitente):** el remitente ("From") de los mails de Auth no se puede personalizar sin SMTP propio — queda fijo en `noreply@mail.app.supabase.io` con el mailer default, pase lo que pase en Email Templates. Es otra razón más para configurar Resend cuando se decida hacerlo, además del volumen.
+
+## Pendiente: que el link de confirmación deje logueado directo
+
+Probado en vivo (2026-08-19): el link de confirmación de mail hoy **no** loguea automáticamente — el mail llega, confirma la cuenta, pero el usuario tiene que volver a la app e iniciar sesión a mano. Investigado cómo arreglarlo, decidido posponerlo:
+
+- Supabase usa el flujo **PKCE** por default: al confirmar, redirige al Site URL configurado con un `?code=...` en la URL, pero no establece sesión solo.
+- Para que sí quede logueado directo hace falta: (a) configurar Site URL / Redirect URLs en el dashboard para que apunten a la app real (`http://localhost:8081` en dev, el dominio de producción después), y (b) agregar código nuevo en la app que detecte ese `code` en la URL al cargar y llame a `supabase.auth.exchangeCodeForSession(code)` — no es un toggle del dashboard, es una feature chica para construir.
+- El asunto y el cuerpo del mail sí se pueden personalizar ya, sin esto — Authentication → Email Templates en el dashboard, sin código de por medio.
+
 ## Verificación fase 1 (para cuando se implemente)
 
 1. Con las tablas y RLS creadas en Supabase, probar desde `app/` (modo dev, `expo start`) que:

@@ -46,7 +46,7 @@ type Contexto = {
   /** `necesitaConfirmarMail`: true si Supabase no devolvió sesión (confirmación de mail
    *  activada) — no significa que el registro haya fallado. */
   registrarse: (
-    email: string, password: string
+    email: string, password: string, nombre: string
   ) => Promise<{ error: string | null; necesitaConfirmarMail: boolean }>;
   iniciarSesion: (email: string, password: string) => Promise<{ error: string | null }>;
   cerrarSesion: () => Promise<void>;
@@ -76,8 +76,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const valor: Contexto = {
     session,
     cargando,
-    registrarse: async (email, password) => {
-      const { data, error } = await supabase.auth.signUp({ email, password });
+    registrarse: async (email, password, nombre) => {
+      // `nombre` viaja en user_metadata (raw_user_meta_data) — el trigger de la base lo copia
+      // a perfil_usuario.nombre al crear la fila, ver supabase/migrations/0003_nombre_en_perfil.sql.
+      const { data, error } = await supabase.auth.signUp({
+        email, password, options: { data: { nombre } },
+      });
       if (error) return { error: mensajeError(error), necesitaConfirmarMail: false };
       return { error: null, necesitaConfirmarMail: !data.session };
     },

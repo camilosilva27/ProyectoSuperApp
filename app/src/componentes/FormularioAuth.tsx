@@ -4,8 +4,10 @@
  * cuando hay sesión nueva, el que lo use decide qué hacer (cerrar un modal, no hacer nada, etc).
  */
 
-import React, { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import {
+  ActivityIndicator, Animated, Pressable, StyleSheet, Text, TextInput, View,
+} from 'react-native';
 import { useAuth } from '../auth';
 import { espacio, radio, texto } from '../theme';
 import { useTema } from '../useTema';
@@ -14,13 +16,30 @@ export function FormularioAuth({ onExito }: { onExito?: () => void }) {
   const { paleta } = useTema();
   const { registrarse, iniciarSesion } = useAuth();
   const [modo, setModo] = useState<'registro' | 'login'>('registro');
+  const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mailPendiente, setMailPendiente] = useState<string | null>(null);
+  const opacidad = useRef(new Animated.Value(1)).current;
+
+  // El campo Nombre aparece/desaparece según el modo (solo hace falta al registrarse) — sin
+  // esto el cambio se sentía como un salto brusco, no una transición. Fade simple, no algo
+  // sofisticado: solo hay que suavizar el corte, no animar cada campo por separado.
+  const cambiarModo = () => {
+    Animated.timing(opacidad, { toValue: 0, duration: 120, useNativeDriver: true }).start(() => {
+      setModo(m => (m === 'registro' ? 'login' : 'registro'));
+      setError(null);
+      Animated.timing(opacidad, { toValue: 1, duration: 150, useNativeDriver: true }).start();
+    });
+  };
 
   const enviar = async () => {
+    if (modo === 'registro' && !nombre.trim()) {
+      setError('Completá tu nombre.');
+      return;
+    }
     if (!email.trim() || !password) {
       setError('Completá mail y contraseña.');
       return;
@@ -28,7 +47,7 @@ export function FormularioAuth({ onExito }: { onExito?: () => void }) {
     setEnviando(true);
     setError(null);
     if (modo === 'registro') {
-      const r = await registrarse(email.trim(), password);
+      const r = await registrarse(email.trim(), password, nombre.trim());
       setEnviando(false);
       if (r.error) { setError(r.error); return; }
       if (r.necesitaConfirmarMail) { setMailPendiente(email.trim()); return; }
@@ -50,7 +69,21 @@ export function FormularioAuth({ onExito }: { onExito?: () => void }) {
   }
 
   return (
-    <View style={{ gap: espacio.md }}>
+    <Animated.View style={{ gap: espacio.md, opacity: opacidad }}>
+      {modo === 'registro' ? (
+        <View style={[styles.campo, { backgroundColor: paleta.superficieAlt }]}>
+          <TextInput
+            value={nombre}
+            onChangeText={setNombre}
+            placeholder="Nombre"
+            placeholderTextColor={paleta.tintaTenue}
+            style={[texto.cuerpo, styles.input, { color: paleta.tinta }]}
+            autoCorrect={false}
+            textContentType="name"
+            accessibilityLabel="Nombre"
+          />
+        </View>
+      ) : null}
       <View style={[styles.campo, { backgroundColor: paleta.superficieAlt }]}>
         <TextInput
           value={email}
@@ -97,7 +130,7 @@ export function FormularioAuth({ onExito }: { onExito?: () => void }) {
       </Pressable>
 
       <Pressable
-        onPress={() => { setModo(m => (m === 'registro' ? 'login' : 'registro')); setError(null); }}
+        onPress={cambiarModo}
         accessibilityRole="button"
         style={styles.filaToggle}
       >
@@ -105,7 +138,7 @@ export function FormularioAuth({ onExito }: { onExito?: () => void }) {
           {modo === 'registro' ? '¿Ya tenés cuenta? Iniciá sesión' : '¿No tenés cuenta? Registrate'}
         </Text>
       </Pressable>
-    </View>
+    </Animated.View>
   );
 }
 
