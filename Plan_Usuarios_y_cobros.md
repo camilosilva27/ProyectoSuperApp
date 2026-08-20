@@ -67,13 +67,16 @@ El mailer que trae Supabase por defecto manda como mucho **2 mails por hora** (c
 
 **Pendiente, no bloqueante:** cuando exista un dominio propio, agregarlo como remitente en Brevo, autenticarlo por DNS, y actualizar el campo "Sender email" en Supabase — no pierde nada de lo ya configurado.
 
-## Pendiente: que el link de confirmación deje logueado directo
+## Resuelto: el link de confirmación deja logueado directo (2026-08-20)
 
-Probado en vivo (2026-08-19): el link de confirmación de mail hoy **no** loguea automáticamente — el mail llega, confirma la cuenta, pero el usuario tiene que volver a la app e iniciar sesión a mano. Investigado cómo arreglarlo, decidido posponerlo:
+Probado en vivo el 2026-08-19: el link de confirmación de mail no loguea automáticamente — el mail llega, confirma la cuenta, pero el usuario tenía que volver a la app e iniciar sesión a mano. Se descartó el enfoque inicial (PKCE con `?code=...` + `exchangeCodeForSession`) a favor de uno más simple, sugerido al revisar las variables disponibles en el template del mail:
 
-- Supabase usa el flujo **PKCE** por default: al confirmar, redirige al Site URL configurado con un `?code=...` en la URL, pero no establece sesión solo.
-- Para que sí quede logueado directo hace falta: (a) configurar Site URL / Redirect URLs en el dashboard para que apunten a la app real (`http://localhost:8081` en dev, el dominio de producción después), y (b) agregar código nuevo en la app que detecte ese `code` en la URL al cargar y llame a `supabase.auth.exchangeCodeForSession(code)` — no es un toggle del dashboard, es una feature chica para construir.
-- El asunto y el cuerpo del mail sí se pueden personalizar ya, sin esto — Authentication → Email Templates en el dashboard, sin código de por medio.
+- **Site URL** (Authentication → URL Configuration) queda como la base real del sitio, sin path (`http://localhost:8081` en dev) — no se lo pisa con una ruta específica.
+- **Plantilla "Confirm signup"** (Authentication → Email Templates) se edita para armar el link a mano con `{{ .SiteURL }}/ajustes?token_hash={{ .TokenHash }}&type=email` en vez de usar `{{ .ConfirmationURL }}` tal cual.
+- En `app/src/auth.tsx`, dentro de `AuthProvider`, se detecta `token_hash`+`type=email` en la URL (solo en web) y se llama a `supabase.auth.verifyOtp({ token_hash, type: 'email' })`, que confirma el mail **y** deja la sesión iniciada en el mismo paso — sin necesidad de PKCE.
+- **Bug encontrado y corregido en el camino**: si el Site URL queda guardado con `/` al final (`http://localhost:8081/`), el link armado por la plantilla queda con doble barra (`.../ajustes` con `//`) y eso rompe Expo Router por completo (`Failed to construct 'URL': Invalid URL`, crash duro antes de que la app llegue a montar `AuthProvider`). Fix: Site URL sin barra final.
+- Verificado en vivo de punta a punta: registro real → mail de Brevo → click en el link → Ajustes se abre ya logueado (sin pasar por login) → confirmado también por SQL (`email_confirmed_at` seteado en `auth.users`).
+- **Pendiente para el lanzamiento real**: cuando se pase a producción, actualizar Site URL (y el link armado a mano en la plantilla) de `http://localhost:8081` a la URL real de producción — detectada de paso durante esta verificación: `https://mi-superapp.vercel.app`.
 
 ## Verificación fase 1 — completa (2026-08-19)
 
@@ -86,7 +89,7 @@ Fase 1 implementada y verificada de punta a punta, con una cuenta real (no solo 
 5. ✅ RLS bloquea acceso cruzado entre usuarios (probado con un usuario de prueba descartable, creado y borrado en la misma verificación — el `on delete cascade` limpió perfil y listas correctamente).
 6. Backend Express: no se tocó en toda esta fase — sin re-verificar explícitamente, pero no hay ningún cambio que pudiera haberlo afectado.
 
-Pendiente, no bloqueante (ver arriba): configurar Resend, y que el link de confirmación de mail deje logueado directo (PKCE).
+Pendiente, no bloqueante (ver arriba): agregar dominio propio a Brevo, y actualizar Site URL a la URL de producción cuando se lance.
 
 ---
 

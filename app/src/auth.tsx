@@ -8,10 +8,17 @@
  *
  * Expone signUp/signIn/signOut (turno del prompt de cuenta + Ajustes) — el resto de la app
  * nunca llama a `supabase.auth` directo, pasa siempre por acá.
+ *
+ * También resuelve el link de confirmación de mail: la plantilla "Confirm signup" de Supabase
+ * (dashboard → Auth → Email Templates) se cambia para armar el link con `{{ .TokenHash }}` en
+ * vez de `{{ .ConfirmationURL }}` tal cual — así no depende de tocar el Site URL global (que
+ * tiene que seguir siendo el del sitio real), y de paso deja logueado directo en vez de
+ * "confirmado pero hay que volver a loguearse a mano".
  */
 
 import type { Session } from '@supabase/supabase-js';
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 import { supabase } from './supabase';
 
 /** Mapea los errores más comunes de Supabase Auth a un mensaje en español, entendible sin
@@ -69,6 +76,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: suscripcion } = supabase.auth.onAuthStateChange((_evento, nuevaSession) => {
       setSession(nuevaSession);
     });
+
+    // Link de confirmación de mail: llega como ?token_hash=...&type=email en la URL (armado
+    // a mano en la plantilla del mail, ver comentario de arriba del archivo). Solo tiene
+    // sentido en web — en nativo esto sería un deep link, que no está armado todavía.
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tokenHash = params.get('token_hash');
+      const tipo = params.get('type');
+      if (tokenHash && tipo === 'email') {
+        supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'email' }).then(({ error }) => {
+          // Se limpia la URL haya salido bien o mal, para que un refresh no reintente
+          // verificar un token que ya se usó (o que ya falló).
+          if (!error) window.history.replaceState({}, '', window.location.pathname);
+        });
+      }
+    }
 
     return () => suscripcion.subscription.unsubscribe();
   }, []);
