@@ -1,6 +1,6 @@
 # Plan: sacar La Anónima de la app
 
-**Estado: plan armado, ninguna implementación empezada todavía.**
+**Estado: ✅ ejecutado y deployado (2026-08-20).** Commit `c9bc6ee` en `master`, deploy a la VM confirmado (`gh run` exitoso) y `/api/health` en producción ya muestra solo 5 supers. Único punto pendiente de que se autolimpie: el próximo cron de `refrescarCatalogos.js` (cada 2hs) va a reemplazar el `ultimo-refresco.json` viejo, que todavía menciona los 3 pasos de La Anónima porque esa corrida fue anterior al deploy — no es un error del código nuevo, ver sección 9.
 
 ## Motivo (ya decidido, no reabrir sin releer esto)
 
