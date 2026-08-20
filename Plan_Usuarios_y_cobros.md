@@ -67,6 +67,8 @@ El mailer que trae Supabase por defecto manda como mucho **2 mails por hora** (c
 
 **Pendiente, no bloqueante:** cuando exista un dominio propio, agregarlo como remitente en Brevo, autenticarlo por DNS, y actualizar el campo "Sender email" en Supabase — no pierde nada de lo ya configurado.
 
+**Sobre poner el logo de la app como foto del remitente (investigado 2026-08-20):** no es posible hoy, y no es un tema de la foto en sí. Gmail solo muestra la foto de una cuenta cuando el mail sale por la infraestructura de Gmail o por un alias "Enviar como" verificado dentro de esa cuenta — como Brevo manda el mail relayado (no autenticado como esa cuenta de Google), Gmail no lo muestra aunque la cuenta tenga foto. La única vía real es **BIMI** (logo verificado, requiere dominio propio + DMARC estricto + certificado de marca) — queda atado al mismo pendiente del dominio de arriba, no es un paso nuevo.
+
 ## Resuelto: el link de confirmación deja logueado directo (2026-08-20)
 
 Probado en vivo el 2026-08-19: el link de confirmación de mail no loguea automáticamente — el mail llega, confirma la cuenta, pero el usuario tenía que volver a la app e iniciar sesión a mano. Se descartó el enfoque inicial (PKCE con `?code=...` + `exchangeCodeForSession`) a favor de uno más simple, sugerido al revisar las variables disponibles en el template del mail:
