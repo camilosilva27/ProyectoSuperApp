@@ -39,6 +39,10 @@ app/web-build/
 # macOS
 .DS_Store
 
+# Cache local del CLI de Supabase (project-ref, versiones, pooler-url) — se regenera solo
+# con `supabase link`, no hace falta versionarlo.
+supabase/.temp/
+
 # Estado local de Claude Code (no compartir entre máquinas)
 .claude/settings.local.json
 .claude/scheduled_tasks.lock

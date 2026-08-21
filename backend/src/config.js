@@ -29,12 +29,11 @@ module.exports = {
   RAIZ_BACKEND,
 
   // --- Fase 2 (Plan_Usuarios_y_cobros.md): sesión + Mercado Pago ---
-  // JWT Secret del proyecto Supabase (Dashboard > Project Settings > API > JWT Settings).
-  // Con esto el Express valida la sesión localmente (jsonwebtoken), sin pegarle a la red de
-  // Supabase en cada request.
-  supabaseJwtSecret: process.env.SUPABASE_JWT_SECRET,
-  // Para el cliente de Supabase con service role key (bypasea RLS, lo usa el webhook para
-  // escribir en perfil_usuario en nombre del sistema, no de un usuario).
+  // Este proyecto Supabase firma sus JWT con clave asimétrica (ES256, confirmado
+  // 2026-08-21) — la sesión se valida contra el JWKS público en SUPABASE_URL
+  // (ver requiereSesion.js), no contra un secreto compartido. También la usa el cliente con
+  // service role key (bypasea RLS, lo usa el webhook para escribir en perfil_usuario en
+  // nombre del sistema, no de un usuario).
   supabaseUrl: process.env.SUPABASE_URL,
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
   // Access token de la app de Mercado Pago (Test o Producción, panel de Developers).
