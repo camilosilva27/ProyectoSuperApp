@@ -31,7 +31,8 @@ import {
 } from '../../src/componentes/comunes';
 import { ComoFunciona } from '../../src/componentes/ComoFunciona';
 import { FotoProducto } from '../../src/componentes/FotoProducto';
-import { BarraSupers, HeaderNegro, TituloHeader } from '../../src/componentes/HeaderNegro';
+import { HeaderNegro, SelectorSupers, TituloHeader } from '../../src/componentes/HeaderNegro';
+import { HojaSupers } from '../../src/componentes/HojaSupers';
 import { PromptCuenta } from '../../src/componentes/PromptCuenta';
 import { useFiltrosSupers } from '../../src/filtrosSupers';
 import { espacio, pesos, radio, texto } from '../../src/theme';
@@ -141,7 +142,8 @@ export default function PantallaBuscar() {
   const [orden, setOrden] = useState<OrdenBusqueda>('alfabetico');
   const [mostrarComoFunciona, setMostrarComoFunciona] = useState(false);
   const [mostrarPromptCuenta, setMostrarPromptCuenta] = useState(false);
-  const { supersActivos, toggleSuper } = useFiltrosSupers();
+  const [mostrarHojaSupers, setMostrarHojaSupers] = useState(false);
+  const { supersActivos, toggleSuper, setSupersActivos, usoPorSuper } = useFiltrosSupers();
   const { session, cargando: authCargando } = useAuth();
 
   // Auto-inicio del onboarding, una sola vez por dispositivo — el botón manual (EstadoInicial,
@@ -267,9 +269,16 @@ export default function PantallaBuscar() {
           ) : null}
           {isFetching ? <ActivityIndicator size="small" color={paleta.tintaTenue} /> : null}
         </View>
-        {/* Sin barra de supers antes de una búsqueda válida: todavía no hay nada que filtrar
+        {/* Sin selector de supers antes de una búsqueda válida: todavía no hay nada que filtrar
             (SPEC § 4.1, gana sobre el turno v2 que la mostraba siempre). */}
-        {consultaValida ? <BarraSupers activos={supersActivos} onToggle={toggleSuper} /> : null}
+        {consultaValida ? (
+          <SelectorSupers
+            activos={supersActivos}
+            usoPorSuper={usoPorSuper}
+            onQuitar={toggleSuper}
+            onAbrirHoja={() => setMostrarHojaSupers(true)}
+          />
+        ) : null}
       </HeaderNegro>
 
       {!consultaValida ? (
@@ -325,6 +334,13 @@ export default function PantallaBuscar() {
       <ComoFunciona visible={mostrarComoFunciona} onClose={cerrarComoFunciona} />
 
       <PromptCuenta visible={mostrarPromptCuenta} onCerrar={() => setMostrarPromptCuenta(false)} />
+
+      <HojaSupers
+        visible={mostrarHojaSupers}
+        activos={supersActivos}
+        onCerrar={() => setMostrarHojaSupers(false)}
+        onAplicar={setSupersActivos}
+      />
 
       {carrito.items.length > 0 ? (
         <View

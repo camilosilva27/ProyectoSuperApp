@@ -8,22 +8,10 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import type { SuperKey } from '../api';
-import { espacio, fuentes, texto } from '../theme';
+import { espacio, fuentes, paletaDe, radio, texto, textoPretty } from '../theme';
 import { useTema } from '../useTema';
 import { NOMBRE_SUPER, ORDEN_SUPERS } from './comunes';
-
-/**
- * Colores de super sobre el header negro, siempre oscuro lleve el sistema el tema que lleve
- * (ver comentario de `HeaderNegro` y el de `textoMutedOscuro` en resultado.tsx). Son variantes
- * claras fijas, no `paleta.supers`: esas son para fondo blanco y no contrastan lo suficiente
- * sobre `tinta` (ver EDICIONES-contraste-y-selector.md § 2.2).
- */
-const SUPERS_SOBRE_OSCURO: Record<SuperKey, string> = {
-  vea: '#2EA35C', carr: '#4C8DF6', changomas: '#A66FE0', dia: '#FFFFFF', coto: '#F0576A',
-  // Jumbo/Disco no comparten hue con nadie más (a diferencia de Día/Coto), así que reusan
-  // directamente la variante oscura de theme.ts en vez de necesitar una tercera tonalidad.
-  jumbo: '#F2894D', disco: '#4DD0DA',
-};
+import { PlacaLogoSuper } from './LogoSuper';
 
 export function HeaderNegro({
   children, paddingTop, estilo,
@@ -40,93 +28,87 @@ export function TituloHeader({ children }: { children: string }) {
   return <Text style={[texto.tituloHeader, { color: '#FFFFFF' }]}>{children}</Text>;
 }
 
+const MAX_CELDAS = 4;
+
 /**
- * Selector de supers, legible como control (turno 7, ver EDICIONES-contraste-y-selector.md
- * § 2): línea de encabezado que dice qué hace el toque, y cinco celdas tocables — activa con
- * fondo y barra llena, apagada con borde punteado y nombre tachado. Antes eran cinco barritas
- * sueltas con el nombre debajo, que se leían como leyenda y no como control.
- *
- * `sobreOscuro`: variante para dentro del header negro (la única en uso hoy, ver Buscar) vs.
- * variante sobre fondo claro. La línea de encabezado es específica del header oscuro — no
- * tiene equivalente diseñado sobre claro — así que solo se muestra en esa variante.
+ * Selector de supers dentro del header negro (turno "selector + hoja de selección"). Solo
+ * muestra celdas de los supers ACTIVOS (hasta `MAX_CELDAS`, los de más uso primero — ver
+ * `usoPorSuper` en filtrosSupers.tsx); el resto — desactivados o activos que no entraron en la
+ * fila — se resume en la celda "+N otros", que abre `HojaSupers`. El logo reemplaza al nombre
+ * en la celda: a 10px el nombre era ilegible, y "Chango Más" se truncaba.
  */
-export function BarraSupers({
-  activos, onToggle, sobreOscuro = true,
-}: { activos: SuperKey[]; onToggle: (key: SuperKey) => void; sobreOscuro?: boolean }) {
-  const { paleta } = useTema();
+export function SelectorSupers({
+  activos, usoPorSuper, onQuitar, onAbrirHoja,
+}: {
+  activos: SuperKey[];
+  usoPorSuper: Partial<Record<SuperKey, number>>;
+  onQuitar: (key: SuperKey) => void;
+  onAbrirHoja: () => void;
+}) {
+  const paletaOscura = paletaDe('dark');
+
+  const activosPorUso = [...activos].sort((a, b) => {
+    const diferencia = (usoPorSuper[b] ?? 0) - (usoPorSuper[a] ?? 0);
+    return diferencia !== 0 ? diferencia : ORDEN_SUPERS.indexOf(a) - ORDEN_SUPERS.indexOf(b);
+  });
+  const mostrados = activosPorUso.slice(0, MAX_CELDAS);
+  const cantidadOtros = ORDEN_SUPERS.length - mostrados.length;
+  const inactivos = ORDEN_SUPERS.filter(key => !activos.includes(key));
 
   return (
     <View style={{ gap: 10 }}>
-      {sobreOscuro ? (
-        <View style={styles.filaEncabezadoSelector}>
-          <Text style={styles.tituloComparando}>
-            COMPARANDO {activos.length} DE {ORDEN_SUPERS.length} SUPERS
+      <View style={styles.filaEncabezadoSelector}>
+        <Text style={styles.tituloComparando}>
+          COMPARANDO {activos.length} DE {ORDEN_SUPERS.length} SUPERS
+        </Text>
+        <View style={styles.divisorEncabezadoSelector} />
+        <Text style={styles.ayudaSelector}>tocá para sacar</Text>
+      </View>
+
+      <View style={styles.filaCeldas} accessibilityRole="none">
+        {mostrados.map(key => (
+          <Pressable
+            key={key}
+            onPress={() => onQuitar(key)}
+            hitSlop={{ top: 12, bottom: 12 }}
+            accessibilityRole="button"
+            accessibilityLabel={`${NOMBRE_SUPER[key]}, comparando. Tocá para sacar de la comparación`}
+            style={styles.celdaSuper}
+          >
+            <View style={[styles.barraColorCelda, { backgroundColor: paletaOscura.supers[key] }]} />
+            <PlacaLogoSuper superKey={key} ancho="100%" alto={30} padding={2} radio={4} />
+          </Pressable>
+        ))}
+
+        {cantidadOtros > 0 ? (
+          <Pressable
+            onPress={onAbrirHoja}
+            hitSlop={{ top: 12, bottom: 12 }}
+            accessibilityRole="button"
+            accessibilityLabel={`Ver los ${cantidadOtros} supers restantes y elegir cuáles comparar`}
+            style={styles.celdaOtros}
+          >
+            <Text style={styles.numeroOtros}>+{cantidadOtros}</Text>
+            <Text style={styles.etiquetaOtros}>otros</Text>
+          </Pressable>
+        ) : null}
+      </View>
+
+      {inactivos.length > 0 ? (
+        <View style={styles.cierreSelector}>
+          <Text style={[styles.textoCierre, textoPretty]}>
+            {listaConY(inactivos.map(k => NOMBRE_SUPER[k]))} {inactivos.length === 1 ? 'está' : 'están'} afuera de la comparación.
           </Text>
-          <View style={styles.divisorEncabezadoSelector} />
-          <Text style={styles.ayudaSelector}>tocá para sacar uno</Text>
         </View>
       ) : null}
-
-      <View style={styles.barraSupers} accessibilityRole="none">
-        {ORDEN_SUPERS.map(key => {
-          const activo = activos.includes(key);
-          const bordeIdentidad = (paleta.supersBorde as Partial<Record<SuperKey, string>>)[key];
-          const colorSuper = sobreOscuro ? SUPERS_SOBRE_OSCURO[key] : paleta.supers[key];
-
-          return (
-            <Pressable
-              key={key}
-              onPress={() => onToggle(key)}
-              hitSlop={{ top: 8, bottom: 8 }}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: activo, selected: activo }}
-              accessibilityLabel={`${NOMBRE_SUPER[key]}, ${activo ? 'comparando' : 'sin comparar'}`}
-              style={[
-                styles.celdaSuper,
-                sobreOscuro
-                  ? (activo
-                      ? { backgroundColor: 'rgba(255,255,255,.1)' }
-                      : { borderWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(255,255,255,.35)' })
-                  : (activo
-                      ? { backgroundColor: paleta.superficieAlt }
-                      : { borderWidth: 1, borderStyle: 'dashed', borderColor: paleta.borde }),
-              ]}
-            >
-              <View
-                style={[
-                  styles.barritaSuper,
-                  activo
-                    ? {
-                        backgroundColor: colorSuper,
-                        ...(bordeIdentidad ? { borderWidth: 1, borderColor: bordeIdentidad } : null),
-                      }
-                    : {
-                        backgroundColor: 'transparent',
-                        borderWidth: 1,
-                        borderColor: sobreOscuro ? 'rgba(255,255,255,.4)' : paleta.bordeFuerte,
-                      },
-                ]}
-              />
-              <Text
-                style={[
-                  texto.microSuper,
-                  activo
-                    ? { fontFamily: fuentes.semi, color: sobreOscuro ? '#FFFFFF' : paleta.tinta }
-                    : {
-                        color: sobreOscuro ? '#C6CCD3' : paleta.tintaSuave,
-                        textDecorationLine: 'line-through',
-                      },
-                ]}
-                numberOfLines={1}
-              >
-                {NOMBRE_SUPER[key]}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
     </View>
   );
+}
+
+/** "a, b y c" — sin Oxford comma, como se lee en español. */
+function listaConY(nombres: string[]): string {
+  if (nombres.length <= 1) return nombres.join('');
+  return `${nombres.slice(0, -1).join(', ')} y ${nombres[nombres.length - 1]}`;
 }
 
 const styles = StyleSheet.create({
@@ -137,10 +119,20 @@ const styles = StyleSheet.create({
   },
   divisorEncabezadoSelector: { flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,.18)' },
   ayudaSelector: { fontFamily: fuentes.cuerpo, fontSize: 12, lineHeight: 16, color: '#C6CCD3' },
-  barraSupers: { flexDirection: 'row', gap: 6 },
+  filaCeldas: { flexDirection: 'row', gap: 6, alignItems: 'stretch' },
   celdaSuper: {
-    flex: 1, alignItems: 'center', gap: 7, borderRadius: 8,
-    paddingTop: 8, paddingHorizontal: 4, paddingBottom: 7,
+    flex: 1, minWidth: 0, backgroundColor: 'rgba(255,255,255,.1)', borderRadius: 8,
+    paddingVertical: 8, paddingHorizontal: 5, alignItems: 'center', justifyContent: 'center', gap: 7,
   },
-  barritaSuper: { width: '100%', height: 6, borderRadius: 999 },
+  barraColorCelda: { width: '100%', height: 5, borderRadius: radio.pill },
+  celdaOtros: {
+    flex: 0, width: 54, borderRadius: 8, alignItems: 'center', justifyContent: 'center', gap: 1,
+    boxShadow: 'inset 0 0 0 1px rgba(255,255,255,.35)',
+  },
+  numeroOtros: { fontFamily: fuentes.precio, fontSize: 22, lineHeight: 22, color: '#FFD400' },
+  etiquetaOtros: { fontFamily: fuentes.medio, fontSize: 10, lineHeight: 12, color: '#C6CCD3' },
+  cierreSelector: {
+    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,.18)', paddingTop: 12,
+  },
+  textoCierre: { fontFamily: fuentes.cuerpo, fontSize: 13, lineHeight: 18, color: '#C6CCD3' },
 });
