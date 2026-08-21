@@ -20,6 +20,8 @@ const healthRouter = require('./routes/health');
 const catalogoRouter = require('./routes/catalogo');
 const compararRouter = require('./routes/comparar');
 const misDescuentosRouter = require('./routes/misDescuentos');
+const pagosRouter = require('./routes/pagos');
+const webhookMercadoPagoRouter = require('./routes/webhookMercadoPago');
 const sondaEnVivo = require('./sondaEnVivo');
 
 const app = express();
@@ -59,6 +61,12 @@ app.use('/api', rateLimit({
 
 // /api/health va sin token: es lo que se usa para saber si el server está vivo.
 app.use('/api', healthRouter);
+
+// /api/pagos/suscripcion requiere sesión (ver requiereSesion.js dentro de pagos.js).
+// /api/webhooks/mercadopago es pública pero la llama Mercado Pago, no un usuario — ver la
+// verificación de firma dentro de webhookMercadoPago.js. Ninguna de las dos dispara
+// consultas a los 5 supers, así que el rate limit global de acá abajo (120/min) alcanza.
+app.use('/api', pagosRouter, webhookMercadoPagoRouter);
 
 // Sin token: en una app web no hay dónde guardar un secreto (queda en el JS que descarga
 // cualquiera — ver la discusión en PLAN_FEATURES_APP.md). La única defensa real hoy es este

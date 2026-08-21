@@ -109,39 +109,107 @@ Depende de que fase 1 ya esté implementada (necesita `AuthProvider`, el login/r
 
 Hoy (fase 1) cualquiera usa la app sin cuenta. En esta fase, al arrancar la app se chequea si hay sesión; si no hay, se bloquea con una pantalla de login/registro obligatoria (reutiliza el mismo `AuthProvider`/flujo de `ajustes.tsx` de fase 1 — solo cambia el punto donde se exige: de "opcional en Ajustes" a "gate en el arranque"). La migración local→cuenta de fase 1 sigue siendo la puerta de entrada para quien ya tenía datos anónimos.
 
+**Pausado a propósito (2026-08-21)**: todavía se sigue testeando otras cosas con el modo opcional actual, así que este gate no se implementa todavía — se sigue con el resto de la fase (datos, cobro) primero.
+
 ## Datos: extender `perfil_usuario`
 
-Nuevas columnas (no una tabla nueva — es estado 1:1 con el usuario, igual que el resto de `perfil_usuario`):
+**Implementado 2026-08-21** (`supabase/migrations/0004_plan_trial_pasarela_pago.sql`, falta correrlo en el proyecto Supabase real vía SQL editor, igual que las migraciones de fase 1). Columnas nuevas (no una tabla nueva — es estado 1:1 con el usuario, igual que el resto de `perfil_usuario`):
 
 - `plan text not null default 'trial'` — valores `'trial' | 'premium' | 'gratis'`.
-- `trial_termina_en timestamptz` — seteado a `now() + interval '30 days'` en el momento del registro.
-- `mercadopago_suscripcion_id text` — id de la suscripción en MP, null hasta que el usuario paga.
-- `suscripcion_estado text` — espejo del estado que manda MP (`authorized`/`paused`/`cancelled`/etc.), para reconciliar con los webhooks.
+- `trial_termina_en timestamptz` — seteado a `now() + interval '30 days'` en el momento del registro (la migración también le puso un valor a los usuarios de fase 1 ya existentes, para que el trial no les arranque en `null`).
+- `pasarela_pago text` — `'mercadopago' | 'stripe'`, null hasta que el usuario paga. **Nombrada genérica a propósito** (no `mercadopago_suscripcion_id` como decía la versión anterior de este plan): se decidió el 2026-08-21 que no hay ninguna desventaja en dejar el esquema listo para una segunda pasarela desde ahora, en vez de tener que renombrar columnas después. Ver la sección de Stripe más abajo para la pasarela candidata.
+- `pasarela_suscripcion_id text` — id de la suscripción en la pasarela que corresponda.
+- `suscripcion_estado text` — espejo del estado que manda la pasarela (`authorized`/`paused`/`cancelled`/etc.), para reconciliar con los webhooks.
 
-**Downgrade automático del trial**: un job `pg_cron` (extensión ya disponible en Supabase, corre dentro de la misma DB — no es infra nueva que operar) una vez al día: `update perfil_usuario set plan='gratis' where plan='trial' and trial_termina_en < now() and mercadopago_suscripcion_id is null`. Si el usuario se suscribió durante el trial, el webhook de MP ya puso `plan='premium'` antes de que este job corra, así que no lo toca.
+Además, índice parcial `idx_perfil_usuario_pasarela_suscripcion` sobre `pasarela_suscripcion_id` (`where ... is not null`): el webhook de la pasarela llega con el id de la suscripción, no con el id de usuario, así que hace falta resolver "qué perfil_usuario es este" a partir de ese id.
 
-## Cobro: Mercado Pago Suscripciones
+**Downgrade automático del trial — implementado 2026-08-21** (`supabase/migrations/0005_downgrade_trial_vencido.sql`, falta correrlo en el proyecto real). Un job `pg_cron` (extensión ya disponible en Supabase, corre dentro de la misma DB — no es infra nueva que operar) corre una vez al día la función `public.bajar_planes_vencidos()`, que baja a `'gratis'` a quien tenga `plan='trial'`, `trial_termina_en` vencido y sin suscripción activa. Si el usuario se suscribió durante el trial, el webhook ya puso `plan='premium'` antes de que este job corra, así que no lo toca.
 
-- **Alta de suscripción**: nueva ruta `POST /api/pagos/suscripcion` en el Express existente (requiere sesión — ver validación de JWT abajo). Llama a la API de Preapproval de MP para crear la suscripción del usuario y devuelve la URL de checkout (`init_point`) al frontend, que la abre con `Linking.openURL` (es un checkout hosteado por MP, no se maneja ninguna tarjeta en la app — mismo principio de seguridad que ya hablamos: nunca tocar número de tarjeta propio).
-- **Webhook**: nueva ruta pública `POST /api/webhooks/mercadopago` en el Express existente — MP le pega directo cuando cambia el estado de una suscripción (autorizada, pausada, cancelada). Verifica la firma del webhook (header que manda MP) y, si es válida, actualiza `perfil_usuario` (plan, `suscripcion_estado`, `mercadopago_suscripcion_id`) usando el cliente de Supabase con la **service role key** (server-side, bypasea RLS legítimamente porque es el propio backend actuando, no un usuario) — no hace falta sumar `pg` como dependencia nueva, se reusa `@supabase/supabase-js` con esa key.
-- Ambas rutas nuevas viven en el Express de la VM, no en Supabase Edge Functions — evita sumar Deno/Edge Functions como pieza nueva a operar cuando ya existe un backend Node corriendo.
+- **La lógica vive en una función, no en un `update` suelto dentro del cron**, justo para poder volver a correrla a mano en cualquier momento desde el SQL editor (`select public.bajar_planes_vencidos();`) sin esperar al horario del cron. Es idempotente: si no queda ningún trial vencido sin pagar, no hace nada, así que correrla de más no tiene efecto colateral.
+- **Premium permanente otorgado a mano**: columna nueva `premium_manual boolean not null default false` en `perfil_usuario`. El downgrade automático excluye explícitamente (`and not premium_manual`) a cualquier usuario con esta columna en `true`, sin importar hace cuánto venció su trial ni si tiene suscripción. Para dar premium permanente a un usuario puntual (a mano, vía SQL editor, no hay UI para esto):
+  ```sql
+  update perfil_usuario set plan = 'premium', premium_manual = true where id = '<uuid>';
+  ```
+  Sacarle el premium permanente después es el `update` inverso (`premium_manual = false`), y a partir de ahí ese usuario vuelve a quedar sujeto al mismo mecanismo de trial/downgrade que cualquier otro (si su `plan` sigue en `'premium'` sin `pasarela_suscripcion_id`, conviene además volver a poner algún `trial_termina_en` con sentido o pasarlo a `'gratis'` a mano, según el caso).
+
+## Cobro: Mercado Pago Suscripciones — código implementado 2026-08-21, cuenta de MP pendiente
+
+**Código listo y probado localmente (arranca el server, responde 503 de forma controlada sin tirar nada abajo) — todavía sin commitear** (`git status` muestra todo esto como cambios pendientes). Falta un solo bloque para que funcione en producción, y es 100% del usuario, no de código: **crear/elegir la cuenta de Mercado Pago que recibe la plata** y cargar sus credenciales. Sin eso, en producción estas dos rutas van a responder 503 ("Mercado Pago todavía no está configurado") en vez de romper el resto del backend — `/api/comparar`, `/api/catalogo`, etc. no dependen de nada de esto.
+
+- **Alta de suscripción**: `backend/src/routes/pagos.js` — `POST /api/pagos/suscripcion` (requiere sesión, ver `requiereSesion.js` abajo). Llama a la API de Preapproval de MP (SDK oficial `mercadopago@3.4.0`, clases `MercadoPagoConfig`/`PreApproval` confirmadas contra el código fuente real del paquete) y devuelve `init_point` (la URL de checkout) al frontend, que la abre con `Linking.openURL` — checkout hosteado por MP, la app nunca ve ni maneja un número de tarjeta. Al crear la suscripción, esta ruta ya guarda `pasarela_pago='mercadopago'` y `pasarela_suscripcion_id` en `perfil_usuario` (con la service role key) — **antes** de que llegue ningún webhook, para que cuando este llegue ya se sepa a qué usuario corresponde ese id. Ojo: esta ruta **no** otorga `plan='premium'` — crear la suscripción no confirma que el usuario terminó de pagar; eso lo hace únicamente el webhook.
+- **Webhook**: `backend/src/routes/webhookMercadoPago.js` — `POST /api/webhooks/mercadopago`, pública (la llama MP, no la app). Verifica la firma con `WebhookSignatureValidator` del mismo SDK (HMAC-SHA256 sobre un manifest de `id`/`request-id`/`ts`, comparación constant-time — confirmado contra el código fuente del SDK, no de memoria) y, si es válida, **no confía en el body**: usa el `data.id` solo para pedirle a la API de MP el estado real de esa suscripción (`preApproval.get`), y con ESO actualiza `perfil_usuario` (`plan`, `suscripcion_estado`) usando `@supabase/supabase-js` con la **service role key**. Excluye explícitamente (`premium_manual = false` en el `where`) a cualquier usuario con premium otorgado a mano — un webhook de MP nunca le puede tocar el plan a esos usuarios.
+- **Sesión**: `backend/src/middleware/requiereSesion.js` (nuevo, necesario para la ruta de alta) — valida el JWT de Supabase localmente contra `SUPABASE_JWT_SECRET` (`jsonwebtoken`, HS256), sin llamar a la red de Supabase en cada request.
+- Ambas rutas viven en el Express de la VM, no en Supabase Edge Functions — evita sumar Deno/Edge Functions como pieza nueva a operar cuando ya existe un backend Node corriendo.
+- Dependencias nuevas ya agregadas a `backend/package.json` e instaladas: `mercadopago`, `@supabase/supabase-js`, `jsonwebtoken`.
+
+### Cómo se configura Mercado Pago (pendiente, es la única pieza que falta)
+
+Esto se hace en el panel web de Mercado Pago, **fuera del código**, y en paralelo — no depende de que el código ya esté armado (ya lo está). **Dos etapas independientes, no un solo bloque secuencial**: probar (sandbox) no requiere haber resuelto nada de lo legal/impositivo; solo cobrar en serio (Producción) sí.
+
+**Etapa 1 — Testear, se puede arrancar ya (2026-08-21, sin decidir nada más)**: para entrar a Mercado Pago Developers y crear una aplicación alcanza con una cuenta de Mercado Pago normal (la que ya exista, o una nueva gratis con DNI) — **no hace falta estar dado de alta como monotributista ni tener ninguna entidad**, eso no es un requisito de Mercado Pago para el modo Test. Esa aplicación da credenciales de **Test** (sandbox) y permite crear "usuarios de prueba" (comprador y vendedor simulados, separados de la cuenta real) — con eso se puede probar el flujo completo (crear la suscripción, el checkout, que llegue el webhook, que valide la firma) sin que se mueva un peso real.
+
+1. Entrar a **Mercado Pago Developers** (mercadopago.com.ar/developers/panel) con cualquier cuenta de MP y crear una "aplicación" — es solo un contenedor de credenciales, no un negocio nuevo. **Ya hecho (2026-08-21)**, modelo de negocio "Suscripciones".
+2. Copiar el **Access Token de Test**: dentro de la app, menú izquierdo **"Pruebas" > "Credenciales de prueba"** (distinto de "Credenciales de producción") — aparece solo, generado apenas se crea la app, sin botón que tocar. No hace falta la Public Key (checkout hosteado, no hay Card Form propio en la app). **No hace falta crear ninguna cuenta/usuario de prueba antes de esto** — son dos cosas independientes.
+3. Confirmar que el producto **Suscripciones** (Preapproval) esté habilitado para probar.
+4. Configurar en el panel de esa aplicación la URL de notificaciones: menú izquierdo **"Webhooks" > "Configurar notificaciones"**, cargar `https://34.24.10.174.nip.io/api/webhooks/mercadopago` (HTTPS ya resuelto vía Caddy+nip.io, ver `gcp-vm-deploy-status` — no hace falta infra nueva para esto) en el campo de modo pruebas. Al guardar, se genera sola la **firma secreta** (botón para revelarla/regenerarla).
+5. Cargar en `backend/.env` (puede ser incluso local, apuntando el webhook a un túnel, o directo en la VM): `MERCADOPAGO_ACCESS_TOKEN` (el de Test), `MERCADOPAGO_WEBHOOK_SECRET`, `MERCADOPAGO_PRECIO_MENSUAL_ARS` (cualquier valor sirve para probar; el real todavía no está decidido), `SUPABASE_JWT_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`. Ver `backend/.env.example`.
+6. **Crear usuarios de prueba** (recién ahora hace falta, para simular un pago completo): sección **"Cuentas de prueba" > "+ Crear cuenta de prueba"** — elegir país, descripción, y tipo (**Comprador** para simular quien paga; **Vendedor** si hace falta separar de la cuenta real). Da usuario/contraseña para loguearse como esa cuenta simulada. Ver "Verificación fase 2" más abajo para el resto del flujo de prueba.
+
+*(Nombres de botones/secciones tomados de la documentación oficial vigente de Mercado Pago, no de una captura en vivo — si el panel muestra algo distinto, ajustar acá.)*
+
+**Etapa 2 — Cobrar en serio (Producción), recién cuando esté resuelto**:
+
+1. **Decidido (2026-08-21): se cobra con la cuenta de Mercado Pago personal del usuario, sin abrir monotributo — al menos el primer mes.** Explícitamente planteado como provisorio ("al menos el primer mes"), no una decisión definitiva de largo plazo — revisar si en algún momento se decide formalizar (monotributo u otra figura) una vez que haya volumen real, dado que cobrar de forma recurrente y habitual sin alta fiscal tiene riesgo ante AFIP cuanto más se sostenga en el tiempo. No requiere ningún cambio de código: el backend solo lee `MERCADOPAGO_ACCESS_TOKEN` de `.env`, sin importar a qué cuenta pertenece.
+2. Con esa cuenta, verificar identidad si Mercado Pago la pide para habilitar Producción.
+3. Reemplazar en `backend/.env` de la VM el Access Token de Test por el de **Producción** (de esa misma cuenta personal), y decidir el precio real de la suscripción.
+
+## Pasarela alternativa evaluada: Stripe (descartada, 2026-08-21)
+
+Se evaluó sumar Stripe como segunda opción de cobro con tarjeta, además de Mercado Pago. **Descartada por ahora** — no se implementa:
+
+- Argentina no está entre los países donde Stripe permite abrir una cuenta propia. Para usarlo igual haría falta constituir una entidad en el exterior (ej. Stripe Atlas, ~USD 500 + contabilidad dual) o pasar por un Merchant of Record tipo Paddle/Rebill.
+- Sin cuenta Stripe argentina, no se puede cobrar en ARS a un cliente argentino (regla de Stripe desde 2023) — forzaría cobro en USD, con conversión + impuestos (PAIS, percepciones) impredecibles para el usuario final y mayor riesgo de rechazo de tarjetas locales (muchas débito no autorizan consumos en moneda extranjera).
+- La integración técnica de Stripe Billing es, en sí misma, más simple que la de MP Suscripciones — pero eso no compensa la fricción legal/cambiaria de fondo.
+- Mercado Pago ya cubre el 100% del mercado real de la app (usuarios argentinos, tarjetas argentinas) sin esas fricciones.
+
+**Cuándo reconsiderar**: si la app algún día apunta a usuarios fuera de Argentina/LatAm pagando en USD/EUR, ahí Stripe (o Paddle como Merchant of Record) tendría sentido como canal internacional en paralelo a MP. El esquema de `perfil_usuario` ya quedó genérico (`pasarela_pago`, no `mercadopago_suscripcion_id`) pensando en este caso, así que no haría falta otra migración de esquema para sumarlo — alcanzaría con las rutas de cobro/webhook nuevas.
+
+**Otras alternativas evaluadas (mencionadas, ninguna recomendada por ahora)**:
+
+- **Rebill** — la más realista para Argentina, ver investigación en detalle abajo.
+- **dLocal / PayU** — para empresas que cobran en varios países de LatAm desde una integración. Tiene sentido si la app se expande a otros países; sobredimensionado para cobrar solo en Argentina.
+- **Paddle** — igual que Stripe, Merchant of Record para cobrar en USD/EUR a usuarios internacionales fuera de LatAm.
+
+### Rebill en detalle (investigado 2026-08-21, no descartada ni decidida — pendiente hablar con su equipo)
+
+- **Qué es**: no es Merchant of Record (a diferencia de Paddle) — es un orquestador/facilitador de pagos. El comerciante sigue siendo el "seller of record": factura y responde legal/impositivamente frente al usuario final, Rebill solo procesa el cobro y liquida los fondos. Sede en Buenos Aires, fundada 2020, pasó por Y Combinator. Se promociona para operar en Argentina "sin necesidad de una entidad local" — apuntado sobre todo a empresas extranjeras; no hay confirmación pública de si un monotributista/persona física argentina puede darse de alta (pregunta para su equipo de ventas).
+- **Comisión** (pricing público, rebill.com/en/pricing/argentina): 4.00% en tarjetas de crédito/débito/prepagas, 1.60% en transferencias/QR y wallets (MP, MODO, Ualá, Brubank). Sin comisión por transferir a cuenta bancaria propia. Contracargo/disputa: $415 ARS + IVA. Porcentajes sin IVA ni retenciones. Sin mínimo mensual publicado.
+- **Cobra y liquida en ARS** (no fuerza USD como Stripe). Métodos: tarjetas locales/internacionales, transferencias, Pago Fácil (efectivo), QR/wallets.
+- **Suscripciones**: soporte nativo (planes, trials, cupones, prorrateo en upgrade/downgrade), checkout hosteado (evita manejar PCI compliance propio), payment links, webhooks de eventos — mismo modelo conceptual que MP Suscripciones.
+- **Riesgos a resolver antes de comprometerse**: acreditación lenta (9 días hábiles tarjetas nacionales, 19 internacionales); pueden retener hasta 10% del volumen mensual por riesgo, hasta 180 días post-contrato; una queja fuerte en Trustpilot sobre funciones prometidas no entregadas y cambios unilaterales de condiciones. No hay info pública suficiente sobre calidad de API/SDK para Node ni sandbox.
+- **Próximo paso si se decide seguir**: hablar con soporte/ventas de Rebill para confirmar alta como monotributista, tiempos reales de KYC, y pedir acceso a sandbox/docs técnicas antes de integrar nada.
 
 ## Chequeo de plan en el Express (para cuando exista una feature gateada)
 
 Como todavía no hay ninguna feature específica atrás del gate, esta fase deja lista la mecánica, no el gate en sí:
 
-- **Evitar una consulta a la DB en cada request** de rutas calientes como `/api/comparar`: en vez de que el Express consulte `perfil_usuario` por request, se usa un **Auth Hook de Supabase** ("Customize Access Token") — una función Postgres que inyecta el campo `plan` directo en el JWT cuando se emite/refresca. El Express ya va a estar verificando ese JWT localmente (con `jsonwebtoken` o `jose`, sin llamar a la red de Supabase — ver nota de fase 1), así que leer `plan` es gratis, ya está en el token decodificado.
+- **Evitar una consulta a la DB en cada request** de rutas calientes como `/api/comparar`: en vez de que el Express consulte `perfil_usuario` por request, se usa un **Auth Hook de Supabase** ("Customize Access Token") — una función Postgres que inyecta el campo `plan` directo en el JWT cuando se emite/refresca. El Express ya verifica ese JWT localmente (`jsonwebtoken`, sin llamar a la red de Supabase), así que leer `plan` es gratis, ya está en el token decodificado.
+- **Código implementado 2026-08-21** (`supabase/migrations/0006_auth_hook_plan_en_jwt.sql`): función `public.custom_access_token_hook(event)` que lee `plan` de `perfil_usuario` e inyecta el claim (`'gratis'` si por algún motivo no hay fila), con los grants/policy necesarios para que el rol interno `supabase_auth_admin` pueda leerla pese a RLS. `backend/src/middleware/requiereSesion.js` ya guarda `req.usuarioPlan` desde el JWT decodificado (nadie lo usa todavía — no hay gate real — pero queda disponible sin costo extra). **Falta correr la migración en el proyecto real, Y ADEMÁS un paso manual que ninguna migración SQL puede hacer**: en el dashboard de Supabase, Authentication > Hooks, activar `public.custom_access_token_hook` como el hook de "Customize Access Token (JWT) Claims" — sin ese paso la función existe pero Supabase no la llama, el JWT sigue sin el claim.
 - **Trade-off a anotar**: el JWT se refresca cada tanto (no en cada request), así que un downgrade (trial vencido, suscripción cancelada) puede tardar hasta el tiempo de vida del token en reflejarse en el chequeo del backend. Para esta app (no es un paywall de alto riesgo) es aceptable.
 - **Beneficio que esto destraba, ya identificado en la conversación de seguridad**: hoy `/api/comparar` no tiene ningún token porque "no hay dónde guardar un secreto" — con cuentas obligatorias, eso deja de ser cierto. Cuando se implemente el gate real, exigir el JWT en `/api/comparar`/`/api/precios` cierra el hueco de "cualquiera puede usar el backend como proxy gratis hacia los 5 supers" que quedó anotado como riesgo aceptado en su momento. Además, el rate limiting podría pasar a ser por usuario en vez de por IP, más preciso que hoy.
 
 ## Archivos a tocar (fase 2)
 
-- `app/app/_layout.tsx` (o un wrapper nuevo) — gate de sesión obligatoria al arrancar.
-- `app/app/(tabs)/ajustes.tsx` — mostrar plan actual / días de trial restantes, botón "actualizar a premium" (dispara `POST /api/pagos/suscripcion` y abre el checkout de MP), botón cancelar suscripción.
-- `backend/src/routes/pagos.js` (nuevo) — `POST /api/pagos/suscripcion`.
-- `backend/src/routes/webhookMercadoPago.js` (nuevo) — `POST /api/webhooks/mercadopago`.
-- `backend/package.json` — sumar `mercadopago` (SDK oficial) y `@supabase/supabase-js` (para el cliente con service role key) como dependencias nuevas.
-- Supabase: columnas nuevas en `perfil_usuario`, el Auth Hook de custom claims, y el job de `pg_cron`.
+- `app/app/_layout.tsx` (o un wrapper nuevo) — gate de sesión obligatoria al arrancar. **Pausado a propósito (2026-08-21)**, ver nota más arriba.
+- `app/app/(tabs)/ajustes.tsx` — mostrar plan actual / días de trial restantes, botón "actualizar a premium" (dispara `POST /api/pagos/suscripcion` y abre el checkout de MP), botón cancelar suscripción. **Todavía sin tocar** — la app no llama a estas rutas nuevas todavía.
+- `backend/src/routes/pagos.js` (nuevo) — **implementado 2026-08-21**, `POST /api/pagos/suscripcion`.
+- `backend/src/routes/webhookMercadoPago.js` (nuevo) — **implementado 2026-08-21**, `POST /api/webhooks/mercadopago`.
+- `backend/src/middleware/requiereSesion.js` (nuevo, no estaba anotado en la versión anterior de este plan) — **implementado 2026-08-21**, valida el JWT de Supabase localmente.
+- `backend/src/clienteSupabaseAdmin.js` (nuevo, no estaba anotado) — **implementado 2026-08-21**, cliente lazy con la service role key.
+- `backend/package.json` — **implementado 2026-08-21**: `mercadopago`, `@supabase/supabase-js`, `jsonwebtoken` agregados e instalados.
+- `backend/.env.example` — **actualizado 2026-08-21** con todas las variables nuevas comentadas.
+- Supabase: columnas nuevas en `perfil_usuario`, job de `pg_cron` y Auth Hook de custom claims (**implementado 2026-08-21**, `supabase/migrations/0004`, `0005` y `0006`) — falta correr las tres migraciones en el proyecto real, y además activar el hook a mano en el dashboard (Authentication > Hooks), paso que ninguna migración SQL puede hacer.
+- **Pendiente, no es código**: crear/elegir la cuenta de Mercado Pago y cargar sus credenciales reales en `backend/.env` — ver sección de arriba.
 
 ## Verificación fase 2 (para cuando se implemente)
 
