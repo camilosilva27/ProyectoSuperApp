@@ -17,17 +17,13 @@ const {
 } = require('mercadopago');
 const { clienteSupabaseAdmin } = require('../clienteSupabaseAdmin');
 const { mercadopagoAccessToken, mercadopagoWebhookSecret } = require('../config');
+const { planSegunEstado } = require('../planSegunEstadoSuscripcion');
 
 const router = express.Router();
 
 // El downgrade automático de trial vencido ya lo cubre pg_cron (bajar_planes_vencidos, ver
 // migración 0005) — acá solo se reacciona a cambios de estado de una suscripción ya creada.
 // Estados de tránsito (ej. 'pending') no tocan el plan todavía.
-function planSegunEstado(estado) {
-  if (estado === 'authorized') return 'premium';
-  if (estado === 'cancelled' || estado === 'paused') return 'gratis';
-  return null;
-}
 
 router.post('/webhooks/mercadopago', async (req, res) => {
   if (!mercadopagoWebhookSecret || !mercadopagoAccessToken) {

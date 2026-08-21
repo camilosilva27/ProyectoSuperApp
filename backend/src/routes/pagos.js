@@ -15,6 +15,7 @@ const express = require('express');
 const { MercadoPagoConfig, PreApproval } = require('mercadopago');
 const { requiereSesion } = require('../middleware/requiereSesion');
 const { clienteSupabaseAdmin } = require('../clienteSupabaseAdmin');
+const { planSegunEstado } = require('../planSegunEstadoSuscripcion');
 const {
   mercadopagoAccessToken, precioMensualArs, urlVueltaCheckoutMP,
 } = require('../config');
@@ -65,6 +66,52 @@ router.post('/pagos/suscripcion', requiereSesion, async (req, res) => {
   } catch (err) {
     console.error('Error creando suscripción de Mercado Pago:', err);
     res.status(502).json({ error: 'No se pudo crear la suscripción en Mercado Pago' });
+  }
+});
+
+// POST /api/pagos/cancelar-suscripcion — cancela la suscripción del usuario logueado. A
+// diferencia del webhook (que solo reacciona a lo que MP avisa async), acá se tiene la
+// respuesta de `preApproval.update` en la misma llamada, así que el plan se actualiza de
+// una sin esperar al webhook — el usuario ve el downgrade reflejado al instante en Ajustes.
+router.post('/pagos/cancelar-suscripcion', requiereSesion, async (req, res) => {
+  if (!mercadopagoAccessToken) {
+    return res.status(503).json({ error: 'Mercado Pago todavía no está configurado' });
+  }
+  const supabaseAdmin = clienteSupabaseAdmin();
+  if (!supabaseAdmin) {
+    return res.status(503).json({ error: 'Supabase (service role) todavía no está configurado' });
+  }
+
+  const { data: perfil, error: errorPerfil } = await supabaseAdmin
+    .from('perfil_usuario')
+    .select('pasarela_suscripcion_id')
+    .eq('id', req.usuarioId)
+    .single();
+  if (errorPerfil || !perfil?.pasarela_suscripcion_id) {
+    return res.status(404).json({ error: 'No hay ninguna suscripción para cancelar' });
+  }
+
+  try {
+    const client = new MercadoPagoConfig({ accessToken: mercadopagoAccessToken });
+    const preApproval = new PreApproval(client);
+    const suscripcion = await preApproval.update({
+      id: perfil.pasarela_suscripcion_id,
+      body: { status: 'cancelled' },
+    });
+
+    const nuevoPlan = planSegunEstado(suscripcion.status) ?? 'gratis';
+    // premium_manual nunca se pisa desde acá, mismo criterio que el webhook.
+    const { error } = await supabaseAdmin
+      .from('perfil_usuario')
+      .update({ suscripcion_estado: suscripcion.status ?? 'cancelled', plan: nuevoPlan })
+      .eq('id', req.usuarioId)
+      .eq('premium_manual', false);
+    if (error) throw error;
+
+    res.json({ plan: nuevoPlan });
+  } catch (err) {
+    console.error('Error cancelando suscripción de Mercado Pago:', err);
+    res.status(502).json({ error: 'No se pudo cancelar la suscripción en Mercado Pago' });
   }
 });
 

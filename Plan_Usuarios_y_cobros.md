@@ -107,9 +107,11 @@ Depende de que fase 1 ya esté implementada (necesita `AuthProvider`, el login/r
 
 ## Cambio de UX: cuenta deja de ser opcional
 
-Hoy (fase 1) cualquiera usa la app sin cuenta. En esta fase, al arrancar la app se chequea si hay sesión; si no hay, se bloquea con una pantalla de login/registro obligatoria (reutiliza el mismo `AuthProvider`/flujo de `ajustes.tsx` de fase 1 — solo cambia el punto donde se exige: de "opcional en Ajustes" a "gate en el arranque"). La migración local→cuenta de fase 1 sigue siendo la puerta de entrada para quien ya tenía datos anónimos.
+**Implementado 2026-08-21** (`app/src/componentes/GateSesion.tsx`, envuelto solo alrededor del `<Stack>` en `app/app/_layout.tsx`, no de los providers de datos — ver el porqué abajo). Sin sesión, se bloquea con una pantalla de login/registro obligatoria (reusa el mismo `FormularioAuth` de Ajustes) antes de mostrar cualquier tab, incluido el onboarding "Cómo funciona".
 
-**Pausado a propósito (2026-08-21)**: todavía se sigue testeando otras cosas con el modo opcional actual, así que este gate no se implementa todavía — se sigue con el resto de la fase (datos, cobro) primero.
+- **Los providers de datos (`ProveedorFiltrosSupers`/`ProveedorCarrito`/`ProveedorCarritosGuardados`/`ProveedorHistorialAhorro`) quedan FUERA de `GateSesion`, envolviéndolo** — a propósito, no es un detalle menor: `useSincronizacionPersistente` (fase 1) detecta la migración anónimo→cuenta comparando el `userId` entre renders del mismo componente montado; si esos providers se montaran recién adentro del gate (con sesión ya presente desde su primer render), nunca observarían el estado anónimo previo y la migración de datos locales de quien ya usaba la app sin cuenta se perdería en silencio. Manteniéndolos afuera, seguimos exactamente el mismo camino ya probado en fase 1 (sesión cambia de null a un valor, mismo montaje).
+- **Consecuencia, no planeada originalmente en este doc**: `PromptCuenta.tsx` (fase 1, prompt opcional post-onboarding "¿querés crear cuenta?") quedó inalcanzable — para llegar a esa pantalla ya hacía falta haber pasado este gate con sesión activa — así que se borró junto con su disparador en `index.tsx`, en vez de dejarlo como código muerto. `ajustes.tsx` también se simplificó: su branch para "sin sesión" (mostraba `FormularioAuth` inline) ya no es alcanzable por el mismo motivo.
+- La migración local→cuenta de fase 1 sigue siendo la puerta de entrada para quien ya tenía datos anónimos de antes de este cambio — sin re-verificar en vivo con una cuenta real todavía (ver "Verificación fase 2" más abajo).
 
 ## Datos: extender `perfil_usuario`
 
@@ -206,9 +208,11 @@ Como todavía no hay ninguna feature específica atrás del gate, esta fase deja
 
 ## Archivos a tocar (fase 2)
 
-- `app/app/_layout.tsx` (o un wrapper nuevo) — gate de sesión obligatoria al arrancar. **Pausado a propósito (2026-08-21)**, ver nota más arriba.
-- `app/app/(tabs)/ajustes.tsx` — mostrar plan actual / días de trial restantes, botón "actualizar a premium" (dispara `POST /api/pagos/suscripcion` y abre el checkout de MP), botón cancelar suscripción. **Todavía sin tocar** — la app no llama a estas rutas nuevas todavía.
-- `backend/src/routes/pagos.js` (nuevo) — **implementado 2026-08-21**, `POST /api/pagos/suscripcion`.
+- `app/src/componentes/GateSesion.tsx` (nuevo) + `app/app/_layout.tsx` — **implementado 2026-08-21**, gate de sesión obligatoria al arrancar (ver sección de arriba para el porqué de dónde se envuelve).
+- `app/src/plan.ts` (nuevo, no estaba anotado) — **implementado 2026-08-21**, hook `usePlanUsuario()` que lee `plan`/`trial_termina_en`/`pasarela_suscripcion_id`/`suscripcion_estado` directo de `perfil_usuario` (mismo patrón "frontend habla directo con Supabase" que `sincronizacionPersistente.ts`, pero de solo lectura).
+- `app/app/(tabs)/ajustes.tsx` — **implementado 2026-08-21**: muestra plan actual (con días de trial restantes), botón "Actualizar a premium" (llama `crearSuscripcion()` → `POST /api/pagos/suscripcion` → abre `initPoint` con `Linking.openURL`) y botón "Cancelar suscripción" (llama `cancelarSuscripcion()` → `POST /api/pagos/cancelar-suscripcion`, nuevo, ver abajo) con modal de confirmación. Se refresca solo al volver a la pantalla (`useFocusEffect`) por si el webhook actualizó el plan mientras el usuario estaba en el checkout de MP.
+- `backend/src/routes/pagos.js` — **implementado 2026-08-21**: `POST /api/pagos/suscripcion`, y **sumado en esta misma sesión** `POST /api/pagos/cancelar-suscripcion` (llama `preApproval.update({status:'cancelled'})` y refleja el nuevo plan en `perfil_usuario` en la misma respuesta, sin esperar al webhook — mismo criterio de excluir `premium_manual` que ya usaba el webhook).
+- `backend/src/planSegunEstadoSuscripcion.js` (nuevo, no estaba anotado) — **implementado 2026-08-21**: extrae el mapeo estado-de-MP→plan que antes vivía solo en el webhook, para que la ruta de cancelación use el mismo criterio sin duplicarlo.
 - `backend/src/routes/webhookMercadoPago.js` (nuevo) — **implementado 2026-08-21**, `POST /api/webhooks/mercadopago`.
 - `backend/src/middleware/requiereSesion.js` (nuevo, no estaba anotado en la versión anterior de este plan) — **implementado 2026-08-21**, valida el JWT de Supabase localmente.
 - `backend/src/clienteSupabaseAdmin.js` (nuevo, no estaba anotado) — **implementado 2026-08-21**, cliente lazy con la service role key.
@@ -224,9 +228,18 @@ Como todavía no hay ninguna feature específica atrás del gate, esta fase deja
 3. ✅ Creación de suscripción: `/api/pagos/suscripcion` probado contra la API real de Mercado Pago (sandbox y luego producción), con guardado correcto de `pasarela_pago`/`pasarela_suscripcion_id` en `perfil_usuario` antes de cualquier webhook.
 4. ✅ **Pago real completado y autorizado en producción** (2026-08-21, $1000 ARS, pagado con dinero en cuenta por un tercero real): confirmado en la API de MP `status: "authorized"`, con comisión real descontada (~5%, quedaron $950). Requirió que `payer_email` coincida con la cuenta que paga (gotcha real, no documentado explícitamente por MP pero confirmado empíricamente — ver nota más arriba) y la URL de webhook en **modo producción** cargada (estaba vacía, causa real de que el webhook no llegara al principio).
 5. ✅ Webhook probado con infraestructura 100% real en dos estados distintos: `pending` (simulado con firma real antes del pago) y `cancelled` (real — la suscripción se canceló ~2 min después de autorizarse). Confirma firma + `preApproval.get()` + escritura en base funcionando correctamente. La rama `authorized → premium` no se alcanzó a probar en vivo por el webhook (la cancelación fue más rápida que la propagación), pero es estructuralmente idéntica a la rama `cancelled → gratis` ya confirmada — alta confianza sin necesidad de gastar otro pago real para probarla literal.
-6. ⏸ Gate de sesión obligatoria: pausado a propósito, no se prueba todavía (ver nota de "Etapa 1" más arriba).
+6. ✅ Gate de sesión obligatoria: implementado 2026-08-21 (ver sección de arriba).
 
 **Nota sobre el costo de esta verificación**: se gastó plata real dos veces en el camino — una transferencia de $1000 no relacionada (confundida al principio con el pago de la suscripción) y un pago real de suscripción de $1000 (con ~$50 de comisión), cancelado apenas confirmado. Documentado para no repetir el mismo camino de prueba y error si se necesita volver a probar esto.
+
+## Verificación de la UI + gate (2026-08-21) — parcial, sin browser interactivo
+
+Lo que se pudo verificar sin un navegador real (el `chrome-devtools-mcp` compartido estaba tomado por otra sesión corriendo en paralelo, no se forzó a cerrarlo):
+
+1. ✅ `tsc --noEmit` limpio sobre todo `app/` después de los cambios (GateSesion, `ajustes.tsx`, `plan.ts`, `api.ts`, borrado de `PromptCuenta.tsx` y su disparador en `index.tsx`).
+2. ✅ El backend arranca y `POST /api/pagos/cancelar-suscripcion` responde 401 con token inválido/ausente (mismo comportamiento que la ruta de alta ya verificada), probado contra credenciales de Test reales de `backend/.env`.
+3. ✅ El bundler de Expo web compila sin errores las rutas `/` y `/ajustes` con los imports/JSX nuevos (`GateSesion`, `usePlanUsuario`, `Linking`, `useFocusEffect`).
+4. ⏸ **Sin probar interactivamente en un navegador**: no se confirmó visualmente el gate bloqueando sin sesión, ni el flujo completo botón "Actualizar a premium" → checkout de MP → vuelta a Ajustes con el plan actualizado, ni "Cancelar suscripción". Falta hacer esto con una cuenta real la próxima vez que se retome esto (mismo tipo de verificación ya hecha para el backend en el punto 4 de la sección de arriba, pero disparada desde la UI en vez de `curl` directo).
 
 ---
 

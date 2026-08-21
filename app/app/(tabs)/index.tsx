@@ -24,7 +24,6 @@ import {
   buscarProductos, ErrorApi, precios as pedirPrecios, MAX_EANS_PRECIOS,
   type ProductoCatalogo, type PrecioRapido, type SuperKey, type OrdenBusqueda,
 } from '../../src/api';
-import { useAuth } from '../../src/auth';
 import { useCarrito } from '../../src/carrito';
 import {
   BandaDisponibilidad, BotonPrincipal, NOMBRE_SUPER, ORDEN_SUPERS, Problema, Stepper, Vacio,
@@ -32,18 +31,13 @@ import {
 import { ComoFunciona } from '../../src/componentes/ComoFunciona';
 import { FotoProducto } from '../../src/componentes/FotoProducto';
 import { BarraSupers, HeaderNegro, TituloHeader } from '../../src/componentes/HeaderNegro';
-import { PromptCuenta } from '../../src/componentes/PromptCuenta';
 import { useFiltrosSupers } from '../../src/filtrosSupers';
 import { espacio, pesos, radio, texto } from '../../src/theme';
 import { useTema } from '../../src/useTema';
 
 // Primera apertura de la app: el onboarding se muestra solo, además de poder reabrirlo a mano
-// (botón "Cómo funciona"). Clave separada de PromptCuenta a propósito — son dos "primera vez"
-// independientes, no tiene sentido que compartan una sola marca.
+// (botón "Cómo funciona").
 const CLAVE_ONBOARDING_VISTO = 'allpromos:onboardingVisto:v1';
-// Prompt de cuenta (Fase 1, opcional): se ofrece una sola vez, al cerrar el onboarding por
-// primera vez (Saltar o Empezar da igual) — "Ahora no" no lo vuelve a mostrar solo.
-const CLAVE_PROMPT_CUENTA_VISTO = 'allpromos:promptCuentaVisto:v1';
 
 /**
  * Precio/oferta de a lotes chicos, a medida que se scrollea — no de toda la búsqueda de una.
@@ -140,9 +134,7 @@ export default function PantallaBuscar() {
   const consultaValida = consultaDemorada.length >= 2;
   const [orden, setOrden] = useState<OrdenBusqueda>('alfabetico');
   const [mostrarComoFunciona, setMostrarComoFunciona] = useState(false);
-  const [mostrarPromptCuenta, setMostrarPromptCuenta] = useState(false);
   const { supersActivos, toggleSuper } = useFiltrosSupers();
-  const { session, cargando: authCargando } = useAuth();
 
   // Auto-inicio del onboarding, una sola vez por dispositivo — el botón manual (EstadoInicial,
   // Ajustes) sigue andando igual después de esto.
@@ -153,18 +145,6 @@ export default function PantallaBuscar() {
       AsyncStorage.setItem(CLAVE_ONBOARDING_VISTO, '1').catch(() => {});
     });
   }, []);
-
-  // Al cerrar el onboarding por primera vez (Saltar o completarlo, da igual), se ofrece crear
-  // cuenta — una sola vez, y solo si nadie está logueado todavía.
-  const cerrarComoFunciona = () => {
-    setMostrarComoFunciona(false);
-    if (authCargando || session) return;
-    AsyncStorage.getItem(CLAVE_PROMPT_CUENTA_VISTO).then(visto => {
-      if (visto) return;
-      setMostrarPromptCuenta(true);
-      AsyncStorage.setItem(CLAVE_PROMPT_CUENTA_VISTO, '1').catch(() => {});
-    });
-  };
 
   const { data, isFetching, error, refetch } = useQuery({
     queryKey: ['catalogo', consultaDemorada, supersActivos, orden],
@@ -322,9 +302,7 @@ export default function PantallaBuscar() {
         />
       )}
 
-      <ComoFunciona visible={mostrarComoFunciona} onClose={cerrarComoFunciona} />
-
-      <PromptCuenta visible={mostrarPromptCuenta} onCerrar={() => setMostrarPromptCuenta(false)} />
+      <ComoFunciona visible={mostrarComoFunciona} onClose={() => setMostrarComoFunciona(false)} />
 
       {carrito.items.length > 0 ? (
         <View
