@@ -18,6 +18,15 @@ const { skuIdVeaPorEAN } = require('./catalogo');
 
 const VEA_SELLER = 'jumboargentinav700cordoba700';
 
+// Jumbo y Disco corren sobre la MISMA cuenta VTEX que Vea ("Jumbo Argentina IO") — mismo
+// skuId/EAN, mismo master data, confirmado en vivo comparando los 3 sitios para un mismo
+// producto (ver scraper-promos-jumbo.js). Sin sc especial (a diferencia del sc=34 propio de
+// Vea): no se encontró evidencia de variación regional de precio en ninguno de los dos. El
+// seller que hace falta para `_v/search-promotions` es VEA_SELLER de arriba, NO "1" — es un
+// dato de la cuenta compartida, no algo específico de Vea.
+const JUMBO_HOST = 'https://www.jumbo.com.ar';
+const DISCO_HOST = 'https://www.disco.com.ar';
+
 // Chango Más migró su web a masonline.com.ar (changomas.com.ar redirige ahí).
 // A diferencia de Vea, no encontramos evidencia de precios específicos por sucursal:
 // el mismo skuId devuelve el mismo precio para regiones distintas bajo sc=1/seller "1"
@@ -52,6 +61,8 @@ const SUPERMERCADOS = [
   { key: 'changomas', nombre: 'Chango Más', tag: '🟣' },
   { key: 'dia',       nombre: 'Día',        tag: '🟡' },
   { key: 'coto',      nombre: 'Coto',       tag: '🔴' },
+  { key: 'jumbo',     nombre: 'Jumbo',      tag: '🟠' },
+  { key: 'disco',     nombre: 'Disco',      tag: '⚪' },
 ];
 
 // ─── Live: Carrefour ──────────────────────────────────────────────────────────
@@ -292,6 +303,93 @@ async function veaLiveNombre(nombre) {
   return res.ok ? parsearProductosVea(await res.json()) : [];
 }
 
+// ─── Live: Jumbo / Disco ──────────────────────────────────────────────────────
+// Misma cuenta VTEX que Vea (ver comentario de JUMBO_HOST/DISCO_HOST más arriba): mismo
+// mecanismo de promoción por producto que Vea (endpoint `_v/search-promotions`, NO
+// Teasers/PromotionTeasers embebidos como Día/Chango Más/Carrefour) — confirmado en vivo
+// escaneando ~2500 SKUs de cada sitio. Algunas promos (categoryType "Llevando n x") no traen
+// `effectiveDiscount` numérico; se ignoran en vez de adivinar, mismo criterio que ya usa el
+// proyecto ante ambigüedad.
+async function parsearProductosCencosud(products, host) {
+  const candidatos = [];
+  for (const p of products) {
+    for (const sku of p.items || []) {
+      const sellerInfo = sku.sellers?.[0];
+      if (!sellerInfo) continue;
+      candidatos.push({
+        skuId: sku.itemId,
+        sellerId: sellerInfo.sellerId,
+        productName: p.productName, skuName: sku.name, ean: sku.ean,
+        price: sellerInfo.commertialOffer?.Price || 0,
+      });
+    }
+  }
+  if (!candidatos.length) return [];
+
+  const promoRes = await fetch(`${host}/_v/search-promotions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ seller: VEA_SELLER, skus: candidatos.map(s => s.skuId) }),
+  });
+  const promos = promoRes.ok
+    ? ((await promoRes.json()).promotions?.generic?.promotions || {})
+    : {};
+
+  const nombreSuper = host === JUMBO_HOST ? 'Jumbo' : 'Disco';
+  return candidatos.filter(s => s.price > 0).map(s => {
+    const promo = promos[s.skuId];
+    const descuento = promo ? parseFloat(promo.effectiveDiscount) : NaN;
+    return {
+      super: nombreSuper,
+      skuId: s.skuId, sellerId: s.sellerId,
+      productName: s.productName, skuName: s.skuName, ean: s.ean,
+      precioBase: s.price,
+      promo: Number.isFinite(descuento) && descuento > 0
+        ? interpretarPromoPorTexto(promo.name, promo.effectiveDiscount)
+        : null,
+    };
+  });
+}
+
+/**
+ * Consulta Jumbo/Disco en vivo. Usa skuId si está disponible (mismo skuId que Vea, ya que
+ * comparten cuenta VTEX — se resuelve del catálogo local de Vea, no hace falta uno propio),
+ * si no cae a búsqueda por EAN. Mismo criterio que veaLive().
+ */
+async function jumboLive(ean, skuIdVea = null) {
+  const query = skuIdVea ? `fq=skuId:${skuIdVea}` : `fq=alternateIds_Ean:${ean}`;
+  const res = await fetch(
+    `${JUMBO_HOST}/api/catalog_system/pub/products/search?${query}`,
+    { headers: { Accept: 'application/json' } }
+  );
+  return res.ok ? parsearProductosCencosud(await res.json(), JUMBO_HOST) : [];
+}
+
+async function jumboLiveNombre(nombre) {
+  const res = await fetch(
+    `${JUMBO_HOST}/api/catalog_system/pub/products/search?fq=productName:${encodeURIComponent(nombre)}&_from=0&_to=9`,
+    { headers: { Accept: 'application/json' } }
+  );
+  return res.ok ? parsearProductosCencosud(await res.json(), JUMBO_HOST) : [];
+}
+
+async function discoLive(ean, skuIdVea = null) {
+  const query = skuIdVea ? `fq=skuId:${skuIdVea}` : `fq=alternateIds_Ean:${ean}`;
+  const res = await fetch(
+    `${DISCO_HOST}/api/catalog_system/pub/products/search?${query}`,
+    { headers: { Accept: 'application/json' } }
+  );
+  return res.ok ? parsearProductosCencosud(await res.json(), DISCO_HOST) : [];
+}
+
+async function discoLiveNombre(nombre) {
+  const res = await fetch(
+    `${DISCO_HOST}/api/catalog_system/pub/products/search?fq=productName:${encodeURIComponent(nombre)}&_from=0&_to=9`,
+    { headers: { Accept: 'application/json' } }
+  );
+  return res.ok ? parsearProductosCencosud(await res.json(), DISCO_HOST) : [];
+}
+
 // ─── Live: Día ────────────────────────────────────────────────────────────────
 // Misma forma que Chango Más: descuento directo embebido + Teasers/PromotionTeasers
 // filtrando promos bancarias. Existe además un formato "2x$X" (precio fijo, no %) que
@@ -454,6 +552,8 @@ const VTEX_CARRITO = {
   carr:      { host: 'https://www.carrefour.com.ar',                sc: 1 },
   changomas: { host: CHANGOMAS_HOST,                                sc: 1 },
   dia:       { host: DIA_HOST,                                      sc: 1 },
+  jumbo:     { host: JUMBO_HOST,                                    sc: 1 },
+  disco:     { host: DISCO_HOST,                                    sc: 1 },
 };
 
 /**
@@ -478,40 +578,48 @@ function armarUrlCarrito(key, items) {
 // ─── Orquestación ─────────────────────────────────────────────────────────────
 
 /**
- * Precios en vivo de un EAN en los 5 supers, en paralelo.
+ * Precios en vivo de un EAN en los 7 supers, en paralelo.
  * @param {string} ean
  * @param {object} opciones
  * @param {string[]} opciones.tarjetas   tarjetas del usuario (habilita promos de tarjeta propia)
  * @param {string|null} opciones.skuIdVea  si ya se conoce, evita releer el catálogo de Vea.
  *                                         Si se omite, se resuelve desde el catálogo local.
- * @returns {{ vea: [], carr: [], changomas: [], dia: [], coto: [] }}
+ *                                         Se reusa también para Jumbo/Disco (mismo skuId,
+ *                                         misma cuenta VTEX que Vea).
+ * @returns {{ vea: [], carr: [], changomas: [], dia: [], coto: [], jumbo: [], disco: [] }}
  */
 async function buscarPorEAN(ean, { tarjetas = [], skuIdVea } = {}) {
   const sku = skuIdVea === undefined ? skuIdVeaPorEAN(ean) : skuIdVea;
-  const [vea, carr, changomas, dia, coto] = await Promise.all([
+  const [vea, carr, changomas, dia, coto, jumbo, disco] = await Promise.all([
     veaLive(ean, sku),
     carrefourLiveEAN(ean, { tarjetas }),
     changoMasLiveEAN(ean),
     diaLiveEAN(ean),
     cotoLiveEAN(ean),
+    jumboLive(ean, sku),
+    discoLive(ean, sku),
   ]);
-  return { vea, carr, changomas, dia, coto };
+  return { vea, carr, changomas, dia, coto, jumbo, disco };
 }
 
 /** Fallback: búsqueda por nombre directo en las APIs (menos confiable que por EAN). */
 async function buscarPorNombreEnVivo(nombre, { tarjetas = [] } = {}) {
-  const [vea, carr, changomas, dia, coto] = await Promise.all([
+  const [vea, carr, changomas, dia, coto, jumbo, disco] = await Promise.all([
     veaLiveNombre(nombre),
     carrefourLiveNombre(nombre, { tarjetas }),
     changoMasLiveNombre(nombre),
     diaLiveNombre(nombre),
     cotoLiveNombre(nombre),
+    jumboLiveNombre(nombre),
+    discoLiveNombre(nombre),
   ]);
-  return { vea, carr, changomas, dia, coto };
+  return { vea, carr, changomas, dia, coto, jumbo, disco };
 }
 
 module.exports = {
   VEA_SELLER,
+  JUMBO_HOST,
+  DISCO_HOST,
   CHANGOMAS_HOST,
   CHANGOMAS_SELLER,
   DIA_HOST,
@@ -522,6 +630,7 @@ module.exports = {
   parsearProductosCarrefour,
   parsearProductosChangoMas,
   parsearProductosVea,
+  parsearProductosCencosud,
   parsearProductosDia,
   parsearProductosCoto,
   carrefourLiveEAN,
@@ -530,6 +639,10 @@ module.exports = {
   changoMasLiveNombre,
   veaLive,
   veaLiveNombre,
+  jumboLive,
+  jumboLiveNombre,
+  discoLive,
+  discoLiveNombre,
   diaLiveEAN,
   diaLiveNombre,
   cotoLiveEAN,

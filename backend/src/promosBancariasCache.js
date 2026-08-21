@@ -16,13 +16,18 @@ const path = require('path');
 const { rutaLogs } = require('./config');
 
 const RUTA_ARCHIVO = path.join(rutaLogs, 'promos-bancarias.json');
-const SUPER_KEYS = ['vea', 'carr', 'changomas', 'dia', 'coto'];
 
 let cacheado = null; // { mtimeMs, data }
 
 // vigenciaDesde/vigenciaHasta son Date en memoria (promos-bancarias.js) pero se serializan
 // como string en JSON — promosAplicablesHoy las compara con >=/<=, así que si no se reviven
 // acá la comparación queda contra un string y el resultado es basura silenciosa, no un error.
+//
+// Genérico sobre las keys que trae `datosPorSuper` (antes era una lista fija SUPER_KEYS de 5
+// supers) para que un super nuevo no se quede afuera en silencio — pasó exactamente eso con
+// Jumbo/Disco (2026-08-21): el archivo en disco ya los traía, pero esta función los tiraba
+// acá antes de que /api/mis-descuentos llegara a verlos. Mismo tipo de bug ya encontrado en
+// promos-bancarias.js (filtrarPromosBancariasPorTarjetas) y precioCache.js (FUENTES).
 function revivirFechas(datosPorSuper) {
   const revivir = resultado => {
     if (!resultado || resultado.error) return resultado;
@@ -35,12 +40,12 @@ function revivirFechas(datosPorSuper) {
       })),
     };
   };
-  return Object.fromEntries(SUPER_KEYS.map(key => [key, revivir(datosPorSuper[key])]));
+  return Object.fromEntries(Object.entries(datosPorSuper).map(([key, resultado]) => [key, revivir(resultado)]));
 }
 
 /**
- * @returns { vea, carr, changomas, dia, coto: {promos,error} } | null si el cron todavía no
- * generó el archivo (server recién levantado, o primer deploy).
+ * @returns mismas keys que trae el archivo en disco (cada una {promos,error}), o null si el
+ * cron todavía no generó el archivo (server recién levantado, o primer deploy).
  */
 function leerPromosBancariasCache() {
   try {

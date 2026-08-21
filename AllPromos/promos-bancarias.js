@@ -139,14 +139,43 @@ function esFinanciacionVea(discountText) {
   return t.includes('cuota') && !t.includes('%');
 }
 
-async function fetchVea() {
+// Vea, Jumbo y Disco son la MISMA cuenta VTEX (ver AllPromos/core/fetchers.js) y este feed de
+// Master Data es DE CUENTA COMPLETA, no de sitio — confirmado en vivo pegándole al mismo
+// endpoint desde los 3 dominios: devuelve exactamente el mismo array de entradas. Cada entrada
+// tiene un campo `websites` (ej. ["veaargentina"], ["discoargentina"], o listas con
+// "jumboargentina"/"jumboargentinaio" mezclados, a veces repetidos) que indica a qué banner(s)
+// aplica esa promo puntual — hay que filtrar por ese campo.
+//
+// BUG que había antes de agregar Jumbo/Disco (2026-08-21): esta función tomaba TODAS las
+// entradas del feed sin mirar `websites` — un usuario de Vea podía ver una promo bancaria que
+// en realidad era exclusiva de Disco o Jumbo (o viceversa). Se corrige acá agregando el filtro.
+//
+// Ojo con Jumbo: el feed usa DOS tags para Jumbo ("jumboargentina" y "jumboargentinaio").
+// Investigado en detalle (2026-08-21): NO es una distinción online/física — hay una promo real
+// ("Jumbo Mas Personal", 20% con texto legal "Exclusivo Canal ONLINE") tagueada SOLO
+// "jumboargentina" (sin "io"), lo que descarta esa hipótesis. Lo más probable, por cómo se
+// repiten ambos tags en la misma entrada junto a listas largas de "veaargentina"/
+// "discoargentina" (una ocurrencia por sucursal física alcanzada, no un tag deduplicado), es
+// que sean dos identificadores de sucursal/sistema coexistentes para el banner Jumbo (viejo vs.
+// nuevo código de tienda), no dos sitios distintos. Se usan los DOS como válidos para Jumbo
+// (unión, no intersección) — coincide con la evidencia encontrada, no es una opción "por las
+// dudas": con solo "io" se habría perdido la promo de "Jumbo Mas Personal" del ejemplo arriba.
+const WEBSITE_TAGS_POR_SUPER = {
+  Vea: ['veaargentina'],
+  Jumbo: ['jumboargentina', 'jumboargentinaio'],
+  Disco: ['discoargentina'],
+};
+
+async function fetchCencosud(superNombre) {
   try {
     const res = await fetch('https://www.vea.com.ar/api/dataentities/JN/documents/bankDiscount?_fields=value,id&an=jumboargentina');
     if (!res.ok) return { promos: [], error: 'fetch_failed' };
     const arr = JSON.parse((await res.json()).value);
+    const tags = WEBSITE_TAGS_POR_SUPER[superNombre];
 
     const promos = [];
     for (const e of arr) {
+      if (!(e.websites || []).some(w => tags.includes(w))) continue;
       if (esFinanciacionVea(e.discountText)) continue;
       const descuentoPct = Number(e.discount) / 100;
       if (!(descuentoPct > 0)) continue;
@@ -158,9 +187,9 @@ async function fetchVea() {
       const texto = `${e.info || ''} ${e.legals || ''}`;
       promos.push({
         canonicosPosibles,
-        super: 'Vea',
+        super: superNombre,
         dias: (e.days || []).map(Number),
-        canales: null, // el feed de Vea no expone flags de canal, a diferencia de Carrefour/Chango Más
+        canales: null, // el feed no expone flags de canal, a diferencia de Carrefour/Chango Más
         descuentoPct,
         tope: extraerTope(texto),
         montoMinimo: extraerMontoMinimo(texto),
@@ -174,6 +203,10 @@ async function fetchVea() {
     return { promos: [], error: 'fetch_failed' };
   }
 }
+
+async function fetchVea() { return fetchCencosud('Vea'); }
+async function fetchJumbo() { return fetchCencosud('Jumbo'); }
+async function fetchDisco() { return fetchCencosud('Disco'); }
 
 // ─── Fetch: Carrefour / Chango Más (GraphQL persistido, mismo patrón) ─────────
 
@@ -570,17 +603,19 @@ function elegirMejorDia(diasCalculados) {
  * la app (backend/src/routes/misDescuentos.js): necesita ver TODAS las promos conocidas
  * para poder mostrar, tarjeta por tarjeta, qué desbloquea — incluso de las que el usuario
  * todavía no marcó como propias.
- * @returns { vea, carr, changomas, dia, coto: {promos,error} }
+ * @returns { vea, carr, changomas, dia, coto, jumbo, disco: {promos,error} }
  */
 async function obtenerTodasLasPromosBancarias() {
-  const [vea, carr, changomas, dia, coto] = await Promise.all([
+  const [vea, carr, changomas, dia, coto, jumbo, disco] = await Promise.all([
     fetchVea().catch(() => ({ promos: [], error: 'fetch_failed' })),
     fetchCarrefour().catch(() => ({ promos: [], error: 'fetch_failed' })),
     fetchChangoMas().catch(() => ({ promos: [], error: 'fetch_failed' })),
     fetchDia().catch(() => ({ promos: [], error: 'fetch_failed' })),
     fetchCoto().catch(() => ({ promos: [], error: 'fetch_failed' })),
+    fetchJumbo().catch(() => ({ promos: [], error: 'fetch_failed' })),
+    fetchDisco().catch(() => ({ promos: [], error: 'fetch_failed' })),
   ]);
-  return { vea, carr, changomas, dia, coto };
+  return { vea, carr, changomas, dia, coto, jumbo, disco };
 }
 
 /**
@@ -588,7 +623,7 @@ async function obtenerTodasLasPromosBancarias() {
  * aplican a `tarjetas` (nombres canónicos, ver ALIAS_TARJETAS). Nivel de módulo (no closure)
  * para que el backend HTTP pueda filtrar por las tarjetas de CADA usuario sobre un mismo
  * cache crudo, sin tener que volver a pedir nada en vivo — ver promosBancariasCache.js.
- * @returns { vea, carr, changomas, dia, coto: {promos,error} }
+ * @returns mismas keys que `datosPorSuper` (hoy: vea, carr, changomas, dia, coto, jumbo, disco), cada una {promos,error}
  */
 function filtrarPromosBancariasPorTarjetas(datosPorSuper, tarjetas) {
   const filtrarPorTarjetasPropias = resultado => {
@@ -598,13 +633,12 @@ function filtrarPromosBancariasPorTarjetas(datosPorSuper, tarjetas) {
       .map(p => ({ ...p, bancoCanonico: p.canonicosPosibles.find(c => tarjetas.includes(c)) }));
     return { promos, error: null };
   };
-  return {
-    vea: filtrarPorTarjetasPropias(datosPorSuper.vea),
-    carr: filtrarPorTarjetasPropias(datosPorSuper.carr),
-    changomas: filtrarPorTarjetasPropias(datosPorSuper.changomas),
-    dia: filtrarPorTarjetasPropias(datosPorSuper.dia),
-    coto: filtrarPorTarjetasPropias(datosPorSuper.coto),
-  };
+  // Genérico sobre las keys que trae datosPorSuper (en vez de listarlas a mano) para que un
+  // super nuevo no se quede afuera en silencio si se agrega a obtenerTodasLasPromosBancarias()
+  // pero se olvida acá — ya pasó una vez con Jumbo/Disco (2026-08-21).
+  return Object.fromEntries(
+    Object.entries(datosPorSuper).map(([key, resultado]) => [key, filtrarPorTarjetasPropias(resultado)])
+  );
 }
 
 /**
@@ -660,8 +694,7 @@ function imprimirSeccionBancaria(supermercados, datosPorSuper, subtotalesPorSupe
 
     const { promo, descuento } = mejor;
     const canalTxt = promo.canales ? `, canal: ${promo.canales.join('/')}` : '';
-    const topeTxt = promo.tope == null ? ' — tope no detectado, verificar' : '';
-    console.log(`  ${s.tag} ${s.nombre}: -$${fmt(descuento)} pagando con ${promo.bancoCanonico} (${Math.round(promo.descuentoPct * 100)}% de descuento${canalTxt}${topeTxt})`);
+    console.log(`  ${s.tag} ${s.nombre}: -$${fmt(descuento)} pagando con ${promo.bancoCanonico} (${Math.round(promo.descuentoPct * 100)}% de descuento${canalTxt})`);
     if (promo.textoLegal) {
       const extracto = promo.textoLegal.length > 160 ? promo.textoLegal.slice(0, 160) + '…' : promo.textoLegal;
       console.log(`       "${extracto}"`);
@@ -682,8 +715,7 @@ function formatearFecha(fecha, hoy) {
 function describirMejorDia(dia, hoy) {
   if (!dia || !dia.mejor) return 'sin promo bancaria aplicable en los próximos 7 días';
   const { promo, descuento } = dia.mejor;
-  const topeTxt = promo.tope == null ? ' — tope no detectado, verificar' : '';
-  return `${formatearFecha(dia.fecha, hoy)} con ${promo.bancoCanonico} (${Math.round(promo.descuentoPct * 100)}% de descuento${topeTxt}) → ahorrás $${fmt(descuento)}`;
+  return `${formatearFecha(dia.fecha, hoy)} con ${promo.bancoCanonico} (${Math.round(promo.descuentoPct * 100)}% de descuento) → ahorrás $${fmt(descuento)}`;
 }
 
 /**
@@ -784,8 +816,7 @@ function describirOportunidad(p, hoy) {
   if (!p.oportunidad) return 'sin promo bancaria aplicable en los próximos 7 días';
   const { fecha, mejor, canal } = p.oportunidad;
   const canalTxt = canal === 'online' ? 'online' : 'en el local';
-  const topeTxt = mejor.promo.tope == null ? ' — tope no detectado, verificar' : '';
-  return `pagando con ${mejor.promo.bancoCanonico} ${canalTxt} el ${formatearFecha(fecha, hoy)} (${Math.round(mejor.promo.descuentoPct * 100)}%${topeTxt}) → -$${fmt(mejor.descuento)}`;
+  return `pagando con ${mejor.promo.bancoCanonico} ${canalTxt} el ${formatearFecha(fecha, hoy)} (${Math.round(mejor.promo.descuentoPct * 100)}%) → -$${fmt(mejor.descuento)}`;
 }
 
 /** Modo individual: un solo ítem se compra en un solo lugar — se muestran los 3 supers como alternativas y se recomienda el más barato, no se suman. */

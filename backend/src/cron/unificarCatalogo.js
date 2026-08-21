@@ -35,6 +35,8 @@ const FUENTES = [
   { key: 'changomas', archivo: 'catalogo-changomas.json' },
   { key: 'dia',       archivo: 'catalogo-dia.json' },
   { key: 'coto',      archivo: 'catalogo-coto.json' },
+  { key: 'jumbo',     archivo: 'catalogo-jumbo.json' },
+  { key: 'disco',     archivo: 'catalogo-disco.json' },
 ];
 
 function construirCatalogoUnificado() {

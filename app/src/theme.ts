@@ -25,9 +25,15 @@ export type Esquema = 'light' | 'dark';
 
 // Día usa el mismo rojo que Coto a propósito: el blanco original era invisible contra el
 // fondo blanco de la app (ver el borde de contraste que hacía falta más abajo, hoy sin uso).
+//
+// Jumbo (naranja) y Disco (teal) son colores nuevos, no las marcas reales de esas cadenas
+// (verde y rojo respectivamente) — ya están tomados por Vea y Coto/Día, y el criterio de este
+// archivo es consistencia de lectura, no branding (ver punto 1 arriba). Contraste contra
+// `fondo`/`superficie` verificado con la fórmula WCAG: ambos ≥4.5:1 en claro (mismo piso que
+// el resto de la paleta) y ≥7.5:1 en oscuro.
 const superColores = {
-  light: { vea: '#12874A', carr: '#1B5FD9', changomas: '#7A3FB8', coto: '#D6293E', dia: '#D6293E' },
-  dark:  { vea: '#2FBE7A', carr: '#6A97F7', changomas: '#B085DE', coto: '#F0555F', dia: '#F0555F' },
+  light: { vea: '#12874A', carr: '#1B5FD9', changomas: '#7A3FB8', coto: '#D6293E', dia: '#D6293E', jumbo: '#C2540D', disco: '#0E7C86' },
+  dark:  { vea: '#2FBE7A', carr: '#6A97F7', changomas: '#B085DE', coto: '#F0555F', dia: '#F0555F', jumbo: '#F2894D', disco: '#4DD0DA' },
 };
 
 // Bordes SOLO para identidades cuyo relleno no contrasta por sí solo contra el fondo. Vacío

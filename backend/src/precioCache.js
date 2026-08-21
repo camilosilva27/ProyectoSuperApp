@@ -1,12 +1,12 @@
 /**
- * Índice de precio+promo derivado de catalogo-{vea,carrefour,changomas,dia,coto}.json — los
- * mismos archivos que ya escriben los scrapers diarios, que además del EAN/nombre YA traen
+ * Índice de precio+promo derivado de catalogo-{vea,carrefour,changomas,dia,coto,jumbo,disco}.json
+ * — los mismos archivos que ya escriben los scrapers diarios, que además del EAN/nombre YA traen
  * precio y promo capturados (`descuentoDirecto`/`promosInternas`/`promosBancarias`/`promocion`
  * según el super). Antes se descartaban a propósito para el precio (ver unificarCatalogo.js);
  * acá se usan como la fuente primaria de /api/comparar y /api/precios, refrescada por el cron
  * cada 1-2 hs en vez de en cada request de usuario.
  *
- * Por qué: antes, cada comparación pegaba en vivo a los 5 supers en el momento del request.
+ * Por qué: antes, cada comparación pegaba en vivo a los supers en el momento del request.
  * Con tráfico concurrente eso multiplica conexiones contra Carrefour/Chango Más, que ya
  * rate-limitean con uso normal de una sola familia (ver sondaEnVivo.js, comparar.js). Leer de
  * acá saca ese fetch del camino común: el volumen hacia los supers pasa a depender solo del
@@ -34,6 +34,8 @@ const FUENTES = [
   { key: 'changomas', archivo: 'catalogo-changomas.json', nombre: 'Chango Más' },
   { key: 'dia', archivo: 'catalogo-dia.json', nombre: 'Día' },
   { key: 'coto', archivo: 'catalogo-coto.json', nombre: 'Coto' },
+  { key: 'jumbo', archivo: 'catalogo-jumbo.json', nombre: 'Jumbo' },
+  { key: 'disco', archivo: 'catalogo-disco.json', nombre: 'Disco' },
 ];
 
 // Único teaser de "tarjeta propia" que interpreta hoy el fetch en vivo (ver
@@ -41,10 +43,14 @@ const FUENTES = [
 // igual que fetchers.js lo busca por nombre en los Teasers crudos de VTEX.
 const NOMBRE_TARJETA_PROPIA = 'tarjeta carrefour';
 
-/** Vea: un solo precio y una sola promo (opcional) por SKU — ver catalogo-vea.json. */
-function entradasVea(sku) {
+/**
+ * Vea/Jumbo/Disco: un solo precio y una sola promo (opcional) por SKU — misma cuenta VTEX,
+ * mismo formato de catálogo (ver scraper-promos-jumbo.js/scraper-promos-disco.js, calcados de
+ * scraper-promos-vea.js).
+ */
+function entradasCencosud(sku, superNombre) {
   const resultados = [{
-    super: 'Vea', skuId: sku.skuId, sellerId: sku.seller ?? '1',
+    super: superNombre, skuId: sku.skuId, sellerId: sku.seller ?? '1',
     productName: sku.productName, skuName: sku.skuName, ean: sku.ean,
     precioBase: sku.precioBase,
     promo: sku.promocion
@@ -129,12 +135,14 @@ function entradasCoto(sku) {
 }
 
 function entradasDe(key, sku) {
-  if (key === 'vea') return entradasVea(sku);
+  if (key === 'vea' || key === 'jumbo' || key === 'disco') {
+    return entradasCencosud(sku, FUENTES.find(f => f.key === key).nombre);
+  }
   if (key === 'coto') return entradasCoto(sku);
   return entradasVtexConTeasers(sku, FUENTES.find(f => f.key === key).nombre, { conTarjetaPropia: key === 'carr' });
 }
 
-let indice = null; // Map<ean, { vea:[], carr:[], changomas:[], dia:[], coto:[] }>
+let indice = null; // Map<ean, { vea:[], carr:[], changomas:[], dia:[], coto:[], jumbo:[], disco:[] }>
 let datosVistos = {}; // key -> referencia al objeto que devolvió leerCatalogo la última vez
 let fechasPorFuente = {}; // key -> `fecha` del catalogo-*.json usado para construir el índice
 
@@ -149,8 +157,11 @@ function construirIndice() {
 
     for (const sku of data.skus) {
       if (!sku.ean) continue;
+      // Genérico sobre las keys de FUENTES (en vez de listarlas a mano) para que un super
+      // nuevo no quede afuera en silencio — ya pasó una vez con Jumbo/Disco (2026-08-21, ver
+      // el mismo tipo de bug en promos-bancarias.js).
       if (!nuevoIndice.has(sku.ean)) {
-        nuevoIndice.set(sku.ean, { vea: [], carr: [], changomas: [], dia: [], coto: [] });
+        nuevoIndice.set(sku.ean, Object.fromEntries(FUENTES.map(f => [f.key, []])));
       }
       nuevoIndice.get(sku.ean)[key].push(...entradasDe(key, sku));
     }
@@ -160,7 +171,7 @@ function construirIndice() {
   fechasPorFuente = nuevasFechas;
 }
 
-/** true si alguno de los 5 catalogo-*.json cambió de identidad desde la última vez que se
+/** true si alguno de los catalogo-*.json cambió de identidad desde la última vez que se
  *  construyó el índice (leerCatalogo ya cachea por mtime y devuelve el mismo objeto si no
  *  cambió — comparar por referencia evita reconstruir el índice en cada request). */
 function huboCambios() {
@@ -179,7 +190,7 @@ function asegurarIndice() {
 
 /**
  * Precio+promo cacheados para un EAN, misma forma que buscarPorEAN() en vivo. `null` si el
- * EAN no está en ninguno de los 5 catálogos (fuera del recorte capturado por los scrapers) —
+ * EAN no está en ninguno de los catálogos (fuera del recorte capturado por los scrapers) —
  * quien llama decide si eso amerita un fallback en vivo.
  */
 function precioPorEAN(ean) {

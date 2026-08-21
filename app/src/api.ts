@@ -6,7 +6,7 @@
  * permite controlar el ritmo de requests en un solo lugar en vez de en cada teléfono.
  */
 
-export type SuperKey = 'vea' | 'carr' | 'changomas' | 'dia' | 'coto';
+export type SuperKey = 'vea' | 'carr' | 'changomas' | 'dia' | 'coto' | 'jumbo' | 'disco';
 
 export type Supermercado = { key: SuperKey; nombre: string; tag: string };
 
@@ -104,10 +104,13 @@ export type RespuestaComparar = {
       porSuper: Record<SuperKey, {
         tarjeta: string;
         descuentoPct: number;
-        /** `null` = sin tope (no se pudo detectar del texto legal, o la promo no tiene). */
+        /** `null` = sin tope (no se pudo detectar del texto legal, o la promo no tiene) — no
+         *  se distingue un caso del otro (decisión 2026-08-21: se probó diferenciarlos para
+         *  no avisar "verificar" cuando de verdad no hay tope, pero se descartó por el costo
+         *  de tocar la extracción de tope en 3 supers a la vez; se prefirió no avisar nunca). */
         tope: number | null;
-        /** `false` cuando `tope` es `null` porque no se detectó (a diferencia de una promo
-         *  que de verdad no tiene tope) — la app debería avisar "verificar" en ese caso. */
+        /** `true` solo cuando `tope` es un número — hoy la app la usa únicamente para decidir
+         *  si mostrar el monto del tope junto al descuento, no para avisar nada. */
         topeDetectado: boolean;
         descuento: number;
         subtotalFinal: number;

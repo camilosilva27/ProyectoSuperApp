@@ -20,6 +20,9 @@ import { NOMBRE_SUPER, ORDEN_SUPERS } from './comunes';
  */
 const SUPERS_SOBRE_OSCURO: Record<SuperKey, string> = {
   vea: '#2EA35C', carr: '#4C8DF6', changomas: '#A66FE0', dia: '#FFFFFF', coto: '#F0576A',
+  // Jumbo/Disco no comparten hue con nadie más (a diferencia de Día/Coto), así que reusan
+  // directamente la variante oscura de theme.ts en vez de necesitar una tercera tonalidad.
+  jumbo: '#F2894D', disco: '#4DD0DA',
 };
 
 export function HeaderNegro({
