@@ -126,7 +126,11 @@ const styles = StyleSheet.create({
   },
   barraColorCelda: { width: '100%', height: 5, borderRadius: radio.pill },
   celdaOtros: {
-    flex: 0, width: 54, borderRadius: 8, alignItems: 'center', justifyContent: 'center', gap: 1,
+    // `flexGrow`/`flexShrink` en 0 en vez de `flex: 0`: ese shorthand fija `flex-basis: 0%`
+    // en CSS, que le gana al `width` explícito y colapsa la celda a ancho 0 (bug real, se veía
+    // sin contorno y pegada a la celda anterior porque no había caja, solo el texto).
+    flexGrow: 0, flexShrink: 0, width: 54, borderRadius: 8,
+    alignItems: 'center', justifyContent: 'center', gap: 1,
     boxShadow: 'inset 0 0 0 1px rgba(255,255,255,.35)',
   },
   numeroOtros: { fontFamily: fuentes.precio, fontSize: 22, lineHeight: 22, color: '#FFD400' },
