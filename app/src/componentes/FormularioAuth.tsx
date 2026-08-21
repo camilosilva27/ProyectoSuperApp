@@ -41,6 +41,7 @@ export function FormularioAuth({ onExito }: { onExito?: () => void }) {
   };
 
   const enviar = async () => {
+    if (enviando) return;
     if (modo === 'registro' && !nombre.trim()) {
       setError('Completá tu nombre.');
       return;
@@ -114,6 +115,8 @@ export function FormularioAuth({ onExito }: { onExito?: () => void }) {
           autoCapitalize="none"
           textContentType={modo === 'registro' ? 'newPassword' : 'password'}
           accessibilityLabel="Contraseña"
+          returnKeyType="done"
+          onSubmitEditing={enviar}
         />
       </View>
 
