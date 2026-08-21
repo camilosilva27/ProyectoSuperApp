@@ -450,13 +450,6 @@ function PlanDeCompra({ data }: { data: RespuestaComparar }) {
                 </View>
               ) : null}
 
-              {ahorroBancario && !ahorroBancario.topeDetectado ? (
-                <View style={[styles.avisoOnline, { backgroundColor: paleta.alertaFondo }]}>
-                  <Text style={[texto.micro, { color: paleta.alerta, letterSpacing: 0.7 }]}>
-                    NO SE DETECTÓ EL TOPE DE {ahorroBancario.tarjeta.toUpperCase()} — VERIFICÁ EL DESCUENTO
-                  </Text>
-                </View>
-              ) : null}
 
               {[...tarjetasAplicadas].map(tarjeta => (
                 <View key={tarjeta} style={[styles.filaEstado, { backgroundColor: paleta.superficieAlt, borderColor: paleta.borde }]}>

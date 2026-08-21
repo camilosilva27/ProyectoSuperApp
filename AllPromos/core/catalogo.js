@@ -22,6 +22,8 @@ const CATALOGOS = [
   { key: 'changomas', archivo: 'catalogo-changomas.json', scraper: 'scraper-promos-changomas.js' },
   { key: 'dia',       archivo: 'catalogo-dia.json',       scraper: 'scraper-promos-dia.js' },
   { key: 'coto',      archivo: 'catalogo-coto.json',      scraper: 'scraper-promos-coto.js' },
+  { key: 'jumbo',     archivo: 'catalogo-jumbo.json',     scraper: 'scraper-promos-jumbo.js' },
+  { key: 'disco',     archivo: 'catalogo-disco.json',     scraper: 'scraper-promos-disco.js' },
 ];
 
 // ─── Utils de texto ───────────────────────────────────────────────────────────
@@ -126,7 +128,7 @@ function resolverEANporNombre(palabras) {
   }
 
   // Luego el resto: agregan EANs que no estén ya vistos (skuIdVea = null).
-  for (const archivo of ['catalogo-carrefour.json', 'catalogo-changomas.json', 'catalogo-dia.json', 'catalogo-coto.json']) {
+  for (const archivo of ['catalogo-carrefour.json', 'catalogo-changomas.json', 'catalogo-dia.json', 'catalogo-coto.json', 'catalogo-jumbo.json', 'catalogo-disco.json']) {
     for (const s of skusDe(archivo)) {
       if (!s.ean || vistos.has(s.ean)) continue;
       if (matchesBusqueda(s.productName, s.skuName, palabras)) {

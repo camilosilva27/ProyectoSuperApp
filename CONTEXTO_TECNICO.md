@@ -13,7 +13,7 @@ AllPromos/
 ├── buscar-promos.js            ← CLI: readline + console.log (capa delgada sobre core/)
 ├── core/                       ← Lógica compartida entre el CLI y el backend
 │   ├── catalogo.js             ← nombre → EAN/skuId, estado de frescura (con caché por mtime)
-│   ├── fetchers.js             ← consultas en vivo a las 5 APIs + SUPERMERCADOS
+│   ├── fetchers.js             ← consultas en vivo a las 7 APIs + SUPERMERCADOS
 │   └── comparador.js           ← mejor opción, sugerencia de cantidad, resumen final
 ├── promo-engine.js             ← Motor de cálculo de promos (por producto)
 ├── promos-bancarias.js         ← Promos "por ticket": bancos/billeteras/tarjetas propias (ver sección propia más abajo)
@@ -23,8 +23,10 @@ AllPromos/
 ├── scraper-promos-changomas.js ← Actualiza catalogo-changomas.json
 ├── scraper-promos-dia.js       ← Actualiza catalogo-dia.json
 ├── scraper-promos-coto.js      ← Actualiza catalogo-coto.json
-├── catalogo-{vea,carrefour,changomas,dia,coto}.json  ← Diccionarios locales (nombre → EAN, + skuId en Vea)
-├── promos-{vea,carrefour,changomas,dia,coto}.json    ← Subconjunto de cada catálogo con solo SKUs con descuento
+├── scraper-promos-jumbo.js     ← Actualiza catalogo-jumbo.json (misma cuenta VTEX que Vea, ver sección propia)
+├── scraper-promos-disco.js     ← Actualiza catalogo-disco.json (idem)
+├── catalogo-{vea,carrefour,changomas,dia,coto,jumbo,disco}.json  ← Diccionarios locales (nombre → EAN, + skuId en Vea/Jumbo/Disco)
+├── promos-{vea,carrefour,changomas,dia,coto,jumbo,disco}.json    ← Subconjunto de cada catálogo con solo SKUs con descuento
 ├── compras-real.txt            ← Lista de compras real del usuario (no versionada, personal)
 └── compras-prueba.txt          ← Lista de prueba (10 ítems, sí versionada — para probar cambios)
 ```
@@ -44,9 +46,9 @@ backend/                        ← API HTTP para la app mobile (Express)
 ├── src/precioCache.js          ← índice de precio+promo derivado de catalogo-*.json (ver más abajo)
 ├── src/limitadorGlobal.js      ← semáforo global (no por IP) para el fallback en vivo
 ├── src/sondaEnVivo.js          ← sonda en background que prueba un EAN conocido cada 15 min
-├── src/cron/unificarCatalogo.js   ← dedupe de los 5 catálogos por EAN (escritura atómica) + descarga de fotos
+├── src/cron/unificarCatalogo.js   ← dedupe de los 7 catálogos por EAN (escritura atómica) + descarga de fotos
 ├── src/cron/descargarImagenes.js  ← baja y guarda fotos de producto una sola vez, redimensionadas
-└── src/cron/refrescarCatalogos.js ← corre los 5 scrapers como subprocesos + sonda de promos bancarias
+└── src/cron/refrescarCatalogos.js ← corre los 7 scrapers como subprocesos + sonda de promos bancarias
 
 app/                            ← App mobile/web (React Native + Expo SDK 57, expo-router)
 ├── app/(tabs)/index.tsx        ← Buscar/seleccionar productos
@@ -61,7 +63,7 @@ app/                            ← App mobile/web (React Native + Expo SDK 57, 
 
 **Lo que SÍ cambió (2026-08-13), solo en el backend — `POST /api/comparar` y `POST /api/precios`:** dejaron de pedir precio en vivo a los supers en cada request. Con tráfico concurrente eso multiplicaba conexiones contra Carrefour/Chango Más, que ya rate-limitean con el uso normal de una sola familia (ver `sondaEnVivo.js`). Ahora:
 
-1. **Camino común — `src/precioCache.js`:** lee precio+promo directo de `catalogo-{vea,carrefour,changomas,dia,coto}.json` — los mismos archivos que ya escriben los scrapers diarios y que, además de EAN/nombre, siempre trajeron `precioBase`/`descuentoDirecto`/`promosInternas`/`promosBancarias`/`promocion` capturados en el momento del scraping (antes se descartaban a propósito para el precio; ahora se usan). No reinterpreta promociones por su cuenta: traduce esa forma ya calculada por el scraper a la misma forma que devuelven los parsers en vivo de `core/fetchers.js`, llamando a las mismas funciones de `promo-engine.js` — no hay una segunda lógica de promos que pueda divergir.
+1. **Camino común — `src/precioCache.js`:** lee precio+promo directo de `catalogo-{vea,carrefour,changomas,dia,coto,jumbo,disco}.json` — los mismos archivos que ya escriben los scrapers diarios y que, además de EAN/nombre, siempre trajeron `precioBase`/`descuentoDirecto`/`promosInternas`/`promosBancarias`/`promocion` capturados en el momento del scraping (antes se descartaban a propósito para el precio; ahora se usan). No reinterpreta promociones por su cuenta: traduce esa forma ya calculada por el scraper a la misma forma que devuelven los parsers en vivo de `core/fetchers.js`, llamando a las mismas funciones de `promo-engine.js` — no hay una segunda lógica de promos que pueda divergir.
 2. **Fallback angosto — solo para EANs que el paso 1 no encuentra** (fuera del recorte de ~2550 SKUs por super que ya capturan los scrapers, o producto nuevo): ahí sí se pide en vivo con `AllPromos/core/fetchers.js` sin cambios, pero protegido por un semáforo **global** (`src/limitadorGlobal.js`, no por IP): como mucho 2 búsquedas de este fallback en vuelo a la vez, sin importar cuántos usuarios distintos las disparen. Es lo que evita que el problema de rate-limit original (fetch en vivo en el camino común, multiplicado por usuarios concurrentes) se reintroduzca por otra puerta.
 3. **Frescura:** el precio que ve la app tiene la frescura del cron (ver `refrescarCatalogos.js` — se subió la frecuencia a cada 1-2 hs, antes 1 vez por día), no la del momento exacto del click. `GET /api/health` expone `cachePrecio.fuentes[].fecha` para ver esto de un vistazo.
 
@@ -265,6 +267,32 @@ Se probó con una muestra de 50 productos de consumo común (arroz, leche, yerba
 **SKUs fantasma — productos discontinuados con precio congelado (encontrado y corregido 2026-08-20):** Constructor.io mantiene indexados productos que ya no se venden en ninguna sucursal, con el último `price[]` que tuvieron cuando sí tenían stock — a veces muy viejo. Caso real que disparó la investigación: buscando "puré de tomate arcor" aparecían 3 resultados — $650 y $110 (ambos exclusivos de Coto) más el real a $1.110 (presente en los otros supers también). Los primeros dos no aparecen buscando manualmente en coto.com.ar. La señal es el campo `store_availability` (array de sucursales con stock) — viene vacío (`[]`) en los discontinuados, con 30+ sucursales en los vigentes. Ninguno de los dos EAN coincidía entre sí ni con el real (no es un bug de matching): son 3 SKUs distintos, legítimos como registros, pero 2 de los 3 no deberían mostrarse. Confirmado en la categoría "Puré de Tomate" completa (53 SKUs, el 100% real de Coto para esa categoría): 28 con `store_availability` vacío, 25 con sucursales reales — los 25 reales ocupan los primeros puestos en el orden de relevancia de Constructor.io, los 28 fantasma quedan después (un solo caso, no generaliza que siempre sea así). Fix: `scraper-promos-coto.js` (dentro de `scrapearCategoria`) y `parsearProductosCoto` en `core/fetchers.js` descartan cualquier SKU con `store_availability` vacío, tanto al armar el catálogo como en la consulta en vivo. Efecto en el catálogo completo: bajó de ~5.000 a **2.889 SKUs reales** (ver "Alcance y limitaciones" — la cifra de 5.000/11.586 de la decisión del 19-08 queda desactualizada, la real hoy es más chica).
 
 **Nota — no es lo mismo que el bug de Vea:** en Coto, los SKUs fantasma están genuinamente descatalogados (ausentes del sitio real, EAN propio, no aparecen buscando a mano). El problema de Vea encontrado el mismo día (ver "API de Vea" arriba) es distinto: productos reales y disponibles que mostraban precio/disponibilidad mal por una cookie de sesión vencida, no por estar discontinuados. Se investigó también Carrefour (10/2.559 = 0,4%, genuino — mayormente verdura/fruta fresca con `errMsg` explícito), Chango Más (0/2.550) y Día (0/2.550): ninguno de los tres tiene ninguno de los dos problemas.
+
+---
+
+## API de Jumbo/Disco — quirks críticos
+
+**Estado (2026-08-21): investigado en vivo, scraper escrito y validado (`scraper-promos-jumbo.js`/`scraper-promos-disco.js`), wireados en `core/fetchers.js`, `core/catalogo.js`, `promos-bancarias.js` y el cron del backend.**
+
+**Jumbo, Disco y Vea son la MISMA cuenta VTEX** ("Jumbo Argentina IO", `sellerName` confirmado en la respuesta pública del catálogo) — mismo `skuId`/EAN/master data, confirmado en vivo pidiendo el mismo producto a los 3 dominios. No son 3 integraciones independientes: son 3 storefronts (banners) sobre un único catálogo.
+
+- **Sin `sc=` especial** (a diferencia de Vea, que necesita `sc=34` por una razón histórica propia de esa marca) — no se encontró evidencia de variación regional de precio en jumbo.com.ar ni disco.com.ar.
+- **El mecanismo de promo por producto es el de Vea (`_v/search-promotions`), NO el de Teasers/PromotionTeasers embebidos** que usan Día/Chango Más/Carrefour — confirmado escaneando ~2500 SKUs de cada sitio (ninguno tenía Teasers poblados, y el descuento directo `Price < ListPrice` da falsos positivos ~90% en productos pesados/por kg, así que no es una señal usable acá).
+- **El `seller` que hay que mandarle a `_v/search-promotions` NO es el `"1"` que devuelve el catálogo público** (`sellers[0].sellerId`, que siempre es `"1"` en los 3 sitios) — es el mismo string interno que ya usaba Vea, `jumboargentinav700cordoba700`. Confirmado en vivo: con seller `"1"` el endpoint responde 200 pero vacío siempre (probado contra ~2500 SKUs de Jumbo, 0 promos); con el seller de Vea aparecen ~660 promos reales de inmediato. Es un dato de la cuenta VTEX compartida, no algo específico de Vea — por eso funciona igual en los 3 dominios.
+- **Las promos de producto son de cuenta completa, no de sitio**: la misma promo (mismo `ref_id`) aparece idéntica en Jumbo, Disco y Vea vía este endpoint. Sí puede haber diferencia de **precio base** entre banners para el mismo skuId (confirmado en vivo: un producto a $5.800 en Jumbo/Disco y $5.790 en Vea el mismo día) — no es 100% redundante comparar los 3 por separado.
+- **Mismo tope legacy de paginación (~2550 ítems)** que Vea/Carrefour/Chango Más/Día — confirmado con 400 en `_from=2550+`. Catálogo real de cada uno es gigante (Jumbo ~325k, Disco ~379k, igual de recortado que los otros VTEX de la lista).
+- **Alto solapamiento de EAN con Vea** (mismo master data): de ~2550 SKUs scrapeados en cada uno, solo ~1.330 EAN combinados son genuinamente nuevos respecto del catálogo de Vea — el catálogo unificado creció de ~9.700 a 9.556... en realidad prácticamente no creció (los catálogos de Carrefour/Chango Más/Día estaban desactualizados al momento de esta medición, así que la comparación exacta no es limpia, pero el orden de magnitud confirma que NO se dispara la RAM de la VM — ver "Alcance y limitaciones" y `catalogo-coto-capado-ram.md` en la memoria del proyecto).
+
+**Promos bancarias — bug encontrado y corregido en Vea al agregar Jumbo/Disco:** el feed de `promos-bancarias.js` (`fetchVea()`, ahora generalizado a `fetchCencosud()`) sale de un Master Data VTEX (`/api/dataentities/JN/documents/bankDiscount?an=jumboargentina`) que es **de cuenta completa, no de sitio** — confirmado pegándole al mismo endpoint desde los 3 dominios: devuelve exactamente el mismo array. Cada entrada tiene un campo `websites` que indica a qué banner aplica esa promo puntual (ej. `["discoargentina"]`, `["veaargentina"]`). **La versión anterior de `fetchVea()` no filtraba por ese campo** — tomaba las ~193 entradas sin mirarlo, así que un usuario de Vea podía ver una promo bancaria exclusiva de Disco (o viceversa). Se corrigió filtrando por `websites`.
+
+**Resuelto — dos tags para Jumbo, no es online/física:** el feed usa tanto `"jumboargentina"` como `"jumboargentinaio"` para Jumbo. Se investigó a fondo (2026-08-21) si eran "sitio online" vs. "sucursal física" — descartado: existe una promo real ("Jumbo Mas Personal", 20%, texto legal "Exclusivo Canal ONLINE") tagueada SOLO `jumboargentina` (sin `"io"`), así que esa hipótesis no explica los datos. Los tags se repiten dentro de la misma entrada una vez por cada sucursal física alcanzada (mismo patrón que `veaargentina`/`discoargentina`, que aparecen igual de repetidos) — lo más probable es que sean dos identificadores de sucursal/sistema coexistentes del banner Jumbo (código de tienda viejo vs. nuevo), no dos sitios distintos. `WEBSITE_TAGS_POR_SUPER.Jumbo` en `promos-bancarias.js` usa la **unión** de ambos — filtrar solo por `"io"` habría descartado la promo de "Jumbo Mas Personal" del ejemplo.
+
+**Dos bugs más del mismo tipo, encontrados recién al probar el server real (no al leer el código) — listas de supers hardcodeadas en el backend que Jumbo/Disco no alcanzaban a atravesar aunque `core/fetchers.js` ya los tuviera:**
+
+1. **`backend/src/precioCache.js`** — el índice de precio+promo cacheado (fuente primaria de `POST /api/comparar`) tenía su propio array `FUENTES` de 5 supers y un objeto por-EAN hardcodeado `{ vea:[], carr:[], changomas:[], dia:[], coto:[] }`. Sin el fix, `/api/comparar` simplemente no devolvía a Jumbo/Disco en su camino rápido (habría caído al fallback en vivo angosto, o ni eso). Se agregaron a `FUENTES`, se generalizó `entradasVea()` → `entradasCencosud(sku, superNombre)`, y el objeto por-EAN ahora se construye desde `FUENTES` en vez de listarse a mano.
+2. **`backend/src/promosBancariasCache.js`** — `revivirFechas()` reconstruía el resultado del cron con un array fijo `SUPER_KEYS` de 5 supers, así que aunque `logs/promos-bancarias.json` en disco ya tenía las promos de Jumbo/Disco (el cron sí las escribía bien), esta función las descartaba antes de que `GET /api/mis-descuentos` llegara a verlas. Se hizo genérico sobre `Object.entries(datosPorSuper)`.
+
+**Verificado end-to-end contra un server real levantado en esta sesión** (no solo llamando las funciones sueltas): `GET /api/health`, `GET /api/catalogo/buscar?supers=jumbo`, `POST /api/comparar` (Jumbo/Disco aparecen con precio y promo correctos, ej. Coca Cola 2,25L con "2do al 50%" a $8.700 en ambos) y `GET /api/mis-descuentos` (MODO ya lista a `jumbo`/`disco` en `supers` junto con los demás) — los 3 bugs de arriba estaban activos hasta que se corrigieron en esta misma sesión.
 
 ---
 

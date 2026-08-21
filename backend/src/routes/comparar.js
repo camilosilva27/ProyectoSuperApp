@@ -258,9 +258,6 @@ function aplicarPromosBancarias(resumen, supermercados, tarjetasSeleccionadas, a
       subtotalFinal: Math.round((resultado.subtotales[s.key] - descuento) * 100) / 100,
     };
     ahorroTotal += descuento;
-    if (promo.tope == null) {
-      advertencias.push(`Tope de ${promo.bancoCanonico} en ${s.nombre} no detectado — verificá el descuento antes de comprar`);
-    }
   }
   for (const s of supermercados) {
     if (resultado.erroresPorSuper[s.key]) {
