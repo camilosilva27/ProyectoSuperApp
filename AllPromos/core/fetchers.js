@@ -15,6 +15,7 @@ const {
   interpretarTeaserTarjetaPropia,
 } = require('../promo-engine');
 const { skuIdVeaPorEAN } = require('./catalogo');
+const { sanearPorEmpaquetado } = require('./empaquetado');
 
 const VEA_SELLER = 'jumboargentinav700cordoba700';
 
@@ -599,7 +600,7 @@ async function buscarPorEAN(ean, { tarjetas = [], skuIdVea } = {}) {
     jumboLive(ean, sku),
     discoLive(ean, sku),
   ]);
-  return { vea, carr, changomas, dia, coto, jumbo, disco };
+  return sanearPorEmpaquetado({ vea, carr, changomas, dia, coto, jumbo, disco });
 }
 
 /** Fallback: búsqueda por nombre directo en las APIs (menos confiable que por EAN). */
