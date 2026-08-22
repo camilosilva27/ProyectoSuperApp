@@ -405,7 +405,7 @@ body. Cuando restringe algo (`tope < supers.length`), el handler:
 
 **En la app**, `topeSupers` vive en el mismo contexto que `supersActivos`
 (`ProveedorFiltrosSupers` en `app/src/filtrosSupers.tsx`), sincronizado en el mismo blob de
-Supabase (`perfil_usuario.tope_supers`, migración `0007_tope_supers.sql`). Sentinel `0` = "sin
+Supabase (`perfil_usuario.tope_supers`, migración `0008_tope_supers.sql`). Sentinel `0` = "sin
 tope explícito / Los N" — no se persiste el número N literal porque queda obsoleto en cuanto
 `supersActivos` cambia; `normalizarTope(tope, cantidadElegidos)` (duplicada, a propósito, en
 `filtrosSupers.tsx` y en `HojaSupers.tsx` — son dos lugares distintos con su propio estado
