@@ -29,7 +29,7 @@ import { FotoProducto } from '../src/componentes/FotoProducto';
 import { HeaderNegro } from '../src/componentes/HeaderNegro';
 import { useFiltrosSupers } from '../src/filtrosSupers';
 import { useHistorialAhorro } from '../src/historialAhorro';
-import { espacio, pesos, radio, texto } from '../src/theme';
+import { espacio, pesos, pesosCorto, radio, texto } from '../src/theme';
 import { useTema } from '../src/useTema';
 
 /** Color de identidad de un super, con el borde de contraste de Día si corresponde (ver theme.ts). */
@@ -253,7 +253,7 @@ function HeaderVeredicto({
               REPARTIENDO EN {paradasNombres.length} PARADAS
             </Text>
             <Text style={[texto.precioHero, styles.totalHero, styles.totalPrincipal]}>
-              {pesos(totalOptimo)}
+              {pesosCorto(totalOptimo)}
             </Text>
             <Text style={[texto.dato, styles.textoMutedOscuro]}>{paradasNombres.join(' · ')}</Text>
           </View>
@@ -264,7 +264,7 @@ function HeaderVeredicto({
                 <Text style={[texto.micro, styles.textoMutedOscuro, { letterSpacing: 0.7 }]}>
                   PRECIO SIN DESCUENTOS
                 </Text>
-                <Text style={[texto.precioGrande, styles.totalSecundario]}>{pesos(totalSinPromo)}</Text>
+                <Text style={[texto.precioGrande, styles.totalSecundario]}>{pesosCorto(totalSinPromo)}</Text>
               </View>
             </>
           ) : null}
@@ -272,9 +272,9 @@ function HeaderVeredicto({
       ) : (
         <View style={{ gap: 6 }}>
           {hayAhorroPorPromos ? (
-            <Text style={[texto.dato, styles.precioSinPromoHero]}>{pesos(totalSinPromo)}</Text>
+            <Text style={[texto.dato, styles.precioSinPromoHero]}>{pesosCorto(totalSinPromo)}</Text>
           ) : null}
-          <Text style={[texto.precioHero, styles.totalHero]}>{pesos(totalOptimo)}</Text>
+          <Text style={[texto.precioHero, styles.totalHero]}>{pesosCorto(totalOptimo)}</Text>
           {mejorUnico ? (
             <Text style={[texto.etiqueta, styles.subtitutloHero]}>
               Comprando todo en {mejorUnico.nombre} pagás el mejor precio: no hace falta un segundo viaje.
