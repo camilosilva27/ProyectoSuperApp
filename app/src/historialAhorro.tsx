@@ -26,7 +26,9 @@ import { supabase } from './supabase';
 export type EventoAhorro = {
   /** ISO string, momento en que se vio el resultado de la comparación. */
   fecha: string;
-  /** Diferencia entre el plan repartido y comprar todo en el super más barato. Puede ser 0. */
+  /** Ahorro por descuentos/promos: total sin aplicar ninguno menos el total óptimo realmente
+   *  pagado (repartido entre supers, con promos aplicadas) — no el ahorro por repartir entre
+   *  supers, que es un número distinto (ver `resultado.tsx`). Puede ser 0. */
   monto: number;
 };
 

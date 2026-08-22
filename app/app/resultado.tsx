@@ -211,13 +211,20 @@ function HeaderVeredicto({
   // el orden del selector, ver SelectorSupers en HeaderNegro.tsx): una comparación vista, un
   // evento — el ref evita duplicar el registro si este componente vuelve a renderizar sin que
   // `data` haya cambiado (misma respuesta de /api/comparar).
+  //
+  // El monto registrado es el ahorro por DESCUENTOS/PROMOS (totalSinPromo - totalOptimo), no
+  // `ahorroRepartiendo` (ahorro por repartir entre supers vs. comprar todo en el más barato) —
+  // son cosas distintas: un carrito puede no ganar nada repartiendo (todo más barato en el
+  // mismo super) y aun así ahorrar mucho por promos activas, que es el caso real que expuso
+  // que este número se quedaba en $0 aunque el usuario sí estaba ahorrando (2026-08-22).
+  const montoAhorradoPromos = Math.max(0, totalSinPromo - totalOptimo);
   const dataRegistradaRef = useRef<RespuestaComparar | null>(null);
   useEffect(() => {
     if (dataRegistradaRef.current === data) return;
     dataRegistradaRef.current = data;
-    registrar(Math.max(0, ahorroRepartiendo));
+    registrar(montoAhorradoPromos);
     registrarUso(data.supermercados.map(s => s.key));
-  }, [data, ahorroRepartiendo, registrar, registrarUso]);
+  }, [data, montoAhorradoPromos, registrar, registrarUso]);
 
   const paradasNombres = data.supermercados
     .filter(s => (data.resumen.subtotalAsignadoPorSuper[s.key] ?? 0) > 0)
