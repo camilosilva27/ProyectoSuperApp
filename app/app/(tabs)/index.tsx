@@ -321,7 +321,12 @@ export default function PantallaBuscar() {
         onAplicar={setSupersYTope}
       />
 
-      {carrito.items.length > 0 ? (
+      {/* Oculto mientras la hoja está abierta: sin esto queda pintado ARRIBA del scrim (es un
+          hermano posterior en el JSX, y ninguno de los dos tiene z-index/elevation) — se podía
+          tocar "Ver carrito" con la hoja todavía abierta y navegar sin pasar por
+          cerrarYConfirmar, así que la comparación salía con el tope/selección viejos, de antes
+          de abrir la hoja, no con lo que se acababa de elegir ahí. */}
+      {carrito.items.length > 0 && !mostrarHojaSupers ? (
         <View
           style={[
             styles.barraInferior,
