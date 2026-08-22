@@ -87,16 +87,20 @@ export default function PantallaResultado() {
   const { paleta } = useTema();
   const insets = useSafeAreaInsets();
   const carrito = useCarrito();
-  const { supersActivos } = useFiltrosSupers();
+  const { supersActivos, topeSupers } = useFiltrosSupers();
   const scrollRef = useRef<ScrollView>(null);
   const yPromos = useRef(0);
 
   const pedido = carrito.items.map(i => ({ ean: i.ean, cantidad: i.cantidad }));
-  const clave = JSON.stringify({ pedido, tarjetas: carrito.tarjetas, supersActivos });
+  // `topeSupers` (0 = sin tope) ya viene normalizado contra `supersActivos` desde
+  // filtrosSupers.tsx, pero se revalida acá igual: es el punto donde el tope se traduce en el
+  // parámetro real que recorta el plan de compra.
+  const tope = topeSupers > 0 && topeSupers < supersActivos.length ? topeSupers : undefined;
+  const clave = JSON.stringify({ pedido, tarjetas: carrito.tarjetas, supersActivos, tope });
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['comparar', clave],
-    queryFn: () => comparar(pedido, carrito.tarjetas, supersActivos),
+    queryFn: () => comparar(pedido, carrito.tarjetas, supersActivos, tope),
     enabled: pedido.length > 0,
     staleTime: 0, // los precios son en vivo: no se reusan entre comparaciones
   });

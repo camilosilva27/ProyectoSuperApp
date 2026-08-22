@@ -136,7 +136,7 @@ export default function PantallaBuscar() {
   const [orden, setOrden] = useState<OrdenBusqueda>('alfabetico');
   const [mostrarComoFunciona, setMostrarComoFunciona] = useState(false);
   const [mostrarHojaSupers, setMostrarHojaSupers] = useState(false);
-  const { supersActivos, toggleSuper, setSupersActivos, usoPorSuper } = useFiltrosSupers();
+  const { supersActivos, toggleSuper, topeSupers, setSupersYTope, usoPorSuper } = useFiltrosSupers();
 
   // Auto-inicio del onboarding, una sola vez por dispositivo — el botón manual (EstadoInicial,
   // Ajustes) sigue andando igual después de esto.
@@ -316,8 +316,9 @@ export default function PantallaBuscar() {
       <HojaSupers
         visible={mostrarHojaSupers}
         activos={supersActivos}
+        tope={topeSupers}
         onCerrar={() => setMostrarHojaSupers(false)}
-        onAplicar={setSupersActivos}
+        onAplicar={setSupersYTope}
       />
 
       {carrito.items.length > 0 ? (

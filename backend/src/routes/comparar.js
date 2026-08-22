@@ -27,6 +27,7 @@ const { SUPERMERCADOS } = require('../../../AllPromos/core/fetchers');
 const { armarUrlCarrito } = require('../../../AllPromos/core/fetchers');
 const {
   calcularOpciones, calcularSugerenciaCantidad, calcularMejoresPorSuper, calcularResumenFinal,
+  elegirSupersConTope, filtrarOpcionesPorSupers, filtrarSugerenciaPorSupers,
   itemsReoptimizarDesdeFinal, comprasPorSuperDesdeAsignacion,
 } = require('../../../AllPromos/core/comparador');
 const { calcularCosto } = require('../../../AllPromos/promo-engine');
@@ -142,6 +143,9 @@ function validarBody(body) {
   }
   const errorSupers = validarSupers(body.supers);
   if (errorSupers) return errorSupers;
+  if (body.tope !== undefined && (!Number.isInteger(body.tope) || body.tope < 1)) {
+    return 'tope tiene que ser un entero >= 1 (cantidad máxima de supers a visitar)';
+  }
   for (const item of body.items) {
     if (!item || !esEANvalido(String(item.ean ?? ''))) {
       return `EAN invalido: ${JSON.stringify(item?.ean)}`;
@@ -354,14 +358,45 @@ router.post('/comparar', async (req, res) => {
     mejores: p._mejores,
     ambiguo: false, // la app manda un EAN exacto: no hay ambigüedad de nombre que resolver
   }));
-  const resumen = calcularResumenFinal(paraResumen, supermercados);
+
+  // Tope de supers (hoja "Qué supers comparar"): si viene y restringe algo, el plan final usa
+  // solo el mejor subconjunto de ese tamaño entre `supermercados` — no todos los elegidos.
+  const tope = req.body.tope;
+  const capado = Number.isInteger(tope) && tope >= 1 && tope < supermercados.length;
+  const supermercadosUsados = elegirSupersConTope(paraResumen, supermercados, tope);
+
+  const resumen = calcularResumenFinal(paraResumen, supermercadosUsados);
 
   // Reasigna comprasPorSuper/subtotalAsignadoPorSuper/requiereOnlinePorSuper/totalOptimo (en
   // el lugar, dentro de `resumen`) considerando el ahorro bancario de las tarjetas
   // seleccionadas, si hay alguna. Ver cabecera de aplicarPromosBancarias().
-  const bancario = aplicarPromosBancarias(resumen, supermercados, tarjetasSeleccionadas, advertencias);
+  const bancario = aplicarPromosBancarias(resumen, supermercadosUsados, tarjetasSeleccionadas, advertencias);
 
-  const items = procesados.map(({ _mejores, ...publico }) => publico);
+  // Baseline sin tope, para que la hoja pueda mostrar cuánto "cuesta" el tope — misma
+  // metodología (incluida la reoptimización bancaria) para que ambos números estén en pie de
+  // igualdad. Las advertencias de este cálculo auxiliar se descartan: no es user-facing, solo
+  // alimenta una resta.
+  let totalOptimoSinTope = null;
+  if (capado) {
+    const resumenSinTope = calcularResumenFinal(paraResumen, supermercados);
+    aplicarPromosBancarias(resumenSinTope, supermercados, tarjetasSeleccionadas, []);
+    totalOptimoSinTope = resumenSinTope.totalOptimo;
+  }
+
+  // `opciones`/`mejor`/`sugerenciaCantidad` de cada ítem se calcularon sobre TODOS los supers
+  // elegidos (antes de saber `supermercadosUsados` — hace falta el precio de cada uno para
+  // poder elegir el subconjunto). Si el tope restringió algo, hay que recortarlos acá: sin
+  // esto, `item.mejor` podría señalar un super fuera del plan capado.
+  const items = procesados.map(({ _mejores, opciones, mejor, sugerenciaCantidad, ...publico }) => {
+    if (!capado) return { ...publico, opciones, mejor, sugerenciaCantidad };
+    const { opciones: opcionesCapadas, mejor: mejorCapado } = filtrarOpcionesPorSupers(opciones, supermercadosUsados);
+    return {
+      ...publico,
+      opciones: opcionesCapadas,
+      mejor: mejorCapado,
+      sugerenciaCantidad: filtrarSugerenciaPorSupers(sugerenciaCantidad, supermercadosUsados),
+    };
+  });
 
   // Mismo plan óptimo (mismo producto en el mismo super que totalOptimo) pero sin aplicar
   // ninguna promo — para mostrar "esto es lo que te ahorran las promos" en el total general.
@@ -370,9 +405,10 @@ router.post('/comparar', async (req, res) => {
   ) / 100;
 
   // Link de "agregar al carrito" en el sitio real de cada super (null si no es VTEX, ej.
-  // Coto, o si no hay nada asignado a ese super) — ver armarUrlCarrito en fetchers.js.
+  // Coto, o si no tiene nada asignado, o si quedó afuera del plan capado) — ver
+  // armarUrlCarrito en fetchers.js.
   const linksCarrito = Object.fromEntries(
-    supermercados.map(s => [s.key, armarUrlCarrito(s.key, resumen.comprasPorSuper[s.key])])
+    supermercadosUsados.map(s => [s.key, armarUrlCarrito(s.key, resumen.comprasPorSuper[s.key])])
   );
   // El público no necesita skuId/sellerId sueltos (solo la URL ya armada arriba) — se
   // despojan acá para no crecer la superficie de la API con datos que el cliente no usa. `ean`
@@ -387,10 +423,11 @@ router.post('/comparar', async (req, res) => {
 
   res.json({
     generado: new Date().toISOString(),
-    supermercados,
+    supermercados: supermercadosUsados,
     items,
     resumen: {
       totalOptimo: resumen.totalOptimo,
+      totalOptimoSinTope,
       totalSinPromo,
       totalesPorSuper: resumen.totalesPorSuper,
       subtotalAsignadoPorSuper: resumen.subtotalAsignadoPorSuper,

@@ -365,6 +365,64 @@ A diferencia de `promo-engine.js` (promos atadas a un producto), esto cubre el o
 
 ---
 
+## Tope de supers — cantidad máxima de viajes (hoja "Qué supers comparar")
+
+Preferencia persistente (2026-08-21), independiente de `supers_activos` pero siempre aplicada
+junto con él: "de los supers que elegí, a cuántos como mucho estoy dispuesto a ir". Cambia el
+resultado del cálculo, no es una preferencia de vista/orden.
+
+**`elegirSupersConTope(resumen, supermercados, tope)` en `AllPromos/core/comparador.js`** —
+dado el `resumen` ya armado (mismo formato que recibe `calcularResumenFinal`) y un `tope`
+entero, prueba TODAS las combinaciones de `supermercados` de tamaño exacto `tope` (helper
+privado `combinaciones()`, no hace falta probar tamaños menores: agregar un super más a elegir
+nunca puede empeorar el resultado) y devuelve la mejor, rankeada por
+`[noEncontrados.length, totalOptimo]` **en ese orden** — cobertura completa del carrito antes
+que precio, porque un combo que "gana" en precio pero deja afuera al único super que vende
+cierto producto empujaría ese ítem a `noEncontrados` y se vería más barato sin serlo de
+verdad. No hace falta recalcular precios por combinación: `mejores` (dentro de `resumen`) ya
+tiene el mejor precio de cada super de forma independiente de qué otros supers se estén
+considerando. Si `tope` es inválido o `>=` la cantidad de supers, devuelve `supermercados` sin
+tocar (no hay nada que elegir). Con como mucho 7 supers, el peor caso es C(7,3)=35
+combinaciones — aritmética en memoria sobre datos ya traídos, sin pegarle de nuevo a ninguna
+API externa. Cubierto por un test suite con oráculo independiente (ver
+`AllPromos/core/comparador.test.js`, corrido con `node --test`) — no confiar solo en la lectura
+del código para este tipo de lógica combinatoria, un bug de tie-break o de ranking es fácil de
+no notar a ojo.
+
+**En `backend/src/routes/comparar.js`**, `POST /api/comparar` acepta un `tope` opcional en el
+body. Cuando restringe algo (`tope < supers.length`), el handler:
+1. Calcula `supermercadosUsados = elegirSupersConTope(...)` y usa ESE subconjunto (no
+   `supermercados`) para `calcularResumenFinal`, `aplicarPromosBancarias`, `linksCarrito`, y el
+   campo `supermercados` de la respuesta.
+2. Recorta `opciones`/`mejor`/`sugerenciaCantidad` de cada ítem a `supermercadosUsados`
+   (`filtrarOpcionesPorSupers`/`filtrarSugerenciaPorSupers` en `comparador.js`) — esos tres se
+   calculan sobre TODOS los supers elegidos antes de saber qué subconjunto ganó (hace falta el
+   precio de cada uno para poder elegir), así que sin este recorte `item.mejor` podría señalar
+   un super fuera del plan capado, inconsistente con `resumen.comprasPorSuper`.
+3. Calcula también `resumen.totalOptimoSinTope` (mismo carrito, sin el tope, con la MISMA
+   reoptimización bancaria aplicada para que ambos números estén en pie de igualdad si hay
+   tarjetas seleccionadas) — es la base para que la app muestre cuánto "cuesta" el tope.
+
+**En la app**, `topeSupers` vive en el mismo contexto que `supersActivos`
+(`ProveedorFiltrosSupers` en `app/src/filtrosSupers.tsx`), sincronizado en el mismo blob de
+Supabase (`perfil_usuario.tope_supers`, migración `0007_tope_supers.sql`). Sentinel `0` = "sin
+tope explícito / Los N" — no se persiste el número N literal porque queda obsoleto en cuanto
+`supersActivos` cambia; `normalizarTope(tope, cantidadElegidos)` (duplicada, a propósito, en
+`filtrosSupers.tsx` y en `HojaSupers.tsx` — son dos lugares distintos con su propio estado
+local/persistido, no vale la pena una dependencia cruzada por una función de una línea) trata
+cualquier tope `>=` la cantidad elegida como "sin tope".
+
+**La hoja "Qué supers comparar" (`HojaSupers.tsx`) calcula su propia preview de costo en
+vivo**, llamando ella misma a `/api/comparar` con el carrito real (`useCarrito()`) — la hoja
+hoy solo se abre desde Buscar (`app/(tabs)/index.tsx`), que no tiene un plan de carrito
+calculado (eso solo existe en Resultado, después de armar el carrito), así que no hay otro
+dato del que partir. Debounced (400ms) + contador de secuencia para descartar respuestas fuera
+de orden si el usuario sigue tocando el segmentado mientras hay una consulta en vuelo (mismo
+patrón que `usePreciosProgresivos` en la pantalla de Buscar). Con carrito vacío, o con "Los N"
+seleccionado, no se llama al backend.
+
+---
+
 ## Búsqueda por nombre — matchesBusqueda
 
 ```javascript

@@ -76,6 +76,10 @@ export type RespuestaComparar = {
   items: ItemComparado[];
   resumen: {
     totalOptimo: number;
+    /** Solo viene poblado cuando `tope` restringió algo en el pedido: el `totalOptimo` que
+     *  daría el mismo carrito sin ese tope (visitando todos los supers pedidos). La hoja "Qué
+     *  supers comparar" lo usa para mostrar cuánto "cuesta" el tope elegido. */
+    totalOptimoSinTope: number | null;
     /** Mismo plan óptimo que `totalOptimo` (mismo producto en el mismo super) pero sin
      *  aplicar ninguna promo — para mostrar cuánto ahorran las promos en total. */
     totalSinPromo: number;
@@ -201,10 +205,12 @@ export function comparar(
   items: { ean: string; cantidad: number }[],
   tarjetas: string[],
   supers?: SuperKey[],
+  /** Cantidad máxima de supers a visitar (hoja "Qué supers comparar") — undefined = sin tope. */
+  tope?: number,
 ) {
   return pedir<RespuestaComparar>('/api/comparar', {
     method: 'POST',
-    body: JSON.stringify({ items, tarjetas, supers }),
+    body: JSON.stringify({ items, tarjetas, supers, tope }),
   });
 }
 

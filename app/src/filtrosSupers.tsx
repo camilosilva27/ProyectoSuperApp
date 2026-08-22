@@ -31,12 +31,24 @@ const SUPERS_ACTIVOS_POR_DEFECTO = ORDEN_SUPERS;
 
 type UsoPorSuper = Partial<Record<SuperKey, number>>;
 
+/** Normaliza un tope contra la cantidad de supers elegidos: 0 es el sentinel de "sin tope
+ *  explícito / Los N" — se usa en vez de guardar el número N literal porque ese número queda
+ *  obsoleto en cuanto `supersActivos` cambia (ver regla de clamping abajo). Cualquier tope
+ *  guardado que ya no restrinja nada (>= cantidad elegida) se trata como 0. */
+function normalizarTope(tope: number, cantidadElegidos: number): number {
+  return tope > 0 && tope < cantidadElegidos ? tope : 0;
+}
+
 type Contexto = {
   supersActivos: SuperKey[];
   toggleSuper: (key: SuperKey) => void;
-  /** Reemplazo en bloque, para la hoja "Qué supers comparar": aplica todos los cambios de
-   *  golpe al cerrar, en vez de un toggle por fila. Ignora el pedido si dejaría todo apagado. */
-  setSupersActivos: (keys: SuperKey[]) => void;
+  /** Cantidad máxima de supers a visitar — preferencia persistente, no algo por búsqueda. `0`
+   *  = sin tope explícito ("Los N"). Cambia el resultado del cálculo (ver comparar() en
+   *  api.ts), no es una preferencia de vista. */
+  topeSupers: number;
+  /** Aplica selección de supers y tope juntos (así se cierran los cambios en la hoja "Qué
+   *  supers comparar" — el spec los trata como un solo commit atómico). */
+  setSupersYTope: (keys: SuperKey[], tope: number) => void;
   usoPorSuper: UsoPorSuper;
   /** Se llama una vez por comparación vista (resultado.tsx), con los supers que participaron. */
   registrarUso: (keys: SuperKey[]) => void;
@@ -44,25 +56,30 @@ type Contexto = {
 
 const FiltrosSupersContext = createContext<Contexto | null>(null);
 
-type FilaPerfil = { supers_activos: SuperKey[] };
+type FilaPerfil = { supers_activos: SuperKey[]; tope_supers: number };
+type LocalPersistido = { activos: SuperKey[]; tope: number };
 
 export function ProveedorFiltrosSupers({ children }: { children: React.ReactNode }) {
   const [supersActivos, aplicarSupersActivos] = useState<SuperKey[]>(SUPERS_ACTIVOS_POR_DEFECTO);
+  const [topeSupers, aplicarTopeSupers] = useState(0);
   const [cargado, setCargado] = useState(false);
   const [usoPorSuper, setUsoPorSuper] = useState<UsoPorSuper>({});
 
-  useSincronizacionPersistente<SuperKey[], FilaPerfil>({
+  useSincronizacionPersistente<LocalPersistido, FilaPerfil>({
     clave: CLAVE,
-    columnas: ['supers_activos'],
-    valor: cargado ? supersActivos : null,
-    aFila: local => ({ supers_activos: local }),
-    deFila: fila => fila.supers_activos,
+    columnas: ['supers_activos', 'tope_supers'],
+    valor: cargado ? { activos: supersActivos, tope: topeSupers } : null,
+    aFila: local => ({ supers_activos: local.activos, tope_supers: local.tope }),
+    deFila: fila => ({ activos: fila.supers_activos, tope: fila.tope_supers }),
     filaVacia: fila => fila.supers_activos.length === 0,
     onHidratar: local => {
-      const limpio = Array.isArray(local)
-        ? local.filter((k: string) => ORDEN_SUPERS.includes(k as SuperKey))
+      const limpio = Array.isArray(local?.activos)
+        ? local.activos.filter((k: string) => ORDEN_SUPERS.includes(k as SuperKey))
         : [];
-      if (limpio.length) aplicarSupersActivos(limpio);
+      if (limpio.length) {
+        aplicarSupersActivos(limpio);
+        aplicarTopeSupers(normalizarTope(local?.tope ?? 0, limpio.length));
+      }
       setCargado(true);
     },
   });
@@ -89,20 +106,27 @@ export function ProveedorFiltrosSupers({ children }: { children: React.ReactNode
 
   const valor = useMemo<Contexto>(() => ({
     supersActivos,
-    toggleSuper: key => aplicarSupersActivos(prev => {
-      if (prev.includes(key)) {
-        if (prev.length === 1) return prev; // siempre tiene que quedar al menos uno activo
-        return prev.filter(k => k !== key);
-      }
-      return ORDEN_SUPERS.filter(k => k === key || prev.includes(k));
-    }),
-    setSupersActivos: keys => {
+    // No usa la forma de updater (prev => ...): necesita disparar aplicarTopeSupers como
+    // efecto del mismo toggle, y anidar un setState dentro del callback de otro es frágil
+    // (puede reejecutarse más de una vez, ej. en StrictMode). `supersActivos` ya está fresco
+    // en este closure porque es una dependencia del useMemo.
+    toggleSuper: key => {
+      const siguiente = supersActivos.includes(key)
+        ? (supersActivos.length === 1 ? supersActivos : supersActivos.filter(k => k !== key))
+        : ORDEN_SUPERS.filter(k => k === key || supersActivos.includes(k));
+      aplicarSupersActivos(siguiente);
+      aplicarTopeSupers(t => normalizarTope(t, siguiente.length));
+    },
+    topeSupers,
+    setSupersYTope: (keys, tope) => {
       if (!keys.length) return; // siempre tiene que quedar al menos uno activo
-      aplicarSupersActivos(ORDEN_SUPERS.filter(k => keys.includes(k)));
+      const limpio = ORDEN_SUPERS.filter(k => keys.includes(k));
+      aplicarSupersActivos(limpio);
+      aplicarTopeSupers(normalizarTope(tope, limpio.length));
     },
     usoPorSuper,
     registrarUso,
-  }), [supersActivos, usoPorSuper, registrarUso]);
+  }), [supersActivos, topeSupers, usoPorSuper, registrarUso]);
 
   return <FiltrosSupersContext.Provider value={valor}>{children}</FiltrosSupersContext.Provider>;
 }

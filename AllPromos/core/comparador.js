@@ -318,6 +318,85 @@ function comprasPorSuperDesdeAsignacion(items, asignacion, supermercados = SUPER
   return comprasPorSuper;
 }
 
+/** Todos los subconjuntos de `lista` de tamaño exacto `tamano` (orden de aparición, sin repetir). */
+function combinaciones(lista, tamano) {
+  if (tamano === 0) return [[]];
+  if (tamano > lista.length) return [];
+  const [primero, ...resto] = lista;
+  const conPrimero = combinaciones(resto, tamano - 1).map(c => [primero, ...c]);
+  const sinPrimero = combinaciones(resto, tamano);
+  return [...conPrimero, ...sinPrimero];
+}
+
+/**
+ * Elige, entre los `supermercados` dados, el subconjunto de tamaño `tope` que da el mejor plan
+ * — o los `supermercados` completos si no hay tope (o el tope no restringe nada).
+ *
+ * No hace falta recalcular `mejores` por combinación: ese mapa (dentro de `resumen`) ya tiene
+ * el mejor precio de cada super de forma independiente de qué otros supers se estén
+ * considerando — `calcularResumenFinal` ya filtra por `s.key` al recorrer `supermercados`.
+ *
+ * Ranking por `[noEncontrados.length, totalOptimo]`, en ese orden: un subconjunto que "gana"
+ * en precio pero deja afuera al único super que vende cierto producto empujaría ese ítem a
+ * `noEncontrados` — se vería más barato sin serlo de verdad. Cobertura completa del carrito
+ * primero, precio después.
+ *
+ * @param resumen igual que el primer parámetro de calcularResumenFinal
+ */
+function elegirSupersConTope(resumen, supermercados = SUPERMERCADOS, tope) {
+  if (!Number.isInteger(tope) || tope < 1 || tope >= supermercados.length) return supermercados;
+
+  let mejorCombo = null;
+  let mejorPuntaje = null; // [noEncontrados.length, totalOptimo]
+  for (const combo of combinaciones(supermercados, tope)) {
+    const r = calcularResumenFinal(resumen, combo);
+    const puntaje = [r.noEncontrados.length, r.totalOptimo];
+    if (
+      !mejorPuntaje
+      || puntaje[0] < mejorPuntaje[0]
+      || (puntaje[0] === mejorPuntaje[0] && puntaje[1] < mejorPuntaje[1])
+    ) {
+      mejorPuntaje = puntaje;
+      mejorCombo = combo;
+    }
+  }
+  return mejorCombo;
+}
+
+/**
+ * Recorta `opciones` (públicas, ya serializadas y ordenadas ascendente por precio — ver
+ * serializarOpcion/calcularOpciones en el backend) a los supers de `supermercadosUsados`, y
+ * devuelve junto el `mejor` que corresponde a ese recorte (el primero de la lista filtrada, o
+ * `null` si ninguno de esos supers vende el ítem).
+ *
+ * Hace falta este paso aparte porque `opciones`/`mejor` de cada ítem se calculan sobre TODOS
+ * los supers elegidos, antes de saber qué subconjunto ganó con el tope (`elegirSupersConTope`
+ * recién se puede llamar una vez que están calculados los `mejores` de todos). Sin este
+ * recorte, `mejor` podría señalar un super fuera del plan capado — inconsistente con
+ * `resumen.comprasPorSuper`, que sí quedó restringido al subconjunto ganador.
+ */
+function filtrarOpcionesPorSupers(opciones, supermercadosUsados) {
+  const keys = new Set(supermercadosUsados.map(s => s.key));
+  const filtradas = opciones.filter(o => keys.has(o.key));
+  return { opciones: filtradas, mejor: filtradas[0] ?? null };
+}
+
+/**
+ * Mismo recorte que filtrarOpcionesPorSupers(), pero para calcularSugerenciaCantidad(): filtra
+ * `vistaPrevia[].opciones` de cada candidata, descarta las candidatas que se queden sin ninguna
+ * opción tras el filtro, y recalcula `cantidadesCandidatas` a partir de lo que sobrevive.
+ * @returns la sugerencia recortada, o `null` si ninguna candidata sobrevive
+ */
+function filtrarSugerenciaPorSupers(sugerencia, supermercadosUsados) {
+  if (!sugerencia) return null;
+  const keys = new Set(supermercadosUsados.map(s => s.key));
+  const vistaPrevia = sugerencia.vistaPrevia
+    .map(v => ({ ...v, opciones: v.opciones.filter(o => keys.has(o.key)) }))
+    .filter(v => v.opciones.length > 0);
+  if (!vistaPrevia.length) return null;
+  return { cantidadesCandidatas: vistaPrevia.map(v => v.cantidad), vistaPrevia };
+}
+
 /**
  * Igual que itemsParaReoptimizar(), pero a partir de calcularResumenFinal(...).items (con
  * `disponibles` en vez de `mejores`) en lugar del `resumen` crudo. Usar esta variante — no
@@ -366,6 +445,10 @@ module.exports = {
   calcularSugerenciaCantidad,
   calcularMejoresPorSuper,
   calcularResumenFinal,
+  combinaciones,
+  elegirSupersConTope,
+  filtrarOpcionesPorSupers,
+  filtrarSugerenciaPorSupers,
   itemsParaReoptimizar,
   itemsReoptimizarDesdeFinal,
   comprasPorSuperDesdeAsignacion,

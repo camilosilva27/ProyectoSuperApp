@@ -17,10 +17,69 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated, Dimensions, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
-import type { SuperKey } from '../api';
-import { espacio, fuentes, paletaDe, radio, texto, textoPretty } from '../theme';
+import { comparar, type SuperKey } from '../api';
+import { useCarrito } from '../carrito';
+import { espacio, fuentes, paletaDe, pesosCorto, radio, texto, textoPretty } from '../theme';
 import { NOMBRE_SUPER, ORDEN_SUPERS } from './comunes';
 import { PlacaLogoSuper } from './LogoSuper';
+
+/** `0` = sin tope explícito ("Los N") — no se guarda el N literal porque queda obsoleto en
+ *  cuanto cambia la selección (ver normalizarTope en filtrosSupers.tsx, misma regla). */
+function normalizarTope(tope: number, cantidadElegidos: number): number {
+  return tope > 0 && tope < cantidadElegidos ? tope : 0;
+}
+
+/** Debounce del preview de costo — no hace falta pedirle al backend en cada tap si el usuario
+ *  sigue tocando la fila de opciones. */
+const DEMORA_PREVIEW_MS = 400;
+
+/**
+ * Cuánto "cuesta" en pesos el tope elegido, calculado en vivo contra el carrito real — la hoja
+ * se abre hoy solo desde Buscar, que no tiene un plan de carrito calculado (eso solo existe en
+ * Resultado), así que no hay otro dato del que partir: se le pide al backend, con el mismo
+ * `borrador` que se está armando en la hoja. `null` = todavía no hay nada que mostrar (carrito
+ * vacío, "Los N" seleccionado, o la respuesta no llegó/falló) — el caller decide qué texto
+ * corresponde a cada uno de esos casos.
+ */
+function useCostoTope(
+  pedido: { ean: string; cantidad: number }[],
+  tarjetas: string[],
+  borrador: SuperKey[],
+  topeBorrador: number,
+): number | null {
+  const [monto, setMonto] = useState<number | null>(null);
+  // Contador de secuencia (mismo patrón que usePreciosProgresivos en la pantalla de Buscar):
+  // ignora una respuesta que llega después de que el usuario ya cambió el tope o la selección.
+  const turnoRef = useRef(0);
+
+  useEffect(() => {
+    if (!pedido.length || !topeBorrador || borrador.length <= 1) {
+      setMonto(null);
+      return;
+    }
+    const miTurno = ++turnoRef.current;
+    const id = setTimeout(() => {
+      comparar(pedido, tarjetas, borrador, topeBorrador)
+        .then(({ resumen }) => {
+          if (turnoRef.current !== miTurno) return;
+          setMonto(
+            resumen.totalOptimoSinTope != null
+              ? Math.max(0, resumen.totalOptimo - resumen.totalOptimoSinTope)
+              : 0
+          );
+        })
+        .catch(() => {
+          if (turnoRef.current === miTurno) setMonto(null);
+        });
+    }, DEMORA_PREVIEW_MS);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `pedido`/`tarjetas` son arrays
+    // nuevos en cada render del padre; se comparan por contenido (JSON) para no re-pedir de
+    // más cuando lo que cambió fue otra cosa del carrito que no afecta este cálculo.
+  }, [JSON.stringify(pedido), JSON.stringify(tarjetas), JSON.stringify(borrador), topeBorrador]);
+
+  return monto;
+}
 
 // Debajo de esto no hace falta buscador — se ve toda la lista de un vistazo (con los 7 supers
 // de hoy, esto nunca se muestra; queda listo para cuando la lista crezca).
@@ -30,32 +89,36 @@ const ALTURA_OFFSCREEN = Dimensions.get('window').height;
 const UMBRAL_CIERRE_ARRASTRE = 120;
 
 export function HojaSupers({
-  visible, activos, onCerrar, onAplicar,
+  visible, activos, tope, onCerrar, onAplicar,
 }: {
   visible: boolean;
   activos: SuperKey[];
+  tope: number;
   onCerrar: () => void;
-  onAplicar: (keys: SuperKey[]) => void;
+  onAplicar: (keys: SuperKey[], tope: number) => void;
 }) {
   const [borrador, setBorrador] = useState<SuperKey[]>(activos);
+  const [topeBorrador, setTopeBorrador] = useState(tope);
   const [busqueda, setBusqueda] = useState('');
   const [arrastrando, setArrastrando] = useState(false);
   const translateY = useRef(new Animated.Value(ALTURA_OFFSCREEN)).current;
+  const carrito = useCarrito();
 
   useEffect(() => {
     if (!visible) return;
     setBorrador(activos);
+    setTopeBorrador(normalizarTope(tope, activos.length));
     setBusqueda('');
     translateY.setValue(ALTURA_OFFSCREEN);
     Animated.spring(translateY, { toValue: 0, useNativeDriver: true, bounciness: 4 }).start();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al abrir, no en cada cambio de `activos`
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al abrir, no en cada cambio de `activos`/`tope`
   }, [visible]);
 
   const cerrarYConfirmar = () => {
     Animated.timing(translateY, {
       toValue: ALTURA_OFFSCREEN, duration: 220, useNativeDriver: true,
     }).start(() => {
-      onAplicar(borrador);
+      onAplicar(borrador, topeBorrador);
       onCerrar();
       setArrastrando(false);
     });
@@ -69,14 +132,16 @@ export function HojaSupers({
   const cerrarYConfirmarRef = useRef(cerrarYConfirmar);
   cerrarYConfirmarRef.current = cerrarYConfirmar;
 
+  // No usa la forma de updater (prev => ...): tiene que ajustar `topeBorrador` como efecto del
+  // mismo toggle ("si destildás y el tope queda >= la cantidad elegida, pasa a Los N"), y
+  // anidar un setState dentro del callback de otro es frágil. `borrador` ya está fresco en
+  // este closure porque el componente se re-renderiza en cada cambio de estado.
   const toggle = (key: SuperKey) => {
-    setBorrador(prev => {
-      if (prev.includes(key)) {
-        if (prev.length === 1) return prev; // no se puede destildar el último activo
-        return prev.filter(k => k !== key);
-      }
-      return [...prev, key];
-    });
+    const siguiente = borrador.includes(key)
+      ? (borrador.length === 1 ? borrador : borrador.filter(k => k !== key)) // no se puede destildar el último activo
+      : [...borrador, key];
+    setBorrador(siguiente);
+    setTopeBorrador(t => normalizarTope(t, siguiente.length));
   };
 
   // `arrastrando` tapa la lista con una capa transparente mientras se arrastra (ver el
@@ -108,6 +173,9 @@ export function HojaSupers({
   const visiblesPorFiltro = ORDEN_SUPERS.filter(key => NOMBRE_SUPER[key].toLowerCase().includes(filtro));
   const comparando = visiblesPorFiltro.filter(key => borrador.includes(key));
   const afuera = visiblesPorFiltro.filter(key => !borrador.includes(key));
+
+  const pedido = carrito.items.map(i => ({ ean: i.ean, cantidad: i.cantidad }));
+  const montoTope = useCostoTope(pedido, carrito.tarjetas, borrador, topeBorrador);
 
   if (!visible) return null;
 
@@ -150,6 +218,16 @@ export function HojaSupers({
             />
           ) : null}
         </View>
+
+        {borrador.length > 1 ? (
+          <BloqueTope
+            n={borrador.length}
+            topeBorrador={topeBorrador}
+            onCambiarTope={setTopeBorrador}
+            monto={montoTope}
+            carritoVacio={pedido.length === 0}
+          />
+        ) : null}
 
         <View style={styles.contenedorLista}>
           <ScrollView style={styles.lista} contentContainerStyle={styles.listaContenido}>
@@ -209,6 +287,83 @@ function FilaSuper({
   );
 }
 
+/** Segmentado "1 / 2 / ... / Los N" + la línea que dice cuánto cuesta el tope elegido. Vive
+ *  entre el título de la hoja y el grupo "COMPARANDO" — cambia el resultado del cálculo, no es
+ *  una preferencia de vista, por eso no va mezclado con la lista de supers. */
+function BloqueTope({
+  n, topeBorrador, onCambiarTope, monto, carritoVacio,
+}: {
+  n: number;
+  topeBorrador: number;
+  onCambiarTope: (tope: number) => void;
+  monto: number | null;
+  carritoVacio: boolean;
+}) {
+  // 0 = sentinel de "Los N" — ver normalizarTope más arriba en este archivo.
+  const opciones = [...Array.from({ length: n - 1 }, (_, i) => i + 1), 0];
+
+  return (
+    <View style={styles.bloqueTope}>
+      <Text style={styles.labelGrupo}>CUÁNTOS QUERÉS VISITAR</Text>
+      <View style={styles.filaTope}>
+        {opciones.map(valor => {
+          const seleccionado = valor === topeBorrador;
+          return (
+            <Pressable
+              key={valor}
+              onPress={() => onCambiarTope(valor)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: seleccionado }}
+              accessibilityLabel={
+                valor === 0
+                  ? `Los ${n} supers elegidos`
+                  : `Como mucho ${valor} super${valor === 1 ? '' : 's'}`
+              }
+              style={[
+                styles.opcionTope,
+                valor === 0 ? styles.opcionTopeLosN : null,
+                seleccionado ? styles.opcionTopeSeleccionada : styles.opcionTopeNoSeleccionada,
+              ]}
+            >
+              <Text style={seleccionado ? styles.textoOpcionTopeSeleccionada : styles.textoOpcionTope}>
+                {valor === 0 ? `Los ${n}` : valor}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <LineaCostoTope n={n} tope={topeBorrador} monto={monto} carritoVacio={carritoVacio} />
+    </View>
+  );
+}
+
+function LineaCostoTope({
+  n, tope, monto, carritoVacio,
+}: { n: number; tope: number; monto: number | null; carritoVacio: boolean }) {
+  if (tope === 0) {
+    return (
+      <Text style={[styles.lineaCosto, textoPretty]}>Estás comparando los {n} supers elegidos.</Text>
+    );
+  }
+  // Sin carrito no hay nada que comparar (la hoja se abre hoy desde Buscar, donde puede no
+  // haber nada agregado todavía) — y `monto === null` también cubre "todavía no llegó la
+  // respuesta"/"falló": en ningún caso hay un spinner, la línea directamente "aparece".
+  if (carritoVacio || monto === null) return null;
+  if (monto === 0) {
+    return (
+      <Text style={[styles.lineaCosto, textoPretty]}>
+        Con {tope} supers ahorrás lo mismo que visitando los {n}.
+      </Text>
+    );
+  }
+  return (
+    <Text style={[styles.lineaCosto, textoPretty]}>
+      Con {tope} supers ahorrás <Text style={styles.montoLineaCosto}>{pesosCorto(monto)}</Text>
+      {' '}menos que visitando los {n}, pero hacés {tope} de {n} viajes.
+    </Text>
+  );
+}
+
 const styles = StyleSheet.create({
   scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,.55)' },
   hoja: {
@@ -232,6 +387,16 @@ const styles = StyleSheet.create({
     fontFamily: fuentes.cuerpo, fontSize: 15, lineHeight: 21, color: '#14161A',
     boxShadow: 'inset 0 0 0 1px #C6CCD3', outlineWidth: 0, outlineStyle: 'none',
   },
+  bloqueTope: { gap: 10, borderBottomWidth: 1, borderBottomColor: '#DFE3E7', paddingBottom: 18 },
+  filaTope: { flexDirection: 'row', gap: 6 },
+  opcionTope: { flex: 1, height: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  opcionTopeLosN: { flex: 1.6 },
+  opcionTopeNoSeleccionada: { boxShadow: 'inset 0 0 0 1px #C6CCD3' },
+  opcionTopeSeleccionada: { backgroundColor: '#14161A' },
+  textoOpcionTope: { fontFamily: fuentes.medio, fontSize: 15, color: '#14161A' },
+  textoOpcionTopeSeleccionada: { fontFamily: fuentes.semi, fontSize: 15, color: '#FFFFFF' },
+  lineaCosto: { fontFamily: fuentes.cuerpo, fontSize: 14, lineHeight: 20, color: '#3C444D' },
+  montoLineaCosto: { fontFamily: fuentes.semi, fontSize: 14, lineHeight: 20, color: '#14161A' },
   contenedorLista: { position: 'relative' },
   lista: { flexGrow: 0 },
   listaContenido: { gap: espacio.lg },
