@@ -194,6 +194,7 @@ function HeaderVeredicto({
   const { paleta } = useTema();
   const router = useRouter();
   const { registrar } = useHistorialAhorro();
+  const { registrarUso } = useFiltrosSupers();
   const { totalOptimo, totalSinPromo, totalesPorSuper } = data.resumen;
   const hayAhorroPorPromos = totalSinPromo > totalOptimo;
 
@@ -206,15 +207,17 @@ function HeaderVeredicto({
   const ahorroRepartiendo = mejorUnico ? mejorUnico.total - totalOptimo : 0;
   const valeRepartir = ahorroRepartiendo >= 1;
 
-  // Historial de ahorro (PANTALLAS-ahorros-y-paywall.md): una comparación vista, un evento —
-  // el ref evita duplicar el registro si este componente vuelve a renderizar sin que `data`
-  // haya cambiado (misma respuesta de /api/comparar).
+  // Historial de ahorro (PANTALLAS-ahorros-y-paywall.md) y frecuencia de uso por super (para
+  // el orden del selector, ver SelectorSupers en HeaderNegro.tsx): una comparación vista, un
+  // evento — el ref evita duplicar el registro si este componente vuelve a renderizar sin que
+  // `data` haya cambiado (misma respuesta de /api/comparar).
   const dataRegistradaRef = useRef<RespuestaComparar | null>(null);
   useEffect(() => {
     if (dataRegistradaRef.current === data) return;
     dataRegistradaRef.current = data;
     registrar(Math.max(0, ahorroRepartiendo));
-  }, [data, ahorroRepartiendo, registrar]);
+    registrarUso(data.supermercados.map(s => s.key));
+  }, [data, ahorroRepartiendo, registrar, registrarUso]);
 
   const paradasNombres = data.supermercados
     .filter(s => (data.resumen.subtotalAsignadoPorSuper[s.key] ?? 0) > 0)

@@ -19,21 +19,21 @@
  *    en la góndola) y queda libre de conflicto.
  */
 
-import { Platform } from 'react-native';
+import { Platform, type TextStyle } from 'react-native';
 
 export type Esquema = 'light' | 'dark';
 
-// Día usa el mismo rojo que Coto a propósito: el blanco original era invisible contra el
-// fondo blanco de la app (ver el borde de contraste que hacía falta más abajo, hoy sin uso).
-//
-// Jumbo (naranja) y Disco (teal) son colores nuevos, no las marcas reales de esas cadenas
-// (verde y rojo respectivamente) — ya están tomados por Vea y Coto/Día, y el criterio de este
-// archivo es consistencia de lectura, no branding (ver punto 1 arriba). Contraste contra
-// `fondo`/`superficie` verificado con la fórmula WCAG: ambos ≥4.5:1 en claro (mismo piso que
-// el resto de la paleta) y ≥7.5:1 en oscuro.
+// Paleta del selector de supers (turno "selector + hoja de selección"): cada super tiene una
+// variante clara (para fondo blanco: hoja, badges, bandas de disponibilidad) y una oscura (para
+// el header negro #14161A). Día dejó de compartir el rojo de Coto — antes lo compartía porque
+// el blanco original era invisible contra fondo blanco, hoy tiene su propio rojo distinto.
+// Jumbo y Disco no son las marcas reales de esas cadenas (naranja/teal en vez de verde/rojo) —
+// ya están tomados por Vea y Coto/Día, y el criterio de este archivo es consistencia de
+// lectura, no branding (ver punto 1 arriba). Jumbo y Disco no varían entre claro/oscuro porque
+// ya rinden bien en los dos fondos.
 const superColores = {
-  light: { vea: '#12874A', carr: '#1B5FD9', changomas: '#7A3FB8', coto: '#D6293E', dia: '#D6293E', jumbo: '#C2540D', disco: '#0E7C86' },
-  dark:  { vea: '#2FBE7A', carr: '#6A97F7', changomas: '#B085DE', coto: '#F0555F', dia: '#F0555F', jumbo: '#F2894D', disco: '#4DD0DA' },
+  light: { vea: '#12874A', carr: '#1B5FD9', changomas: '#7A3FB8', dia: '#E30613', coto: '#D6293E', jumbo: '#F07C2E', disco: '#35B8C4' },
+  dark:  { vea: '#2EA35C', carr: '#4C8DF6', changomas: '#A66FE0', dia: '#FF4438', coto: '#F0576A', jumbo: '#F07C2E', disco: '#35B8C4' },
 };
 
 // Bordes SOLO para identidades cuyo relleno no contrasta por sí solo contra el fondo. Vacío
@@ -195,3 +195,11 @@ export function pesos(n: number | null | undefined): string {
 export function pesosCorto(n: number): string {
   return pesos(n).replace(/,\d{2}$/, '');
 }
+
+/**
+ * `text-wrap: pretty` (evita que la última línea de un párrafo quede con una sola palabra
+ * corta). Los tipos de RN todavía no lo modelan, aunque react-native-web ya lo pasa como CSS
+ * — de ahí el cast. En iOS/Android nativo no tiene contraparte: no hace nada, pero tampoco
+ * rompe nada.
+ */
+export const textoPretty = { textWrap: 'pretty' } as unknown as TextStyle;
