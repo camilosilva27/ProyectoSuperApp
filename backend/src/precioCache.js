@@ -27,6 +27,7 @@ const { leerCatalogo } = require('../../AllPromos/core/catalogo');
 const {
   interpretarPromoPorTexto, interpretarPromoCarrefour, interpretarTeaserTarjetaPropia,
 } = require('../../AllPromos/promo-engine');
+const { sanearPorEmpaquetado } = require('../../AllPromos/core/empaquetado');
 
 const FUENTES = [
   { key: 'vea', archivo: 'catalogo-vea.json', nombre: 'Vea' },
@@ -199,7 +200,8 @@ function asegurarIndice() {
  */
 function precioPorEAN(ean) {
   asegurarIndice();
-  return indice.get(ean) || null;
+  const grupo = indice.get(ean);
+  return grupo ? sanearPorEmpaquetado(grupo) : null;
 }
 
 /** Fecha de generación de cada fuente — para /api/health, así se ve de un vistazo si el

@@ -195,7 +195,7 @@ export default function PantallaAjustes() {
       <ConfirmacionModal
         visible={mostrarConfirmarCancelar}
         titulo="Cancelar suscripción"
-        mensaje="Vas a pasar al plan gratis. Podés volver a suscribirte cuando quieras."
+        mensaje="Vas a perder el acceso a la app hasta que vuelvas a suscribirte."
         textoConfirmar="Cancelar suscripción"
         onCancelar={() => setMostrarConfirmarCancelar(false)}
         onConfirmar={confirmarCancelarSuscripcion}

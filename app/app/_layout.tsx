@@ -25,6 +25,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '../src/auth';
 import { ProveedorCarrito } from '../src/carrito';
 import { ProveedorCarritosGuardados } from '../src/carritosGuardados';
+import { GatePaywallFinTrial } from '../src/componentes/GatePaywallFinTrial';
 import { GateSesion } from '../src/componentes/GateSesion';
 import { ProveedorFiltrosSupers } from '../src/filtrosSupers';
 import { ProveedorHistorialAhorro } from '../src/historialAhorro';
@@ -81,25 +82,30 @@ export default function LayoutRaiz() {
                       (que necesita que el provider no se remonte al loguearse) y migra los
                       datos igual que en Fase 1 — moverlos adentro del gate rompería eso. */}
                   <GateSesion>
-                    <Stack
-                      screenOptions={{
-                        contentStyle: { backgroundColor: paleta.fondo },
-                        headerStyle: { backgroundColor: paleta.fondo },
-                        headerShadowVisible: false,
-                        headerTintColor: paleta.tinta,
-                        headerTitleStyle: { ...texto.subtitulo, color: paleta.tinta },
-                      }}
-                    >
-                      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                      <Stack.Screen
-                        name="resultado"
-                        options={{ headerShown: false, presentation: 'card' }}
-                      />
-                      <Stack.Screen
-                        name="mis-descuentos"
-                        options={{ headerShown: false, presentation: 'card' }}
-                      />
-                    </Stack>
+                    {/* Adentro de GateSesion: para cuando esto se evalúa ya hay sesión, así
+                        que solo decide si el usuario logueado tiene que ver el paywall de fin
+                        de trial en vez de la navegación (ver GatePaywallFinTrial.tsx). */}
+                    <GatePaywallFinTrial>
+                      <Stack
+                        screenOptions={{
+                          contentStyle: { backgroundColor: paleta.fondo },
+                          headerStyle: { backgroundColor: paleta.fondo },
+                          headerShadowVisible: false,
+                          headerTintColor: paleta.tinta,
+                          headerTitleStyle: { ...texto.subtitulo, color: paleta.tinta },
+                        }}
+                      >
+                        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                        <Stack.Screen
+                          name="resultado"
+                          options={{ headerShown: false, presentation: 'card' }}
+                        />
+                        <Stack.Screen
+                          name="mis-descuentos"
+                          options={{ headerShown: false, presentation: 'card' }}
+                        />
+                      </Stack>
+                    </GatePaywallFinTrial>
                   </GateSesion>
                   {/* @vercel/analytics/react manipula document.head — no existe en iOS/Android */}
                   {Platform.OS === 'web' ? <Analytics /> : null}

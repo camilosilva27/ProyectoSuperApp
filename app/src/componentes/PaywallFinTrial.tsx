@@ -1,35 +1,46 @@
 /**
- * Pantalla de fin del período de prueba (PANTALLAS-ahorros-y-paywall.md § Pantalla 2).
+ * Pantalla de bloqueo por falta de plan pago (PANTALLAS-ahorros-y-paywall.md § Pantalla 2,
+ * con un cambio de alcance decidido por el usuario el 2026-08-21: sin pagar no se usa la app,
+ * salvo estar dentro del trial — no existe un "plan gratis" navegable. Por eso ya no tiene
+ * salida sin pagar: se sacó "Continuar en el plan gratis" a propósito.
  *
- * DESACTIVADA A PROPÓSITO: existe como componente pero no está enrutada en ningún lado —
- * no hay `Stack.Screen` en `app/_layout.tsx` que la muestre, y nada dispara su apertura. Depende
- * de Fase 2 de Plan_Usuarios_y_cobros.md (cuenta obligatoria + trial + Mercado Pago), que
- * todavía no está implementada: sin eso no hay forma real de saber cuándo terminó el trial de
- * un usuario. Cuando esa fase exista, esta pantalla se conecta como el gate que se muestra al
- * vencer `trial_termina_en` con `plan='gratis'` y sin suscripción.
+ * Montada por `GatePaywallFinTrial.tsx`, que decide cuándo mostrarla — ver ese archivo para el
+ * criterio completo (cubre tanto fin de trial sin pagar nunca como cancelación de un premium
+ * previo, con textos distintos vía `titulo`/`etiquetaPeriodo`).
  *
  * Bloqueante por diseño: sin botón de cerrar, sin X, sin gesto de back (ver `BackHandler`
- * abajo), sin scroll. El que la monte más adelante decide cómo evitar la tab bar (ej. como
- * pantalla de `Stack` con `headerShown: false` fuera de `(tabs)`, igual que `resultado.tsx`).
+ * abajo), sin scroll, y ahora con una sola acción posible en el pie.
  */
 
 import React, { useEffect } from 'react';
-import { BackHandler, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator, BackHandler, Platform, Pressable, StyleSheet, Text, View,
+} from 'react-native';
 import { espacio, fuentes, pesosCorto, radio, texto } from '../theme';
 import { useTema } from '../useTema';
 
 export function PaywallFinTrial({
-  montoAhorradoTrial, conteoComparaciones, precioMensual, onSuscribirse, onContinuarGratis,
+  montoAhorradoTrial, conteoComparaciones, precioMensual, onSuscribirse,
+  titulo = 'TERMINÓ TU MES DE PRUEBA',
+  etiquetaPeriodo = 'este mes de prueba',
+  enviando = false,
+  error = null,
 }: {
   montoAhorradoTrial: number;
   conteoComparaciones: number;
   precioMensual: number;
   onSuscribirse: () => void;
-  onContinuarGratis: () => void;
+  titulo?: string;
+  etiquetaPeriodo?: string;
+  /** true mientras se espera la respuesta de crear la suscripción, antes de abrir el checkout. */
+  enviando?: boolean;
+  /** Si crear la suscripción falla (red, backend, Mercado Pago), qué mostrar debajo del botón —
+   *  sin esto no había ninguna señal visible de que el toque no llevó a ningún lado. */
+  error?: string | null;
 }) {
   const { paleta } = useTema();
 
-  // Sin salida por back: la única forma de avanzar es elegir una de las dos opciones del pie.
+  // Sin salida por back ni por ningún otro botón: la única forma de avanzar es suscribirse.
   useEffect(() => {
     if (Platform.OS !== 'android') return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => true);
@@ -41,7 +52,7 @@ export function PaywallFinTrial({
 
   return (
     <View style={[styles.pantalla, { backgroundColor: paleta.tinta }]}>
-      <Text style={[texto.tituloSeccion, styles.tituloTope]}>TERMINÓ TU MES DE PRUEBA</Text>
+      <Text style={[texto.tituloSeccion, styles.tituloTope]}>{titulo}</Text>
 
       <View style={styles.bloqueCentral}>
         <View
@@ -51,7 +62,7 @@ export function PaywallFinTrial({
           <Text style={[texto.subtitulo, styles.textoBlanco]}>Ahorraste</Text>
           <Text style={[styles.montoTrial, { color: paleta.oferta }]}>{montoTexto}</Text>
           <Text style={[texto.cuerpoMedio, styles.textoBlancoGrande]}>
-            en {conteoTexto}, este mes de prueba.
+            en {conteoTexto}, {etiquetaPeriodo}.
           </Text>
         </View>
 
@@ -69,28 +80,30 @@ export function PaywallFinTrial({
       </View>
 
       <View style={styles.pie}>
+        {error && (
+          <Text style={[texto.cuerpo, styles.textoError]}>{error}</Text>
+        )}
         <Pressable
           onPress={onSuscribirse}
+          disabled={enviando}
           accessibilityRole="button"
           style={({ pressed }) => [
             styles.botonPrincipal,
-            { backgroundColor: paleta.oferta, opacity: pressed ? 0.9 : 1 },
+            { backgroundColor: paleta.oferta, opacity: pressed || enviando ? 0.8 : 1 },
           ]}
         >
-          <Text style={[styles.textoBotonPrincipal, { color: paleta.ofertaTinta }]}>
-            SEGUIR AHORRANDO
-          </Text>
-          <Text style={[styles.subtextoBotonPrincipal, { color: paleta.ofertaTinta }]}>
-            {pesosCorto(precioMensual)} por mes
-          </Text>
-        </Pressable>
-
-        <Pressable
-          onPress={onContinuarGratis}
-          accessibilityRole="button"
-          style={({ pressed }) => [styles.salidaSecundaria, { opacity: pressed ? 0.7 : 1 }]}
-        >
-          <Text style={[texto.cuerpoMedio, styles.textoSalida]}>Continuar en el plan gratis</Text>
+          {enviando ? (
+            <ActivityIndicator color={paleta.ofertaTinta} />
+          ) : (
+            <>
+              <Text style={[styles.textoBotonPrincipal, { color: paleta.ofertaTinta }]}>
+                SEGUIR AHORRANDO
+              </Text>
+              <Text style={[styles.subtextoBotonPrincipal, { color: paleta.ofertaTinta }]}>
+                {pesosCorto(precioMensual)} por mes
+              </Text>
+            </>
+          )}
         </Pressable>
       </View>
     </View>
@@ -108,11 +121,10 @@ const styles = StyleSheet.create({
   divisoria: { height: 1, backgroundColor: 'rgba(255,255,255,.18)' },
   precioDestacado: { fontFamily: fuentes.semi },
   pie: { paddingBottom: 34, gap: espacio.xs + 2 },
+  textoError: { color: '#FF8A80', textAlign: 'center' },
   botonPrincipal: {
     borderRadius: radio.md, minHeight: 58, alignItems: 'center', justifyContent: 'center', gap: 2,
   },
   textoBotonPrincipal: { fontFamily: fuentes.precio, fontSize: 24, lineHeight: 26, letterSpacing: 1 },
   subtextoBotonPrincipal: { fontFamily: fuentes.medio, fontSize: 12, lineHeight: 14 },
-  salidaSecundaria: { minHeight: 52, alignItems: 'center', justifyContent: 'center' },
-  textoSalida: { color: '#C6CCD3', textDecorationLine: 'underline' },
 });
