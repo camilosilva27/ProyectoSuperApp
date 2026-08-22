@@ -67,7 +67,8 @@ async function getCatalogPage(from, to, retries = 3) {
       if (!sellerInfo) continue;
 
       const offer = sellerInfo.commertialOffer;
-      const price = offer?.Price || 0;
+      if (!offer?.IsAvailable) continue; // SKU sin stock — VTEX lo devuelve con Price: 0, mismo criterio que Coto (ver "SKUs fantasma" en scraper-promos-coto.js): no le sirve a la app, se descarta en vez de cachear un precio 0
+      const price = offer.Price || 0;
       const listPrice = offer?.ListPrice || 0;
       const teasers = parseTeasers(offer?.Teasers);
 

@@ -102,7 +102,11 @@ function entradasVtexConTeasers(sku, superNombre, { conTarjetaPropia = false } =
     }
   }
 
-  if (!resultados.length) {
+  // Respaldo: los scrapers ya descartan los SKUs sin stock (IsAvailable: false, que VTEX
+  // devuelve con Price: 0 — ver nota en scraper-promos-{carrefour,changomas,dia}.js), pero un
+  // catalogo-*.json ya escrito antes de ese fix, o un cron que todavía no corrió, puede seguir
+  // teniendo esos $0 cacheados hasta la próxima corrida — no propagarlos al usuario mientras tanto.
+  if (!resultados.length && sku.precioActual > 0) {
     resultados.push({ ...base, precioBase: sku.precioActual, promo: null });
   }
 
