@@ -25,6 +25,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '../src/auth';
 import { ProveedorCarrito } from '../src/carrito';
 import { ProveedorCarritosGuardados } from '../src/carritosGuardados';
+import { GateSesion } from '../src/componentes/GateSesion';
 import { ProveedorFiltrosSupers } from '../src/filtrosSupers';
 import { ProveedorHistorialAhorro } from '../src/historialAhorro';
 import { texto } from '../src/theme';
@@ -74,25 +75,32 @@ export default function LayoutRaiz() {
                 <ProveedorHistorialAhorro>
                   <Head><title>Super App</title></Head>
                   <StatusBar style={esquema === 'dark' ? 'light' : 'dark'} />
-                  <Stack
-                    screenOptions={{
-                      contentStyle: { backgroundColor: paleta.fondo },
-                      headerStyle: { backgroundColor: paleta.fondo },
-                      headerShadowVisible: false,
-                      headerTintColor: paleta.tinta,
-                      headerTitleStyle: { ...texto.subtitulo, color: paleta.tinta },
-                    }}
-                  >
-                    <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                    <Stack.Screen
-                      name="resultado"
-                      options={{ headerShown: false, presentation: 'card' }}
-                    />
-                    <Stack.Screen
-                      name="mis-descuentos"
-                      options={{ headerShown: false, presentation: 'card' }}
-                    />
-                  </Stack>
+                  {/* GateSesion envuelve solo la navegación, no los providers de arriba: así,
+                      si alguien ya tenía carrito/tarjetas locales de antes de este gate, la
+                      transición anónimo→logueado la sigue viendo `useSincronizacionPersistente`
+                      (que necesita que el provider no se remonte al loguearse) y migra los
+                      datos igual que en Fase 1 — moverlos adentro del gate rompería eso. */}
+                  <GateSesion>
+                    <Stack
+                      screenOptions={{
+                        contentStyle: { backgroundColor: paleta.fondo },
+                        headerStyle: { backgroundColor: paleta.fondo },
+                        headerShadowVisible: false,
+                        headerTintColor: paleta.tinta,
+                        headerTitleStyle: { ...texto.subtitulo, color: paleta.tinta },
+                      }}
+                    >
+                      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                      <Stack.Screen
+                        name="resultado"
+                        options={{ headerShown: false, presentation: 'card' }}
+                      />
+                      <Stack.Screen
+                        name="mis-descuentos"
+                        options={{ headerShown: false, presentation: 'card' }}
+                      />
+                    </Stack>
+                  </GateSesion>
                   {/* @vercel/analytics/react manipula document.head — no existe en iOS/Android */}
                   {Platform.OS === 'web' ? <Analytics /> : null}
                 </ProveedorHistorialAhorro>

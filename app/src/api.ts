@@ -245,4 +245,22 @@ export function urlImagen(ruta: string | null): string | null {
   return ruta ? `${URL_BASE}${ruta}` : null;
 }
 
+/** Arranca la suscripción premium (Plan_Usuarios_y_cobros.md, Fase 2) — `initPoint` es el
+ *  checkout hosteado de Mercado Pago, se abre con `Linking.openURL`. `accessToken` es el JWT
+ *  de la sesión de Supabase (`session.access_token`), estas dos rutas son las únicas de la
+ *  app que requieren sesión. */
+export function crearSuscripcion(accessToken: string) {
+  return pedir<{ initPoint: string }>('/api/pagos/suscripcion', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export function cancelarSuscripcion(accessToken: string) {
+  return pedir<{ plan: 'trial' | 'premium' | 'gratis' }>('/api/pagos/cancelar-suscripcion', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
 export const configApi = { urlBase: URL_BASE };

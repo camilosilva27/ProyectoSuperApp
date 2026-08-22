@@ -1,7 +1,8 @@
 /**
- * Formulario de registro/login — reusado en el prompt post-onboarding (PromptCuenta.tsx) y en
- * la sección de cuenta de Ajustes. No navega ni cierra nada por su cuenta: avisa con `onExito`
- * cuando hay sesión nueva, el que lo use decide qué hacer (cerrar un modal, no hacer nada, etc).
+ * Formulario de registro/login — reusado en el gate de sesión obligatoria (GateSesion.tsx,
+ * Fase 2) y en la sección de cuenta de Ajustes. No navega ni cierra nada por su cuenta: avisa
+ * con `onExito` cuando hay sesión nueva, el que lo use decide qué hacer (cerrar un modal, no
+ * hacer nada, etc).
  */
 
 import React, { useRef, useState } from 'react';
