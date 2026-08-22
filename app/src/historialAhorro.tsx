@@ -2,9 +2,12 @@
  * Historial de ahorro (fase A de PANTALLAS-ahorros-y-paywall.md): cuánto fue "ahorrando" el
  * usuario al repartir la compra en vez de comprar todo en un solo super.
  *
- * Vive solo en el teléfono (AsyncStorage), igual que `carrito.tsx` y `carritosGuardados.tsx` —
- * sync entre dispositivos depende de que exista Fase 1 de Plan_Usuarios_y_cobros.md (cuentas
- * Supabase), que todavía no está implementada.
+ * Anónimo: AsyncStorage, un array entero, igual que `carrito.tsx`. Logueado (fase B,
+ * Plan_Usuarios_y_cobros.md): cada evento es una fila real en `ahorro_registro` — es un log que
+ * solo crece (nunca se edita ni se borra desde el cliente), así que NO pasa por
+ * `useSincronizacionPersistente` (eso es para blobs reescritos enteros) — mismo motivo y mismo
+ * patrón que `carritosGuardados.tsx`. A diferencia de esas listas, un evento no tiene `id` en el
+ * estado local: nunca se referencia individualmente después de creado, así que no hace falta.
  *
  * Regla de transparencia (no negociable, ver PANTALLAS-ahorros-y-paywall.md): el ahorro se
  * calcula sobre cada comparación que el usuario vio, no sobre compras confirmadas. Por eso cada
@@ -14,7 +17,11 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { createContext, useContext, useEffect, useMemo, useReducer } from 'react';
+import React, {
+  createContext, useContext, useEffect, useMemo, useReducer, useRef,
+} from 'react';
+import { useAuth } from './auth';
+import { supabase } from './supabase';
 
 export type EventoAhorro = {
   /** ISO string, momento en que se vio el resultado de la comparación. */
@@ -52,28 +59,82 @@ type Contexto = {
 const HistorialAhorroContext = createContext<Contexto | null>(null);
 
 export function ProveedorHistorialAhorro({ children }: { children: React.ReactNode }) {
+  const { session, cargando: authCargando } = useAuth();
+  const userId = session?.user.id ?? null;
   const [estado, despachar] = useReducer(reducir, INICIAL);
 
+  // Mismo patrón que carritosGuardados.tsx (no useSincronizacionPersistente: ver comentario
+  // de arriba del archivo).
+  const fuenteHidratadaRef = useRef<string | null>(null);
+  const yaFueAnonimoRef = useRef(false);
+
   useEffect(() => {
-    AsyncStorage.getItem(CLAVE)
-      .then(crudo => {
-        const eventos = crudo ? JSON.parse(crudo) : [];
-        despachar({ tipo: 'hidratar', eventos: Array.isArray(eventos) ? eventos : [] });
-      })
-      .catch(() => despachar({ tipo: 'hidratar', eventos: [] }));
-  }, []);
+    if (authCargando) return;
+    const fuente = userId ?? 'anonimo';
+    if (fuenteHidratadaRef.current === fuente) return;
+    const esTransicionALogueado = yaFueAnonimoRef.current && userId !== null;
+
+    (async () => {
+      if (!userId) {
+        yaFueAnonimoRef.current = true;
+        try {
+          const crudo = await AsyncStorage.getItem(CLAVE);
+          const eventos = crudo ? JSON.parse(crudo) : [];
+          despachar({ tipo: 'hidratar', eventos: Array.isArray(eventos) ? eventos : [] });
+        } catch {
+          despachar({ tipo: 'hidratar', eventos: [] });
+        }
+        fuenteHidratadaRef.current = fuente;
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('ahorro_registro')
+        .select('fecha, monto')
+        .eq('usuario_id', userId)
+        .order('fecha', { ascending: true });
+
+      if (error) {
+        fuenteHidratadaRef.current = fuente;
+        return; // se queda con lo que ya había en memoria (típicamente [])
+      }
+      const filas = (data ?? []) as unknown as EventoAhorro[];
+
+      if (esTransicionALogueado && filas.length === 0 && estado.eventos.length > 0) {
+        // Primer login con historial local y el servidor sin ninguna fila todavía: sube cada
+        // evento como fila nueva (mismo criterio que carrito_guardado — servidor vacío gana lo
+        // local; servidor con datos gana el servidor, rama de abajo).
+        await supabase
+          .from('ahorro_registro')
+          .insert(estado.eventos.map(e => ({ usuario_id: userId, fecha: e.fecha, monto: e.monto })) as any);
+        despachar({ tipo: 'hidratar', eventos: estado.eventos });
+      } else {
+        despachar({ tipo: 'hidratar', eventos: filas });
+      }
+      fuenteHidratadaRef.current = fuente;
+    })();
+  }, [authCargando, userId]);
 
   useEffect(() => {
     if (!estado.cargado) return; // no sobreescribir lo guardado antes de hidratar
+    if (fuenteHidratadaRef.current !== (userId ?? 'anonimo')) return;
+    if (userId) return; // logueado: cada registrar() inserta su propia fila, no hay blob que reescribir
     AsyncStorage.setItem(CLAVE, JSON.stringify(estado.eventos)).catch(() => {});
-  }, [estado.eventos, estado.cargado]);
+  }, [estado.eventos, estado.cargado, userId]);
 
   const valor = useMemo<Contexto>(() => ({
     eventos: estado.eventos,
     registrar: monto => {
-      despachar({ tipo: 'registrar', evento: { fecha: new Date().toISOString(), monto } });
+      const evento: EventoAhorro = { fecha: new Date().toISOString(), monto };
+      despachar({ tipo: 'registrar', evento });
+      if (userId) {
+        supabase
+          .from('ahorro_registro')
+          .insert({ usuario_id: userId, fecha: evento.fecha, monto: evento.monto } as any)
+          .then(() => {});
+      }
     },
-  }), [estado.eventos]);
+  }), [estado.eventos, userId]);
 
   return (
     <HistorialAhorroContext.Provider value={valor}>{children}</HistorialAhorroContext.Provider>
