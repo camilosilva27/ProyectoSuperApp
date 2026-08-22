@@ -22,6 +22,16 @@ const {
 
 const router = express.Router();
 
+// GET /api/pagos/precio — pública (la usa el paywall de fin de trial antes de que el usuario
+// haga nada, y `ajustes.tsx`): solo expone el precio configurado, sin tocar ningún dato de
+// usuario, así que no hace falta sesión.
+router.get('/pagos/precio', (req, res) => {
+  if (!precioMensualArs) {
+    return res.status(503).json({ error: 'El precio de la suscripción todavía no está configurado' });
+  }
+  res.json({ precioMensualArs });
+});
+
 router.post('/pagos/suscripcion', requiereSesion, async (req, res) => {
   if (!mercadopagoAccessToken || !precioMensualArs) {
     return res.status(503).json({

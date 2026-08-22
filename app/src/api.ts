@@ -263,4 +263,10 @@ export function cancelarSuscripcion(accessToken: string) {
   });
 }
 
+/** Precio mensual configurado en el backend (`MERCADOPAGO_PRECIO_MENSUAL_ARS`) — pública, sin
+ *  sesión. La usa `GatePaywallFinTrial` para no hardcodear el precio en el cliente. */
+export function precioSuscripcion() {
+  return pedir<{ precioMensualArs: number }>('/api/pagos/precio');
+}
+
 export const configApi = { urlBase: URL_BASE };
