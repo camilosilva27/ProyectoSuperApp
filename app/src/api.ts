@@ -252,7 +252,8 @@ export function urlImagen(ruta: string | null): string | null {
 }
 
 /** Arranca la suscripción premium (Plan_Usuarios_y_cobros.md, Fase 2) — `initPoint` es el
- *  checkout hosteado de Mercado Pago, se abre con `Linking.openURL`. `accessToken` es el JWT
+ *  checkout hosteado de Mercado Pago, se abre con `abrirCheckoutPago` (no directo con
+ *  `Linking.openURL`, para evitar el bloqueo de popups en web). `accessToken` es el JWT
  *  de la sesión de Supabase (`session.access_token`), estas dos rutas son las únicas de la
  *  app que requieren sesión. */
 export function crearSuscripcion(accessToken: string) {

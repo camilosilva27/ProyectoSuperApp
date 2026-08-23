@@ -25,7 +25,8 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AppState, Linking, View } from 'react-native';
+import { AppState, View } from 'react-native';
+import { abrirCheckoutPago } from '../abrirCheckoutPago';
 import { crearSuscripcion, ErrorApi, precioSuscripcion } from '../api';
 import { useAuth } from '../auth';
 import { calcularResumenAhorro, type EventoAhorro, useHistorialAhorro } from '../historialAhorro';
@@ -102,8 +103,7 @@ export function GatePaywallFinTrial({ children }: { children: React.ReactNode })
     setSuscribiendo(true);
     setErrorSuscripcion(null);
     try {
-      const { initPoint } = await crearSuscripcion(session.access_token);
-      await Linking.openURL(initPoint);
+      await abrirCheckoutPago(() => crearSuscripcion(session.access_token));
     } catch (err) {
       setErrorSuscripcion(err instanceof ErrorApi ? err.message : 'No se pudo iniciar la suscripción');
     } finally {

@@ -13,8 +13,9 @@
 
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { abrirCheckoutPago } from '../../src/abrirCheckoutPago';
 import { cancelarSuscripcion, crearSuscripcion, ErrorApi } from '../../src/api';
 import { useAuth } from '../../src/auth';
 import { ComoFunciona } from '../../src/componentes/ComoFunciona';
@@ -46,8 +47,7 @@ export default function PantallaAjustes() {
     setErrorAccion(null);
     setAccionEnCurso('suscribir');
     try {
-      const { initPoint } = await crearSuscripcion(session.access_token);
-      await Linking.openURL(initPoint);
+      await abrirCheckoutPago(() => crearSuscripcion(session.access_token));
     } catch (err) {
       setErrorAccion(err instanceof ErrorApi ? err.message : 'No se pudo iniciar la suscripción');
     } finally {
