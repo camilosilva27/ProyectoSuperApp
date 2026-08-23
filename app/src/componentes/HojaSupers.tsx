@@ -397,8 +397,8 @@ const styles = StyleSheet.create({
   textoOpcionTopeSeleccionada: { fontFamily: fuentes.semi, fontSize: 15, color: '#FFFFFF' },
   lineaCosto: { fontFamily: fuentes.cuerpo, fontSize: 14, lineHeight: 20, color: '#3C444D' },
   montoLineaCosto: { fontFamily: fuentes.semi, fontSize: 14, lineHeight: 20, color: '#14161A' },
-  contenedorLista: { position: 'relative' },
-  lista: { flexGrow: 0 },
+  contenedorLista: { position: 'relative', flex: 1, minHeight: 0 },
+  lista: { flex: 1 },
   listaContenido: { gap: espacio.lg },
   grupo: { gap: espacio.sm },
   labelGrupo: {
