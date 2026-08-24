@@ -38,7 +38,7 @@ async function manejarPago(dataId, client, supabaseAdmin) {
   // premium_manual nunca se pisa desde acá, mismo criterio que la rama de suscripciones.
   const { error } = await supabaseAdmin
     .from('perfil_usuario')
-    .update({ plan: 'premium', tipo_plan: 'permanente' })
+    .update({ plan: 'premium', tipo_plan: 'permanente', pagado_en: pago.date_approved ?? null })
     .eq('id', pago.external_reference)
     .eq('premium_manual', false);
   if (error) throw error;
@@ -49,11 +49,18 @@ async function manejarSuscripcion(dataId, client, supabaseAdmin) {
   const suscripcion = await preApproval.get({ id: dataId });
 
   const nuevoPlan = planSegunEstado(suscripcion.status);
-  const cambios = { suscripcion_estado: suscripcion.status };
+  const cambios = {
+    suscripcion_estado: suscripcion.status,
+    siguiente_cobro_en: suscripcion.next_payment_date ?? null,
+  };
   if (nuevoPlan) {
     cambios.plan = nuevoPlan;
-    // Si el nuevo estado baja al usuario (cancelled/paused → gratis), tipo_plan ya no aplica.
-    if (nuevoPlan === 'gratis') cambios.tipo_plan = null;
+    // Si el nuevo estado baja al usuario (cancelled/paused → gratis), tipo_plan y la fecha de
+    // próximo cobro ya no aplican.
+    if (nuevoPlan === 'gratis') {
+      cambios.tipo_plan = null;
+      cambios.siguiente_cobro_en = null;
+    }
   }
 
   // premium_manual nunca se pisa desde acá: un cambio de estado en MP no debe sacarle el

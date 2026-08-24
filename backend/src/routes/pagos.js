@@ -25,6 +25,19 @@ const {
 
 const router = express.Router();
 
+// Turnos 12/13 (design_handoff_allpromos_v2/PANTALLA-12-eleccion-de-plan.md): el payer_email de
+// una suscripción o un pago único tiene que ser el de la cuenta de Mercado Pago del pagador, no
+// necesariamente el de la sesión de Super App (opciones_planes.md, bug real ya encontrado con un
+// pago fallido). MercadoPagoEmailSheet deja confirmar/cambiar ese mail antes de pagar; esta regex
+// es solo un chequeo de formato (no se puede verificar si la cuenta existe antes del checkout).
+const REGEX_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function resolverEmailPago(req) {
+  const emailBody = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
+  if (emailBody && REGEX_EMAIL.test(emailBody)) return emailBody;
+  return req.usuarioEmail;
+}
+
 // Fase 3 (opciones_planes.md): mensual y anual son ambos PreApproval (suscripción recurrente
 // de MP), solo cambia el intervalo de cobro y el precio — este mapa evita duplicar la ruta.
 const CONFIG_PLAN_RECURRENTE = {
@@ -62,6 +75,8 @@ router.post('/pagos/suscripcion', requiereSesion, async (req, res) => {
     return res.status(503).json({ error: 'Supabase (service role) todavía no está configurado' });
   }
 
+  const emailPago = resolverEmailPago(req);
+
   try {
     const client = new MercadoPagoConfig({ accessToken: mercadopagoAccessToken });
     const preApproval = new PreApproval(client);
@@ -70,7 +85,7 @@ router.post('/pagos/suscripcion', requiereSesion, async (req, res) => {
       body: {
         reason: `Super App Premium (${tipoPlan})`,
         external_reference: req.usuarioId,
-        payer_email: req.usuarioEmail,
+        payer_email: emailPago,
         back_url: urlVueltaCheckoutMP,
         auto_recurring: {
           frequency,
@@ -88,6 +103,7 @@ router.post('/pagos/suscripcion', requiereSesion, async (req, res) => {
         pasarela_suscripcion_id: suscripcion.id,
         suscripcion_estado: suscripcion.status ?? 'pending',
         tipo_plan: tipoPlan,
+        mail_mercado_pago: emailPago,
       })
       .eq('id', req.usuarioId);
     if (error) throw error;
@@ -112,6 +128,13 @@ router.post('/pagos/pago-unico', requiereSesion, async (req, res) => {
     });
   }
 
+  const supabaseAdmin = clienteSupabaseAdmin();
+  if (!supabaseAdmin) {
+    return res.status(503).json({ error: 'Supabase (service role) todavía no está configurado' });
+  }
+
+  const emailPago = resolverEmailPago(req);
+
   try {
     const client = new MercadoPagoConfig({ accessToken: mercadopagoAccessToken });
     const preference = new Preference(client);
@@ -126,7 +149,7 @@ router.post('/pagos/pago-unico', requiereSesion, async (req, res) => {
           currency_id: 'ARS',
         }],
         external_reference: req.usuarioId,
-        payer: { email: req.usuarioEmail },
+        payer: { email: emailPago },
         back_urls: {
           success: urlVueltaCheckoutMP,
           failure: urlVueltaCheckoutMP,
@@ -135,6 +158,14 @@ router.post('/pagos/pago-unico', requiereSesion, async (req, res) => {
         auto_return: 'approved',
       },
     });
+
+    // El pago único no otorga premium acá (eso lo hace el webhook cuando el pago se confirma),
+    // pero el mail sí se puede guardar ya: es el mismo dato que se usó para crear la Preference.
+    const { error } = await supabaseAdmin
+      .from('perfil_usuario')
+      .update({ mail_mercado_pago: emailPago })
+      .eq('id', req.usuarioId);
+    if (error) throw error;
 
     res.json({ initPoint: pref.init_point });
   } catch (err) {

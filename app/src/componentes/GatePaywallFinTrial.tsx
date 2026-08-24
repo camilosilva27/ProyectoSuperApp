@@ -26,13 +26,15 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppState, View } from 'react-native';
-import { abrirCheckoutPago } from '../abrirCheckoutPago';
-import { crearSuscripcion, ErrorApi, precioSuscripcion } from '../api';
+import { precioSuscripcion } from '../api';
 import { useAuth } from '../auth';
+import { useFlujoDePago } from '../flujoDePago';
 import { calcularResumenAhorro, type EventoAhorro, useHistorialAhorro } from '../historialAhorro';
-import { usePlanUsuario } from '../plan';
+import { estadoSuscripcionActiva, usePlanUsuario } from '../plan';
 import { useTema } from '../useTema';
+import { MercadoPagoEmailSheet } from './MercadoPagoEmailSheet';
 import { PaywallFinTrial } from './PaywallFinTrial';
+import { PlanSelect, type PreciosPlanes } from './PlanSelect';
 
 /** Ahorro acumulado dentro de la ventana del trial (sus 30 días), no el total histórico. */
 function ahorroDuranteTrial(eventos: EventoAhorro[], trialTerminaEn: string | null) {
@@ -55,15 +57,23 @@ export function GatePaywallFinTrial({ children }: { children: React.ReactNode })
   const { info: infoPlan, cargando: cargandoPlan, recargar: recargarPlan } = usePlanUsuario();
   const { eventos } = useHistorialAhorro();
 
-  const [precioMensual, setPrecioMensual] = useState<number | null>(null);
+  const [precios, setPrecios] = useState<PreciosPlanes | null>(null);
   const [cargandoPrecio, setCargandoPrecio] = useState(true);
-  const [suscribiendo, setSuscribiendo] = useState(false);
-  const [errorSuscripcion, setErrorSuscripcion] = useState<string | null>(null);
+  // 'paywall' = PaywallFinTrial (el ahorro como gancho). 'planSelect' = turno 12/13: se llega
+  // acá tocando el CTA de PaywallFinTrial, nunca al revés — es bloqueante, sin vuelta atrás.
+  const [pantalla, setPantalla] = useState<'paywall' | 'planSelect'>('paywall');
+  const flujoDePago = useFlujoDePago(session?.access_token ?? null, recargarPlan);
 
   useEffect(() => {
     precioSuscripcion()
-      .then(({ precioMensualArs }) => setPrecioMensual(precioMensualArs))
-      .catch(() => setPrecioMensual(null))
+      .then(({ precioMensualArs, precioAnualArs, precioPermanenteArs }) => {
+        if (precioMensualArs && precioAnualArs && precioPermanenteArs) {
+          setPrecios({ mensual: precioMensualArs, anual: precioAnualArs, permanente: precioPermanenteArs });
+        } else {
+          setPrecios(null);
+        }
+      })
+      .catch(() => setPrecios(null))
       .finally(() => setCargandoPrecio(false));
   }, []);
 
@@ -96,20 +106,9 @@ export function GatePaywallFinTrial({ children }: { children: React.ReactNode })
     : resumenTrial;
 
   const cargando = cargandoPlan || cargandoPrecio;
-  const mostrarPaywall = !cargando && bloqueado && precioMensual !== null;
+  const mostrarPaywall = !cargando && bloqueado && precios !== null;
 
-  const onSuscribirse = useCallback(async () => {
-    if (!session || suscribiendo) return;
-    setSuscribiendo(true);
-    setErrorSuscripcion(null);
-    try {
-      await abrirCheckoutPago(() => crearSuscripcion(session.access_token));
-    } catch (err) {
-      setErrorSuscripcion(err instanceof ErrorApi ? err.message : 'No se pudo iniciar la suscripción');
-    } finally {
-      setSuscribiendo(false);
-    }
-  }, [session, suscribiendo]);
+  const onSuscribirse = useCallback(() => setPantalla('planSelect'), []);
 
   // Mismo criterio que GateSesion/_layout.tsx: pantalla lisa mientras se resuelve si hay que
   // bloquear, no un parpadeo mostrando primero la navegación y después el paywall encima.
@@ -117,18 +116,49 @@ export function GatePaywallFinTrial({ children }: { children: React.ReactNode })
     return <View style={{ flex: 1, backgroundColor: paleta.fondo }} />;
   }
 
-  if (mostrarPaywall) {
+  if (mostrarPaywall && pantalla === 'paywall') {
     return (
       <PaywallFinTrial
         montoAhorradoTrial={resumen.monto}
         conteoComparaciones={resumen.conteo}
-        precioMensual={precioMensual as number}
+        precioMensual={(precios as PreciosPlanes).mensual}
         onSuscribirse={onSuscribirse}
-        enviando={suscribiendo}
-        error={errorSuscripcion}
         titulo={huboSuscripcionPrevia ? 'SIN SUSCRIPCIÓN ACTIVA' : 'TERMINÓ TU MES DE PRUEBA'}
         etiquetaPeriodo={huboSuscripcionPrevia ? 'desde que usás la app' : 'este mes de prueba'}
       />
+    );
+  }
+
+  if (mostrarPaywall && pantalla === 'planSelect' && session) {
+    const planElegidoInfo = flujoDePago.planElegido
+      ? { id: flujoDePago.planElegido, precio: (precios as PreciosPlanes)[flujoDePago.planElegido] }
+      : null;
+    return (
+      <>
+        <PlanSelect
+          precios={precios as PreciosPlanes}
+          suscripcion={estadoSuscripcionActiva(infoPlan)}
+          bloqueante
+          cargando={flujoDePago.enviando}
+          planEnCurso={flujoDePago.planElegido}
+          onElegirPlan={flujoDePago.elegirPlan}
+        />
+        <MercadoPagoEmailSheet
+          visible={flujoDePago.planElegido !== null}
+          plan={planElegidoInfo ? {
+            id: planElegidoInfo.id,
+            precio: planElegidoInfo.precio,
+            periodo: planElegidoInfo.id === 'anual' ? 'año' : planElegidoInfo.id === 'permanente' ? 'unico' : 'mes',
+          } : null}
+          mailApp={session.user.email ?? ''}
+          mailInicial={infoPlan?.mailMercadoPago ?? session.user.email ?? ''}
+          enviando={flujoDePago.enviando}
+          error={flujoDePago.error}
+          onConfirmar={flujoDePago.confirmarEmail}
+          onCancelar={flujoDePago.cerrarHoja}
+          onElegirOtroPlan={flujoDePago.cerrarHoja}
+        />
+      </>
     );
   }
 

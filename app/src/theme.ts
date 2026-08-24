@@ -73,6 +73,13 @@ const paletas = {
     ofertaSuave: '#FFF6C9',
     alerta: '#9A5B08',
     alertaFondo: '#FDF3E0',
+    // Rojo semántico de error (turno 13, MercadoPagoEmailSheet) — el diseño no tenía uno: el
+    // único rojo existente (`supers.dia`/`supers.coto`) es marca de super, no se puede reusar
+    // para error sin volverse ambiguo. Separado de `alerta` (que significa "requiere comprar
+    // online", no un error).
+    errorFondo: '#FDECEA',
+    errorBorde: '#F0C2BC',
+    errorTexto: '#8C1D18',
     sombra: '#000000',
     supers: superColores.light,
     supersBorde: superBordes.light,
@@ -97,6 +104,11 @@ const paletas = {
     ofertaSuave: '#3A3410',
     alerta: '#F0B457',
     alertaFondo: '#2E2413',
+    // Placeholder de continuidad, mismo criterio que el resto del tema oscuro (SPEC § 7.5): el
+    // turno 13 solo diseñó la versión clara de este token.
+    errorFondo: '#3A1613',
+    errorBorde: '#5C2622',
+    errorTexto: '#F0576A',
     sombra: '#000000',
     supers: superColores.dark,
     supersBorde: superBordes.dark,

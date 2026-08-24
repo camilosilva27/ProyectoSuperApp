@@ -26,11 +26,12 @@ import {
 } from '../../src/api';
 import { useCarrito } from '../../src/carrito';
 import {
-  BandaDisponibilidad, BotonPrincipal, NOMBRE_SUPER, ORDEN_SUPERS, Problema, Stepper, Vacio,
+  BandaDisponibilidad, BotonPrincipal, ORDEN_SUPERS, Problema, Stepper, Vacio,
 } from '../../src/componentes/comunes';
 import { ComoFunciona } from '../../src/componentes/ComoFunciona';
 import { FotoProducto } from '../../src/componentes/FotoProducto';
 import { HeaderNegro, SelectorSupers, TituloHeader } from '../../src/componentes/HeaderNegro';
+import { PlacaLogoSuper } from '../../src/componentes/LogoSuper';
 import { HojaSupers } from '../../src/componentes/HojaSupers';
 import { useFiltrosSupers } from '../../src/filtrosSupers';
 import { espacio, pesos, radio, texto } from '../../src/theme';
@@ -349,6 +350,12 @@ export default function PantallaBuscar() {
   );
 }
 
+function filasDe<T>(items: T[], porFila: number): T[][] {
+  const filas: T[][] = [];
+  for (let i = 0; i < items.length; i += porFila) filas.push(items.slice(i, i + porFila));
+  return filas;
+}
+
 /** Estado inicial de Buscar (SPEC § 4.1): lo que se ve antes de escribir nada. Es donde el
  *  usuario entiende qué es esto — nunca se vio antes en la app. */
 function EstadoInicial({
@@ -379,23 +386,32 @@ function EstadoInicial({
       <View style={{ gap: espacio.md }}>
         <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>CADA SUPER TIENE SU COLOR</Text>
         <View style={{ gap: espacio.sm }}>
-          {ORDEN_SUPERS.map(key => {
-            const bordeIdentidad = (paleta.supersBorde as Partial<Record<SuperKey, string>>)[key];
-            return (
-              <View key={key} style={styles.filaLeyendaSuper}>
-                <View
-                  style={[
-                    styles.barraLeyendaSuper,
-                    {
-                      backgroundColor: paleta.supers[key],
-                      ...(bordeIdentidad ? { borderWidth: 1, borderColor: bordeIdentidad } : null),
-                    },
-                  ]}
-                />
-                <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>{NOMBRE_SUPER[key]}</Text>
-              </View>
-            );
-          })}
+          {filasDe(ORDEN_SUPERS, 3).map((fila, i) => (
+            <View key={i} style={styles.filaGridSupers}>
+              {fila.map(key => {
+                const bordeIdentidad = (paleta.supersBorde as Partial<Record<SuperKey, string>>)[key];
+                return (
+                  <View key={key} style={styles.celdaGridSuper}>
+                    <View
+                      style={[
+                        styles.barraLeyendaSuper,
+                        {
+                          backgroundColor: paleta.supers[key],
+                          ...(bordeIdentidad ? { borderWidth: 1, borderColor: bordeIdentidad } : null),
+                        },
+                      ]}
+                    />
+                    <PlacaLogoSuper superKey={key} ancho="100%" alto={34} padding={4} radio={radio.sm} />
+                  </View>
+                );
+              })}
+              {/* Rellena la última fila (7 supers = 2 filas de 3 + 1) para que las celdas
+                  sigan alineadas en 3 columnas parejas en vez de estirarse. */}
+              {Array.from({ length: 3 - fila.length }).map((_, j) => (
+                <View key={`vacio-${j}`} style={styles.celdaGridSuper} />
+              ))}
+            </View>
+          ))}
         </View>
         <Text style={[texto.prosa, { color: paleta.tintaProsa }]}>
           El color siempre dice de qué super es un precio. El amarillo, en cambio, siempre dice ahorro.
@@ -570,8 +586,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: espacio.pantalla, paddingTop: espacio.md,
   },
   estadoInicial: { padding: espacio.pantalla, gap: espacio.xl },
-  filaLeyendaSuper: { flexDirection: 'row', alignItems: 'center', gap: espacio.md },
-  barraLeyendaSuper: { width: 36, height: 8, borderRadius: radio.pill },
+  filaGridSupers: { flexDirection: 'row', gap: espacio.sm },
+  celdaGridSuper: { flex: 1, gap: espacio.xs },
+  barraLeyendaSuper: { width: '100%', height: 6, borderRadius: radio.pill },
   filaOnboarding: {
     borderTopWidth: StyleSheet.hairlineWidth, paddingTop: espacio.lg,
     flexDirection: 'row', alignItems: 'center', gap: espacio.md,

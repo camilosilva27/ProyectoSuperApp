@@ -9,14 +9,18 @@
  *
  * La cuenta ya no es opcional (Fase 2, `GateSesion.tsx`): sin sesión no se llega a este tab
  * (ni a ningún otro) — por eso acá abajo no hace falta un branch para el caso sin sesión.
+ *
+ * La fila "Plan y pago" (turnos 12/13) reemplaza a los tres botones provisorios de elegir plan
+ * que había acá (opciones_planes.md, Fase 3) — la selección real de plan vive en `PlanSelect`,
+ * alcanzada desde `/plan-y-pago`. El subtítulo de esa fila ya aclara que ahí también se cambia
+ * o se cancela, así que no hace falta una fila separada de "Cancelar suscripción" en la lista —
+ * el modal de cancelación se mantiene igual que antes, solo cambia desde dónde se dispara.
  */
 
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { abrirCheckoutPago } from '../../src/abrirCheckoutPago';
-import { cancelarSuscripcion, crearPagoUnico, crearSuscripcion, ErrorApi } from '../../src/api';
 import { useAuth } from '../../src/auth';
 import { ComoFunciona } from '../../src/componentes/ComoFunciona';
 import { ConfirmacionModal } from '../../src/componentes/Confirmacion';
@@ -24,6 +28,13 @@ import { HeaderNegro, TituloHeader } from '../../src/componentes/HeaderNegro';
 import { diasRestantesTrial, usePlanUsuario } from '../../src/plan';
 import { espacio, radio, texto } from '../../src/theme';
 import { useTema } from '../../src/useTema';
+
+function formatearFecha(iso: string | null): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' });
+}
 
 export default function PantallaAjustes() {
   const { paleta } = useTema();
@@ -33,66 +44,25 @@ export default function PantallaAjustes() {
   const { info: infoPlan, recargar: recargarPlan } = usePlanUsuario();
   const [mostrarComoFunciona, setMostrarComoFunciona] = useState(false);
   const [mostrarConfirmarSalir, setMostrarConfirmarSalir] = useState(false);
-  const [mostrarConfirmarCancelar, setMostrarConfirmarCancelar] = useState(false);
-  const [accionEnCurso, setAccionEnCurso] = useState<'mensual' | 'anual' | 'permanente' | 'cancelar' | null>(null);
-  const [errorAccion, setErrorAccion] = useState<string | null>(null);
 
   // Al volver a esta pantalla (ej. después de ir y volver del checkout de Mercado Pago) se
   // refresca el plan — el webhook de MP ya pudo haber actualizado `perfil_usuario` mientras
   // el usuario estaba afuera.
   useFocusEffect(useCallback(() => { recargarPlan(); }, [recargarPlan]));
 
-  // Botones provisorios mientras no está diseñada la pantalla de selección de planes
-  // (opciones_planes.md, Fase 3) — alcanza para probar los 3 flujos de punta a punta.
-  const elegirPlan = async (tipoPlan: 'mensual' | 'anual' | 'permanente') => {
-    if (!session) return;
-    setErrorAccion(null);
-    setAccionEnCurso(tipoPlan);
-    try {
-      if (tipoPlan === 'permanente') {
-        await abrirCheckoutPago(() => crearPagoUnico(session.access_token));
-      } else {
-        await abrirCheckoutPago(() => crearSuscripcion(session.access_token, tipoPlan));
-      }
-    } catch (err) {
-      setErrorAccion(err instanceof ErrorApi ? err.message : 'No se pudo iniciar el pago');
-    } finally {
-      setAccionEnCurso(null);
-    }
-  };
-
-  const confirmarCancelarSuscripcion = async () => {
-    setMostrarConfirmarCancelar(false);
-    if (!session) return;
-    setErrorAccion(null);
-    setAccionEnCurso('cancelar');
-    try {
-      await cancelarSuscripcion(session.access_token);
-      await recargarPlan();
-    } catch (err) {
-      setErrorAccion(err instanceof ErrorApi ? err.message : 'No se pudo cancelar la suscripción');
-    } finally {
-      setAccionEnCurso(null);
-    }
-  };
-
   const diasTrial = diasRestantesTrial(infoPlan?.trialTerminaEn ?? null);
-  const etiquetaTipoPlan = infoPlan?.tipoPlan === 'mensual'
-    ? 'mensual'
-    : infoPlan?.tipoPlan === 'anual'
-      ? 'anual'
-      : infoPlan?.tipoPlan === 'permanente'
-        ? 'permanente'
-        : null;
-  const textoPlan = infoPlan?.plan === 'premium'
-    ? `Plan Premium activo${etiquetaTipoPlan ? ` (${etiquetaTipoPlan})` : ''}`
+
+  // Subtítulo de la fila "Plan y pago" — mismo dato (tipo de plan + próximo cobro/fecha de
+  // pago) que va a repetirse arriba de `PlanSelect`, pero acá solo hace falta una línea.
+  const subtituloPlan = infoPlan?.plan === 'premium'
+    ? infoPlan.tipoPlan === 'permanente'
+      ? `Permanente · pagado el ${formatearFecha(infoPlan.pagadoEl)} · sin renovaciones`
+      : `${infoPlan.tipoPlan === 'anual' ? 'Anual' : 'Mensual'} · próximo cobro ${formatearFecha(infoPlan.renuevaEl)}`
     : infoPlan?.plan === 'trial'
       ? (diasTrial !== null
         ? `Prueba gratis · vence en ${diasTrial} día${diasTrial === 1 ? '' : 's'}`
         : 'Prueba gratis')
-      : infoPlan?.plan === 'gratis'
-        ? 'Plan gratis'
-        : null;
+      : 'Elegí un plan';
 
   // GateSesion (_layout.tsx) ya garantiza que no se llega acá sin sesión.
   if (!session) return null;
@@ -111,82 +81,18 @@ export default function PantallaAjustes() {
                 {session.user.email}
               </Text>
             </View>
-            {textoPlan && (
-              <>
-                <View style={[styles.separador, { backgroundColor: paleta.borde }]} />
-                <View style={styles.fila}>
-                  <Text style={[texto.cuerpoMedio, { color: paleta.tintaSuave, flex: 1 }]}>
-                    {textoPlan}
-                  </Text>
-                </View>
-              </>
-            )}
-            {infoPlan?.plan !== 'premium' && (
-              <>
-                {(['mensual', 'anual', 'permanente'] as const).map(tipoPlan => (
-                  <React.Fragment key={tipoPlan}>
-                    <View style={[styles.separador, { backgroundColor: paleta.borde }]} />
-                    <Pressable
-                      onPress={() => elegirPlan(tipoPlan)}
-                      disabled={accionEnCurso !== null}
-                      accessibilityRole="button"
-                      style={styles.fila}
-                    >
-                      <Text style={[texto.cuerpoMedio, { color: paleta.tinta, flex: 1 }]}>
-                        Actualizar a premium ({tipoPlan})
-                      </Text>
-                      {accionEnCurso === tipoPlan && <ActivityIndicator color={paleta.tintaSuave} />}
-                    </Pressable>
-                  </React.Fragment>
-                ))}
-              </>
-            )}
-            {infoPlan?.plan === 'premium' && infoPlan.tipoPlan !== 'permanente' && (
-              <>
-                {(['mensual', 'anual', 'permanente'] as const)
-                  .filter(tipoPlan => tipoPlan !== infoPlan.tipoPlan)
-                  .map(tipoPlan => (
-                    <React.Fragment key={tipoPlan}>
-                      <View style={[styles.separador, { backgroundColor: paleta.borde }]} />
-                      <Pressable
-                        onPress={() => elegirPlan(tipoPlan)}
-                        disabled={accionEnCurso !== null}
-                        accessibilityRole="button"
-                        style={styles.fila}
-                      >
-                        <Text style={[texto.cuerpoMedio, { color: paleta.tinta, flex: 1 }]}>
-                          Cambiar a plan {tipoPlan}
-                        </Text>
-                        {accionEnCurso === tipoPlan && <ActivityIndicator color={paleta.tintaSuave} />}
-                      </Pressable>
-                    </React.Fragment>
-                  ))}
-              </>
-            )}
-            {infoPlan?.plan === 'premium' && infoPlan.pasarelaSuscripcionId && (
-              <>
-                <View style={[styles.separador, { backgroundColor: paleta.borde }]} />
-                <Pressable
-                  onPress={() => setMostrarConfirmarCancelar(true)}
-                  disabled={accionEnCurso !== null}
-                  accessibilityRole="button"
-                  style={styles.fila}
-                >
-                  <Text style={[texto.cuerpoMedio, { color: paleta.alerta, flex: 1 }]}>
-                    Cancelar suscripción
-                  </Text>
-                  {accionEnCurso === 'cancelar' && <ActivityIndicator color={paleta.alerta} />}
-                </Pressable>
-              </>
-            )}
-            {errorAccion && (
-              <>
-                <View style={[styles.separador, { backgroundColor: paleta.borde }]} />
-                <View style={styles.fila}>
-                  <Text style={[texto.cuerpo, { color: paleta.alerta, flex: 1 }]}>{errorAccion}</Text>
-                </View>
-              </>
-            )}
+            <View style={[styles.separador, { backgroundColor: paleta.borde }]} />
+            <Pressable
+              onPress={() => router.push('/plan-y-pago')}
+              accessibilityRole="button"
+              style={styles.fila}
+            >
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>Plan y pago</Text>
+                <Text style={[texto.dato, { color: paleta.tintaSuave }]}>{subtituloPlan}</Text>
+              </View>
+              <Text style={[texto.subtitulo, { color: paleta.tintaTenue }]}>›</Text>
+            </Pressable>
             <View style={[styles.separador, { backgroundColor: paleta.borde }]} />
             <Pressable
               onPress={() => setMostrarConfirmarSalir(true)}
@@ -219,7 +125,7 @@ export default function PantallaAjustes() {
         </View>
 
         <Text style={[texto.cuerpo, { color: paleta.tintaSuave }]}>
-          Ante cualquier duda, opinión o problema, escribir a camilosilva28@gmail.com 
+          Ante cualquier duda, opinión o problema, escribir a camilosilva28@gmail.com
         </Text>
       </View>
       <ComoFunciona visible={mostrarComoFunciona} onClose={() => setMostrarComoFunciona(false)} />
@@ -230,14 +136,6 @@ export default function PantallaAjustes() {
         textoConfirmar="Cerrar sesión"
         onCancelar={() => setMostrarConfirmarSalir(false)}
         onConfirmar={() => { setMostrarConfirmarSalir(false); cerrarSesion(); }}
-      />
-      <ConfirmacionModal
-        visible={mostrarConfirmarCancelar}
-        titulo="Cancelar suscripción"
-        mensaje="Vas a perder el acceso a la app hasta que vuelvas a suscribirte."
-        textoConfirmar="Cancelar suscripción"
-        onCancelar={() => setMostrarConfirmarCancelar(false)}
-        onConfirmar={confirmarCancelarSuscripcion}
       />
     </View>
   );

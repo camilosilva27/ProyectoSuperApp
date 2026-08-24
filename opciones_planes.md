@@ -49,6 +49,100 @@ Se decidió armar una pantalla de selección de plan (todavía sin diseñar) en 
 - Probar en sandbox: alta de suscripción anual (confirmar fecha del próximo cobro), y el pago único completo con `back_urls`/`auto_return` bien configuradas (gotcha más probable del fallo anterior).
 - La pantalla de fin de trial (`PaywallFinTrial`/`GatePaywallFinTrial`) sigue ofreciendo **solo mensual** — no se tocó todavía; el prompt para Claude Design (ver conversación) cubre la pantalla de selección completa, pendiente de diseño e integración ahí.
 
+## Validado end-to-end con pago real (2026-08-24)
+
+- **VM temporalmente en Producción**: se cambió `MERCADOPAGO_ACCESS_TOKEN` de la VM de TEST a Producción real para poder probar (con credenciales TEST, Mercado Pago nunca deja pagar a una cuenta real, sin importar el monto — no es un tema de precio). **Se dejó así a propósito** (no se revirtió a TEST), mientras se sigue probando esta fase. Precios bajados temporalmente en la VM para las pruebas: mensual sigue en $1000 (leftover de una prueba anterior, no es el precio real decidido de $8000 — pendiente corregir), anual en $20, permanente en $10.
+- **Bug real encontrado: `MERCADOPAGO_PRECIO_ANUAL_ARS=10` rechazado por MP** — `Cannot pay an amount lower than $ 15.00` (mínimo de `PreApproval`). Subido a $20 para destrabar la prueba. Anotar este mínimo si en algún momento se vuelve a bajar un precio para testear.
+- **Pago único (permanente) confirmado con plata real**: pago de $10 ARS aprobado y acreditado (`payment.status: 'approved'`, `external_reference` = uuid del usuario correcto), confirmado consultando directo la API de Mercado Pago (`/v1/payments/search` y `/v1/payments/{id}`).
+- **Gotcha real encontrado: el checkbox "Pagos" del panel de Webhooks estaba destildado.** La URL de notificaciones para Producción ya estaba bien cargada, pero el panel de MP deja elegir por checkbox QUÉ eventos notificar (Pagos / Suscripciones / etc.) — con solo "Suscripciones" tildado, un pago único real nunca dispara ningún webhook, sin ningún error visible del lado del servidor (la request simplemente nunca llega). Activado el checkbox de "Pagos" — pendiente confirmar con un pago nuevo que ahora sí llegue solo.
+- **Rama `payment` del webhook confirmada funcionando**: mientras se esperaba la corrección del checkbox, se reenvió a mano una notificación firmada (HMAC-SHA256, mismo mecanismo ya usado para probar suscripciones) para el pago real ya aprobado — `perfil_usuario` quedó correctamente en `plan='premium', tipo_plan='permanente'`. Confirma que `manejarPago()` en `webhookMercadoPago.js` funciona de punta a punta.
+- **Anual**: se confirmó que MP acepta y guarda `frequency: 12, frequency_type: 'months'` (ver sección de arriba), pero el intento de pago real quedó sin completar (se creó la suscripción, `pending`, nunca se pagó) — cancelada manualmente vía API para no dejarla colgada. **Todavía no se confirmó con un pago real completado que la primera cobranza quede agendada a 12 meses**, sigue siendo el punto más débil.
+- **Aprendizaje operativo**: probar dos flujos de pago en simultáneo sobre la misma cuenta de prueba genera falsos negativos confusos — `tipo_plan` se pisa al **crear** una suscripción nueva (antes de que se pague), independiente de cualquier webhook. Si se vuelve a probar, hacerlo secuencial (un plan a la vez, confirmar, recién después probar el siguiente).
+
+## Permanente: validado 100% de punta a punta (2026-08-24)
+
+Segundo pago real de $10 aprobado, y esta vez **el webhook llegó solo** (sin reenviar nada a mano) — confirma que el checkbox "Pagos" del panel de Webhooks era la causa raíz completa, ya resuelta. `perfil_usuario` quedó en `plan='premium', tipo_plan='permanente'` automáticamente. El plan permanente queda considerado **completo y funcionando de punta a punta**.
+
+## Pendiente
+
+- **Anual sigue bloqueado por `payer_email`** (ver debajo) — no se pudo completar un pago real todavía, sigue siendo el único plan sin confirmar de punta a punta.
+- **Problema real de producto confirmado (2026-08-24): `payer_email` debe coincidir exactamente con el mail de la cuenta de Mercado Pago del pagador, para mensual/anual (`PreApproval`).** Confirmado de nuevo probando el anual (ya se había visto una vez con el mensual, `Plan_Usuarios_y_cobros.md`) — no es un artefacto de TEST, es una restricción real de Suscripciones: al ser una autorización de débito recurrente, MP la ata a una cuenta específica desde el momento en que se crea. **El error es en seco, sin "cambiar de cuenta" dentro del mismo checkout** — si el mail no coincide, esa suscripción puntual queda muerta (hay que crear una nueva con el mail correcto). **No afecta al permanente** (`Preference`/Checkout Pro no hace este chequeo — confirmado, el hermano del usuario pagó el permanente con un mail totalmente distinto sin problema).
+  - **Investigado a fondo (2026-08-24)**: probé crear un `PreApproval` sin `payer_email` directo contra la API — MP responde `"payer_email is required"`. **No se puede omitir**, es obligatorio en la creación. La única opción real es dejar de asumir "el mail de Mercado Pago es el mismo que el de la cuenta de Super App" y en su lugar preguntarle al usuario, justo antes de crear la suscripción (no antes, no en el registro — nada que ver con la cuenta de Super App), con qué mail va a pagar en MP (precargado con el mail de su cuenta, editable). Confirmado con el historial real de intentos de esta cuenta de prueba: la única suscripción que llegó a cobrarse de verdad fue la que por casualidad tenía el `payer_email` correcto.
+  - **Decisión (2026-08-24): por ahora no se implementa, queda anotado.** Al usuario no le cierra sumar fricción (un input más) para un caso que probablemente coincide para la mayoría (mismo mail en todos lados). Revisar esto cuando el diseño de la pantalla de selección de planes (pedido a Claude Design) esté listo — puede ser un buen lugar natural para meter ese campo sin que se sienta como un paso extra, si hace falta.
+- Confirmar con un pago único nuevo (sin reenviar el webhook a mano) que ahora, con el checkbox de "Pagos" activado, MP notifica solo.
+- Completar un pago real del anual para confirmar que la primera cobranza efectivamente se agenda a 12 meses (`next_payment_date`), no antes.
+- Decidir cuándo volver la VM a TEST (o directamente dejarla en Producción de forma permanente y ajustar los precios a los reales: mensual $8000, anual $80000, permanente $160000 — hoy están en valores de prueba).
+- Corregir `MERCADOPAGO_PRECIO_MENSUAL_ARS` en la VM: sigue en $1000 (de una prueba de fase 2 anterior), no en el $8000 ya decidido.
+
 ## Estado
 
-Lógica y código backend/frontend implementados (2026-08-24), sin probar todavía contra Mercado Pago real. UI de `ajustes.tsx` es funcional pero provisoria — la pantalla final la resuelve el diseño pedido a Claude Design.
+Lógica y código backend/frontend implementados y parcialmente validados con pagos reales (2026-08-24): permanente confirmado de punta a punta (pago + webhook), anual confirmado solo a nivel de configuración de MP (falta un pago completo). UI de `ajustes.tsx` es funcional pero provisoria — la pantalla final la resuelve el diseño pedido a Claude Design.
+
+## Turnos 12/13 implementados (2026-08-24): PlanSelect + MercadoPagoEmailSheet
+
+Resuelve el pendiente de arriba ("payer_email debe coincidir con la cuenta de MP") y reemplaza
+la UI provisoria de `ajustes.tsx`. Los comps de diseño de estos turnos nunca llegaron a
+`design_handoff_allpromos_v2 /AllPromos v2.dc.html` (ese archivo solo llega hasta el turno 5) —
+se construyó a partir del copy y los tokens de `PANTALLA-12-eleccion-de-plan.md`, sin comp HTML
+para comparar pixel a pixel.
+
+- **Nueva migración `supabase/migrations/0010_mercadopago_email_y_fechas.sql`** — `perfil_usuario`
+  suma `mail_mercado_pago`, `siguiente_cobro_en`, `pagado_en`. ✅ Corrida contra el proyecto
+  Supabase real (2026-08-24, `supabase db push --linked`, confirmada con `migration list`) —
+  esto destrabó un bug real: sin la columna, `crearSuscripcion`/`crearPagoUnico` fallaban en seco
+  (`PGRST204`, "Could not find the 'mail_mercado_pago' column"), lo que hacía que la pestaña de
+  Mercado Pago se abriera y se cerrara sola sin llegar al checkout.
+- `backend/src/routes/pagos.js` — `/pagos/suscripcion` y `/pagos/pago-unico` aceptan `email`
+  opcional en el body (valida formato, cae a `req.usuarioEmail` si no viene o es inválido) y lo
+  persisten en `mail_mercado_pago`. Esto es lo que cierra el bug de `payer_email` documentado
+  arriba — antes de esto se mandaba siempre el mail de la sesión.
+- `backend/src/routes/webhookMercadoPago.js` — guarda `siguiente_cobro_en` (de
+  `suscripcion.next_payment_date`) en cada webhook de suscripción, y `pagado_en` (de
+  `pago.date_approved`) al confirmar el pago único. Decisión tomada con el usuario: la fecha de
+  renovación se guarda al llegar el webhook, no se pide en vivo a la API de MP en cada carga de
+  pantalla.
+- `app/src/componentes/PlanSelect.tsx` (nuevo) y `app/src/componentes/MercadoPagoEmailSheet.tsx`
+  (nuevo) — pantalla de elección de plan y hoja de confirmación de mail, con sus estados
+  (sin plan, con plan activo, permanente comprado, loading, mobile/web, mail inválido/distinto,
+  error de checkout).
+- `app/src/flujoDePago.ts` (nuevo) — hook `useFlujoDePago` que orquesta ambos componentes +
+  `abrirCheckoutPago`, compartido entre `GatePaywallFinTrial` (bloqueante, sin salida) y la nueva
+  pantalla `app/app/plan-y-pago.tsx` (desde Ajustes, con X).
+- `app/app/(tabs)/ajustes.tsx` — se sacaron los 3 botones provisorios de "Actualizar a premium
+  (x)"; queda una sola fila "Plan y pago" que navega a `/plan-y-pago`. Cancelar suscripción se
+  movió de Ajustes a esa pantalla nueva (no estaba en el diseño original de los turnos 12/13,
+  pero sin eso se perdía una función real de Fase 2 — el permanente no la necesita, no genera
+  `pasarela_suscripcion_id`).
+- **"Comprobante de pago" (mencionado en el .md para el plan permanente) no se implementó a
+  propósito** — decisión tomada con el usuario: no hay backend/destino definido para eso todavía,
+  queda pendiente sin fecha.
+- Verificado: `tsc --noEmit` limpio en `app/`, ambas rutas de `backend/src/routes/` cargan sin
+  error de sintaxis. Probado en un teléfono real contra el backend/Expo local (misma red Wi-Fi):
+  se encontraron y corrigieron dos bugs reales — `PlanSelect` sin `ScrollView` (el CTA quedaba
+  fuera de la pantalla en un teléfono real, sin ningún error visible) y la migración 0010 sin
+  correr contra Supabase (ver arriba). El mail de Mercado Pago en `MercadoPagoEmailSheet` es
+  ahora un campo editable directo (sin el paso intermedio de tocar "Cambiar").
+
+### Pendiente de UX (2026-08-24, decisión del usuario, no implementado todavía)
+
+Hoy `MercadoPagoEmailSheet` se muestra siempre, incluso cuando ya hay un `mail_mercado_pago`
+guardado de un pago anterior — solo evita que el usuario tenga que *escribirlo* (viene
+prellenado), pero igual tiene que confirmar con un toque cada vez.
+
+Cambio pedido: una vez que el mail quedó guardado la primera vez, no volver a mostrar la hoja en
+compras siguientes — ir directo al checkout con ese mail. Deja como salvavidas una opción de
+"Cambiar" en algún lugar siempre alcanzable (no necesariamente atada a estar comprando en ese
+momento), para el caso en que el usuario haya cambiado de cuenta de Mercado Pago. Si el checkout
+directo falla, ahí sí conviene caer a la hoja (con el error 13c) en vez de fallar en seco, para
+no perder la posibilidad de reintentar o cambiar el mail.
+
+No implementado aún — anotado para no perderlo, a implementar en `useFlujoDePago`/`PlanSelect`/
+`MercadoPagoEmailSheet` cuando se retome.
+
+### Pendiente: pasada de diseño visual (2026-08-24)
+
+El usuario va a compartir el `.dc.html` real de los turnos 12/13 (los comps nunca llegaron al
+handoff original, ver más arriba) para una revisión de detalles visuales — `PlanSelect` y
+`MercadoPagoEmailSheet` funcionan de punta a punta (probado en teléfono real, ver bugs corregidos
+arriba) pero no fueron comparados pixel a pixel contra un comp real todavía. Cuando llegue ese
+HTML, releer contra `PlanSelect.tsx`/`MercadoPagoEmailSheet.tsx` y ajustar lo que no coincida.

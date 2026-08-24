@@ -254,21 +254,30 @@ export function urlImagen(ruta: string | null): string | null {
 /** Arranca la suscripción premium (Plan_Usuarios_y_cobros.md, Fase 2; `tipoPlan` sumado en
  *  Fase 3, opciones_planes.md) — `initPoint` es el checkout hosteado de Mercado Pago, se abre
  *  con `abrirCheckoutPago` (no directo con `Linking.openURL`, para evitar el bloqueo de
- *  popups en web). `accessToken` es el JWT de la sesión de Supabase (`session.access_token`). */
-export function crearSuscripcion(accessToken: string, tipoPlan: 'mensual' | 'anual' = 'mensual') {
+ *  popups en web). `accessToken` es el JWT de la sesión de Supabase (`session.access_token`).
+ *  `email` (turnos 12/13) es el mail confirmado en `MercadoPagoEmailSheet` — tiene que coincidir
+ *  con la cuenta de Mercado Pago del pagador, no necesariamente con la de la sesión; si se
+ *  omite, el backend cae al mail de la sesión. */
+export function crearSuscripcion(
+  accessToken: string,
+  tipoPlan: 'mensual' | 'anual' = 'mensual',
+  email?: string,
+) {
   return pedir<{ initPoint: string }>('/api/pagos/suscripcion', {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}` },
-    body: JSON.stringify({ tipoPlan }),
+    body: JSON.stringify({ tipoPlan, email }),
   });
 }
 
 /** Arranca el pago único del plan permanente (Fase 3, opciones_planes.md) — a diferencia de
- *  `crearSuscripcion`, no crea ninguna suscripción recurrente en MP. */
-export function crearPagoUnico(accessToken: string) {
+ *  `crearSuscripcion`, no crea ninguna suscripción recurrente en MP. Mismo `email` opcional que
+ *  `crearSuscripcion`. */
+export function crearPagoUnico(accessToken: string, email?: string) {
   return pedir<{ initPoint: string }>('/api/pagos/pago-unico', {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ email }),
   });
 }
 

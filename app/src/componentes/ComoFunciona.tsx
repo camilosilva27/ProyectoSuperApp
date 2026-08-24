@@ -5,10 +5,12 @@
  */
 
 import React, { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { espacio, pesos, radio, texto } from '../theme';
 import { useTema } from '../useTema';
+import { NOMBRE_SUPER, ORDEN_SUPERS } from './comunes';
 import { FotoProducto } from './FotoProducto';
+import { PlacaLogoSuper } from './LogoSuper';
 
 const PASOS = [
   {
@@ -107,8 +109,8 @@ function IlustracionPaso({ paso }: { paso: number }) {
 
   if (paso === 1) {
     const filas: [string, string, string, string][] = [
-      ['VEA', pesos(48310), '#12874A', 'coca cola · yerba'],
-      ['CARREFOUR', pesos(61130), '#1B5FD9', 'fideos · oreo · sensodyne'],
+      ['VEA', pesos(5200), '#12874A', 'coca cola · yerba'],
+      ['CARREFOUR', pesos(4300), '#1B5FD9', 'fideos · oreo · sensodyne'],
     ];
     return (
       <View style={{ gap: espacio.sm }}>
@@ -125,22 +127,24 @@ function IlustracionPaso({ paso }: { paso: number }) {
     );
   }
 
-  const supers: [string, string][] = [
-    ['Vea', paleta.supers.vea], ['Carrefour', paleta.supers.carr], ['Chango Más', paleta.supers.changomas],
-  ];
+  // Los 7 supers soportados (super-app-supermercados-soportados), no solo los 3 que aparecían
+  // en las filas anteriores del onboarding — acá es donde se enseña el código de color completo.
   return (
-    <View style={{ gap: 9 }}>
-      {supers.map(([nombre, color]) => (
-        <View key={nombre} style={styles.filaLeyenda}>
-          <View style={[styles.barraLeyenda, { backgroundColor: color }]} />
-          <Text style={[texto.etiqueta, { color: paleta.tinta }]}>{nombre}</Text>
+    <ScrollView style={styles.scrollLeyenda} showsVerticalScrollIndicator={false}>
+      <View style={{ gap: 9 }}>
+        {ORDEN_SUPERS.map(key => (
+          <View key={key} style={styles.filaLeyenda}>
+            <View style={[styles.barraLeyenda, { backgroundColor: paleta.supers[key] }]} />
+            <PlacaLogoSuper superKey={key} ancho={44} alto={22} padding={3} radio={radio.sm} />
+            <Text style={[texto.etiqueta, { color: paleta.tinta }]}>{NOMBRE_SUPER[key]}</Text>
+          </View>
+        ))}
+        <View style={[styles.filaLeyenda, styles.filaLeyendaAhorro, { borderTopColor: paleta.borde }]}>
+          <View style={[styles.barraLeyenda, { backgroundColor: paleta.oferta }]} />
+          <Text style={[texto.etiqueta, { color: paleta.tinta }]}>Ahorro y promociones</Text>
         </View>
-      ))}
-      <View style={[styles.filaLeyenda, styles.filaLeyendaAhorro, { borderTopColor: paleta.borde }]}>
-        <View style={[styles.barraLeyenda, { backgroundColor: paleta.oferta }]} />
-        <Text style={[texto.etiqueta, { color: paleta.tinta }]}>Ahorro y promociones</Text>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -171,6 +175,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
   },
   textoBlanco: { color: '#FFFFFF' },
+  // 7 supers + la fila de ahorro no siempre entran en una hoja chica — con `maxHeight` en vez
+  // de `flex` esto scrollea sin empujar el pie (dots + botón) fuera de la pantalla.
+  scrollLeyenda: { maxHeight: 220 },
   filaLeyenda: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   filaLeyendaAhorro: { borderTopWidth: 1, paddingTop: 9 },
   barraLeyenda: { width: 30, height: 8, borderRadius: radio.pill },

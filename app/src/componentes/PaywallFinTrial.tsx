@@ -14,7 +14,7 @@
 
 import React, { useEffect } from 'react';
 import {
-  ActivityIndicator, BackHandler, Platform, Pressable, StyleSheet, Text, View,
+  BackHandler, Platform, Pressable, StyleSheet, Text, View,
 } from 'react-native';
 import { espacio, fuentes, pesosCorto, radio, texto } from '../theme';
 import { useTema } from '../useTema';
@@ -23,20 +23,15 @@ export function PaywallFinTrial({
   montoAhorradoTrial, conteoComparaciones, precioMensual, onSuscribirse,
   titulo = 'TERMINÓ TU MES DE PRUEBA',
   etiquetaPeriodo = 'este mes de prueba',
-  enviando = false,
-  error = null,
 }: {
   montoAhorradoTrial: number;
   conteoComparaciones: number;
   precioMensual: number;
+  /** Turnos 12/13: ya no crea la suscripción directo — avanza a `PlanSelect`, donde se elige
+   *  el plan y se confirma el mail de Mercado Pago antes de crear nada. */
   onSuscribirse: () => void;
   titulo?: string;
   etiquetaPeriodo?: string;
-  /** true mientras se espera la respuesta de crear la suscripción, antes de abrir el checkout. */
-  enviando?: boolean;
-  /** Si crear la suscripción falla (red, backend, Mercado Pago), qué mostrar debajo del botón —
-   *  sin esto no había ninguna señal visible de que el toque no llevó a ningún lado. */
-  error?: string | null;
 }) {
   const { paleta } = useTema();
 
@@ -80,30 +75,20 @@ export function PaywallFinTrial({
       </View>
 
       <View style={styles.pie}>
-        {error && (
-          <Text style={[texto.cuerpo, styles.textoError]}>{error}</Text>
-        )}
         <Pressable
           onPress={onSuscribirse}
-          disabled={enviando}
           accessibilityRole="button"
           style={({ pressed }) => [
             styles.botonPrincipal,
-            { backgroundColor: paleta.oferta, opacity: pressed || enviando ? 0.8 : 1 },
+            { backgroundColor: paleta.oferta, opacity: pressed ? 0.8 : 1 },
           ]}
         >
-          {enviando ? (
-            <ActivityIndicator color={paleta.ofertaTinta} />
-          ) : (
-            <>
-              <Text style={[styles.textoBotonPrincipal, { color: paleta.ofertaTinta }]}>
-                SEGUIR AHORRANDO
-              </Text>
-              <Text style={[styles.subtextoBotonPrincipal, { color: paleta.ofertaTinta }]}>
-                {pesosCorto(precioMensual)} por mes
-              </Text>
-            </>
-          )}
+          <Text style={[styles.textoBotonPrincipal, { color: paleta.ofertaTinta }]}>
+            SEGUIR AHORRANDO
+          </Text>
+          <Text style={[styles.subtextoBotonPrincipal, { color: paleta.ofertaTinta }]}>
+            desde {pesosCorto(precioMensual)} por mes
+          </Text>
         </Pressable>
       </View>
     </View>
@@ -121,7 +106,6 @@ const styles = StyleSheet.create({
   divisoria: { height: 1, backgroundColor: 'rgba(255,255,255,.18)' },
   precioDestacado: { fontFamily: fuentes.semi },
   pie: { paddingBottom: 34, gap: espacio.xs + 2 },
-  textoError: { color: '#FF8A80', textAlign: 'center' },
   botonPrincipal: {
     borderRadius: radio.md, minHeight: 58, alignItems: 'center', justifyContent: 'center', gap: 2,
   },
