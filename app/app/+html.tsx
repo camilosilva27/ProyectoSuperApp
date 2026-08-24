@@ -43,6 +43,21 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="apple-mobile-web-app-title" content="Super App" />
 
         <ScrollViewStyleReset />
+        {/* Sin esto, el navegador toma cualquier drag horizontal sobre elementos que no
+            son ScrollView (texto, botones) como paneo/rubber-banding nativo del documento.
+            overscroll-behavior-x (no el shorthand de ambos ejes) para no romper el gesto
+            vertical de "tirar desde arriba para recargar" en Safari iOS. */}
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `
+              html, body, #root {
+                overflow-x: hidden;
+                overscroll-behavior-x: none;
+                touch-action: pan-y;
+              }
+            `,
+          }}
+        />
       </head>
       <body>{children}</body>
     </html>

@@ -26,7 +26,7 @@ import {
 } from '../../src/api';
 import { useCarrito } from '../../src/carrito';
 import {
-  BandaDisponibilidad, BotonPrincipal, ORDEN_SUPERS, Problema, Stepper, Vacio,
+  BandaDisponibilidad, BotonPrincipal, NOMBRE_SUPER, ORDEN_SUPERS, Problema, Stepper, Vacio,
 } from '../../src/componentes/comunes';
 import { ComoFunciona } from '../../src/componentes/ComoFunciona';
 import { FotoProducto } from '../../src/componentes/FotoProducto';
@@ -376,9 +376,9 @@ function EstadoInicial({
       keyboardShouldPersistTaps="handled"
     >
       <View style={{ gap: espacio.sm }}>
-        <Text style={[texto.titulo, { color: paleta.tinta }]}>Un carrito, cinco supermercados</Text>
+        <Text style={[texto.titulo, { color: paleta.tinta }]}>Un carrito, siete supermercados</Text>
         <Text style={[texto.cuerpo, { color: paleta.tintaSuave }]}>
-          Armá la lista una sola vez. Al final un botón calcula, con promos y tarjetas
+          Armá tu carrito y al final Super App calcula, con promos y tarjetas
           incluidas, qué conviene comprar en cada lugar.
         </Text>
       </View>
@@ -386,7 +386,7 @@ function EstadoInicial({
       <View style={{ gap: espacio.md }}>
         <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>CADA SUPER TIENE SU COLOR</Text>
         <View style={{ gap: espacio.sm }}>
-          {filasDe(ORDEN_SUPERS, 3).map((fila, i) => (
+          {filasDe(ORDEN_SUPERS, 4).map((fila, i) => (
             <View key={i} style={styles.filaGridSupers}>
               {fila.map(key => {
                 const bordeIdentidad = (paleta.supersBorde as Partial<Record<SuperKey, string>>)[key];
@@ -402,12 +402,15 @@ function EstadoInicial({
                       ]}
                     />
                     <PlacaLogoSuper superKey={key} ancho="100%" alto={34} padding={4} radio={radio.sm} />
+                    <Text style={[texto.microSuper, { color: paleta.tintaSuave, textAlign: 'center' }]}>
+                      {NOMBRE_SUPER[key]}
+                    </Text>
                   </View>
                 );
               })}
-              {/* Rellena la última fila (7 supers = 2 filas de 3 + 1) para que las celdas
-                  sigan alineadas en 3 columnas parejas en vez de estirarse. */}
-              {Array.from({ length: 3 - fila.length }).map((_, j) => (
+              {/* Rellena la última fila (7 supers = 1 fila de 4 + 1 de 3) para que las celdas
+                  sigan alineadas en 4 columnas parejas en vez de estirarse. */}
+              {Array.from({ length: 4 - fila.length }).map((_, j) => (
                 <View key={`vacio-${j}`} style={styles.celdaGridSuper} />
               ))}
             </View>

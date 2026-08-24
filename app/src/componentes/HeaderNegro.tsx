@@ -62,7 +62,7 @@ export function SelectorSupers({
           COMPARANDO {activos.length} DE {ORDEN_SUPERS.length} SUPERS
         </Text>
         <View style={styles.divisorEncabezadoSelector} />
-        <Text style={styles.ayudaSelector}>tocá para sacar</Text>
+        <Text style={styles.ayudaSelector}>tocá para editar</Text>
       </View>
 
       <View style={styles.filaCeldas} accessibilityRole="none">

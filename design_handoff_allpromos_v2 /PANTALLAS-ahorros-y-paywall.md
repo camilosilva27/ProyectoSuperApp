@@ -22,7 +22,7 @@ Pasa de 3 a 4 items: Buscar · Carrito · **Ahorros** · Ajustes. Ícono de Ahor
 
 - Título `MIS AHORROS`.
 - Bloque del total, gap 6:
-  - `DESDE QUE USÁS ALLPROMOS` — Archivo 600 11/14, `letterSpacing .7`, `#FFD400`.
+  - `DESDE QUE USÁS Super App` — Archivo 600 11/14, `letterSpacing .7`, `#FFD400`.
   - Monto total — Barlow Condensed 700 **60/54**, `#FFD400`. Es el número más grande de la pantalla.
   - `en 47 comparaciones, desde marzo` — Archivo 500 15/21, `#FFFFFF`. El mes es el de la primera comparación registrada.
 

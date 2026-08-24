@@ -304,7 +304,7 @@ function BloqueTope({
 
   return (
     <View style={styles.bloqueTope}>
-      <Text style={styles.labelGrupo}>CUÁNTOS QUERÉS VISITAR</Text>
+      <Text style={styles.labelGrupo}>CUÁNTOS QUERÉS VISITAR COMO MÁXIMO?</Text>
       <View style={styles.filaTope}>
         {opciones.map(valor => {
           const seleccionado = valor === topeBorrador;
@@ -358,8 +358,8 @@ function LineaCostoTope({
   }
   return (
     <Text style={[styles.lineaCosto, textoPretty]}>
-      Con {tope} supers ahorrás <Text style={styles.montoLineaCosto}>{pesosCorto(monto)}</Text>
-      {' '}menos que visitando los {n}, pero hacés {tope} de {n} viajes.
+      Con {tope} supers pagás <Text style={styles.montoLineaCosto}>{pesosCorto(monto)}</Text>
+      {' '}mas que visitando los {n}, pero hacés {tope} de {n} viajes.
     </Text>
   );
 }

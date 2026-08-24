@@ -150,7 +150,7 @@ La línea de abajo no es decorativa: avisa que el usuario sale de la app y que h
 Lo que se ve antes de escribir nada. Nunca se vio antes en la app y es donde el usuario entiende qué es esto.
 
 1. Header negro con el título y el buscador vacío (placeholder `yerba, fideos, shampoo…`). **Sin barra de supers**: todavía no hay nada que filtrar.
-2. Título "Un carrito, cinco supermercados" y un párrafo con la promesa.
+2. Título "Un carrito, siete supermercados" y un párrafo con la promesa.
 3. **CADA SUPER TIENE SU COLOR**: las 5 barras de 36×8 con el nombre al lado, en columna.
 4. Una línea en mono: "El color siempre dice de qué super es un precio. El amarillo, en cambio, siempre dice ahorro."
 5. Separador, y "Primera vez acá?" + botón `Cómo funciona`.

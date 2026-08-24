@@ -14,16 +14,16 @@ import { PlacaLogoSuper } from './LogoSuper';
 
 const PASOS = [
   {
-    titulo: 'Armá un solo carrito',
-    texto: 'Buscá el producto por nombre y tocalo. No elegís supermercado: el mismo producto se busca en los cinco a la vez.',
+    titulo: 'Armá un carrito',
+    texto: 'Buscá el producto por nombre y seleccionalo. No elegís supermercado: el mismo producto se busca en todos a la vez.',
   },
   {
     titulo: 'Dónde comprar cada cosa',
-    texto: 'Al comparar, cada producto queda asignado al supermercado donde sale más barato, con las ofertas por cantidad y lo que tengas en Mis descuentos ya contado. Vas a ver ese total y el de comprar todo en un solo lugar.',
+    texto: 'Al comparar, cada producto queda asignado al supermercado donde sale más barato, con las ofertas por cantidad y lo que tengas en "Mis descuentos" ya contado, ayudandote a hacer la compra más óptima posible.',
   },
   {
-    titulo: 'Dos colores que importan',
-    texto: 'Cada supermercado tiene el suyo: el color de un precio dice de dónde es. El amarillo nunca es un super, siempre es ahorro.',
+    titulo: 'Los colores importan',
+    texto: 'Cada supermercado tiene el suyo. El amarillo significa ahorro.',
   },
 ];
 

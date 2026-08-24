@@ -59,7 +59,7 @@ export default function PantallaAhorros() {
               : `Ahorraste ${pesosCorto(resumen.totalMonto)} en ${textoComparaciones(resumen.totalConteo)}`
           }
         >
-          <Text style={[texto.tituloSeccion, { color: paleta.oferta }]}>DESDE QUE USÁS ALLPROMOS</Text>
+          <Text style={[texto.tituloSeccion, { color: paleta.oferta }]}>Desde que usás Super App</Text>
           <Text style={[styles.montoTotal, { color: paleta.oferta }]}>{pesosCorto(resumen.totalMonto)}</Text>
           <Text style={[texto.cuerpoMedio, { color: '#FFFFFF' }]}>{subtituloHeader}</Text>
         </View>
