@@ -41,10 +41,17 @@ module.exports = {
   // Firma secreta configurada en el panel de esa misma app (Tus integraciones > Webhooks) —
   // se usa para validar que una notificación de webhook realmente viene de Mercado Pago.
   mercadopagoWebhookSecret: process.env.MERCADOPAGO_WEBHOOK_SECRET,
-  // Precio mensual de la suscripción en ARS — todavía no decidido, sin default: sin esta
-  // variable, la ruta de alta de suscripción responde 503 en vez de inventar un número.
+  // Precios en ARS de cada plan (Fase 3, opciones_planes.md) — sin default: si falta la
+  // variable de un plan puntual, ese plan responde 503 en vez de inventar un número, pero no
+  // bloquea a los otros dos.
   precioMensualArs: process.env.MERCADOPAGO_PRECIO_MENSUAL_ARS
     ? Number(process.env.MERCADOPAGO_PRECIO_MENSUAL_ARS)
+    : null,
+  precioAnualArs: process.env.MERCADOPAGO_PRECIO_ANUAL_ARS
+    ? Number(process.env.MERCADOPAGO_PRECIO_ANUAL_ARS)
+    : null,
+  precioPermanenteArs: process.env.MERCADOPAGO_PRECIO_PERMANENTE_ARS
+    ? Number(process.env.MERCADOPAGO_PRECIO_PERMANENTE_ARS)
     : null,
   // A dónde vuelve el navegador/webview de MP una vez que el usuario termina el checkout.
   urlVueltaCheckoutMP: process.env.URL_VUELTA_CHECKOUT_MP || 'https://mi-superapp.vercel.app',

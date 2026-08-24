@@ -251,13 +251,22 @@ export function urlImagen(ruta: string | null): string | null {
   return ruta ? `${URL_BASE}${ruta}` : null;
 }
 
-/** Arranca la suscripción premium (Plan_Usuarios_y_cobros.md, Fase 2) — `initPoint` es el
- *  checkout hosteado de Mercado Pago, se abre con `abrirCheckoutPago` (no directo con
- *  `Linking.openURL`, para evitar el bloqueo de popups en web). `accessToken` es el JWT
- *  de la sesión de Supabase (`session.access_token`), estas dos rutas son las únicas de la
- *  app que requieren sesión. */
-export function crearSuscripcion(accessToken: string) {
+/** Arranca la suscripción premium (Plan_Usuarios_y_cobros.md, Fase 2; `tipoPlan` sumado en
+ *  Fase 3, opciones_planes.md) — `initPoint` es el checkout hosteado de Mercado Pago, se abre
+ *  con `abrirCheckoutPago` (no directo con `Linking.openURL`, para evitar el bloqueo de
+ *  popups en web). `accessToken` es el JWT de la sesión de Supabase (`session.access_token`). */
+export function crearSuscripcion(accessToken: string, tipoPlan: 'mensual' | 'anual' = 'mensual') {
   return pedir<{ initPoint: string }>('/api/pagos/suscripcion', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ tipoPlan }),
+  });
+}
+
+/** Arranca el pago único del plan permanente (Fase 3, opciones_planes.md) — a diferencia de
+ *  `crearSuscripcion`, no crea ninguna suscripción recurrente en MP. */
+export function crearPagoUnico(accessToken: string) {
+  return pedir<{ initPoint: string }>('/api/pagos/pago-unico', {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}` },
   });
@@ -270,10 +279,15 @@ export function cancelarSuscripcion(accessToken: string) {
   });
 }
 
-/** Precio mensual configurado en el backend (`MERCADOPAGO_PRECIO_MENSUAL_ARS`) — pública, sin
- *  sesión. La usa `GatePaywallFinTrial` para no hardcodear el precio en el cliente. */
+/** Precios configurados en el backend (`MERCADOPAGO_PRECIO_*_ARS`) — pública, sin sesión. La
+ *  usa `GatePaywallFinTrial` para no hardcodear precios en el cliente. Cada campo puede venir
+ *  en `null` si ese plan puntual no está configurado. */
 export function precioSuscripcion() {
-  return pedir<{ precioMensualArs: number }>('/api/pagos/precio');
+  return pedir<{
+    precioMensualArs: number | null;
+    precioAnualArs: number | null;
+    precioPermanenteArs: number | null;
+  }>('/api/pagos/precio');
 }
 
 export const configApi = { urlBase: URL_BASE };

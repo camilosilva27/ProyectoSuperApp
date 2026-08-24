@@ -12,30 +12,49 @@
  */
 
 const express = require('express');
-const { MercadoPagoConfig, PreApproval } = require('mercadopago');
+const {
+  MercadoPagoConfig, PreApproval, Preference,
+} = require('mercadopago');
 const { requiereSesion } = require('../middleware/requiereSesion');
 const { clienteSupabaseAdmin } = require('../clienteSupabaseAdmin');
 const { planSegunEstado } = require('../planSegunEstadoSuscripcion');
 const {
-  mercadopagoAccessToken, precioMensualArs, urlVueltaCheckoutMP,
+  mercadopagoAccessToken, precioMensualArs, precioAnualArs, precioPermanenteArs,
+  urlVueltaCheckoutMP,
 } = require('../config');
 
 const router = express.Router();
 
+// Fase 3 (opciones_planes.md): mensual y anual son ambos PreApproval (suscripción recurrente
+// de MP), solo cambia el intervalo de cobro y el precio — este mapa evita duplicar la ruta.
+const CONFIG_PLAN_RECURRENTE = {
+  mensual: { frequency: 1, precio: () => precioMensualArs },
+  anual: { frequency: 12, precio: () => precioAnualArs },
+};
+
 // GET /api/pagos/precio — pública (la usa el paywall de fin de trial antes de que el usuario
-// haga nada, y `ajustes.tsx`): solo expone el precio configurado, sin tocar ningún dato de
-// usuario, así que no hace falta sesión.
+// haga nada, y `ajustes.tsx`): solo expone los precios configurados, sin tocar ningún dato de
+// usuario, así que no hace falta sesión. Cada precio es independiente: si falta la variable de
+// uno, ese campo queda en null en vez de romper a los otros dos.
 router.get('/pagos/precio', (req, res) => {
-  if (!precioMensualArs) {
-    return res.status(503).json({ error: 'El precio de la suscripción todavía no está configurado' });
+  if (!precioMensualArs && !precioAnualArs && !precioPermanenteArs) {
+    return res.status(503).json({ error: 'Ningún precio de plan está configurado todavía' });
   }
-  res.json({ precioMensualArs });
+  res.json({
+    precioMensualArs: precioMensualArs ?? null,
+    precioAnualArs: precioAnualArs ?? null,
+    precioPermanenteArs: precioPermanenteArs ?? null,
+  });
 });
 
 router.post('/pagos/suscripcion', requiereSesion, async (req, res) => {
-  if (!mercadopagoAccessToken || !precioMensualArs) {
+  const tipoPlan = req.body?.tipoPlan === 'anual' ? 'anual' : 'mensual';
+  const { frequency, precio } = CONFIG_PLAN_RECURRENTE[tipoPlan];
+  const precioArs = precio();
+
+  if (!mercadopagoAccessToken || !precioArs) {
     return res.status(503).json({
-      error: 'Mercado Pago todavía no está configurado (falta MERCADOPAGO_ACCESS_TOKEN o MERCADOPAGO_PRECIO_MENSUAL_ARS)',
+      error: `Mercado Pago todavía no está configurado para el plan ${tipoPlan} (falta MERCADOPAGO_ACCESS_TOKEN o el precio correspondiente)`,
     });
   }
   const supabaseAdmin = clienteSupabaseAdmin();
@@ -49,14 +68,14 @@ router.post('/pagos/suscripcion', requiereSesion, async (req, res) => {
 
     const suscripcion = await preApproval.create({
       body: {
-        reason: 'Super App Premium',
+        reason: `Super App Premium (${tipoPlan})`,
         external_reference: req.usuarioId,
         payer_email: req.usuarioEmail,
         back_url: urlVueltaCheckoutMP,
         auto_recurring: {
-          frequency: 1,
+          frequency,
           frequency_type: 'months',
-          transaction_amount: precioMensualArs,
+          transaction_amount: precioArs,
           currency_id: 'ARS',
         },
       },
@@ -68,6 +87,7 @@ router.post('/pagos/suscripcion', requiereSesion, async (req, res) => {
         pasarela_pago: 'mercadopago',
         pasarela_suscripcion_id: suscripcion.id,
         suscripcion_estado: suscripcion.status ?? 'pending',
+        tipo_plan: tipoPlan,
       })
       .eq('id', req.usuarioId);
     if (error) throw error;
@@ -76,6 +96,50 @@ router.post('/pagos/suscripcion', requiereSesion, async (req, res) => {
   } catch (err) {
     console.error('Error creando suscripción de Mercado Pago:', err);
     res.status(502).json({ error: 'No se pudo crear la suscripción en Mercado Pago' });
+  }
+});
+
+// POST /api/pagos/pago-unico — arranca el pago único del plan permanente (Checkout Pro /
+// Preference, no PreApproval: no hay recurrencia que crear). A diferencia de la suscripción,
+// acá no se guarda ningún id de "suscripción" en `perfil_usuario` — el pago se asocia al
+// usuario vía `external_reference`, y es el webhook (`type=payment`) el que, al confirmar
+// `status: 'approved'`, otorga `plan='premium', tipo_plan='permanente'`. Igual que la
+// suscripción, esta ruta NO otorga premium por sí sola.
+router.post('/pagos/pago-unico', requiereSesion, async (req, res) => {
+  if (!mercadopagoAccessToken || !precioPermanenteArs) {
+    return res.status(503).json({
+      error: 'Mercado Pago todavía no está configurado para el plan permanente (falta MERCADOPAGO_ACCESS_TOKEN o MERCADOPAGO_PRECIO_PERMANENTE_ARS)',
+    });
+  }
+
+  try {
+    const client = new MercadoPagoConfig({ accessToken: mercadopagoAccessToken });
+    const preference = new Preference(client);
+
+    const pref = await preference.create({
+      body: {
+        items: [{
+          id: 'super-app-premium-permanente',
+          title: 'Super App Premium (permanente)',
+          quantity: 1,
+          unit_price: precioPermanenteArs,
+          currency_id: 'ARS',
+        }],
+        external_reference: req.usuarioId,
+        payer: { email: req.usuarioEmail },
+        back_urls: {
+          success: urlVueltaCheckoutMP,
+          failure: urlVueltaCheckoutMP,
+          pending: urlVueltaCheckoutMP,
+        },
+        auto_return: 'approved',
+      },
+    });
+
+    res.json({ initPoint: pref.init_point });
+  } catch (err) {
+    console.error('Error creando pago único de Mercado Pago:', err);
+    res.status(502).json({ error: 'No se pudo crear el pago en Mercado Pago' });
   }
 });
 
@@ -110,10 +174,11 @@ router.post('/pagos/cancelar-suscripcion', requiereSesion, async (req, res) => {
     });
 
     const nuevoPlan = planSegunEstado(suscripcion.status) ?? 'gratis';
-    // premium_manual nunca se pisa desde acá, mismo criterio que el webhook.
+    // premium_manual nunca se pisa desde acá, mismo criterio que el webhook. tipo_plan se
+    // limpia porque ya no tiene sentido una vez que el usuario deja de ser premium.
     const { error } = await supabaseAdmin
       .from('perfil_usuario')
-      .update({ suscripcion_estado: suscripcion.status ?? 'cancelled', plan: nuevoPlan })
+      .update({ suscripcion_estado: suscripcion.status ?? 'cancelled', plan: nuevoPlan, tipo_plan: null })
       .eq('id', req.usuarioId)
       .eq('premium_manual', false);
     if (error) throw error;

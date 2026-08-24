@@ -16,7 +16,7 @@ import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { abrirCheckoutPago } from '../../src/abrirCheckoutPago';
-import { cancelarSuscripcion, crearSuscripcion, ErrorApi } from '../../src/api';
+import { cancelarSuscripcion, crearPagoUnico, crearSuscripcion, ErrorApi } from '../../src/api';
 import { useAuth } from '../../src/auth';
 import { ComoFunciona } from '../../src/componentes/ComoFunciona';
 import { ConfirmacionModal } from '../../src/componentes/Confirmacion';
@@ -34,7 +34,7 @@ export default function PantallaAjustes() {
   const [mostrarComoFunciona, setMostrarComoFunciona] = useState(false);
   const [mostrarConfirmarSalir, setMostrarConfirmarSalir] = useState(false);
   const [mostrarConfirmarCancelar, setMostrarConfirmarCancelar] = useState(false);
-  const [accionEnCurso, setAccionEnCurso] = useState<'suscribir' | 'cancelar' | null>(null);
+  const [accionEnCurso, setAccionEnCurso] = useState<'mensual' | 'anual' | 'permanente' | 'cancelar' | null>(null);
   const [errorAccion, setErrorAccion] = useState<string | null>(null);
 
   // Al volver a esta pantalla (ej. después de ir y volver del checkout de Mercado Pago) se
@@ -42,14 +42,20 @@ export default function PantallaAjustes() {
   // el usuario estaba afuera.
   useFocusEffect(useCallback(() => { recargarPlan(); }, [recargarPlan]));
 
-  const suscribirse = async () => {
+  // Botones provisorios mientras no está diseñada la pantalla de selección de planes
+  // (opciones_planes.md, Fase 3) — alcanza para probar los 3 flujos de punta a punta.
+  const elegirPlan = async (tipoPlan: 'mensual' | 'anual' | 'permanente') => {
     if (!session) return;
     setErrorAccion(null);
-    setAccionEnCurso('suscribir');
+    setAccionEnCurso(tipoPlan);
     try {
-      await abrirCheckoutPago(() => crearSuscripcion(session.access_token));
+      if (tipoPlan === 'permanente') {
+        await abrirCheckoutPago(() => crearPagoUnico(session.access_token));
+      } else {
+        await abrirCheckoutPago(() => crearSuscripcion(session.access_token, tipoPlan));
+      }
     } catch (err) {
-      setErrorAccion(err instanceof ErrorApi ? err.message : 'No se pudo iniciar la suscripción');
+      setErrorAccion(err instanceof ErrorApi ? err.message : 'No se pudo iniciar el pago');
     } finally {
       setAccionEnCurso(null);
     }
@@ -71,8 +77,15 @@ export default function PantallaAjustes() {
   };
 
   const diasTrial = diasRestantesTrial(infoPlan?.trialTerminaEn ?? null);
+  const etiquetaTipoPlan = infoPlan?.tipoPlan === 'mensual'
+    ? 'mensual'
+    : infoPlan?.tipoPlan === 'anual'
+      ? 'anual'
+      : infoPlan?.tipoPlan === 'permanente'
+        ? 'permanente'
+        : null;
   const textoPlan = infoPlan?.plan === 'premium'
-    ? 'Plan Premium activo'
+    ? `Plan Premium activo${etiquetaTipoPlan ? ` (${etiquetaTipoPlan})` : ''}`
     : infoPlan?.plan === 'trial'
       ? (diasTrial !== null
         ? `Prueba gratis · vence en ${diasTrial} día${diasTrial === 1 ? '' : 's'}`
@@ -108,20 +121,46 @@ export default function PantallaAjustes() {
                 </View>
               </>
             )}
-            {(infoPlan?.plan === 'trial' || infoPlan?.plan === 'gratis') && (
+            {infoPlan?.plan !== 'premium' && (
               <>
-                <View style={[styles.separador, { backgroundColor: paleta.borde }]} />
-                <Pressable
-                  onPress={suscribirse}
-                  disabled={accionEnCurso !== null}
-                  accessibilityRole="button"
-                  style={styles.fila}
-                >
-                  <Text style={[texto.cuerpoMedio, { color: paleta.tinta, flex: 1 }]}>
-                    Actualizar a premium
-                  </Text>
-                  {accionEnCurso === 'suscribir' && <ActivityIndicator color={paleta.tintaSuave} />}
-                </Pressable>
+                {(['mensual', 'anual', 'permanente'] as const).map(tipoPlan => (
+                  <React.Fragment key={tipoPlan}>
+                    <View style={[styles.separador, { backgroundColor: paleta.borde }]} />
+                    <Pressable
+                      onPress={() => elegirPlan(tipoPlan)}
+                      disabled={accionEnCurso !== null}
+                      accessibilityRole="button"
+                      style={styles.fila}
+                    >
+                      <Text style={[texto.cuerpoMedio, { color: paleta.tinta, flex: 1 }]}>
+                        Actualizar a premium ({tipoPlan})
+                      </Text>
+                      {accionEnCurso === tipoPlan && <ActivityIndicator color={paleta.tintaSuave} />}
+                    </Pressable>
+                  </React.Fragment>
+                ))}
+              </>
+            )}
+            {infoPlan?.plan === 'premium' && infoPlan.tipoPlan !== 'permanente' && (
+              <>
+                {(['mensual', 'anual', 'permanente'] as const)
+                  .filter(tipoPlan => tipoPlan !== infoPlan.tipoPlan)
+                  .map(tipoPlan => (
+                    <React.Fragment key={tipoPlan}>
+                      <View style={[styles.separador, { backgroundColor: paleta.borde }]} />
+                      <Pressable
+                        onPress={() => elegirPlan(tipoPlan)}
+                        disabled={accionEnCurso !== null}
+                        accessibilityRole="button"
+                        style={styles.fila}
+                      >
+                        <Text style={[texto.cuerpoMedio, { color: paleta.tinta, flex: 1 }]}>
+                          Cambiar a plan {tipoPlan}
+                        </Text>
+                        {accionEnCurso === tipoPlan && <ActivityIndicator color={paleta.tintaSuave} />}
+                      </Pressable>
+                    </React.Fragment>
+                  ))}
               </>
             )}
             {infoPlan?.plan === 'premium' && infoPlan.pasarelaSuscripcionId && (
@@ -180,7 +219,7 @@ export default function PantallaAjustes() {
         </View>
 
         <Text style={[texto.cuerpo, { color: paleta.tintaSuave }]}>
-          Tema oscuro y la preferencia de compra online se suman en próximas fases del rediseño.
+          Ante cualquier duda, opinión o problema, escribir a camilosilva28@gmail.com 
         </Text>
       </View>
       <ComoFunciona visible={mostrarComoFunciona} onClose={() => setMostrarComoFunciona(false)} />

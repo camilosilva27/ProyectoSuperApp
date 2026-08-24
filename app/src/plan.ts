@@ -12,6 +12,7 @@ import { supabase } from './supabase';
 
 export type InfoPlan = {
   plan: 'trial' | 'premium' | 'gratis';
+  tipoPlan: 'mensual' | 'anual' | 'permanente' | null;
   trialTerminaEn: string | null;
   pasarelaSuscripcionId: string | null;
   suscripcionEstado: string | null;
@@ -32,11 +33,12 @@ export function usePlanUsuario() {
     setCargando(true);
     const { data } = await supabase
       .from('perfil_usuario')
-      .select('plan, trial_termina_en, pasarela_suscripcion_id, suscripcion_estado')
+      .select('plan, tipo_plan, trial_termina_en, pasarela_suscripcion_id, suscripcion_estado')
       .eq('id', userId)
       .single();
     setInfo(data ? {
       plan: data.plan,
+      tipoPlan: data.tipo_plan,
       trialTerminaEn: data.trial_termina_en,
       pasarelaSuscripcionId: data.pasarela_suscripcion_id,
       suscripcionEstado: data.suscripcion_estado,
