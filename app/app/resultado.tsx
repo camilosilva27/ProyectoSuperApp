@@ -14,6 +14,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
+import Head from 'expo-router/head';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View,
@@ -140,6 +141,7 @@ export default function PantallaResultado() {
 
   return (
     <View style={{ flex: 1, backgroundColor: paleta.fondo }}>
+      <Head><title>Dónde comprar - Super App</title></Head>
       <HeaderVeredicto
         data={data}
         insets={insets}

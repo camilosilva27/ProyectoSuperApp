@@ -21,6 +21,7 @@
  */
 
 import { useFocusEffect, useRouter } from 'expo-router';
+import Head from 'expo-router/head';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -96,6 +97,7 @@ export default function PantallaAjustes() {
 
   return (
     <View style={[styles.pantalla, { backgroundColor: paleta.fondo }]}>
+      <Head><title>Ajustes - Super App</title></Head>
       <HeaderNegro paddingTop={insets.top + espacio.xl}>
         <TituloHeader>Ajustes</TituloHeader>
       </HeaderNegro>

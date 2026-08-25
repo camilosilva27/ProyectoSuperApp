@@ -53,16 +53,27 @@ export function PuntosDisponibilidad({ disponibleEn }: { disponibleEn: SuperKey[
  * izquierdo de cada resultado de búsqueda, 5 segmentos en el orden fijo de ORDEN_SUPERS.
  * El orden nunca cambia — es lo que la hace legible de un vistazo. Reemplaza a
  * PuntosDisponibilidad en la fila de resultado (esa queda para otros usos más compactos).
+ *
+ * `supersActivos` (opcional): si se pasa, un super se pinta como "presente" solo cuando
+ * además está activo en el filtro. Sin esto, un producto que existe en un super desactivado
+ * se veía "disponible" ahí aunque ese super nunca fuera a entrar en la comparación — el
+ * usuario lo agregaba al carrito creyendo que participaba y "Comparar precios" lo ignoraba
+ * sin ninguna señal previa de por qué.
  */
-export function BandaDisponibilidad({ disponibleEn }: { disponibleEn: SuperKey[] }) {
+export function BandaDisponibilidad({
+  disponibleEn, supersActivos,
+}: { disponibleEn: SuperKey[]; supersActivos?: SuperKey[] }) {
   const { paleta } = useTema();
+  const disponibleEnActivos = supersActivos
+    ? disponibleEn.filter(k => supersActivos.includes(k))
+    : disponibleEn;
   return (
     <View
       style={styles.banda}
-      accessibilityLabel={`Disponible en ${disponibleEn.map(k => NOMBRE_SUPER[k]).join(', ')}`}
+      accessibilityLabel={`Disponible en ${disponibleEnActivos.map(k => NOMBRE_SUPER[k]).join(', ')}`}
     >
       {ORDEN_SUPERS.map(key => {
-        const presente = disponibleEn.includes(key);
+        const presente = disponibleEnActivos.includes(key);
         const bordeIdentidad = (paleta.supersBorde as Partial<Record<SuperKey, string>>)[key];
         return (
           <View

@@ -21,7 +21,7 @@ const CATALOGOS = [
   { key: 'carrefour', archivo: 'catalogo-carrefour.json', scraper: 'scraper-promos-carrefour.js' },
   { key: 'changomas', archivo: 'catalogo-changomas.json', scraper: 'scraper-promos-changomas.js' },
   { key: 'dia',       archivo: 'catalogo-dia.json',       scraper: 'scraper-promos-dia.js' },
-  { key: 'coto',      archivo: 'catalogo-coto.json',      scraper: 'scraper-promos-coto.js' },
+  { key: 'coto',      archivo: 'catalogo-coto.json',      scraper: 'scraper-coto-por-ean.js' },
   { key: 'jumbo',     archivo: 'catalogo-jumbo.json',     scraper: 'scraper-promos-jumbo.js' },
   { key: 'disco',     archivo: 'catalogo-disco.json',     scraper: 'scraper-promos-disco.js' },
 ];

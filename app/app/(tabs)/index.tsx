@@ -15,6 +15,7 @@
 import { useQuery } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
+import Head from 'expo-router/head';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
@@ -223,6 +224,7 @@ export default function PantallaBuscar() {
 
   return (
     <View style={[styles.pantalla, { backgroundColor: paleta.fondo }]}>
+      <Head><title>Buscar productos - Super App</title></Head>
       <HeaderNegro paddingTop={insets.top + espacio.xl}>
         <TituloHeader>Qué vas a comprar</TituloHeader>
         <View style={styles.buscador}>
@@ -286,6 +288,7 @@ export default function PantallaBuscar() {
               producto={item}
               cantidad={carrito.cantidadDe(item.ean)}
               precio={precios[item.ean]}
+              supersActivos={supersActivos}
               onAgregar={() => carrito.agregar(item)}
               onCambiarCantidad={n => carrito.cambiarCantidad(item.ean, n)}
             />
@@ -445,12 +448,13 @@ function EstadoInicial({
  * Stepper es el único elemento interactivo.
  */
 function FilaProducto({
-  producto, cantidad, precio, onAgregar, onCambiarCantidad,
+  producto, cantidad, precio, supersActivos, onAgregar, onCambiarCantidad,
 }: {
   producto: ProductoCatalogo;
   cantidad: number;
   /** undefined = todavía no se pidió (no visible el tiempo suficiente); 'error' = falló el pedido. */
   precio: PrecioRapido | 'error' | undefined;
+  supersActivos: SuperKey[];
   onAgregar: () => void;
   onCambiarCantidad: (n: number) => void;
 }) {
@@ -459,7 +463,7 @@ function FilaProducto({
 
   const contenido = (
     <>
-      <BandaDisponibilidad disponibleEn={producto.disponibleEn} />
+      <BandaDisponibilidad disponibleEn={producto.disponibleEn} supersActivos={supersActivos} />
       <View style={styles.filaCuerpo}>
         <FotoProducto nombre={producto.nombre} imagen={producto.imagen} tamano={48} />
 

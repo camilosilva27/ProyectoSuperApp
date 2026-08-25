@@ -29,14 +29,19 @@ const { unificar } = require('./unificarCatalogo');
 
 const DIR_ALLPROMOS = path.join(__dirname, '..', '..', '..', 'AllPromos');
 
+// Coto va AL FINAL a propósito (2026-08-25): scraper-coto-por-ean.js reemplazó al recorte por
+// categoría (scraper-promos-coto.js, borrado tras probarlo en paralelo sin problemas) y
+// necesita leer los catalogo-*.json de los otros 6 supers YA actualizados en esta misma corrida
+// (arma la lista de EAN a consultar en Coto a partir de esos archivos) — si corriera antes,
+// leería catálogos de la corrida anterior, no de esta.
 const SCRAPERS = [
   { nombre: 'Vea',        archivo: 'scraper-promos-vea.js',        timeoutMs: 15 * 60 * 1000 },
   { nombre: 'Carrefour',  archivo: 'scraper-promos-carrefour.js',  timeoutMs: 25 * 60 * 1000 },
   { nombre: 'Chango Más', archivo: 'scraper-promos-changomas.js',  timeoutMs: 15 * 60 * 1000 },
   { nombre: 'Día',        archivo: 'scraper-promos-dia.js',        timeoutMs: 15 * 60 * 1000 },
-  { nombre: 'Coto',       archivo: 'scraper-promos-coto.js',       timeoutMs: 20 * 60 * 1000 },
   { nombre: 'Jumbo',      archivo: 'scraper-promos-jumbo.js',      timeoutMs: 15 * 60 * 1000 },
   { nombre: 'Disco',      archivo: 'scraper-promos-disco.js',      timeoutMs: 15 * 60 * 1000 },
+  { nombre: 'Coto',       archivo: 'scraper-coto-por-ean.js',      timeoutMs: 25 * 60 * 1000 },
 ];
 
 function correrScraper({ nombre, archivo, timeoutMs }) {

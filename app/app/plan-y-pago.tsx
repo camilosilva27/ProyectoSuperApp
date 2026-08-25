@@ -10,6 +10,7 @@
  */
 
 import { useRouter } from 'expo-router';
+import Head from 'expo-router/head';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -91,6 +92,7 @@ export default function PantallaPlanYPago() {
 
   return (
     <View style={{ flex: 1, backgroundColor: paleta.fondo, paddingTop: insets.top }}>
+      <Head><title>Plan y pago - Super App</title></Head>
       <PlanSelect
         precios={precios}
         suscripcion={estadoSuscripcionActiva(infoPlan)}

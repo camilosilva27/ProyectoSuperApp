@@ -9,7 +9,7 @@ import { ScrollViewStyleReset } from 'expo-router/html';
 import { type PropsWithChildren } from 'react';
 
 const URL_APP = 'https://mi-superapp.vercel.app';
-const DESCRIPCION = 'Comparador de precios de supermercados.';
+const DESCRIPCION = 'Compará precios entre Vea, Carrefour, Chango Más, Día, Coto, Jumbo y Disco, y armá la compra más barata.';
 
 export default function Root({ children }: PropsWithChildren) {
   return (

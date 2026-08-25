@@ -9,6 +9,7 @@
  * viaja siempre pegada al monto, nunca en letra chica aparte.
  */
 
+import Head from 'expo-router/head';
 import React, { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -49,6 +50,7 @@ export default function PantallaAhorros() {
 
   return (
     <View style={{ flex: 1, backgroundColor: paleta.fondo }}>
+      <Head><title>Mis ahorros - Super App</title></Head>
       <HeaderNegro paddingTop={insets.top + 32} estilo={{ paddingBottom: 22, gap: 14 }}>
         <TituloHeader>MIS AHORROS</TituloHeader>
         <View
