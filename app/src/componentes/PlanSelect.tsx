@@ -54,16 +54,29 @@ function planesDe(precios: PreciosPlanes): Plan[] {
 }
 
 function argumentoDe(plan: Plan, precioMensual: number): string {
-  if (plan.id === 'mensual') return 'Sin compromiso: cancelás cuando quieras desde Ajustes.';
+  if (plan.id === 'mensual') return 'Se renueva cada mes. Cancelás cuando quieras desde Ajustes.';
   if (plan.id === 'anual') {
     const mesesPagados = Math.round(plan.precio / precioMensual);
     const mesesGratis = 12 - mesesPagados;
     return mesesGratis > 0
-      ? `Pagás ${mesesPagados} meses y usás los 12 — ${mesesGratis} no se cobran.`
+      ? `Pagás ${mesesPagados} meses y te llevás ${mesesGratis} gratis.`
       : 'El precio de todo el año, cobrado una sola vez.';
   }
   const meses = Math.round(plan.precio / precioMensual);
-  return `Se paga solo en ${meses} meses. Después, para siempre y sin ningún cobro más.`;
+  return `Por el precio de ${meses} meses, tenes acceso para siempre y sin ningún cobro más.`;
+}
+
+/** Dos líneas, "Pagar el X" (sin plan activo) o "Pasarme al X" (upgrade), seguido del precio
+ *  con su período. Sin mayúsculas: la línea 1 se distingue por peso/tamaño, no por caps. */
+function textoCTA(plan: Plan, tienePlanActivo: boolean): { linea1: string; linea2: string } {
+  const verbo = tienePlanActivo ? 'Pasarme al' : 'Pagar el';
+  const linea1 = `${verbo} ${NOMBRE_PLAN[plan.id]}`;
+  const linea2 = plan.periodo === 'unico'
+    ? `${pesosCorto(plan.precio)} — pago único`
+    : plan.periodo === 'año'
+      ? `${pesosCorto(plan.precio)} por año — un solo cobro`
+      : `${pesosCorto(plan.precio)} por mes`;
+  return { linea1, linea2 };
 }
 
 function TarjetaPlan({
@@ -178,10 +191,12 @@ function TarjetaPlan({
         <View
           style={[
             styles.botonTarjeta,
-            { backgroundColor: esAnual ? paleta.oferta : paleta.tinta },
+            esAnual
+              ? { backgroundColor: paleta.oferta }
+              : { backgroundColor: 'transparent', borderWidth: 1, borderColor: paleta.tinta },
           ]}
         >
-          <Text style={[texto.cuerpoMedio, { color: esAnual ? paleta.ofertaTinta : '#FFFFFF' }]}>
+          <Text style={[texto.cuerpoMedio, { color: esAnual ? paleta.ofertaTinta : paleta.tinta }]}>
             Elegir {NOMBRE_PLAN[plan.id]}
           </Text>
         </View>
@@ -211,6 +226,7 @@ export function PlanSelect({
 
   const planes = planesDe(precios);
   const esPermanenteActivo = suscripcion.planId === 'permanente';
+  const tienePlanActivo = !!suscripcion.planId && !esPermanenteActivo;
 
   const estadoDe = (planId: PlanId): 'elegible' | 'actual' | 'incluido' => {
     if (esPermanenteActivo) return planId === 'permanente' ? 'actual' : 'incluido';
@@ -223,12 +239,30 @@ export function PlanSelect({
 
   return (
     <View style={[styles.pantalla, { backgroundColor: paleta.fondo }]}>
-      <View style={[styles.header, { opacity: cargando ? 0.4 : 1 }]}>
-        <Text style={[texto.titulo, { color: paleta.tinta }]}>Elegí tu plan</Text>
-        {!bloqueante && onCerrar ? (
-          <Pressable onPress={onCerrar} accessibilityRole="button" accessibilityLabel="Cerrar" hitSlop={8}>
-            <Text style={[texto.titulo, { color: paleta.tintaSuave }]}>×</Text>
-          </Pressable>
+      <View style={{ opacity: cargando ? 0.4 : 1, gap: espacio.xs }}>
+        <View style={styles.header}>
+          <View style={{ flex: 1, gap: espacio.xs }}>
+            {!tienePlanActivo ? (
+              <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>ELEGÍ CÓMO SEGUIR</Text>
+            ) : null}
+            <Text style={[texto.titulo, { color: paleta.tinta }]}>
+              {tienePlanActivo ? 'Cambiar de plan' : 'Elegí tu plan'}
+            </Text>
+          </View>
+          {!bloqueante && onCerrar ? (
+            <Pressable onPress={onCerrar} accessibilityRole="button" accessibilityLabel="Cerrar" hitSlop={8}>
+              <Text style={[texto.titulo, { color: paleta.tintaSuave }]}>×</Text>
+            </Pressable>
+          ) : null}
+        </View>
+        {tienePlanActivo ? (
+          <Text style={[texto.cuerpo, { color: paleta.tintaProsa }]}>
+            Estás en el plan {NOMBRE_PLAN[suscripcion.planId as PlanId]}. Podés pasarte a cualquiera de los otros dos.
+          </Text>
+        ) : !esPermanenteActivo ? (
+          <Text style={[texto.cuerpo, { color: paleta.tintaProsa }]}>
+            Cambia cuánto pagás y cada cuánto. Las funciones son las mismas en los tres.
+          </Text>
         ) : null}
       </View>
 
@@ -266,9 +300,9 @@ export function PlanSelect({
 
       {hayCTA && !esWeb ? (
         <View style={styles.pie}>
-          {suscripcion.planId && estadoDe('anual') === 'elegible' && precios.mensual && precios.anual ? (
+          {tienePlanActivo ? (
             <Text style={[texto.cuerpo, { color: paleta.tintaSuave }]}>
-              Cambiar de plan cobra el nuevo completo — no se descuenta lo que quede del actual.
+              Se cobra el plan nuevo completo hoy. El Mensual se cancela y no se descuenta lo que te queda del mes en curso.
             </Text>
           ) : null}
           <Pressable
@@ -283,28 +317,36 @@ export function PlanSelect({
             {cargando ? (
               <View style={styles.ctaContenido}>
                 <ActivityIndicator color={paleta.ofertaTinta} />
-                <Text style={[texto.subtitulo, { color: paleta.ofertaTinta }]}>ABRIENDO MERCADO PAGO…</Text>
+                <Text style={[texto.subtitulo, { color: paleta.ofertaTinta }]}>Abriendo Mercado Pago…</Text>
               </View>
-            ) : (
-              <Text style={[texto.subtitulo, { color: paleta.ofertaTinta }]}>
-                Elegir {planParaCTA ? NOMBRE_PLAN[planParaCTA.id] : ''}
-              </Text>
-            )}
+            ) : planParaCTA ? (
+              <View style={{ alignItems: 'center', gap: 2 }}>
+                <Text style={[texto.subtitulo, { color: paleta.ofertaTinta }]}>
+                  {textoCTA(planParaCTA, tienePlanActivo).linea1}
+                </Text>
+                <Text style={[texto.cuerpoMedio, { color: paleta.ofertaTinta }]}>
+                  {textoCTA(planParaCTA, tienePlanActivo).linea2}
+                </Text>
+              </View>
+            ) : null}
           </Pressable>
           {cargando ? (
             <Text style={[texto.dato, { color: paleta.tintaSuave, textAlign: 'center' }]}>
-              Si no volvés solo, tocá atrás y probá de nuevo: no se cobró nada todavía.
+              Se va a abrir el checkout de Mercado Pago. Si no vuelve solo, tocá atrás y probá de nuevo: no se cobró nada todavía.
             </Text>
-          ) : null}
-          {error ? (
+          ) : error ? (
             <Text style={[texto.cuerpo, { color: paleta.errorTexto, textAlign: 'center' }]}>{error}</Text>
-          ) : null}
+          ) : (
+            <Text style={[texto.dato, { color: paleta.tintaSuave, textAlign: 'center' }]}>
+              Se paga con Mercado Pago
+            </Text>
+          )}
         </View>
       ) : null}
 
-      {hayCTA && esWeb ? (
+      {hayCTA && esWeb && tienePlanActivo ? (
         <Text style={[texto.dato, { color: paleta.tintaSuave, textAlign: 'center', marginTop: espacio.lg }]}>
-          Cambiar de plan cobra el nuevo completo — no se descuenta lo que quede del actual.
+          Se cobra el plan nuevo completo hoy. El Mensual se cancela y no se descuenta lo que te queda del mes en curso.
         </Text>
       ) : null}
     </View>

@@ -1,6 +1,6 @@
 /**
- * Hoja "confirmá tu mail de Mercado Pago" (turno 13, design_handoff_allpromos_v2/PANTALLA-12-
- * eleccion-de-plan.md § "Turno 13"). Resuelve un bug de producto real, no un paso decorativo:
+ * Hoja "Tu mail de Mercado Pago" (turno 13, design_handoff_allpromos_v2/TURNOS-12-13-planes-y-
+ * -pago.md). Resuelve un bug de producto real, no un paso decorativo:
  * el `payer_email` de una suscripción tiene que coincidir con la cuenta de MP del pagador, y
  * hoy se manda siempre el mail de la sesión de Super App sin preguntar (opciones_planes.md,
  * "Problema real de producto confirmado"). Se abre después de `PlanSelect`, antes del checkout.
@@ -73,11 +73,11 @@ export function MercadoPagoEmailSheet({
         <View style={[styles.hoja, { backgroundColor: paleta.superficie }]}>
           <View style={{ gap: espacio.xs }}>
             <Text style={[texto.subtitulo, { color: paleta.tinta, fontSize: 22 }]}>
-              Confirmá tu mail de Mercado Pago
+              Tu mail de Mercado Pago
             </Text>
             <Text style={[texto.cuerpo, { color: paleta.tintaProsa }]}>
-              El cobro se hace a la cuenta de Mercado Pago de este mail. Si no es el mismo que
-              usás en Super App, no hay problema — solo confirmalo antes de seguir.
+              El cobro se hace sobre la cuenta de Mercado Pago que tenga este mail. Si tu cuenta
+              de Mercado Pago usa otro, cambialo acá.
             </Text>
           </View>
 
@@ -112,6 +112,10 @@ export function MercadoPagoEmailSheet({
               accessibilityLabel="Mail de Mercado Pago"
             />
 
+            <Text style={[texto.dato, { color: paleta.tintaSuave }]}>
+              Es el mail con el que entrás a la app.
+            </Text>
+
             {emailLimpio && !formatoValido ? (
               <Text style={[texto.dato, { color: paleta.errorTexto }]}>
                 Falta el final del mail (.com, .com.ar).
@@ -119,30 +123,48 @@ export function MercadoPagoEmailSheet({
             ) : esDistintoDelApp ? (
               <View style={[styles.avisoInfo, { backgroundColor: paleta.superficieAlt }]}>
                 <Text style={[texto.dato, { color: paleta.tintaProsa }]}>
-                  Es distinto del mail de tu cuenta de Super App — está bien si es el que usás en
-                  Mercado Pago.
+                  Distinto al mail de la app (
+                  <Text style={{ color: paleta.tinta, fontWeight: '600' }}>{mailApp}</Text>
+                  ). Está bien si tu cuenta de Mercado Pago es esa.
                 </Text>
               </View>
             ) : null}
 
             <Text style={[texto.dato, { color: paleta.tintaSuave }]}>
-              No se guardan datos de tarjeta: el pago se hace en Mercado Pago.
+              No guardamos datos de tarjeta. El pago se completa en Mercado Pago.
             </Text>
           </View>
 
           {error ? (
             <View style={[styles.avisoError, { backgroundColor: paleta.errorFondo, borderColor: paleta.errorBorde }]}>
-              <Text style={[texto.cuerpoMedio, { color: paleta.errorTexto }]}>
-                No se te cobró nada. {error}
+              <Text style={[texto.subtitulo, { color: paleta.errorTexto }]}>No se te cobró nada</Text>
+              <Text style={[texto.cuerpo, { color: paleta.tintaProsa }]}>
+                No pudimos abrir Mercado Pago. Puede ser la conexión o que Mercado Pago esté con
+                problemas. Probá de nuevo en un minuto.
               </Text>
               <View style={styles.filaBotonesError}>
-                <Pressable onPress={confirmar} disabled={!puedeConfirmar} accessibilityRole="button">
-                  <Text style={[texto.cuerpoMedio, { color: paleta.errorTexto, textDecorationLine: 'underline' }]}>
-                    Probar de nuevo
-                  </Text>
+                <Pressable
+                  onPress={confirmar}
+                  disabled={!puedeConfirmar}
+                  accessibilityRole="button"
+                  style={[
+                    styles.botonConfirmar,
+                    { backgroundColor: paleta.tinta, opacity: puedeConfirmar ? 1 : 0.4 },
+                  ]}
+                >
+                  <View style={{ alignItems: 'center', gap: 2 }}>
+                    <Text style={[texto.subtitulo, { color: paleta.superficie }]}>
+                      Probar de nuevo
+                    </Text>
+                    <Text style={[texto.cuerpoMedio, { color: paleta.superficie }]}>
+                      Plan {NOMBRE_PLAN[plan.id]} · {pesosCorto(plan.precio)}
+                    </Text>
+                  </View>
                 </Pressable>
-                <Pressable onPress={onElegirOtroPlan} accessibilityRole="button">
-                  <Text style={[texto.cuerpo, { color: paleta.errorTexto }]}>Elegir otro plan</Text>
+                <Pressable onPress={onElegirOtroPlan} accessibilityRole="button" style={{ alignSelf: 'center' }}>
+                  <Text style={[texto.cuerpo, { color: paleta.errorTexto, textDecorationLine: 'underline' }]}>
+                    Elegir otro plan
+                  </Text>
                 </Pressable>
               </View>
             </View>
@@ -159,7 +181,7 @@ export function MercadoPagoEmailSheet({
               {enviando ? (
                 <ActivityIndicator color={paleta.superficie} />
               ) : (
-                <Text style={[texto.cuerpoMedio, { color: paleta.superficie }]}>Confirmar y continuar</Text>
+                <Text style={[texto.subtitulo, { color: paleta.superficie }]}>Ir a pagar</Text>
               )}
             </Pressable>
           )}
@@ -185,7 +207,7 @@ const styles = StyleSheet.create({
   },
   avisoInfo: { borderRadius: radio.sm, padding: espacio.sm },
   avisoError: { borderWidth: 1, borderRadius: radio.md, padding: espacio.md, gap: espacio.sm },
-  filaBotonesError: { flexDirection: 'row', gap: espacio.lg },
+  filaBotonesError: { gap: espacio.sm },
   botonConfirmar: {
     height: 52, borderRadius: radio.md, alignItems: 'center', justifyContent: 'center',
   },
