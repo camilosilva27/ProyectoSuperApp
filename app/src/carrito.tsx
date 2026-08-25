@@ -41,6 +41,7 @@ type Accion =
 export const TARJETAS_DISPONIBLES = [
   'Mi Carrefour', 'MasClub', 'Cencopay',
   'Santander', 'MODO', 'Mercado Pago', 'Cuenta DNI', 'Banco Provincia',
+  'Galicia', 'Galicia Modo', 'Banco Macro', 'HSBC', 'BBVA', 'ICBC',
 ];
 
 // Vacío a propósito: no hace falta elegir tarjetas para comparar. Las promos de tarjeta
