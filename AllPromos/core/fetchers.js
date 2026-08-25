@@ -42,7 +42,7 @@ const DIA_HOST   = 'https://diaonline.supermercadosdia.com.ar';
 const DIA_SELLER = '1';
 
 // Coto no es VTEX: el buscador lo sirve Constructor.io vía el gateway de Coto (misma API key
-// pública de solo lectura que usa scraper-promos-coto.js). Se busca por término de texto
+// pública de solo lectura que usa scraper-coto-por-ean.js). Se busca por término de texto
 // (`products/search/{termino}`) — no hay un filtro exacto por EAN como en VTEX, así que
 // cotoLive() busca por EAN como término y filtra el resultado que matchee ese EAN exacto.
 //
@@ -50,9 +50,9 @@ const DIA_SELLER = '1';
 // los otros 4 (precio único nacional). Decisión del usuario (2026-08-11, explícita y
 // revisable): usar SIEMPRE el precio dominante (moda entre sucursales, empate a favor del
 // más bajo) como precioBase — nunca se pregunta ni se resuelve por sucursal puntual. OJO: en
-// algunas zonas de CABA (Flores y Once, según lo confirmado en vivo en scraper-promos-coto.js)
-// el precio real puede ser un poco MENOR al dominante — es una aproximación válida para la
-// mayoría de las sucursales, no el precio exacto de ninguna en particular.
+// algunas zonas de CABA (Flores y Once, confirmado en vivo — ver CONTEXTO_TECNICO.md § "API
+// de Coto") el precio real puede ser un poco MENOR al dominante — es una aproximación válida
+// para la mayoría de las sucursales, no el precio exacto de ninguna en particular.
 const COTO_KEY  = 'key_r6xzz4IAoTWcipni';
 const COTO_HOST = 'https://api.coto.com.ar/api/v1/ms-digital-sitio-bff-web/api/v1/products/search';
 
@@ -483,7 +483,7 @@ function parsearProductosCoto(results) {
   const resultados = [];
   for (const item of results) {
     const d = item.data || {};
-    if (!(d.store_availability || []).length) continue; // SKU fantasma discontinuado, ver scraper-promos-coto.js
+    if (!(d.store_availability || []).length) continue; // SKU fantasma discontinuado, ver scraper-coto-por-ean.js
     const ean = d.product_main_ean ? String(d.product_main_ean) : null;
     const productName = d.sku_display_name || d.sku_description || null;
     const precios = (d.price || []).map(p => p.listPrice).filter(p => typeof p === 'number');

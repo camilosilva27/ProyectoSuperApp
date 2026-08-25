@@ -11,6 +11,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
+import Head from 'expo-router/head';
 import React, { useEffect, useRef } from 'react';
 import {
   ActivityIndicator, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View,
@@ -110,6 +111,7 @@ export default function PantallaMisDescuentos() {
 
   return (
     <View style={{ flex: 1, backgroundColor: paleta.fondo }}>
+      <Head><title>Mis descuentos - Super App</title></Head>
       <HeaderNegro paddingTop={insets.top + espacio.md} estilo={{ gap: espacio.sm }}>
         {/* router.back() sin más falla con "GO_BACK not handled" si no hay historial previo
             (recargar la página acá, o entrar por URL directa) — canGoBack() lo detecta y cae

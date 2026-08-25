@@ -15,6 +15,7 @@
  */
 
 import { useRouter } from 'expo-router';
+import Head from 'expo-router/head';
 import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,7 +25,9 @@ import { ConfirmacionModal } from '../../src/componentes/Confirmacion';
 import { Stepper, Vacio } from '../../src/componentes/comunes';
 import { FotoProducto } from '../../src/componentes/FotoProducto';
 import { GuardarCarritoHoja, ToastGuardado } from '../../src/componentes/GuardarCarritoHoja';
-import { HeaderNegro, TituloHeader } from '../../src/componentes/HeaderNegro';
+import { HeaderNegro, SelectorSupers, TituloHeader } from '../../src/componentes/HeaderNegro';
+import { HojaSupers } from '../../src/componentes/HojaSupers';
+import { useFiltrosSupers } from '../../src/filtrosSupers';
 import { espacio, radio, texto } from '../../src/theme';
 import { useTema } from '../../src/useTema';
 
@@ -34,10 +37,12 @@ export default function PantallaCarrito() {
   const router = useRouter();
   const carrito = useCarrito();
   const carritosGuardados = useCarritosGuardados();
+  const { supersActivos, toggleSuper, topeSupers, setSupersYTope, usoPorSuper } = useFiltrosSupers();
   const [mostrarHoja, setMostrarHoja] = useState(false);
   const [recienGuardadoId, setRecienGuardadoId] = useState<string | null>(null);
   const [toastNombre, setToastNombre] = useState<string | null>(null);
   const [mostrarConfirmarVaciar, setMostrarConfirmarVaciar] = useState(false);
+  const [mostrarHojaSupers, setMostrarHojaSupers] = useState(false);
 
   const vacia = carrito.items.length === 0;
 
@@ -55,12 +60,27 @@ export default function PantallaCarrito() {
 
   return (
     <View style={[styles.pantalla, { backgroundColor: paleta.fondo }]}>
-      <HeaderNegro paddingTop={insets.top + espacio.xl} estilo={styles.headerCarrito}>
-        <TituloHeader>Carrito</TituloHeader>
+      <Head><title>Carrito - Super App</title></Head>
+      <HeaderNegro paddingTop={insets.top + espacio.xl}>
+        <View style={styles.headerCarrito}>
+          <TituloHeader>Carrito</TituloHeader>
+          {!vacia ? (
+            <Text style={[texto.etiqueta, styles.subtituloHeader]}>
+              {carrito.items.length} producto{carrito.items.length === 1 ? '' : 's'} · {carrito.totalUnidades} u
+            </Text>
+          ) : null}
+        </View>
+        {/* Carrito comparaba siempre con lo que hubiera quedado activo en Buscar, sin forma de
+            tocarlo sin pasar por ahí primero (un carrito guardado se abre directo acá, sin
+            haber buscado nada). Mismo selector/hoja que Buscar — es el mismo filtro global
+            (useFiltrosSupers), no un estado propio de esta pantalla. */}
         {!vacia ? (
-          <Text style={[texto.etiqueta, styles.subtituloHeader]}>
-            {carrito.items.length} producto{carrito.items.length === 1 ? '' : 's'} · {carrito.totalUnidades} u
-          </Text>
+          <SelectorSupers
+            activos={supersActivos}
+            usoPorSuper={usoPorSuper}
+            onQuitar={toggleSuper}
+            onAbrirHoja={() => setMostrarHojaSupers(true)}
+          />
         ) : null}
       </HeaderNegro>
 
@@ -191,7 +211,10 @@ export default function PantallaCarrito() {
         )}
       </ScrollView>
 
-      {!vacia ? (
+      {/* Oculta mientras la hoja de supers está abierta: mismo bug que en Buscar (ver comentario
+          en index.tsx) — sin esto se podía tocar "Comparar precios" con la hoja todavía abierta
+          y navegar sin pasar por cerrarYConfirmar, comparando con la selección/tope viejos. */}
+      {!vacia && !mostrarHojaSupers ? (
         <View
           style={[
             styles.barraInferior,
@@ -231,6 +254,14 @@ export default function PantallaCarrito() {
         textoConfirmar="Vaciar"
         onCancelar={() => setMostrarConfirmarVaciar(false)}
         onConfirmar={vaciarConfirmado}
+      />
+
+      <HojaSupers
+        visible={mostrarHojaSupers}
+        activos={supersActivos}
+        tope={topeSupers}
+        onCerrar={() => setMostrarHojaSupers(false)}
+        onAplicar={setSupersYTope}
       />
     </View>
   );

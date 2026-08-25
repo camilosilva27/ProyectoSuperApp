@@ -17,6 +17,7 @@ import CarrefourLogo from '../../assets/logos/carrefour.svg';
 import CotoLogo from '../../assets/logos/coto.svg';
 import DiaLogo from '../../assets/logos/dia.svg';
 import DiscoLogo from '../../assets/logos/disco.svg';
+import { NOMBRE_SUPER } from './comunes';
 
 const LOGOS_VECTOR: Partial<Record<SuperKey, React.FC<{ width?: number | string; height?: number | string }>>> = {
   carr: CarrefourLogo,
@@ -34,14 +35,24 @@ const LOGOS_RASTER: Partial<Record<SuperKey, number>> = {
 /** El logo solo, sin placa — para cuando el caller ya arma su propio fondo blanco alrededor. */
 export function LogoSuper({ superKey, alto }: { superKey: SuperKey; alto: number }) {
   const Vector = LOGOS_VECTOR[superKey];
-  if (Vector) return <Vector width="100%" height={alto} />;
-
   return (
-    <Image
-      source={LOGOS_RASTER[superKey]}
+    // El SVG (react-native-svg-transformer) no acepta accessibilityLabel de forma confiable
+    // en web, así que el nombre accesible va en este contenedor, no en el logo en sí.
+    <View
       style={{ width: '100%', height: alto }}
-      contentFit="contain"
-    />
+      accessibilityRole="image"
+      accessibilityLabel={`Logo de ${NOMBRE_SUPER[superKey]}`}
+    >
+      {Vector ? (
+        <Vector width="100%" height={alto} />
+      ) : (
+        <Image
+          source={LOGOS_RASTER[superKey]}
+          style={{ width: '100%', height: alto }}
+          contentFit="contain"
+        />
+      )}
+    </View>
   );
 }
 

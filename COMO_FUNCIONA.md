@@ -190,7 +190,7 @@ node scraper-promos-vea.js           # demora ~5 minutos
 node scraper-promos-carrefour.js     # demora ~10 minutos
 node scraper-promos-changomas.js     # demora ~2 minutos
 node scraper-promos-dia.js           # demora ~2 minutos
-node scraper-promos-coto.js          # tiempo variable, catálogo completo
+node scraper-coto-por-ean.js         # ~9 minutos, busca por EAN los productos ya conocidos de los otros supers
 ```
 
 ---
