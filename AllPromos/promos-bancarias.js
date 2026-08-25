@@ -62,6 +62,12 @@ const ALIAS_TARJETAS = {
   'Cencopay':        ['cencopay'],
   'Mi Carrefour':    ['mi carrefour'],
   'MasClub':         ['masclub'],
+  'Galicia':         ['galicia'],
+  'Galicia Modo':    ['galicia modo'],
+  'Banco Macro':     ['banco macro'],
+  'HSBC':            ['hsbc'],
+  'BBVA':            ['bbva'],
+  'ICBC':            ['icbc'],
 };
 
 // "Banco provincia de Neuquén" es una entidad distinta de Banco Provincia de Bs.As.
@@ -69,6 +75,11 @@ const ALIAS_TARJETAS = {
 // riesgo real en la investigación. Excluida a mano.
 const EXCLUSIONES_ALIAS = {
   'Banco Provincia': ['neuquen'],
+  // "Galicia Modo" exige pagar con la app MODO del banco, no solo tener la tarjeta —
+  // es una promo distinta de 'Galicia' aunque el nombre crudo contenga el substring
+  // "galicia" (decisión del usuario: tratarlas separadas, como ya pasa con MODO vs.
+  // Mercado Pago).
+  'Galicia': ['modo'],
 };
 
 const DIAS_SEMANA_KEYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
