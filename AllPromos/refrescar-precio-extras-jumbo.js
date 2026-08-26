@@ -8,6 +8,7 @@
  */
 
 const fs = require('fs');
+const { escribirAtomico } = require('./core/escrituraAtomica');
 const https = require('https');
 const { buscarPorSkuIds } = require('./core/batchPorSkuId');
 
@@ -152,13 +153,13 @@ async function main() {
   const conPromo = nuevosExtras.filter(p => p.promocion !== null);
   const meta = { fecha: new Date().toISOString(), supermercado: 'Jumbo', seller: PROMO_SELLER };
 
-  fs.writeFileSync(RUTA_EXTRAS, JSON.stringify({
+  escribirAtomico(RUTA_EXTRAS, JSON.stringify({
     ...meta,
     total_skus: nuevosExtras.length,
     skus: nuevosExtras,
   }, null, 2));
 
-  fs.writeFileSync('./promos-jumbo-extras.json', JSON.stringify({
+  escribirAtomico('./promos-jumbo-extras.json', JSON.stringify({
     ...meta,
     total_skus_analizados: nuevosExtras.length,
     total_con_promo: conPromo.length,

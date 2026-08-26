@@ -8,6 +8,10 @@ AllPromos/promos-*.json
 backend/catalogo-unificado.json
 backend/catalogo-unificado.json.tmp
 
+# Temporales de la escritura atómica (core/escrituraAtomica.js) — se renombran solos al
+# terminar, esto es solo por si queda alguno a mitad de camino tras un corte.
+AllPromos/*.json.tmp.*
+
 # Progreso a medio camino de los completar-*-por-ean.js (ver completador_catalogos.md) —
 # se borra solo al terminar con éxito, esto es solo por si queda alguno a mitad de camino.
 AllPromos/.checkpoint-*.json

@@ -34,10 +34,23 @@ function leerUltimoRefresco() {
   }
 }
 
+// Descubrimiento de candidatos nuevos por EAN (mensual, ver
+// backend/src/cron/descubrirCandidatosExtras.js) — separado de ultimoRefresco porque corre en
+// un cron distinto y mucho menos frecuente; no reportarlo acá haría que un fallo quedara
+// invisible hasta que alguien lo notara a mano.
+function leerUltimoDescubrimiento() {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(rutaLogs, 'ultimo-descubrimiento.json'), 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
 router.get('/health', (req, res) => {
   const catalogos = estadoCatalogos({ diasMaximo: diasMaximoCatalogo });
   const unificado = leerEstadoUnificado();
   const ultimoRefresco = leerUltimoRefresco();
+  const ultimoDescubrimiento = leerUltimoDescubrimiento();
   const sonda = sondaEnVivo.estadoActual();
   const generadoPromosBancarias = fechaGeneracionPromosBancarias();
   const horasPromosBancarias = generadoPromosBancarias
@@ -54,6 +67,9 @@ router.get('/health', (req, res) => {
   }
   if (ultimoRefresco?.errores?.length) {
     problemas.push(...ultimoRefresco.errores);
+  }
+  if (ultimoDescubrimiento?.errores?.length) {
+    problemas.push(...ultimoDescubrimiento.errores);
   }
   if (sonda.error) {
     problemas.push(`Sonda en vivo no pudo correr: ${sonda.error}`);
@@ -81,6 +97,7 @@ router.get('/health', (req, res) => {
     cachePrecio: { fuentes: precioCache.estadoFuentes() },
     promosBancarias: { generado: generadoPromosBancarias, horas: horasPromosBancarias },
     ultimoRefresco,
+    ultimoDescubrimiento,
     sondaEnVivo: sonda,
     problemas,
   });
