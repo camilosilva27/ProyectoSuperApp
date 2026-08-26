@@ -242,15 +242,52 @@ Sesión de retomada (2026-08-26): se implementó el diseño de § 6 y se sacó l
    esperar al auto-deploy de GitHub Actions) para tener el código nuevo. Ver § 11 para el estado
    de este paso.
 5. **Sigue pendiente, sin implementar** (no bloqueante, no se tocó esta sesión):
-   - Refrescar precio de los EAN ya conocidos en `-extras.json` en el cron normal — hoy el
-     precio de los extras solo se actualiza cuando alguien vuelve a correr el completador
-     completo (candidatos + barrido), no hay un camino liviano "solo refrescar precio de lo
-     que ya sé que existe" todavía.
    - Decidir la frecuencia real del cron para "buscar candidatos nuevos" — falta medir el
      tiempo real de una corrida incremental (la de hoy, al no haber `-extras.json` previo en
      ningún lado, es equivalente a una primera corrida completa, no mide lo incremental).
-   - Conectar los 6 completadores al cron real (`refrescarCatalogos.js`) — hoy siguen siendo
-     scripts sueltos, se corren a mano.
+   - Conectar los 6 completadores (descubrimiento) y los 6 `refrescar-precio-extras-*.js`
+     (precio, ver § 12) al cron real (`refrescarCatalogos.js`) — hoy siguen siendo scripts
+     sueltos, se corren a mano.
+   - Arreglar una condición de carrera real encontrada al revisar esto (no introducida hoy,
+     pero más peligrosa ahora que hay más escritores del mismo archivo): `leerCatalogo()` en
+     `core/catalogo.js` no envuelve el `JSON.parse` en try/catch, y ninguno de los scripts que
+     escriben `catalogo-X-extras.json` (ni los 6 completadores ni los 6 refrescadores de precio)
+     usa escritura atómica (`.tmp` + `rename`, como sí hace `unificarCatalogo.js`). Si el server
+     de producción lee ese archivo justo en el instante en que un script lo está reescribiendo,
+     puede leer JSON a medio escribir y crashear. No corría riesgo mientras nada tocaba
+     `-extras.json` en producción; ahora que sí, conviene resolverlo antes de conectar esto a un
+     cron que corre sin supervisión.
+
+## 12. Refresco liviano de precio para extras conocidos (2026-08-26, implementado y probado local)
+
+Separación pedida por el usuario: "buscar candidatos nuevos" (caro, § 10) queda con frecuencia
+baja (semanal/mensual, a decidir) — pero el **precio** de lo ya conocido en `-extras.json` no
+debería quedar tan stale, porque ese archivo alimenta `precioCache.js` igual que el catálogo
+base (`/api/comparar` no distingue "es un extra" de "es del top ~2.550", sirve lo que encuentra
+en el índice sin chequear antigüedad — ver discusión en el chat de esta sesión). Sin este
+refresco, un producto encontrado por el completador quedaría con el precio del día que se
+encontró hasta la próxima corrida completa de descubrimiento.
+
+**Nuevos 6 scripts**: `refrescar-precio-extras-{vea,carrefour,changomas,dia,jumbo,disco}.js`.
+Leen `catalogo-X-extras.json`, piden precio actualizado SOLO de los `skuId` que ya tienen
+guardados (no recalculan candidatos), y reescriben el mismo archivo. Un producto que ya no
+aparece disponible se saca (mismo criterio que el scraper normal).
+
+**Batch confirmado en vivo (2026-08-26) en los 6 supers**: el endpoint de búsqueda de VTEX
+(`/api/catalog_system/pub/products/search`) acepta varios `fq=skuId:X` repetidos como OR, hasta
+50 por página con `_from=0&_to=49` (con 100 devolvió 400 — el tope de página es 50, mismo límite
+que ya se conocía de la paginación legacy). Esto es lo que hace que el refresco sea barato: en
+vez de 1 request por SKU conocido, son lotes de hasta 50 — ej. Jumbo con 1.450 extras serían
+~29 requests en vez de 1.450. Nuevo helper compartido: `core/batchPorSkuId.js`.
+
+Family split, igual que en los completadores: Carrefour/Chango Más/Día traen la promo embebida
+en la misma respuesta (reusan `parsearProductos` local); Vea/Jumbo/Disco piden la promo aparte
+vía `_v/search-promotions` (mismo endpoint que ya usaban sus completadores, batcheado de a 10).
+
+**Probado local (Mac) de punta a punta contra las APIs reales**, con una muestra de 6 skuId por
+super sacada de los catálogos locales — los 6 refrescaron precio y promo correctamente. No
+probado todavía con el volumen real de extras de la VM (cientos a ~1.500 por super) ni corrido
+en la VM — falta llevarlo a producción y, si se quiere, conectarlo al cron de 2hs.
 
 ## 11. Hecho en producción (2026-08-26) — resultado final de esta sesión
 
