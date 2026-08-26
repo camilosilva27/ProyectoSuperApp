@@ -7,6 +7,7 @@
  */
 
 const fs = require('fs');
+const { escribirAtomico } = require('./core/escrituraAtomica');
 const { buscarPorSkuIds } = require('./core/batchPorSkuId');
 
 const BASE_URL = 'https://diaonline.supermercadosdia.com.ar';
@@ -123,13 +124,13 @@ async function main() {
   const conPromo = nuevosExtras.filter(p => p.descuentoDirecto || p.promosInternas);
   const meta = { fecha: new Date().toISOString(), supermercado: 'Día', seller: SELLER };
 
-  fs.writeFileSync(RUTA_EXTRAS, JSON.stringify({
+  escribirAtomico(RUTA_EXTRAS, JSON.stringify({
     ...meta,
     total_skus: nuevosExtras.length,
     skus: nuevosExtras,
   }, null, 2));
 
-  fs.writeFileSync('./promos-dia-extras.json', JSON.stringify({
+  escribirAtomico('./promos-dia-extras.json', JSON.stringify({
     ...meta,
     total_skus_analizados: nuevosExtras.length,
     total_con_promo: conPromo.length,

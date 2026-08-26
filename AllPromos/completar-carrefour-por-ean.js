@@ -28,6 +28,7 @@
  */
 
 const fs = require('fs');
+const { escribirAtomico } = require('./core/escrituraAtomica');
 const https = require('https');
 const { leerCatalogo } = require('./core/catalogo');
 const { cargarCheckpoint, guardarCheckpoint, borrarCheckpoint } = require('./core/checkpointEAN');
@@ -240,13 +241,13 @@ async function main() {
 
   const meta = { fecha: new Date().toISOString(), supermercado: 'Carrefour', seller: SELLER };
 
-  fs.writeFileSync(RUTA_EXTRAS, JSON.stringify({
+  escribirAtomico(RUTA_EXTRAS, JSON.stringify({
     ...meta,
     total_skus: extrasCompleto.length,
     skus: extrasCompleto,
   }, null, 2));
 
-  fs.writeFileSync('./promos-carrefour-extras.json', JSON.stringify({
+  escribirAtomico('./promos-carrefour-extras.json', JSON.stringify({
     ...meta,
     total_skus_analizados: extrasCompleto.length,
     total_con_promo: conPromo.length,

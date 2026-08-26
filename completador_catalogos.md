@@ -239,26 +239,13 @@ Sesión de retomada (2026-08-26): se implementó el diseño de § 6 y se sacó l
 4. **Pendiente para que producción se beneficie**: correr los 6 `completar-*-por-ean.js`
    directamente en la VM (contra su propio `catalogo-*.json`, recién scrapeado por su cron) +
    `npm run unificar` ahí — no copiar nada del Mac. Requiere `git pull` en la VM primero (o
-   esperar al auto-deploy de GitHub Actions) para tener el código nuevo. Ver § 11 para el estado
+   esperar al auto-deploy de GitHub Actions) para tener el código nuevo. Ver § 12 para el estado
    de este paso.
-5. **Sigue pendiente, sin implementar** (no bloqueante, no se tocó esta sesión):
-   - Decidir la frecuencia real del cron para "buscar candidatos nuevos" — falta medir el
-     tiempo real de una corrida incremental (la de hoy, al no haber `-extras.json` previo en
-     ningún lado, es equivalente a una primera corrida completa, no mide lo incremental).
-   - Conectar los 6 completadores (descubrimiento) y los 6 `refrescar-precio-extras-*.js`
-     (precio, ver § 12) al cron real (`refrescarCatalogos.js`) — hoy siguen siendo scripts
-     sueltos, se corren a mano.
-   - Arreglar una condición de carrera real encontrada al revisar esto (no introducida hoy,
-     pero más peligrosa ahora que hay más escritores del mismo archivo): `leerCatalogo()` en
-     `core/catalogo.js` no envuelve el `JSON.parse` en try/catch, y ninguno de los scripts que
-     escriben `catalogo-X-extras.json` (ni los 6 completadores ni los 6 refrescadores de precio)
-     usa escritura atómica (`.tmp` + `rename`, como sí hace `unificarCatalogo.js`). Si el server
-     de producción lee ese archivo justo en el instante en que un script lo está reescribiendo,
-     puede leer JSON a medio escribir y crashear. No corría riesgo mientras nada tocaba
-     `-extras.json` en producción; ahora que sí, conviene resolverlo antes de conectar esto a un
-     cron que corre sin supervisión.
+5. **Ya resuelto (ver § 11/§ 13)**: los tres puntos que quedaban pendientes acá — refresco
+   liviano de precio, escritura atómica, y conectar todo a un cron — se implementaron y
+   deployaron el mismo día (2026-08-26), más tarde en la sesión.
 
-## 12. Refresco liviano de precio para extras conocidos (2026-08-26, implementado y probado local)
+## 11. Refresco liviano de precio para extras conocidos (2026-08-26, implementado y probado local)
 
 Separación pedida por el usuario: "buscar candidatos nuevos" (caro, § 10) queda con frecuencia
 baja (semanal/mensual, a decidir) — pero el **precio** de lo ya conocido en `-extras.json` no
@@ -289,7 +276,7 @@ super sacada de los catálogos locales — los 6 refrescaron precio y promo corr
 probado todavía con el volumen real de extras de la VM (cientos a ~1.500 por super) ni corrido
 en la VM — falta llevarlo a producción y, si se quiere, conectarlo al cron de 2hs.
 
-## 11. Hecho en producción (2026-08-26) — resultado final de esta sesión
+## 12. Hecho en producción (2026-08-26) — descubrimiento inicial
 
 Los pasos 1 y 2 de abajo (versión original de esta sección) ya se completaron:
 
@@ -328,3 +315,67 @@ Los pasos 1 y 2 de abajo (versión original de esta sección) ya se completaron:
 - Medir el caso incremental real (candidatos nuevos entre corridas, no la primera corrida
   completa) — para eso hay que volver a correr los 6 scripts más adelante y comparar cuánto
   tardan con `-extras.json` ya poblado.
+
+## 13. Cierre de la sesión (2026-08-26) — refresco en producción, escritura atómica, y los dos crons
+
+**1. Refresco de precio corrido en producción, con volumen real** (no la muestra de 6 SKU del
+§ 11 — los ~833-1.520 extras reales por super). Timing preciso medido con mtimes de archivo
+(loop arrancó 12:30:29 UTC, terminó 12:34:32 UTC):
+
+| Super | Duración | Extras antes → después |
+|---|---|---|
+| Vea | 52.7s | 833 → 833 |
+| Carrefour | 22.3s | 1.520 → 1.511 (-9 ya no disponibles) |
+| Chango Más | 14.1s | 918 → 918 |
+| Día | 7.1s | 421 → 421 |
+| Jumbo | 77.1s | 1.450 → 1.448 (-2) |
+| Disco | 70.0s | 1.213 → 1.210 (-3) |
+
+**Total: 4 min 3 seg para los 6** — contra las ~2h42min de la corrida de descubrimiento completa
+(~40x más rápido), confirmando que separar "buscar candidatos nuevos" de "refrescar precio de lo
+ya conocido" era la decisión correcta. `npm run unificar` corrido después: 7.477 productos
+únicos (bajó de 7.485 por los 14 caídos), `/api/health` → `ok:true`.
+
+**2. Escritura atómica implementada** (el pendiente de seguridad anotado en la versión anterior
+de esta sección): nuevo `core/escrituraAtomica.js` (`.tmp` + `rename`, mismo patrón que ya usa
+`unificarCatalogo.js`), usado ahora por los 6 `completar-*-por-ean.js` Y los 6
+`refrescar-precio-extras-*.js` en vez de `fs.writeFileSync` directo. Además, `leerCatalogo()` en
+`core/catalogo.js` ahora envuelve los `JSON.parse` en try/catch — si por lo que sea agarra un
+archivo a medio escribir, sigue con la última versión buena en caché (o solo con la base, si es
+el archivo de extras el que falló) en vez de crashear. Probado local end-to-end, sin archivos
+`.tmp.*` colgados al terminar.
+
+**3. Conectado a los dos crons** (decisión del usuario 2026-08-26):
+
+- **Refresco de precio (barato, ~4min) → adentro del cron de 2hs.** `refrescarCatalogos.js`
+  ahora corre los 6 `refrescar-precio-extras-*.js` después de los scrapers normales y antes de
+  `unificar()` (mismo motivo que Coto: si `unificar()` corriera antes, el catálogo unificado
+  seguiría mostrando precio viejo hasta el próximo ciclo). Resultado expuesto como
+  `refrescadoresExtras` en `logs/ultimo-refresco.json` / `/api/health`.
+- **Descubrimiento de candidatos nuevos (caro, ~2h42min) → cron aparte, mensual.** Nuevo script
+  `backend/src/cron/descubrirCandidatosExtras.js` (`npm run descubrir`): corre los 6
+  `completar-*-por-ean.js` + `unificar()` al final. Crontab sugerido para la VM (a agregar a
+  mano, mismo criterio que el de 2hs — no se puede versionar):
+  ```
+  0 0 1 * * cd /ruta/ProyectoSuperApp/backend && /usr/bin/node src/cron/descubrirCandidatosExtras.js >> logs/cron-descubrimiento.log 2>&1
+  ```
+  Resultado en `logs/ultimo-descubrimiento.json`, expuesto en `/api/health` junto a
+  `ultimoRefresco`.
+
+**Por qué esto cierra el problema de "producto fantasma en la búsqueda"** (pregunta del usuario
+en esta sesión): antes, si un producto se caía de un super, `catalogo-unificado.json` (lo que
+lee `/api/catalogo/buscar`) quedaba desactualizado hasta que alguien corriera `unificar` a mano.
+Ahora que el refresco de precio vive DENTRO del cron de 2hs (justo antes de `unificar()`), esa
+ventana pasa a ser como mucho 2hs — igual que cualquier otro cambio de catálogo, no una excepción.
+
+### Pendiente real para que esto quede 100% andando solo
+
+1. **Commitear y deployar el código de esta sección** (todavía no se hizo al escribir esto).
+2. **Agregar la segunda línea al crontab de la VM a mano** (la de `descubrirCandidatosExtras.js`,
+   mensual) — el cron de 2hs ya corre con el refresco de precio adentro apenas se deploye, no
+   necesita tocar el crontab existente (ya está esa línea).
+3. Verificar en vivo que el próximo ciclo de 2hs en la VM corre `REFRESCADORES_EXTRAS` sin
+   errores (el código nunca corrió dentro de `refrescarCatalogos.js` en producción, solo se
+   probaron los 6 scripts sueltos a mano).
+4. Esperar al 1° del próximo mes (o forzar una corrida manual con `npm run descubrir` en la VM)
+   para confirmar que `descubrirCandidatosExtras.js` funciona de punta a punta en producción.

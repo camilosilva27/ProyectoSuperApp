@@ -14,6 +14,12 @@
  * terceros y correrlos juntos multiplicaría x5 el ritmo de requests justo contra los
  * endpoints que ya rate-limitean.
  *
+ * Desde 2026-08-26 también corre, después de los scrapers y antes de unificar(), los 6
+ * `refrescar-precio-extras-*.js` (ver completador_catalogos.md § 12) — refrescan precio/promo
+ * de lo que ya está en `catalogo-X-extras.json` (lo que encontró `completar-X-por-ean.js`, un
+ * proceso aparte, mensual, que NO corre acá). Son baratos (~4 min los 6 juntos, medido en vivo)
+ * porque piden por los skuId ya conocidos en vez de recalcular candidatos.
+ *
  * Uso: node src/cron/refrescarCatalogos.js   (o npm run refrescar)
  * Crontab sugerido en el VPS — ver backend/README.md ("Cron") para el valor vigente y por qué
  * cambió de 1 vez por día a cada 1-2 hs (desde que src/precioCache.js sirve el precio de la app
@@ -42,6 +48,22 @@ const SCRAPERS = [
   { nombre: 'Jumbo',      archivo: 'scraper-promos-jumbo.js',      timeoutMs: 15 * 60 * 1000 },
   { nombre: 'Disco',      archivo: 'scraper-promos-disco.js',      timeoutMs: 15 * 60 * 1000 },
   { nombre: 'Coto',       archivo: 'scraper-coto-por-ean.js',      timeoutMs: 25 * 60 * 1000 },
+];
+
+// Refresca precio+promo de lo que YA está en catalogo-X-extras.json (lo que encontró
+// completar-X-por-ean.js — ver completador_catalogos.md § 12), SIN buscar candidatos nuevos.
+// Va DESPUÉS de los scrapers normales y ANTES de unificar() — mismo motivo que Coto arriba: si
+// unificar() corriera antes, el catálogo unificado seguiría mostrando el precio viejo de los
+// extras hasta el próximo ciclo. Medido en vivo 2026-08-26: ~4 min los 6 juntos (contra las
+// ~2h42min que tarda buscar candidatos nuevos) — por eso esto sí entra en el cron de 2hs y la
+// búsqueda de candidatos nuevos queda en un cron aparte, mensual.
+const REFRESCADORES_EXTRAS = [
+  { nombre: 'Vea (extras)',        archivo: 'refrescar-precio-extras-vea.js',        timeoutMs: 5 * 60 * 1000 },
+  { nombre: 'Carrefour (extras)',  archivo: 'refrescar-precio-extras-carrefour.js',  timeoutMs: 5 * 60 * 1000 },
+  { nombre: 'Chango Más (extras)', archivo: 'refrescar-precio-extras-changomas.js',  timeoutMs: 5 * 60 * 1000 },
+  { nombre: 'Día (extras)',        archivo: 'refrescar-precio-extras-dia.js',        timeoutMs: 5 * 60 * 1000 },
+  { nombre: 'Jumbo (extras)',      archivo: 'refrescar-precio-extras-jumbo.js',      timeoutMs: 5 * 60 * 1000 },
+  { nombre: 'Disco (extras)',      archivo: 'refrescar-precio-extras-disco.js',      timeoutMs: 5 * 60 * 1000 },
 ];
 
 function correrScraper({ nombre, archivo, timeoutMs }) {
@@ -118,9 +140,21 @@ async function refrescar() {
     resultados.push(resultado);
   }
 
+  const resultadosExtras = [];
+  for (const refrescador of REFRESCADORES_EXTRAS) {
+    console.log(`   ▶ ${refrescador.nombre}...`);
+    const resultado = await correrScraper(refrescador);
+    console.log(`   ${resultado.ok ? '✅' : '❌'} ${refrescador.nombre} (${resultado.duracionSeg}s)`);
+    if (!resultado.ok) console.error(`      ${resultado.error}`);
+    resultadosExtras.push(resultado);
+  }
+
   const errores = resultados
     .filter(r => !r.ok)
-    .map(r => `El scraper de ${r.nombre} falló (código ${r.codigo}) — catálogo sin actualizar`);
+    .map(r => `El scraper de ${r.nombre} falló (código ${r.codigo}) — catálogo sin actualizar`)
+    .concat(resultadosExtras
+      .filter(r => !r.ok)
+      .map(r => `El refresco de precio de ${r.nombre} falló (código ${r.codigo}) — extras con precio desactualizado`));
 
   // El unificado se regenera aunque algún scraper haya fallado: es mejor tener el índice
   // consistente con los catálogos que efectivamente hay en disco que dejarlo desactualizado.
@@ -144,6 +178,7 @@ async function refrescar() {
     fin: new Date().toISOString(),
     duracionSeg: Math.round((Date.now() - inicio.getTime()) / 1000),
     scrapers: resultados,
+    refrescadoresExtras: resultadosExtras,
     totalProductosUnificados: unificado?.total ?? null,
     errores,
   };

@@ -110,6 +110,26 @@ conservador — es un punto de partida a monitorear con `/api/health` (`problema
 se puede versionar ni se aplica solo con el deploy). El resultado de cada corrida queda en
 `logs/ultimo-refresco.json` y lo expone `/api/health`, para enterarse de un fallo sin leer logs.
 
+### Descubrimiento de candidatos nuevos por EAN (mensual, aparte del cron de 2hs)
+
+```bash
+npm run descubrir    # corre los 6 completar-*-por-ean.js + regenera el unificado
+```
+
+Busca productos que un super vende pero su scraper normal no llega a traer (fuera del top
+~2.550 — ver `completador_catalogos.md`). Es caro (~2h42min medido en vivo para los 6 juntos,
+contra los ~4 min del refresco de precio que sí corre cada 2hs dentro de `refrescarCatalogos.js`
+— ver `REFRESCADORES_EXTRAS` ahí) porque prueba EAN candidatos que la mayoría de las veces no
+están en ese super. Por eso va en un cron aparte, mucho menos frecuente:
+
+```
+0 0 1 * * cd /ruta/ProyectoSuperApp/backend && /usr/bin/node src/cron/descubrirCandidatosExtras.js >> logs/cron-descubrimiento.log 2>&1
+```
+
+Mismo criterio que el cron de 2hs: vive solo en el crontab de la VM, no en el repo. El resultado
+de cada corrida queda en `logs/ultimo-descubrimiento.json`, expuesto en `/api/health` junto con
+`ultimoRefresco`.
+
 ## Seguridad
 
 **Sin token.** Se sacó a propósito (2026-08) al pasar a app web: un token que la app manda

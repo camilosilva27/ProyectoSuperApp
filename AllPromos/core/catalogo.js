@@ -93,12 +93,29 @@ function leerCatalogo(archivo) {
   const guardado = cache.get(archivo);
   if (guardado && guardado.clave === clave) return guardado.data;
 
-  const dataBase = JSON.parse(fs.readFileSync(ruta, 'utf8'));
+  // Los escritores (scraper normal, completar-*-por-ean.js, refrescar-precio-extras-*.js)
+  // escriben con `.tmp` + `rename` (atómico), pero un lector puede llegar a correr contra una
+  // versión vieja del filesystem justo en el ínfimo instante entre el `stat` de arriba y este
+  // `readFileSync` — try/catch acá es la red de contención final, no el mecanismo principal.
+  let dataBase;
+  try {
+    dataBase = JSON.parse(fs.readFileSync(ruta, 'utf8'));
+  } catch {
+    // Devolvemos lo último bueno que teníamos en caché antes que tirar abajo al que llamó.
+    return guardado?.data ?? null;
+  }
   let data = dataBase;
   if (statExtras) {
-    const dataExtras = JSON.parse(fs.readFileSync(rutaExtrasArchivo, 'utf8'));
+    let dataExtras;
+    try {
+      dataExtras = JSON.parse(fs.readFileSync(rutaExtrasArchivo, 'utf8'));
+    } catch {
+      // Extras ilegible en este instante: seguimos solo con la base en vez de fallar — el
+      // próximo request (mtime sin cambiar mientras tanto) va a volver a intentar leerlo.
+      dataExtras = null;
+    }
     const skusBase = Array.isArray(dataBase.skus) ? dataBase.skus : [];
-    const skusExtras = Array.isArray(dataExtras.skus) ? dataExtras.skus : [];
+    const skusExtras = Array.isArray(dataExtras?.skus) ? dataExtras.skus : [];
     const eansBase = new Set(skusBase.filter(s => s.ean).map(s => String(s.ean)));
     // Si un EAN de extras ya volvió a aparecer en la base (el super lo empezó a traer de
     // nuevo en su top ~2.550), se prioriza la versión de la base — es más fresca.
