@@ -252,14 +252,42 @@ Sesión de retomada (2026-08-26): se implementó el diseño de § 6 y se sacó l
    - Conectar los 6 completadores al cron real (`refrescarCatalogos.js`) — hoy siguen siendo
      scripts sueltos, se corren a mano.
 
-## 11. Próximos pasos concretos, en orden
+## 11. Hecho en producción (2026-08-26) — resultado final de esta sesión
 
-1. Commitear el código (ya no bloqueado por el diseño — el diseño ya está implementado).
-2. SSH a la VM, `git pull` (o confirmar que ya llegó por auto-deploy), correr los 6
-   `completar-*-por-ean.js` ahí + `npm run unificar` — esto es lo que efectivamente lleva el
-   enriquecimiento a producción.
-3. Medir cuánto tarda esa corrida en la VM (primera vez con este diseño, así que sigue siendo
-   "completa", no incremental — pero da una cota real de tiempo con la que decidir frecuencia).
-4. Con ese número, decidir si/cómo conectar esto al cron (diario, semanal, manual) — la
-   intuición del usuario (2026-08-25) es que no es urgente reflejar un producto nuevo al
-   instante.
+Los pasos 1 y 2 de abajo (versión original de esta sección) ya se completaron:
+
+1. ✅ Commit `e538c2e` (código de § 10) + push a `master` → deploy automático confirmado por
+   GitHub Actions (run `32926675367`, éxito, 18s).
+2. ✅ Corridos los 6 `completar-*-por-ean.js` **directo en la VM** (SSH, proceso en background
+   con `nohup`+`disown`, sobrevivió cortes de la sesión SSH sin problema) contra sus propios
+   `catalogo-*.json` recién scrapeados por el cron real — NO se copió nada del Mac.
+   Tiempo real medido (primera corrida con este diseño, arrancando de `-extras.json` vacío en
+   los 6 — equivalente a una corrida completa, no mide todavía el caso incremental):
+
+   | Super | Duración | Extras nuevos | Catálogo total (base+extras) |
+   |---|---|---|---|
+   | Vea | 26 min | 833 | 3.373 |
+   | Carrefour | 26 min | 1.520 | 4.050 |
+   | Chango Más | 25 min | 918 | 3.467 |
+   | Día | 24 min | 421 | 2.971 |
+   | Jumbo | 31 min | 1.450 | 3.977 |
+   | Disco | 30 min | 1.213 | 3.746 |
+
+   **Total: ~2h42min para los 6 en serie**, 0 errores de red en las ~26.700 consultas por EAN.
+3. ✅ `npm run unificar` corrido en la VM: **catálogo unificado 7.485 productos únicos**
+   (Coto se mantuvo en 3.710, no tocado esta sesión). `/api/health` → `ok:true`, las 7 fuentes
+   `disponible:true`, `vencido:false`.
+4. ✅ Verificado en vivo contra `/api/catalogo/buscar?q=manteca+ilolay` en producción: "Manteca
+   Tradicional 200 Grs Ilolay" (el caso que arrancó todo esto en la sesión del 25/08) aparece en
+   **6 de los 7 supers** (vea, carr, dia, coto, jumbo, disco).
+
+**Sigue pendiente, sin implementar** (no bloqueante, no se tocó esta sesión):
+- Refrescar precio de los EAN ya conocidos en `-extras.json` en el cron normal (§ 10 punto 5).
+- Conectar los 6 completadores al cron real (`refrescarCatalogos.js`) — hoy siguen siendo
+  scripts sueltos, se corrieron a mano. Con el tiempo real medido arriba (~2h42min en serie),
+  conectarlos tal cual al cron de cada 2hs no es viable — haría falta paralelizar (son hosts
+  distintos salvo Vea/Jumbo/Disco que comparten cuenta VTEX) o correrlos con mucha menos
+  frecuencia (ej. semanal, en un cron aparte) — decisión pendiente.
+- Medir el caso incremental real (candidatos nuevos entre corridas, no la primera corrida
+  completa) — para eso hay que volver a correr los 6 scripts más adelante y comparar cuánto
+  tardan con `-extras.json` ya poblado.
