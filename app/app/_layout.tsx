@@ -14,6 +14,7 @@ import {
 } from '@expo-google-fonts/barlow-condensed';
 import { IBMPlexMono_400Regular } from '@expo-google-fonts/ibm-plex-mono';
 import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
@@ -115,8 +116,9 @@ export default function LayoutRaiz() {
                       </Stack>
                     </GatePaywallFinTrial>
                   </GateSesion>
-                  {/* @vercel/analytics/react manipula document.head — no existe en iOS/Android */}
+                  {/* @vercel/analytics y speed-insights manipulan document.head — no existen en iOS/Android */}
                   {Platform.OS === 'web' ? <Analytics /> : null}
+                  {Platform.OS === 'web' ? <SpeedInsights /> : null}
                 </ProveedorHistorialAhorro>
               </ProveedorCarritosGuardados>
             </ProveedorCarrito>
