@@ -60,20 +60,54 @@ function palabrasDeBusqueda(texto) {
 // en memoria y revalidamos por mtime — así el cron que regenera los catálogos se refleja
 // sin reiniciar el servidor, y el comportamiento observable no cambia.
 
-const cache = new Map(); // archivo → { mtimeMs, data }
+const cache = new Map(); // archivo → { clave, data }
 
+/** catalogo-vea.json → catalogo-vea-extras.json (ver completador_catalogos.md § 6). */
+function rutaExtras(archivo) {
+  return archivo.replace(/\.json$/, '-extras.json');
+}
+
+/**
+ * catalogo-X.json es SIEMPRE lo que reescribe el scraper normal (se resetea cada corrida).
+ * catalogo-X-extras.json (si existe) es lo que agregó completar-X-por-ean.js — un archivo
+ * aparte que el scraper normal nunca toca, para que no lo pise en la próxima corrida. Acá se
+ * mezclan de forma transparente para cualquier consumidor (CLI, unificarCatalogo.js,
+ * precioCache.js): nadie más necesita saber que el archivo de extras existe.
+ */
 function leerCatalogo(archivo) {
   const ruta = path.join(DIR_DATOS, archivo);
+  const rutaExtrasArchivo = path.join(DIR_DATOS, rutaExtras(archivo));
+
+  let statBase;
   try {
-    const { mtimeMs } = fs.statSync(ruta);
-    const guardado = cache.get(archivo);
-    if (guardado && guardado.mtimeMs === mtimeMs) return guardado.data;
-    const data = JSON.parse(fs.readFileSync(ruta, 'utf8'));
-    cache.set(archivo, { mtimeMs, data });
-    return data;
+    statBase = fs.statSync(ruta);
   } catch {
     return null;
   }
+  let statExtras = null;
+  try {
+    statExtras = fs.statSync(rutaExtrasArchivo);
+  } catch { /* sin extras todavía, no pasa nada */ }
+
+  const clave = `${statBase.mtimeMs}|${statExtras?.mtimeMs ?? 0}`;
+  const guardado = cache.get(archivo);
+  if (guardado && guardado.clave === clave) return guardado.data;
+
+  const dataBase = JSON.parse(fs.readFileSync(ruta, 'utf8'));
+  let data = dataBase;
+  if (statExtras) {
+    const dataExtras = JSON.parse(fs.readFileSync(rutaExtrasArchivo, 'utf8'));
+    const skusBase = Array.isArray(dataBase.skus) ? dataBase.skus : [];
+    const skusExtras = Array.isArray(dataExtras.skus) ? dataExtras.skus : [];
+    const eansBase = new Set(skusBase.filter(s => s.ean).map(s => String(s.ean)));
+    // Si un EAN de extras ya volvió a aparecer en la base (el super lo empezó a traer de
+    // nuevo en su top ~2.550), se prioriza la versión de la base — es más fresca.
+    const soloExtras = skusExtras.filter(s => !s.ean || !eansBase.has(String(s.ean)));
+    data = { ...dataBase, skus: [...skusBase, ...soloExtras], total_skus: skusBase.length + soloExtras.length };
+  }
+
+  cache.set(archivo, { clave, data });
+  return data;
 }
 
 function skusDe(archivo) {

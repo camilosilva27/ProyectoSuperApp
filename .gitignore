@@ -8,6 +8,10 @@ AllPromos/promos-*.json
 backend/catalogo-unificado.json
 backend/catalogo-unificado.json.tmp
 
+# Progreso a medio camino de los completar-*-por-ean.js (ver completador_catalogos.md) —
+# se borra solo al terminar con éxito, esto es solo por si queda alguno a mitad de camino.
+AllPromos/.checkpoint-*.json
+
 # Fotos de producto descargadas una sola vez (ver backend/src/cron/descargarImagenes.js) —
 # miles de archivos, se regeneran solas la primera vez que falten, no tiene sentido versionarlas.
 backend/imagenes/
