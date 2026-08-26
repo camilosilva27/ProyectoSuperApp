@@ -68,6 +68,21 @@ const ALIAS_TARJETAS = {
   'HSBC':            ['hsbc'],
   'BBVA':            ['bbva'],
   'ICBC':            ['icbc'],
+  // Sumados 2026-08-26 al auditar el campo `icono` (no `descripcion`) de Coto — ver
+  // ICONO_BANCO_COTO más abajo. Confirmados en vivo también en `banks[].name` del feed de
+  // Vea/Jumbo/Disco (Cencosud): "Banco Comafi", "Tarjeta Naranja X", "Banco Ciudad",
+  // "supervielle", "Banco Columbia", "Banco Patagonia", "Nacion"/"banco Nacion".
+  'Comafi':          ['comafi'],
+  'Naranja X':       ['naranja x'],
+  'Credicoop':       ['credicoop'],
+  'Banco Ciudad':    ['banco ciudad'],
+  'Supervielle':     ['supervielle'],
+  'Banco Columbia':  ['banco columbia'],
+  'Banco Patagonia': ['banco patagonia'],
+  'Banco Nación':    ['banco nacion', 'nacion'],
+  // Tarjeta propia de Coto, sin nombre de banco detrás — no apareció en el texto de
+  // ningún otro super al verificar, se deja el alias igual por si alguno la suma después.
+  'TCI':             ['tci'],
 };
 
 // "Banco provincia de Neuquén" es una entidad distinta de Banco Provincia de Bs.As.
@@ -80,6 +95,10 @@ const EXCLUSIONES_ALIAS = {
   // "galicia" (decisión del usuario: tratarlas separadas, como ya pasa con MODO vs.
   // Mercado Pago).
   'Galicia': ['modo'],
+  // Mismo caso que Galicia Modo: "Banco Patagonia 365" es un programa de fidelización
+  // propio, no equivalente a tener cualquier tarjeta Patagonia — visto en el feed de Vea
+  // como entidad separada de "Banco Patagonia" a secas.
+  'Banco Patagonia': ['365'],
 };
 
 const DIAS_SEMANA_KEYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -497,6 +516,38 @@ function extraerDescuentoPctCoto(textoDescuento) {
   return m ? Number(m[1].replace(',', '.')) / 100 : null;
 }
 
+// `p.icono` (nombre de archivo del logo, ej. "logo_comafi.png") SÍ identifica el banco de
+// forma confiable en Coto, a diferencia de `p.descripcion` — confirmado en vivo el
+// 2026-08-26: la mayoría de las promos de "cuotas sin interés" (y varias de descuento
+// directo) tienen `descripcion` genérica ("cuotas sin interés con tarjetas de crédito Visa,
+// Mastercard y American express"), sin mencionar el banco en ningún lado del texto, aunque
+// el ícono sí lo identifica. Sin este mapeo, esas promos quedaban descartadas en silencio
+// (`canonicosPosibles` vacío) — incluso para bancos que YA estaban en ALIAS_TARJETAS
+// (Banco Macro, Galicia, BBVA, ICBC, MODO, Mercado Pago). Deliberadamente NO se mapean los
+// íconos de redes de tarjeta genéricas (Visa/Mastercard/Amex/Cabal/tarjeta de crédito
+// genérica) ni de programas que no son "tener una tarjeta propia" (comunidad Coto,
+// ciudadanía porteña, beneficios ANSES, jubilados y pensionados) — mismo criterio que ya
+// se usa para no incluir Visa/Mastercard sueltos en ALIAS_TARJETAS.
+const ICONO_BANCO_COTO = {
+  'logo_comafi.png':        'Comafi',
+  'logo_naranjax2.png':     'Naranja X',
+  'logo_credicoop.png':     'Credicoop',
+  'logo_ciudad1.png':       'Banco Ciudad',
+  'logo_supervielle2.png':  'Supervielle',
+  'logo_columbia_1.png':    'Banco Columbia',
+  'logo_patagonia2.png':    'Banco Patagonia',
+  'logo_nacion_d.png':      'Banco Nación',
+  'logo_tci.png':           'TCI',
+  'logo_macro_bma3.png':    'Banco Macro',
+  'logo_galicia.png':       'Galicia',
+  'bbva2.png':               'BBVA',
+  'logo_icbc_1.png':        'ICBC',
+  'logo_modo.png':          'MODO',
+  'logo_mercadopago.png':          'Mercado Pago',
+  'logo_mercadopago_3cuotas.png':  'Mercado Pago',
+  'logo_mp2cuotas.png':            'Mercado Pago',
+};
+
 async function fetchCoto() {
   try {
     const res = await fetch(COTO_PROMOS_URL, { headers: { Accept: 'application/json' } });
@@ -516,8 +567,15 @@ async function fetchCoto() {
       // Pago..."), no un catálogo de nombres propios como en los otros supers — más
       // parecido a lo que hacemos con el `terms` de Día que a un campo `banks[].name`. El
       // banco numérico (`p.banco`) no sirve para identificar la tarjeta: muchas promos sin
-      // relación entre sí comparten `banco: 0` como bolsa genérica.
-      const canonicosPosibles = resolverCanonicosDesdeNombre(p.descripcion || '');
+      // relación entre sí comparten `banco: 0` como bolsa genérica. `p.icono` sí identifica
+      // el banco de forma confiable (ver ICONO_BANCO_COTO) — se combinan las dos fuentes
+      // porque ninguna cubre todos los casos por sí sola (ej. Naranja X sale por texto,
+      // Comafi solo por ícono).
+      const desdeTexto = resolverCanonicosDesdeNombre(p.descripcion || '');
+      const desdeIcono = ICONO_BANCO_COTO[p.icono];
+      const canonicosPosibles = desdeIcono && !desdeTexto.includes(desdeIcono)
+        ? [...desdeTexto, desdeIcono]
+        : desdeTexto;
       if (!canonicosPosibles.length) continue;
 
       promos.push({

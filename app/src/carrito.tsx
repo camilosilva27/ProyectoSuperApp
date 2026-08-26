@@ -42,6 +42,8 @@ export const TARJETAS_DISPONIBLES = [
   'Mi Carrefour', 'MasClub', 'Cencopay',
   'Santander', 'MODO', 'Mercado Pago', 'Cuenta DNI', 'Banco Provincia',
   'Galicia', 'Galicia Modo', 'Banco Macro', 'HSBC', 'BBVA', 'ICBC',
+  'Comafi', 'Naranja X', 'Credicoop', 'Banco Ciudad', 'Supervielle',
+  'Banco Columbia', 'Banco Patagonia', 'Banco Nación', 'TCI',
 ];
 
 // Vacío a propósito: no hace falta elegir tarjetas para comparar. Las promos de tarjeta
