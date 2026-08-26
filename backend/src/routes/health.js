@@ -46,11 +46,24 @@ function leerUltimoDescubrimiento() {
   }
 }
 
+// Ping semanal a Supabase (ver src/cron/pingSupabase.js) — evita que el free tier pause el
+// proyecto tras 7 días sin actividad. Si esto deja de correr, el síntoma real sería la app
+// entera sin poder loguear/leer datos de cuenta, mucho más grave que un catálogo vencido — por
+// eso vale la pena verlo acá aunque el cron sea semanal, no cada 2hs como el resto.
+function leerUltimoPingSupabase() {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(rutaLogs, 'ultimo-ping-supabase.json'), 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
 router.get('/health', (req, res) => {
   const catalogos = estadoCatalogos({ diasMaximo: diasMaximoCatalogo });
   const unificado = leerEstadoUnificado();
   const ultimoRefresco = leerUltimoRefresco();
   const ultimoDescubrimiento = leerUltimoDescubrimiento();
+  const ultimoPingSupabase = leerUltimoPingSupabase();
   const sonda = sondaEnVivo.estadoActual();
   const generadoPromosBancarias = fechaGeneracionPromosBancarias();
   const horasPromosBancarias = generadoPromosBancarias
@@ -70,6 +83,19 @@ router.get('/health', (req, res) => {
   }
   if (ultimoDescubrimiento?.errores?.length) {
     problemas.push(...ultimoDescubrimiento.errores);
+  }
+  if (ultimoPingSupabase?.errores?.length) {
+    problemas.push(...ultimoPingSupabase.errores);
+  }
+  const diasSinPingSupabase = ultimoPingSupabase
+    ? (Date.now() - new Date(ultimoPingSupabase.fin).getTime()) / 86_400_000
+    : null;
+  // Margen sobre el límite real de 7 días del free tier: si a los 10 días no hubo un ping OK,
+  // el cron semanal dejó de correr (o viene fallando) y el proyecto puede pausarse solo.
+  if (diasSinPingSupabase === null) {
+    problemas.push('Nunca corrió el ping a Supabase — el free tier puede pausarse por inactividad (correlo con: npm run ping-supabase)');
+  } else if (diasSinPingSupabase > 10) {
+    problemas.push(`Último ping a Supabase hace ${diasSinPingSupabase.toFixed(1)} días — riesgo de pausa por inactividad (correlo con: npm run ping-supabase)`);
   }
   if (sonda.error) {
     problemas.push(`Sonda en vivo no pudo correr: ${sonda.error}`);
@@ -98,6 +124,7 @@ router.get('/health', (req, res) => {
     promosBancarias: { generado: generadoPromosBancarias, horas: horasPromosBancarias },
     ultimoRefresco,
     ultimoDescubrimiento,
+    ultimoPingSupabase,
     sondaEnVivo: sonda,
     problemas,
   });

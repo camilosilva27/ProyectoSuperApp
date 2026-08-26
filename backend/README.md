@@ -130,6 +130,27 @@ Mismo criterio que el cron de 2hs: vive solo en el crontab de la VM, no en el re
 de cada corrida queda en `logs/ultimo-descubrimiento.json`, expuesto en `/api/health` junto con
 `ultimoRefresco`.
 
+### Ping semanal a Supabase (evita la pausa por inactividad del free tier)
+
+El free tier de Supabase pausa el proyecto tras **7 días** sin actividad, y no se reactiva solo
+con el tráfico normal de la app (confirmado contra la documentación oficial — ver
+`Plan_Usuarios_y_cobros.md` § "Riesgo: pausa por inactividad del free tier de Supabase"). Este
+cron hace una lectura mínima con la service role key para contar como actividad real:
+
+```bash
+npm run ping-supabase
+```
+
+Crontab sugerido (semanal, con margen sobre el límite de 7 días):
+
+```
+0 3 * * 1 cd /ruta/ProyectoSuperApp/backend && /usr/bin/node src/cron/pingSupabase.js >> logs/cron-ping-supabase.log 2>&1
+```
+
+Mismo criterio que los crons de arriba: vive solo en el crontab de la VM, no en el repo. El
+resultado de cada corrida queda en `logs/ultimo-ping-supabase.json`, expuesto en `/api/health`
+— si pasan más de 10 días sin un ping OK, `/api/health` lo reporta como problema.
+
 ## Seguridad
 
 **Sin token.** Se sacó a propósito (2026-08) al pasar a app web: un token que la app manda
