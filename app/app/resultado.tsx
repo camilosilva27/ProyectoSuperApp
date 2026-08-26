@@ -394,14 +394,6 @@ function PlanDeCompra({ data }: { data: RespuestaComparar }) {
       <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>PLAN DE COMPRA</Text>
       {paradas.map(s => {
         const url = linksCarrito[s.key];
-        const tarjetasAplicadas = new Set(
-          (itemsPorSuper.get(s.key) ?? [])
-            .map(i => {
-              const opcion = opcionEnSuper(i, s.key);
-              return opcion?.promo?.tarjetaActiva ? opcion.promo.requiereTarjeta : null;
-            })
-            .filter((t): t is string => !!t)
-        );
         const ahorroBancario = bancario?.porSuper[s.key] ?? null;
         // Tope real pero absurdamente alto (ej. Mercado Pago: "$9.999.999 por usuario", texto
         // legal real, no un error) — ni el número ni "ya está restado del total" se muestran
@@ -466,25 +458,6 @@ function PlanDeCompra({ data }: { data: RespuestaComparar }) {
                 </View>
               ) : null}
 
-
-              {[...tarjetasAplicadas].map(tarjeta => (
-                <View key={tarjeta} style={[styles.filaEstado, { backgroundColor: paleta.superficieAlt, borderColor: paleta.borde }]}>
-                  <View style={styles.checkAplicada}>
-                    <Text style={styles.checkTexto}>✓</Text>
-                  </View>
-                  <View style={{ flex: 1, gap: 1 }}>
-                    <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>{tarjeta} está en Mis descuentos</Text>
-                    <Text style={[texto.dato, { color: paleta.tintaSuave }]}>el descuento ya está en el total</Text>
-                  </View>
-                  <Pressable
-                    onPress={() => carrito.setTarjetas(carrito.tarjetas.filter(t => t !== tarjeta))}
-                    accessibilityRole="button"
-                    style={[styles.botonQuitar, { borderColor: paleta.bordeFuerte, backgroundColor: paleta.superficie }]}
-                  >
-                    <Text style={[texto.etiqueta, { color: paleta.tintaSuave }]}>Quitar</Text>
-                  </Pressable>
-                </View>
-              ))}
 
               {url ? (
                 <BloqueExportar
@@ -786,10 +759,6 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   checkTexto: { color: '#FFFFFF', fontSize: 11, fontWeight: '600' },
-  botonQuitar: {
-    height: 44, paddingHorizontal: espacio.md, borderWidth: 1, borderRadius: radio.pill,
-    alignItems: 'center', justifyContent: 'center',
-  },
   botonExportar: { minHeight: 48, borderRadius: radio.md, alignItems: 'center', justifyContent: 'center' },
   leyendaExportar: { textAlign: 'center' },
 
