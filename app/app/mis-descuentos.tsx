@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ErrorApi, misDescuentos, type Descuento } from '../src/api';
+import { useAuth } from '../src/auth';
 import { useCarrito } from '../src/carrito';
 import { NOMBRE_SUPER, ORDEN_SUPERS, Problema } from '../src/componentes/comunes';
 import { HeaderNegro } from '../src/componentes/HeaderNegro';
@@ -102,10 +103,13 @@ export default function PantallaMisDescuentos() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const carrito = useCarrito();
+  const { session } = useAuth();
+  const accessToken = session?.access_token ?? null;
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['mis-descuentos'],
-    queryFn: misDescuentos,
+    queryFn: () => misDescuentos(accessToken as string),
+    enabled: !!accessToken,
     staleTime: 10 * 60 * 1000,
   });
 

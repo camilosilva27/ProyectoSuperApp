@@ -18,6 +18,7 @@ import {
   Animated, Dimensions, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { comparar, type SuperKey } from '../api';
+import { useAuth } from '../auth';
 import { useCarrito } from '../carrito';
 import { espacio, fuentes, paletaDe, pesosCorto, radio, texto, textoPretty } from '../theme';
 import { NOMBRE_SUPER, ORDEN_SUPERS } from './comunes';
@@ -46,6 +47,7 @@ function useCostoTope(
   tarjetas: string[],
   borrador: SuperKey[],
   topeBorrador: number,
+  accessToken: string | null,
 ): number | null {
   const [monto, setMonto] = useState<number | null>(null);
   // Contador de secuencia (mismo patrón que usePreciosProgresivos en la pantalla de Buscar):
@@ -53,13 +55,13 @@ function useCostoTope(
   const turnoRef = useRef(0);
 
   useEffect(() => {
-    if (!pedido.length || !topeBorrador || borrador.length <= 1) {
+    if (!pedido.length || !topeBorrador || borrador.length <= 1 || !accessToken) {
       setMonto(null);
       return;
     }
     const miTurno = ++turnoRef.current;
     const id = setTimeout(() => {
-      comparar(pedido, tarjetas, borrador, topeBorrador)
+      comparar(pedido, tarjetas, accessToken, borrador, topeBorrador)
         .then(({ resumen }) => {
           if (turnoRef.current !== miTurno) return;
           setMonto(
@@ -76,7 +78,7 @@ function useCostoTope(
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `pedido`/`tarjetas` son arrays
     // nuevos en cada render del padre; se comparan por contenido (JSON) para no re-pedir de
     // más cuando lo que cambió fue otra cosa del carrito que no afecta este cálculo.
-  }, [JSON.stringify(pedido), JSON.stringify(tarjetas), JSON.stringify(borrador), topeBorrador]);
+  }, [JSON.stringify(pedido), JSON.stringify(tarjetas), JSON.stringify(borrador), topeBorrador, accessToken]);
 
   return monto;
 }
@@ -103,6 +105,7 @@ export function HojaSupers({
   const [arrastrando, setArrastrando] = useState(false);
   const translateY = useRef(new Animated.Value(ALTURA_OFFSCREEN)).current;
   const carrito = useCarrito();
+  const { session } = useAuth();
 
   useEffect(() => {
     if (!visible) return;
@@ -175,7 +178,7 @@ export function HojaSupers({
   const afuera = visiblesPorFiltro.filter(key => !borrador.includes(key));
 
   const pedido = carrito.items.map(i => ({ ean: i.ean, cantidad: i.cantidad }));
-  const montoTope = useCostoTope(pedido, carrito.tarjetas, borrador, topeBorrador);
+  const montoTope = useCostoTope(pedido, carrito.tarjetas, borrador, topeBorrador, session?.access_token ?? null);
 
   if (!visible) return null;
 

@@ -13,12 +13,13 @@
 const express = require('express');
 const catalogoUnificado = require('../catalogoUnificado');
 const { SUPERMERCADOS } = require('../../../AllPromos/core/fetchers');
+const { requiereSesion, requierePlanActivo } = require('../middleware/requiereSesion');
 
 const router = express.Router();
 const KEYS_SUPERMERCADOS = new Set(SUPERMERCADOS.map(s => s.key));
 const ORDENES_VALIDOS = new Set(['alfabetico', 'disponibilidad']);
 
-router.get('/catalogo/buscar', (req, res) => {
+router.get('/catalogo/buscar', requiereSesion, requierePlanActivo, (req, res) => {
   const { q = '', categoria = '', supers: supersCrudo = '', orden = 'alfabetico', limit, offset } = req.query;
 
   if (!q && !categoria) {
@@ -45,7 +46,7 @@ router.get('/catalogo/buscar', (req, res) => {
   res.json(resultado);
 });
 
-router.get('/catalogo/categorias', (req, res) => {
+router.get('/catalogo/categorias', requiereSesion, requierePlanActivo, (req, res) => {
   const resultado = catalogoUnificado.categorias();
   if (!resultado.disponible) {
     return res.status(503).json({
@@ -55,7 +56,7 @@ router.get('/catalogo/categorias', (req, res) => {
   res.json(resultado);
 });
 
-router.get('/catalogo/producto/:ean', (req, res) => {
+router.get('/catalogo/producto/:ean', requiereSesion, requierePlanActivo, (req, res) => {
   const producto = catalogoUnificado.porEAN(req.params.ean);
   if (!producto) return res.status(404).json({ error: 'EAN no encontrado en el catalogo local' });
   // skuIdVea e imagenUrl son detalles internos (ver core/catalogoUnificado.js).

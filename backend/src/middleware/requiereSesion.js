@@ -39,4 +39,21 @@ async function requiereSesion(req, res, next) {
   }
 }
 
-module.exports = { requiereSesion };
+/**
+ * Corta el acceso a quien ya está en `plan: 'gratis'` (trial vencido y sin suscripción, o
+ * suscripción cancelada) — mismo criterio que ya aplica `GatePaywallFinTrial` en el cliente,
+ * pero del lado del backend, para que el catálogo/comparador no queden abiertos como proxy
+ * gratis hacia los supers. Va SIEMPRE después de `requiereSesion` (necesita `req.usuarioPlan`).
+ *
+ * Deja pasar `trial`/`premium` y también `null` (JWT emitido antes de que el Auth Hook esté
+ * activo, o antes del próximo refresh) — negar sobre un dato ausente rompería sesiones válidas;
+ * se autocorrige solo en cuanto el token se refresca.
+ */
+function requierePlanActivo(req, res, next) {
+  if (req.usuarioPlan === 'gratis') {
+    return res.status(403).json({ error: 'Se venció el período de prueba. Suscribite para seguir usando la app.' });
+  }
+  next();
+}
+
+module.exports = { requiereSesion, requierePlanActivo };
