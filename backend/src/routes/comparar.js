@@ -34,6 +34,7 @@ const { calcularCosto } = require('../../../AllPromos/promo-engine');
 const { esEANvalido } = require('../../../AllPromos/core/catalogo');
 const {
   filtrarPromosBancariasPorTarjetas, promosAplicablesHoy, reoptimizarAsignacion, mejorPromoTicket,
+  promoBancariaRequiereOnline,
 } = require('../../../AllPromos/promos-bancarias');
 const catalogoUnificado = require('../catalogoUnificado');
 const precioCache = require('../precioCache');
@@ -262,6 +263,9 @@ function aplicarPromoBancariaAOpcion(o, datosDeHoy) {
   // + reintegro por ticket, las dos bajo "Mi Carrefour") — "por ticket" evita que se lea como
   // el mismo descuento repetido dos veces.
   const descripcionTicket = `${pctTicket}% con ${promo.bancoCanonico} por ticket`;
+  // Si esta promo bancaria exige compra online (ej. algunas de MasClub/Chango Más), el badge
+  // "ONLINE" tiene que reflejarlo aunque la promo de producto (si la había) no lo exigiera.
+  const ticketRequiereOnline = promoBancariaRequiereOnline(promo);
 
   o.total = redondear(o.total - descuento);
   // Si ya había una promo de producto activa (ej. Mi Carrefour), se apilan las dos en la
@@ -270,12 +274,16 @@ function aplicarPromoBancariaAOpcion(o, datosDeHoy) {
   // inactiva de OTRA tarjeta para este mismo super, si la había: caso hoy inexistente en los
   // datos reales, no vale la pena la complejidad de preservarlo).
   o.promo = o.promo && o.promo.tarjetaActiva
-    ? { ...o.promo, descripcion: `${o.promo.descripcion} + ${descripcionTicket}` }
+    ? {
+        ...o.promo,
+        descripcion: `${o.promo.descripcion} + ${descripcionTicket}`,
+        esOnline: o.promo.esOnline || ticketRequiereOnline,
+      }
     : {
         tipo: 'pct_ticket',
         descripcion: descripcionTicket,
         cantidadMinima: 1,
-        esOnline: false,
+        esOnline: ticketRequiereOnline,
         requiereTarjeta: promo.bancoCanonico,
         activa: true,
         tarjetaActiva: true,
