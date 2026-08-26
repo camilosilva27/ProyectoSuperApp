@@ -578,6 +578,11 @@ function promoAplicaEnCanal(promo, canal) {
   return promo.canales.some(c => c !== 'ecommerce'); // 'fisico': cualquier formato de local
 }
 
+/** true si esta promo bancaria NO se puede usar en un local físico (exige compra online). */
+function promoBancariaRequiereOnline(promo) {
+  return !promoAplicaEnCanal(promo, 'fisico');
+}
+
 /**
  * Repite promosAplicablesHoy + mejorPromoTicket para cada uno de los próximos `dias`
  * días (incluyendo `desde`), opcionalmente restringido a un canal. Devuelve un array
@@ -993,6 +998,7 @@ module.exports = {
   imprimirSeccionBancaria,
   // Fase 2:
   promoAplicaEnCanal,
+  promoBancariaRequiereOnline,
   mejoresDiasTicket,
   elegirMejorDia,
   imprimirMejorDiaPorSuper,
