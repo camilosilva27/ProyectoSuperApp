@@ -105,7 +105,14 @@ export function GatePaywallFinTrial({ children }: { children: React.ReactNode })
     ? { monto: resumenTotal.totalMonto, conteo: resumenTotal.totalConteo }
     : resumenTrial;
 
-  const cargando = cargandoPlan || cargandoPrecio;
+  // `cargandoPlan` vuelve a true en cada revalidación (ver el AppState.addEventListener de
+  // arriba: se dispara cada vez que la pestaña/app vuelve a estar activa, no solo al volver
+  // del checkout de MP). Bloquear TODA la navegación en cada una de esas revalidaciones
+  // desmonta el `<Stack>` (línea de abajo) y lo remonta al terminar — el usuario pierde en
+  // qué pantalla estaba y cae a la ruta inicial. Por eso el blanqueo de pantalla solo aplica
+  // a la primera carga (todavía no hay `infoPlan`); una revalidación en segundo plano no
+  // debe tapar lo que el usuario está viendo.
+  const cargando = (cargandoPlan && !infoPlan) || cargandoPrecio;
   const mostrarPaywall = !cargando && bloqueado && precios !== null;
 
   const onSuscribirse = useCallback(() => setPantalla('planSelect'), []);
