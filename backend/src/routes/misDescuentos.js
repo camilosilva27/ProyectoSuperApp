@@ -18,6 +18,7 @@
 const express = require('express');
 const { TARJETAS_CONOCIDAS } = require('../../../AllPromos/promos-bancarias');
 const { leerPromosBancariasCache } = require('../promosBancariasCache');
+const { requiereSesion, requierePlanActivo } = require('../middleware/requiereSesion');
 
 const router = express.Router();
 
@@ -67,7 +68,7 @@ function calcularDescuentos(datosPorSuper) {
   return { descuentos, advertencias };
 }
 
-router.get('/mis-descuentos', async (req, res) => {
+router.get('/mis-descuentos', requiereSesion, requierePlanActivo, async (req, res) => {
   const datosPorSuper = leerPromosBancariasCache();
   if (!datosPorSuper) {
     res.json({

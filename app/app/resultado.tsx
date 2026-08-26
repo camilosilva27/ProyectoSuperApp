@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   comparar, ErrorApi, type ItemComparado, type RespuestaComparar, type SuperKey,
 } from '../src/api';
+import { useAuth } from '../src/auth';
 import { useCarrito } from '../src/carrito';
 import { BarraDiferencia } from '../src/componentes/BarraDiferencia';
 import { Problema, Vacio } from '../src/componentes/comunes';
@@ -88,6 +89,8 @@ export default function PantallaResultado() {
   const { paleta } = useTema();
   const insets = useSafeAreaInsets();
   const carrito = useCarrito();
+  const { session } = useAuth();
+  const accessToken = session?.access_token ?? null;
   const { supersActivos, topeSupers } = useFiltrosSupers();
   const scrollRef = useRef<ScrollView>(null);
   const yPromos = useRef(0);
@@ -101,8 +104,8 @@ export default function PantallaResultado() {
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['comparar', clave],
-    queryFn: () => comparar(pedido, carrito.tarjetas, supersActivos, tope),
-    enabled: pedido.length > 0,
+    queryFn: () => comparar(pedido, carrito.tarjetas, accessToken as string, supersActivos, tope),
+    enabled: pedido.length > 0 && !!accessToken,
     staleTime: 0, // los precios son en vivo: no se reusan entre comparaciones
   });
 

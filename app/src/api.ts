@@ -188,7 +188,15 @@ async function pedir<T>(ruta: string, init?: RequestInit): Promise<T> {
  *  de búsqueda pidiendo precio de toda la lista y ordenando ella misma (ver index.tsx). */
 export type OrdenBusqueda = 'alfabetico' | 'disponibilidad' | 'precio';
 
-export function buscarProductos(q: string, opciones: {
+/** Header de sesión, compartido por todo lo que ahora exige cuenta (ver requiereSesion.js del
+ *  backend): `/api/catalogo/*`, `/api/comparar`, `/api/precios` y `/api/mis-descuentos` dejaron
+ *  de ser accesibles sin sesión — antes de este cambio cualquiera podía usar el backend como
+ *  proxy gratis hacia los supers. */
+function conSesion(accessToken: string): { Authorization: string } {
+  return { Authorization: `Bearer ${accessToken}` };
+}
+
+export function buscarProductos(q: string, accessToken: string, opciones: {
   limit?: number; supers?: SuperKey[]; orden?: OrdenBusqueda;
 } = {}) {
   const { limit = 40, supers, orden = 'alfabetico' } = opciones;
@@ -197,19 +205,22 @@ export function buscarProductos(q: string, opciones: {
   });
   if (supers && supers.length) params.set('supers', supers.join(','));
   return pedir<{ disponible: boolean; total: number; resultados: ProductoCatalogo[] }>(
-    `/api/catalogo/buscar?${params.toString()}`
+    `/api/catalogo/buscar?${params.toString()}`,
+    { headers: conSesion(accessToken) }
   );
 }
 
 export function comparar(
   items: { ean: string; cantidad: number }[],
   tarjetas: string[],
+  accessToken: string,
   supers?: SuperKey[],
   /** Cantidad máxima de supers a visitar (hoja "Qué supers comparar") — undefined = sin tope. */
   tope?: number,
 ) {
   return pedir<RespuestaComparar>('/api/comparar', {
     method: 'POST',
+    headers: conSesion(accessToken),
     body: JSON.stringify({ items, tarjetas, supers, tope }),
   });
 }
@@ -217,9 +228,10 @@ export function comparar(
 /** Máximo por lote — tiene que coincidir con MAX_EANS_PRECIOS del backend (routes/comparar.js). */
 export const MAX_EANS_PRECIOS = 40;
 
-export function precios(eans: string[], supers?: SuperKey[]) {
+export function precios(eans: string[], accessToken: string, supers?: SuperKey[]) {
   return pedir<{ generado: string; resultados: PrecioRapido[] }>('/api/precios', {
     method: 'POST',
+    headers: conSesion(accessToken),
     body: JSON.stringify({ eans, supers }),
   });
 }
@@ -240,9 +252,10 @@ export type Descuento = {
   supers: SuperKey[];
 };
 
-export function misDescuentos() {
+export function misDescuentos(accessToken: string) {
   return pedir<{ generado: string; descuentos: Descuento[]; advertencias: string[] }>(
-    '/api/mis-descuentos'
+    '/api/mis-descuentos',
+    { headers: conSesion(accessToken) }
   );
 }
 

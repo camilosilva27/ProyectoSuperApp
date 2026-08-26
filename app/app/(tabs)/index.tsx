@@ -25,6 +25,7 @@ import {
   buscarProductos, ErrorApi, precios as pedirPrecios, MAX_EANS_PRECIOS,
   type ProductoCatalogo, type PrecioRapido, type SuperKey, type OrdenBusqueda,
 } from '../../src/api';
+import { useAuth } from '../../src/auth';
 import { useCarrito } from '../../src/carrito';
 import {
   BandaDisponibilidad, BotonPrincipal, NOMBRE_SUPER, ORDEN_SUPERS, Problema, Stepper, Vacio,
@@ -50,7 +51,7 @@ const CLAVE_ONBOARDING_VISTO = 'allpromos:onboardingVisto:v1';
  * (POST /api/precios) para por qué esto no reemplaza /api/catalogo/buscar: ese nunca trae
  * precio, a propósito.
  */
-function usePreciosProgresivos(supersActivos: SuperKey[]) {
+function usePreciosProgresivos(supersActivos: SuperKey[], accessToken: string | null) {
   const [precios, setPrecios] = useState<Record<string, PrecioRapido | 'error'>>({});
   const pedidos = useRef(new Set<string>());
   const pendientes = useRef(new Set<string>());
@@ -58,14 +59,16 @@ function usePreciosProgresivos(supersActivos: SuperKey[]) {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const supersRef = useRef(supersActivos);
   supersRef.current = supersActivos;
+  const tokenRef = useRef(accessToken);
+  tokenRef.current = accessToken;
 
   const pedirLote = useCallback(() => {
     const lote = [...pendientes.current].slice(0, MAX_EANS_PRECIOS);
     pendientes.current.clear();
-    if (!lote.length) return;
+    if (!lote.length || !tokenRef.current) return;
     lote.forEach(ean => pedidos.current.add(ean));
 
-    pedirPrecios(lote, supersRef.current)
+    pedirPrecios(lote, tokenRef.current, supersRef.current)
       .then(({ resultados }) => {
         setPrecios(prev => {
           const siguiente = { ...prev };
@@ -132,6 +135,8 @@ export default function PantallaBuscar() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const carrito = useCarrito();
+  const { session } = useAuth();
+  const accessToken = session?.access_token ?? null;
   const [consulta, setConsulta] = useState('');
   const consultaDemorada = useTextoDemorado(consulta.trim());
   const consultaValida = consultaDemorada.length >= 2;
@@ -152,14 +157,14 @@ export default function PantallaBuscar() {
 
   const { data, isFetching, error, refetch } = useQuery({
     queryKey: ['catalogo', consultaDemorada, supersActivos, orden],
-    queryFn: () => buscarProductos(consultaDemorada, { supers: supersActivos, orden }),
-    enabled: consultaValida,
+    queryFn: () => buscarProductos(consultaDemorada, accessToken as string, { supers: supersActivos, orden }),
+    enabled: consultaValida && !!accessToken,
   });
 
   const resultados = data?.resultados ?? [];
   const hayMas = (data?.total ?? 0) > resultados.length;
 
-  const { precios, marcarVisibles } = usePreciosProgresivos(supersActivos);
+  const { precios, marcarVisibles } = usePreciosProgresivos(supersActivos, accessToken);
   const onViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems: Array<{ item: ProductoCatalogo }> }) => {
       marcarVisibles(viewableItems.map(v => v.item.ean));

@@ -38,6 +38,7 @@ const {
 } = require('../../../AllPromos/promos-bancarias');
 const catalogoUnificado = require('../catalogoUnificado');
 const precioCache = require('../precioCache');
+const { requiereSesion, requierePlanActivo } = require('../middleware/requiereSesion');
 const { crearLimitador } = require('../limitadorGlobal');
 const { leerPromosBancariasCache } = require('../promosBancariasCache');
 
@@ -336,7 +337,7 @@ function aplicarPromosBancarias(resumen, supermercados, tarjetasSeleccionadas, d
   };
 }
 
-router.post('/comparar', async (req, res) => {
+router.post('/comparar', requiereSesion, requierePlanActivo, async (req, res) => {
   const error = validarBody(req.body);
   if (error) return res.status(400).json({ error });
 
@@ -529,7 +530,7 @@ const MAX_EANS_PRECIOS = 40;
  * pantalla de búsqueda) — para eso está /comparar, una vez que el producto ya está en el
  * carrito.
  */
-router.post('/precios', async (req, res) => {
+router.post('/precios', requiereSesion, requierePlanActivo, async (req, res) => {
   const eans = Array.isArray(req.body?.eans)
     ? [...new Set(req.body.eans.map(e => String(e).trim()))]
     : null;
