@@ -1,5 +1,5 @@
 /**
- * Onboarding "Cómo funciona" (SPEC.md § 4.5): 3 hojas secuenciales sobre backdrop. Se reabre
+ * Onboarding "Cómo funciona" (SPEC.md § 4.5): 4 hojas secuenciales sobre backdrop. Se reabre
  * siempre desde el estado inicial de Buscar y desde Ajustes — no es un modal de una sola vez,
  * por eso no guarda "ya lo vi" en ningún lado.
  */
@@ -12,7 +12,15 @@ import { NOMBRE_SUPER, ORDEN_SUPERS } from './comunes';
 import { FotoProducto } from './FotoProducto';
 import { PlacaLogoSuper } from './LogoSuper';
 
+// El paso 0 empuja a "Mis descuentos" ANTES de explicar cómo se arma un carrito: cargar bancos y
+// promos ahí es lo que hace que el comparador (paso 2) tenga algo real para descontar. Es solo
+// texto/ilustración, igual que el resto — no navega, el usuario decide ir a "Mis descuentos" por
+// su cuenta después de leerlo.
 const PASOS = [
+  {
+    titulo: 'Cargá tus descuentos',
+    texto: 'Antes de comparar, contanos qué bancos y promos tenés. Así el comparador ya los tiene en cuenta cuando arma tu carrito.',
+  },
   {
     titulo: 'Armá un carrito',
     texto: 'Buscá el producto por nombre y seleccionalo. No elegís supermercado: el mismo producto se busca en todos a la vez.',
@@ -98,6 +106,17 @@ function IlustracionPaso({ paso }: { paso: number }) {
   if (paso === 0) {
     return (
       <View style={[styles.ilustracionFila, { backgroundColor: paleta.superficieAlt }]}>
+        <View style={[styles.masMini, { backgroundColor: paleta.oferta }]}>
+          <Text style={[texto.subtitulo, { color: paleta.ofertaTinta }]}>%</Text>
+        </View>
+        <Text style={[texto.cuerpoMedio, { color: paleta.tinta, flex: 1 }]}>Bancos, billeteras y promos por cantidad</Text>
+      </View>
+    );
+  }
+
+  if (paso === 1) {
+    return (
+      <View style={[styles.ilustracionFila, { backgroundColor: paleta.superficieAlt }]}>
         <FotoProducto nombre="Coca Cola" imagen={null} tamano={40} />
         <Text style={[texto.cuerpoMedio, { color: paleta.tinta, flex: 1 }]}>Coca Cola Regular 2.25 Lts</Text>
         <View style={[styles.masMini, { backgroundColor: paleta.oferta }]}>
@@ -107,7 +126,7 @@ function IlustracionPaso({ paso }: { paso: number }) {
     );
   }
 
-  if (paso === 1) {
+  if (paso === 2) {
     const filas: [string, string, string, string][] = [
       ['VEA', pesos(5200), '#12874A', 'coca cola · yerba'],
       ['CARREFOUR', pesos(4300), '#1B5FD9', 'fideos · oreo · sensodyne'],

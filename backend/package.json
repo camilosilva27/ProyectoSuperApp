@@ -10,7 +10,8 @@
     "test": "node --test",
     "unificar": "node src/cron/unificarCatalogo.js",
     "refrescar": "node src/cron/refrescarCatalogos.js",
-    "descubrir": "node src/cron/descubrirCandidatosExtras.js"
+    "descubrir": "node src/cron/descubrirCandidatosExtras.js",
+    "ping-supabase": "node src/cron/pingSupabase.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
