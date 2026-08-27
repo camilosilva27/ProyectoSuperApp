@@ -85,12 +85,15 @@ function promosSinAplicarDe(items: ItemComparado[]): PromoSinAplicar[] {
     }
 
     // Promo de cantidad mínima (ej. Coto "2da unidad al 70%"): ya viene filtrada por
-    // calcularSugerenciaCantidad para que valga la pena (ver comentario en comparador.js),
-    // así que alcanza con tomar la candidata más chica y su mejor opción de super.
+    // calcularSugerenciaCantidad para que valga la pena (ver comentario en comparador.js).
+    // OJO: la candidata con `total` más bajo no es necesariamente la que tiene la promo —
+    // puede haber un super con precio de lista bajo y ninguna promo que igual gane por total,
+    // lo que mostraba "ahorrás $0" (bug real 27/08, Yogurísimo/Coto). Hay que elegir por
+    // ahorro real (totalSinPromo - total), no por total más bajo.
     if (item.sugerenciaCantidad && mejor && item.cantidad > 0) {
       const candidata = item.sugerenciaCantidad.vistaPrevia[0];
       const mejorCandidata = candidata?.opciones.reduce<typeof candidata.opciones[number] | null>(
-        (min, o) => (!min || o.total < min.total ? o : min),
+        (max, o) => (!max || (o.totalSinPromo - o.total) > (max.totalSinPromo - max.total) ? o : max),
         null
       );
       if (mejorCandidata) {
