@@ -7,9 +7,10 @@
  *
  * Rediseño v2 (SPEC.md § 4.6, versión de un solo total — el header con los DOS totales de
  * 3c/5b queda para esa fase): header negro con el total, el ahorro y un aviso de promos sin
- * aplicar; PLAN DE COMPRA con un bloque grande por super; PROMOS SIN APLICAR agrupadas (solo
- * las de tarjeta: la sugerencia por cantidad sigue en "Producto por producto", ver comentario
- * en PromosSinAplicar); y "si comprás todo en uno" como gráfico de barras.
+ * aplicar; PLAN DE COMPRA con un bloque grande por super; PROMOS SIN APLICAR agrupadas (de
+ * tarjeta y de cantidad mínima — ver promosSinAplicarDe; el detalle completo de candidatas por
+ * cantidad sigue además en "Producto por producto", que muestra todas las alternativas y no
+ * solo la más chica); y "si comprás todo en uno" como gráfico de barras.
  */
 
 import { useQuery } from '@tanstack/react-query';
@@ -54,8 +55,9 @@ const VERDE_APLICADA = '#12874A';
  *  el número al usuario como si fuera un límite que puede llegar a tocar. */
 const TOPE_PRACTICO_MAXIMO = 1_000_000;
 
-/** Una promo de tarjeta sin activar, en el super donde el producto ya quedó asignado —
- *  ver PromosSinAplicar para por qué solo estas entran acá. */
+/** Una promo sin aplicar, en el super donde el producto ya quedó asignado (o donde convendría
+ *  reasignarlo) — de tarjeta (activarla es una declaración, "tengo la tarjeta") o de cantidad
+ *  mínima (activarla es llevar más unidades). Mismo bloque visual, acción distinta. */
 type PromoSinAplicar = {
   ean: string;
   producto: string;
@@ -63,24 +65,48 @@ type PromoSinAplicar = {
   ahorro: number;
   quedaEn: number;
   descripcion: string;
-  tarjeta: string;
-};
+} & ({ tipo: 'tarjeta'; tarjeta: string } | { tipo: 'cantidad'; cantidadSugerida: number });
 
 function promosSinAplicarDe(items: ItemComparado[]): PromoSinAplicar[] {
   const promos: PromoSinAplicar[] = [];
   for (const item of items) {
     const mejor = item.mejor;
-    if (!mejor?.promo || mejor.promo.tarjetaActiva || !mejor.promo.requiereTarjeta) continue;
-    if (mejor.totalConTarjeta == null) continue;
-    promos.push({
-      ean: item.ean,
-      producto: item.nombre ?? item.ean,
-      super: mejor.super,
-      ahorro: mejor.total - mejor.totalConTarjeta,
-      quedaEn: mejor.totalConTarjeta,
-      descripcion: mejor.promo.descripcion,
-      tarjeta: mejor.promo.requiereTarjeta,
-    });
+    if (mejor?.promo && !mejor.promo.tarjetaActiva && mejor.promo.requiereTarjeta && mejor.totalConTarjeta != null) {
+      promos.push({
+        tipo: 'tarjeta',
+        ean: item.ean,
+        producto: item.nombre ?? item.ean,
+        super: mejor.super,
+        ahorro: mejor.total - mejor.totalConTarjeta,
+        quedaEn: mejor.totalConTarjeta,
+        descripcion: mejor.promo.descripcion,
+        tarjeta: mejor.promo.requiereTarjeta,
+      });
+    }
+
+    // Promo de cantidad mínima (ej. Coto "2da unidad al 70%"): ya viene filtrada por
+    // calcularSugerenciaCantidad para que valga la pena (ver comentario en comparador.js),
+    // así que alcanza con tomar la candidata más chica y su mejor opción de super.
+    if (item.sugerenciaCantidad && mejor && item.cantidad > 0) {
+      const candidata = item.sugerenciaCantidad.vistaPrevia[0];
+      const mejorCandidata = candidata?.opciones.reduce<typeof candidata.opciones[number] | null>(
+        (min, o) => (!min || o.total < min.total ? o : min),
+        null
+      );
+      if (mejorCandidata) {
+        const porUnidadHoy = mejor.total / item.cantidad;
+        promos.push({
+          tipo: 'cantidad',
+          ean: item.ean,
+          producto: item.nombre ?? item.ean,
+          super: mejorCandidata.nombre,
+          ahorro: porUnidadHoy * candidata.cantidad - mejorCandidata.total,
+          quedaEn: mejorCandidata.total,
+          descripcion: mejorCandidata.oferta,
+          cantidadSugerida: candidata.cantidad,
+        });
+      }
+    }
   }
   return promos;
 }
@@ -169,11 +195,15 @@ export default function PantallaResultado() {
             <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>PROMOS SIN APLICAR · {promos.length}</Text>
             {promos.map(promo => (
               <BloquePromo
-                key={promo.ean}
+                key={`${promo.ean}-${promo.tipo}`}
                 promo={promo}
                 onAplicar={() => {
-                  if (!carrito.tarjetas.includes(promo.tarjeta)) {
-                    carrito.setTarjetas([...carrito.tarjetas, promo.tarjeta]);
+                  if (promo.tipo === 'tarjeta') {
+                    if (!carrito.tarjetas.includes(promo.tarjeta)) {
+                      carrito.setTarjetas([...carrito.tarjetas, promo.tarjeta]);
+                    }
+                  } else {
+                    carrito.cambiarCantidad(promo.ean, promo.cantidadSugerida);
                   }
                 }}
               />
@@ -532,14 +562,24 @@ function BloquePromo({ promo, onAplicar }: { promo: PromoSinAplicar; onAplicar: 
         <Pressable
           onPress={onAplicar}
           accessibilityRole="button"
-          accessibilityLabel={`Marcar que tenés ${promo.tarjeta}, para ${promo.producto}`}
+          accessibilityLabel={
+            promo.tipo === 'tarjeta'
+              ? `Marcar que tenés ${promo.tarjeta}, para ${promo.producto}`
+              : `Cambiar a ${promo.cantidadSugerida} unidades de ${promo.producto}`
+          }
           style={[styles.botonAplicar, { backgroundColor: paleta.tinta }]}
         >
-          {/* "Tengo {nombre}", no "Activar": es una declaración del usuario, no una acción
-              técnica — ver SPEC § 4.7. */}
-          <Text style={[texto.cuerpoMedio, { color: paleta.superficie }]} numberOfLines={1}>
-            Tengo {promo.tarjeta}
-          </Text>
+          {promo.tipo === 'tarjeta' ? (
+            // "Tengo {nombre}", no "Activar": es una declaración del usuario, no una acción
+            // técnica — ver SPEC § 4.7.
+            <Text style={[texto.cuerpoMedio, { color: paleta.superficie }]} numberOfLines={1}>
+              Tengo {promo.tarjeta}
+            </Text>
+          ) : (
+            <Text style={[texto.cuerpoMedio, { color: paleta.superficie }]} numberOfLines={1}>
+              Llevar {promo.cantidadSugerida}
+            </Text>
+          )}
         </Pressable>
       </View>
     </View>
@@ -585,8 +625,9 @@ function SiComprasTodoEnUno({ data }: { data: RespuestaComparar }) {
 }
 
 /** Detalle por producto, visible por default (se puede ocultar con el link al pie) —
- *  acá vive la comparación con BarraDiferencia y el aviso de cantidad, que el
- *  agrupado de arriba no reemplaza (ver comentario de BloquePromo). */
+ *  acá vive la comparación con BarraDiferencia y el aviso de cantidad con TODAS las
+ *  candidatas por producto; el agrupado de arriba solo muestra la candidata más chica de
+ *  cada una (ver promosSinAplicarDe), no reemplaza este detalle completo. */
 function DetalleProductoPorProducto({ data, isFetching }: { data: RespuestaComparar; isFetching: boolean }) {
   const { paleta } = useTema();
   const [mostrar, setMostrar] = useState(true);
