@@ -58,6 +58,21 @@ function interpretarPromoPorTexto(nombrePromo, effectiveDiscount) {
     };
   }
 
+  // --- Coto: "X% Nda/Ndo" (descuento solo en la Nésima unidad, ej. "70% 2da") ---
+  const cotoNda = nombre.match(/^(\d+(?:\.\d+)?)\s*%\s*(\d+)(?:er|era|do|da|to|ta|ro|ra)\b/i);
+  if (cotoNda) {
+    const descPct = parseFloat(cotoNda[1]) / 100;
+    const nUnidades = parseInt(cotoNda[2]);
+    return {
+      tipo: 'ndo_al_pct',
+      descripcion: `${nUnidades}° al ${cotoNda[1]}% de descuento`,
+      cantidadMinima: nUnidades,
+      nUnidades,
+      descuentoSegunda: descPct,
+      esOnline,
+    };
+  }
+
   // --- X% directo ---
   const pct = nombre.match(/^(\d+)%/);
   if (pct || effectiveDiscount !== undefined) {
