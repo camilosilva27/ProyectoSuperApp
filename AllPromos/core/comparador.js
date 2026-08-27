@@ -105,7 +105,7 @@ function detectarCantidadesCandidatas(grupos, cantidadActual, supermercados = SU
  * necesita 3), y mostrar solo una ocultaría la otra alternativa. No vuelve a consultar las
  * APIs — `precioBase` y `promo` ya están en memoria y no dependen de la cantidad.
  *
- * @returns [{ cantidad, opciones: [{ key, nombre, tag, total, promo, oferta }] }]
+ * @returns [{ cantidad, opciones: [{ key, nombre, tag, total, totalSinPromo, promo, oferta }] }]
  */
 function calcularVistaPreviaCantidades(grupos, candidatas, supermercados = SUPERMERCADOS, tarjetasSeleccionadas) {
   return candidatas.map(cantidad => ({
@@ -115,11 +115,17 @@ function calcularVistaPreviaCantidades(grupos, candidatas, supermercados = SUPER
         const mejor = mejorOpcionCombinada(grupos, s.key, cantidad, tarjetasSeleccionadas);
         if (!mejor) return null;
         const promoRank = promoParaRanking(mejor.promo, tarjetasSeleccionadas);
+        const costo = calcularCosto(promoRank, mejor.precioBase, cantidad);
         return {
           key: s.key,
           nombre: s.nombre,
           tag: s.tag,
-          total: redondear(calcularCosto(promoRank, mejor.precioBase, cantidad).totalConPromo),
+          total: redondear(costo.totalConPromo),
+          // Precio de lista para esta MISMA cantidad, en el MISMO super (sin la promo) —
+          // permite mostrar "ahorrás $X" comparando manzanas con manzanas. Comparar contra el
+          // total de hoy en la cantidad actual sería comparar peras: distinta cantidad, y a
+          // veces distinto super (ver bug 2026-08-27, "Ahorrás $0,00" en Yogurísimo/Coto).
+          totalSinPromo: redondear(costo.totalSinPromo),
           promo: mejor.promo,
           oferta: describirOferta(promoRank),
         };

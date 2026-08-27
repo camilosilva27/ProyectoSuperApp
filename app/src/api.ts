@@ -52,7 +52,13 @@ export type OpcionSuper = {
 
 export type VistaPreviaCantidad = {
   cantidad: number;
-  opciones: { key: SuperKey; nombre: string; tag: string; total: number; oferta: string }[];
+  opciones: {
+    key: SuperKey; nombre: string; tag: string; total: number;
+    /** Precio de lista para esta misma cantidad, en el mismo super, sin la promo — para
+     *  calcular el ahorro comparando manzanas con manzanas (ver resultado.tsx). */
+    totalSinPromo: number;
+    oferta: string;
+  }[];
 };
 
 export type ItemComparado = {
