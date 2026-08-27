@@ -94,13 +94,15 @@ function promosSinAplicarDe(items: ItemComparado[]): PromoSinAplicar[] {
         null
       );
       if (mejorCandidata) {
-        const porUnidadHoy = mejor.total / item.cantidad;
         promos.push({
           tipo: 'cantidad',
           ean: item.ean,
           producto: item.nombre ?? item.ean,
           super: mejorCandidata.nombre,
-          ahorro: porUnidadHoy * candidata.cantidad - mejorCandidata.total,
+          // Mismo super, misma cantidad candidata: lista vs. con promo. Comparar contra el
+          // precio de hoy (otra cantidad, a veces otro super) daba "ahorrás $0" cuando el
+          // super más barato para 1 unidad no era el que tiene la promo (ver bug 27/08).
+          ahorro: mejorCandidata.totalSinPromo - mejorCandidata.total,
           quedaEn: mejorCandidata.total,
           descripcion: mejorCandidata.oferta,
           cantidadSugerida: candidata.cantidad,
