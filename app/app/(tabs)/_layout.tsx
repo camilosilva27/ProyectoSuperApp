@@ -31,6 +31,11 @@ export default function LayoutPestanas() {
         tabBarStyle: {
           backgroundColor: paleta.superficie,
           borderTopColor: paleta.borde,
+          // Sin esto, las barras CTA "flotantes" de Buscar/Carrito (position:absolute
+          // dentro de cada pantalla) podían pintarse por encima de las 4 pestañas: nada
+          // fijaba el orden de stacking entre ellas.
+          zIndex: 10,
+          elevation: 10,
         },
         tabBarLabelStyle: texto.micro,
         sceneStyle: { backgroundColor: paleta.fondo },
