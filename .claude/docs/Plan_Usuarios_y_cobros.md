@@ -197,7 +197,9 @@ Se evaluó sumar Stripe como segunda opción de cobro con tarjeta, además de Me
 - **Riesgos a resolver antes de comprometerse**: acreditación lenta (9 días hábiles tarjetas nacionales, 19 internacionales); pueden retener hasta 10% del volumen mensual por riesgo, hasta 180 días post-contrato; una queja fuerte en Trustpilot sobre funciones prometidas no entregadas y cambios unilaterales de condiciones. No hay info pública suficiente sobre calidad de API/SDK para Node ni sandbox.
 - **Próximo paso si se decide seguir**: hablar con soporte/ventas de Rebill para confirmar alta como monotributista, tiempos reales de KYC, y pedir acceso a sandbox/docs técnicas antes de integrar nada.
 
-## Chequeo de plan en el Express (para cuando exista una feature gateada)
+## Chequeo de plan en el Express (para cuando exista una feature gateada) — ✅ el gate real ya se implementó (26/08)
+
+**Actualizado 2026-08-29: esta sección describía solo la mecánica (JWT con `plan`), sin gate real todavía — eso ya cambió.** El commit `ae1cd96` (2026-08-26) agregó `requierePlanActivo` en `backend/src/middleware/requiereSesion.js`, aplicado en `/api/comparar`, `/api/precios`, `/api/catalogo/*` y `/api/mis-descuentos`. El hueco de "cualquiera puede usar el backend como proxy gratis" que se menciona más abajo como riesgo aceptado ya está cerrado. El resto de esta sección queda como registro de cómo se armó la mecánica del JWT antes de ese commit.
 
 Como todavía no hay ninguna feature específica atrás del gate, esta fase deja lista la mecánica, no el gate en sí:
 
