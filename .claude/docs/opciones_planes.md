@@ -139,10 +139,10 @@ no perder la posibilidad de reintentar o cambiar el mail.
 No implementado aún — anotado para no perderlo, a implementar en `useFlujoDePago`/`PlanSelect`/
 `MercadoPagoEmailSheet` cuando se retome.
 
-### Pendiente: pasada de diseño visual (2026-08-24)
+### ✅ Hecho: pasada de diseño visual (era "Pendiente 2026-08-24", resuelto 2026-08-25)
 
-El usuario va a compartir el `.dc.html` real de los turnos 12/13 (los comps nunca llegaron al
-handoff original, ver más arriba) para una revisión de detalles visuales — `PlanSelect` y
-`MercadoPagoEmailSheet` funcionan de punta a punta (probado en teléfono real, ver bugs corregidos
-arriba) pero no fueron comparados pixel a pixel contra un comp real todavía. Cuando llegue ese
-HTML, releer contra `PlanSelect.tsx`/`MercadoPagoEmailSheet.tsx` y ajustar lo que no coincida.
+El commit `46a02c4` (2026-08-25) alineó `PlanSelect.tsx`, `MercadoPagoEmailSheet.tsx` y
+`ajustes.tsx` contra el `.dc.html` real de los turnos 12/13 que el usuario compartió. Queda
+como registro histórico: el `.dc.html` no había llegado al handoff original (`design_handoff_allpromos_v2 /AllPromos v2.dc.html` solo llega hasta el turno 5), así que hasta ese
+commit `PlanSelect`/`MercadoPagoEmailSheet` funcionaban de punta a punta pero sin comparar
+pixel a pixel contra un comp real.

@@ -1,6 +1,6 @@
 # Plan: features futuras de la app — AllPromos
 
-**Estado: anotado, ninguna implementación empezada todavía.** El usuario está terminando de pensar el alcance completo antes de que se empiece a programar nada de esto — no asumir que esto ya es una decisión cerrada de diseño, es una lista viva. Leer primero `CONTEXTO_TECNICO.md` y `.claude/plans/twinkling-puzzling-brook.md` (el plan original de la app, ya ejecutado hasta Fase 1) para contexto de arquitectura.
+**Estado (actualizado 2026-08-29): la sección 1 (modo claro) y la 3 (límite de supers) siguen como estaban — anotadas, sin decisión final. La sección 2 (login) quedó obsoleta: se implementó por completo y ya está en producción, ver la nota al principio de esa sección.** Leer primero `CONTEXTO_TECNICO.md` y `.claude/plans/twinkling-puzzling-brook.md` (el plan original de la app, ya ejecutado hasta Fase 1) para contexto de arquitectura.
 
 ---
 
@@ -22,7 +22,9 @@ Discutido el 2026-08-10: la app (React Native + Expo) ya corre en web sin cambio
 
 ---
 
-## 2. Login
+## 2. Login — ✅ implementado y en producción (obsoleto el resto de esta sección)
+
+Todo lo de abajo describía login como una idea sin decidir. Eso ya no es así: hay login completo con Supabase Auth (`app/src/auth.tsx`, `FormularioAuth.tsx`, `GateSesion.tsx`), planes pagos con MercadoPago (`plan-y-pago.tsx`, `PlanSelect.tsx`) y un paywall sin plan gratis (sin pagar/sin trial vigente no se usa la app). Detalle completo en `Plan_Usuarios_y_cobros.md` y `opciones_planes.md`. Se dejan las preguntas originales abajo solo como registro histórico de por qué se decidió — no como algo pendiente.
 
 **Motivo confirmado por el usuario (2026-08-10):** que el usuario pueda setear en su cuenta qué tarjetas/promociones tiene, para que la app no le avise de una promo con una tarjeta que no tiene (ejemplo dado: "que no me avise que hay promos con Mi Carrefour si yo no lo tengo").
 
@@ -40,6 +42,8 @@ Preguntas abiertas para cuando se concrete:
 ---
 
 ## 3. Límite de cantidad de supermercados a visitar (con geolocalización)
+
+**Actualizado 2026-08-29: la mitad de esto ya se implementó, la otra mitad sigue pendiente.** El cálculo de "elegir la mejor combinación de K supers" descripto en el boceto de abajo se implementó tal cual el 2026-08-22 como `elegirSupersConTope(resumen, supermercados, tope)` en `AllPromos/core/comparador.js` (prueba todas las combinaciones de tamaño `tope`, ver `CONTEXTO_TECNICO.md` línea ~386) — persistido por usuario en `perfil_usuario.tope_supers` (Supabase, migración `0008_tope_supers.sql`), con `topeSupers` configurable en la app. **Lo que sigue sin implementar es específicamente la parte de geolocalización**: no hay `expo-location` ni `navigator.geolocation` en el repo, ni una base de sucursales con coordenadas — hoy el usuario elige el tope a mano (un número), no en base a distancia real. El resto de esta sección (boceto de cálculo, geolocalización) describe esa parte pendiente.
 
 **La pieza más grande de este backlog — cambia el motor de cálculo, no solo la UI.**
 
@@ -60,7 +64,7 @@ Confirmamos en vivo que **Vea, Carrefour, Chango Más y Día tienen precio únic
 
 ### Cómo se resolvería el cálculo (boceto, no implementado)
 
-Escrito originalmente pensando en 3 supers; hoy son 6 activos (`supersActivos` en `filtrosSupers.tsx`) y va a seguir creciendo, así que vale generalizar a **n supers activos, restringir a K**.
+Escrito originalmente pensando en 3 supers; hoy son 7 activos (`supersActivos` en `filtrosSupers.tsx`) y va a seguir creciendo, así que vale generalizar a **n supers activos, restringir a K**.
 
 **Duda resuelta 2026-08-19: ¿esto se pone más complejo con un carrito grande (ej. 60 productos) o con más supers?** No, y la razón es la que hace que todo el resto de esto sea fuerza bruta trivial: **el precio de cada producto es independiente del resto** — no hay envío mínimo ni descuento por volumen que dependa de qué otros productos van al mismo super. Eso significa que, una vez fijada una combinación de supers, el total de esa combinación es solo "por cada producto, el mínimo entre los precios de esa combinación" — un `min()` por producto, no una búsqueda.
 
