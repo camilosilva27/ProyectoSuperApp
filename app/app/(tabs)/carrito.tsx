@@ -18,6 +18,10 @@ import { useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+// expo-router (v57) vendorea su propio bottom-tabs y no lo reexporta desde el root del
+// paquete: no hay `@react-navigation/bottom-tabs` instalado por separado, así que este es
+// el único import que existe hoy para este hook.
+import { useBottomTabBarHeight } from 'expo-router/build/react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TARJETAS_DISPONIBLES, useCarrito } from '../../src/carrito';
 import { useCarritosGuardados, type CarritoGuardado } from '../../src/carritosGuardados';
@@ -34,6 +38,7 @@ import { useTema } from '../../src/useTema';
 export default function PantallaCarrito() {
   const { paleta } = useTema();
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
   const router = useRouter();
   const carrito = useCarrito();
   const carritosGuardados = useCarritosGuardados();
@@ -220,7 +225,10 @@ export default function PantallaCarrito() {
             styles.barraInferior,
             {
               backgroundColor: paleta.superficie, borderTopColor: paleta.borde,
-              paddingBottom: Math.max(insets.bottom, espacio.md),
+              // Arriba del tab bar (que ya resuelve su propio safe-area), no contra el
+              // borde de la pantalla: si no, tapaba las 4 pestañas de abajo.
+              bottom: tabBarHeight,
+              paddingBottom: espacio.md,
             },
           ]}
         >
@@ -335,7 +343,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   barraInferior: {
-    position: 'absolute', left: 0, right: 0, bottom: 0,
+    position: 'absolute', left: 0, right: 0,
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: espacio.pantalla, paddingTop: espacio.md,
   },
