@@ -14,7 +14,7 @@
  * cargar reemplaza la compra actual entera por la guardada.
  */
 
-import { useRouter } from 'expo-router';
+import { usePathname, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -33,6 +33,7 @@ import { HeaderNegro, SelectorSupers, TituloHeader } from '../../src/componentes
 import { HojaSupers } from '../../src/componentes/HojaSupers';
 import { useFiltrosSupers } from '../../src/filtrosSupers';
 import { espacio, radio, texto } from '../../src/theme';
+import { useTourPaso } from '../../src/tour/TourContext';
 import { useTema } from '../../src/useTema';
 
 export default function PantallaCarrito() {
@@ -40,9 +41,11 @@ export default function PantallaCarrito() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const router = useRouter();
+  const pathname = usePathname();
   const carrito = useCarrito();
   const carritosGuardados = useCarritosGuardados();
   const { supersActivos, toggleSuper, topeSupers, setSupersYTope, usoPorSuper } = useFiltrosSupers();
+  const refComparar = useTourPaso('comparar-precios', pathname === '/resultado');
   const [mostrarHoja, setMostrarHoja] = useState(false);
   const [recienGuardadoId, setRecienGuardadoId] = useState<string | null>(null);
   const [toastNombre, setToastNombre] = useState<string | null>(null);
@@ -233,6 +236,7 @@ export default function PantallaCarrito() {
           ]}
         >
           <Pressable
+            ref={refComparar}
             onPress={() => router.push('/resultado')}
             accessibilityRole="button"
             style={({ pressed }) => [

@@ -27,11 +27,11 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { precioSuscripcion } from '../../src/api';
 import { useAuth } from '../../src/auth';
-import { ComoFunciona } from '../../src/componentes/ComoFunciona';
 import { ConfirmacionModal } from '../../src/componentes/Confirmacion';
 import { HeaderNegro, TituloHeader } from '../../src/componentes/HeaderNegro';
 import { diasRestantesTrial, usePlanUsuario } from '../../src/plan';
 import { espacio, pesosCorto, radio, texto } from '../../src/theme';
+import { useTour } from '../../src/tour/TourContext';
 import { useTema } from '../../src/useTema';
 
 // Tarjeta oscura del bloque "TU PLAN" cuando el plan activo es Permanente (turno 13e) — mismo
@@ -51,7 +51,7 @@ export default function PantallaAjustes() {
   const router = useRouter();
   const { session, cerrarSesion } = useAuth();
   const { info: infoPlan, recargar: recargarPlan } = usePlanUsuario();
-  const [mostrarComoFunciona, setMostrarComoFunciona] = useState(false);
+  const tour = useTour();
   const [mostrarConfirmarSalir, setMostrarConfirmarSalir] = useState(false);
   const [precios, setPrecios] = useState<{ mensual: number; anual: number; permanente: number } | null>(null);
 
@@ -164,11 +164,11 @@ export default function PantallaAjustes() {
 
         <View style={[styles.grupo, { borderColor: paleta.borde }]}>
           <Pressable
-            onPress={() => setMostrarComoFunciona(true)}
+            onPress={tour.iniciar}
             accessibilityRole="button"
             style={styles.fila}
           >
-            <Text style={[texto.cuerpoMedio, { color: paleta.tinta, flex: 1 }]}>Cómo funciona</Text>
+            <Text style={[texto.cuerpoMedio, { color: paleta.tinta, flex: 1 }]}>Ver el tutorial</Text>
             <Text style={[texto.subtitulo, { color: paleta.tintaTenue }]}>›</Text>
           </Pressable>
         </View>
@@ -177,7 +177,6 @@ export default function PantallaAjustes() {
           Ante cualquier duda, opinión o problema, escribir a camilosilva28@gmail.com
         </Text>
       </View>
-      <ComoFunciona visible={mostrarComoFunciona} onClose={() => setMostrarComoFunciona(false)} />
       <ConfirmacionModal
         visible={mostrarConfirmarSalir}
         titulo="Cerrar sesión"

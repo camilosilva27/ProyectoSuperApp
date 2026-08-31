@@ -435,6 +435,57 @@ seleccionado, no se llama al backend.
 
 ---
 
+## Tour interactivo guiado (reemplaza a "Cómo funciona")
+
+**2026-08-31, implementado.** `app/src/componentes/ComoFunciona.tsx` (modal estático de 4
+slides) se borró: lo reemplaza un tour de spotlight sobre la app real (`app/src/tour/`), que
+hace que el usuario arme una compra real guiada en vez de ver una demo — carga una tarjeta en
+Descuentos, busca un producto, elige supers y tope en la hoja de supers, arma el carrito y
+compara precios de verdad. Handoff de diseño original en
+`design_handoff_allpromos_v2 /design_handoff_allpromos_v2/TOUR-interactivo-handoff.md`.
+
+**Un solo mecanismo, sin Context de React para el estado del tour** (evita re-renderizar todo
+el árbol en cada tecla tipeada) — `app/src/tour/TourContext.tsx` es un store externo
+(`useSyncExternalStore`) con un hook colocado:
+
+```ts
+useTourPaso(id: PasoId, cumplido: boolean, alCompletar?: () => void): RefObject<T | null>
+```
+
+Se llama en el componente real que ya tiene el dato que decide si el paso está cumplido (su
+propio estado local, o un contexto global existente como `useCarrito()`/`useFiltrosSupers()`) y
+devuelve un ref para ponerle al elemento real. Mientras ese paso está activo, el ref queda
+anotado en un registro module-level (`targets`, fuera de React a propósito) que
+`app/src/tour/TourOverlay.tsx` lee para medir y dibujar el spotlight. `avanzarTour(id)` es la
+salida imperativa para el único paso que no puede detectarse con un booleano (cerrar la hoja de
+supers: el componente se desmonta como parte de la propia acción que completa el paso).
+
+**El paso 4 del handoff ("elegir tope → cierra la hoja") se partió en dos** (`tope-elegido` /
+`listo`, ver `pasos.ts`): tal como estaba escrito, el botón "Listo" —lo único que de verdad
+cierra y confirma la hoja de supers— quedaba fuera del recorte del spotlight y por lo tanto
+bloqueado por el propio overlay. Sin el split, el usuario no podía salir de la hoja.
+
+**Medición de targets**: `measureInWindow` con reintento en cada frame durante ~1.5s después de
+cada cambio de paso (no una sola vez) — cubre tanto el nodo recién montado (0×0 hasta que corre
+el layout) como el caso de `HojaSupers`, que anima su entrada con `Animated.spring`: el
+spotlight simplemente sigue midiendo y "viaja" con el target mientras termina de moverse, sin
+necesidad de escuchar el fin de esa animación.
+
+**El target de la pestaña "Descuentos" en la barra inferior no se mide con un ref** — customizar
+`tabBarButton` en `app/(tabs)/_layout.tsx` para eso es frágil (vendoreado por Expo Router, no es
+un paquete propio). Se calcula por fórmula (5 tabs de ancho igual, índice 2) usando el alto real
+de la tab bar, que `app/(tabs)/index.tsx` reporta una sola vez vía `tourReportarAltoTabBar()`
+(el `TourOverlay` vive fuera del navigator de tabs, en `app/_layout.tsx`, así que no puede leer
+`useBottomTabBarHeight()` directamente).
+
+**Montaje**: `<TourOverlay />` es hermano del `<Stack>` en `app/_layout.tsx`, dentro de
+`GatePaywallFinTrial` — sobrevive la navegación entre tabs y hacia `/resultado` sin remontarse.
+El auto-onboarding (primera vez, `AsyncStorage` clave `allpromos:tourVisto:v1`) y el botón
+manual ("Ver el tutorial", en el estado inicial de Buscar y en Ajustes) llaman a
+`iniciarTour()`/`useTour().iniciar`.
+
+---
+
 ## Búsqueda por nombre — matchesBusqueda
 
 ```javascript

@@ -14,6 +14,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import React, { useEffect, useRef } from 'react';
 import {
@@ -26,7 +27,15 @@ import { useCarrito } from '../../src/carrito';
 import { NOMBRE_SUPER, ORDEN_SUPERS, Problema } from '../../src/componentes/comunes';
 import { HeaderNegro, TituloHeader } from '../../src/componentes/HeaderNegro';
 import { espacio, fuentes, pesos, radio, texto } from '../../src/theme';
+import { useTourPaso } from '../../src/tour/TourContext';
 import { useTema } from '../../src/useTema';
+
+// Nombre exacto tal como lo devuelve el backend en `Descuento.nombre` — el paso del tour que
+// pide activar esta tarjeta (ver TourContext.tsx) mide justo esta fila. Mercado Pago, no Banco
+// Nación: casi todo el mundo la tiene y aparece cerca del principio de la lista (ver el orden
+// en AllPromos/promos-bancarias.js, ALIAS_TARJETAS) — con Banco Nación, casi al final, había
+// que scrollear para ver la zona resaltada.
+const NOMBRE_TARJETA_TOUR = 'Mercado Pago';
 
 /**
  * Switch a medida (SPEC turno 6c): el nativo no puede dibujar el anillo interior de 1.5px que
@@ -104,9 +113,22 @@ function supersDe(d: Descuento): string | null {
 export default function PantallaMisDescuentos() {
   const { paleta } = useTema();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const carrito = useCarrito();
   const { session } = useAuth();
   const accessToken = session?.access_token ?? null;
+
+  // El target del paso 'tab-descuentos' (la celda de la barra inferior) se calcula por fórmula
+  // en TourOverlay, no con un ref — pero el avance sigue necesitando este hook: si el usuario
+  // ya está en esta pantalla, la condición del paso ("navegó a Descuentos") está cumplida. El
+  // ref que devuelve no se usa en ningún lado a propósito.
+  useTourPaso('tab-descuentos', true);
+
+  const refMercadoPago = useTourPaso(
+    'mercado-pago',
+    carrito.tarjetas.includes(NOMBRE_TARJETA_TOUR),
+    () => router.navigate('/')
+  );
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['mis-descuentos'],
@@ -144,7 +166,10 @@ export default function PantallaMisDescuentos() {
               return (
                 <View key={d.nombre}>
                   {i > 0 ? <View style={[styles.separador, { backgroundColor: paleta.borde }]} /> : null}
-                  <View style={styles.fila}>
+                  <View
+                    ref={d.nombre === NOMBRE_TARJETA_TOUR ? refMercadoPago : undefined}
+                    style={styles.fila}
+                  >
                     <View style={{ flex: 1, gap: 3 }}>
                       <View style={styles.filaNombreTag}>
                         <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>{d.nombre}</Text>
