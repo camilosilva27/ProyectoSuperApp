@@ -16,7 +16,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import Head from 'expo-router/head';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
@@ -124,11 +124,13 @@ export default function PantallaMisDescuentos() {
   // ref que devuelve no se usa en ningún lado a propósito.
   useTourPaso('tab-descuentos', true);
 
-  const refMercadoPago = useTourPaso(
-    'mercado-pago',
-    carrito.tarjetas.includes(NOMBRE_TARJETA_TOUR),
-    () => router.navigate('/')
-  );
+  // NO mira `carrito.tarjetas.includes(...)`: si la cuenta ya tenía Mercado Pago activado de
+  // antes (persiste entre sesiones, igual que el carrito), esa condición ya estaría cumplida
+  // apenas monta la pantalla, saltando el paso sin que el usuario llegue a ver el switch —
+  // mismo bug que ya se corrigió para "marcá Coto" en HojaSupers.tsx. Este estado local sí se
+  // resetea en cada visita a la pantalla, que es justo lo que hace falta acá.
+  const [tocoMercadoPago, setTocoMercadoPago] = useState(false);
+  const refMercadoPago = useTourPaso('mercado-pago', tocoMercadoPago, () => router.navigate('/'));
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['mis-descuentos'],
@@ -186,13 +188,14 @@ export default function PantallaMisDescuentos() {
                     </View>
                     <SwitchDescuento
                       activa={activa}
-                      onCambiar={valor =>
+                      onCambiar={valor => {
+                        if (d.nombre === NOMBRE_TARJETA_TOUR) setTocoMercadoPago(true);
                         carrito.setTarjetas(
                           valor
                             ? [...carrito.tarjetas, d.nombre]
                             : carrito.tarjetas.filter(t => t !== d.nombre)
-                        )
-                      }
+                        );
+                      }}
                       accessibilityLabel={`${activa ? 'Tengo' : 'No tengo'} ${d.nombre}`}
                     />
                   </View>

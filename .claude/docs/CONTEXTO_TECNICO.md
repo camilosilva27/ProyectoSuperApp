@@ -466,10 +466,24 @@ cierra y confirma la hoja de supers— quedaba fuera del recorte del spotlight y
 bloqueado por el propio overlay. Sin el split, el usuario no podía salir de la hoja.
 
 **Medición de targets**: `measureInWindow` con reintento en cada frame durante ~1.5s después de
-cada cambio de paso (no una sola vez) — cubre tanto el nodo recién montado (0×0 hasta que corre
-el layout) como el caso de `HojaSupers`, que anima su entrada con `Animated.spring`: el
-spotlight simplemente sigue midiendo y "viaja" con el target mientras termina de moverse, sin
-necesidad de escuchar el fin de esa animación.
+cada cambio de paso, y cada 400ms indefinidamente después de esa ventana (no cubre solo la
+animación de `HojaSupers` — un target que tarda en montar por otro motivo, ej. una pantalla
+esperando datos de red, antes se quedaba sin spotlight para siempre). **Mientras no hay rect
+medido, el overlay bloquea TODA la pantalla** (no deja pasar nada) en vez de no renderizar
+nada — la versión anterior dejaba una ventana real, entre que el paso cambiaba y que el target
+se encontraba, en la que se podía tocar cualquier cosa antes de que el bloqueo "enganchara".
+
+**Ojo con condiciones de avance que miran estado persistido en vez del toque real.** Dos pasos
+tuvieron el mismo bug: miraban si algo YA estaba en el estado (`borrador.includes('coto')` en
+`coto`, `carrito.tarjetas.includes('Mercado Pago')` en `mercado-pago`) en vez de si el usuario
+lo acababa de tocar. Como `supersActivos` viene con los 7 supers activos por defecto, y
+`carrito.tarjetas` persiste entre sesiones de la misma cuenta, ambas condiciones podían estar
+cumplidas desde ANTES de que el paso arrancara — el paso se saltaba solo, sin que el usuario
+llegara a ver ni tocar nada. El arreglo en los dos casos es el mismo patrón: un booleano local
+que arranca en `false` y se pone en `true` recién dentro del handler real del control (`toggle`
+en `HojaSupers.tsx`, `onCambiar` del switch en `mis-descuentos.tsx`), nunca derivado del valor
+resultante. Cualquier paso nuevo que agregue algo al tour tiene que evaluar si su condición
+puede estar ya cumplida por estado persistido antes de escribirla.
 
 **El target de la pestaña "Descuentos" en la barra inferior no se mide con un ref** — customizar
 `tabBarButton` en `app/(tabs)/_layout.tsx` para eso es frágil (vendoreado por Expo Router, no es
