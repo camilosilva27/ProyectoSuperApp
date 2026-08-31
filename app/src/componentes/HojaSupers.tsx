@@ -21,6 +21,7 @@ import { comparar, type SuperKey } from '../api';
 import { useAuth } from '../auth';
 import { useCarrito } from '../carrito';
 import { espacio, fuentes, paletaDe, pesosCorto, radio, texto, textoPretty } from '../theme';
+import { avanzarTour, useTourPaso } from '../tour/TourContext';
 import { NOMBRE_SUPER, ORDEN_SUPERS } from './comunes';
 import { PlacaLogoSuper } from './LogoSuper';
 
@@ -106,11 +107,15 @@ export function HojaSupers({
   const translateY = useRef(new Animated.Value(ALTURA_OFFSCREEN)).current;
   const carrito = useCarrito();
   const { session } = useAuth();
+  // Snapshot del tope con el que se abrió la hoja — el paso del tour "elegí un tope" (ver
+  // TourContext.tsx) necesita distinguir "el usuario tocó una opción" de "el tope ya venía así".
+  const topeInicialRef = useRef(tope);
 
   useEffect(() => {
     if (!visible) return;
     setBorrador(activos);
     setTopeBorrador(normalizarTope(tope, activos.length));
+    topeInicialRef.current = normalizarTope(tope, activos.length);
     setBusqueda('');
     translateY.setValue(ALTURA_OFFSCREEN);
     Animated.spring(translateY, { toValue: 0, useNativeDriver: true, bounciness: 4 }).start();
@@ -124,6 +129,9 @@ export function HojaSupers({
       onAplicar(borrador, topeBorrador);
       onCerrar();
       setArrastrando(false);
+      // Imperativo, no vía `useTourPaso`: para cuando esto corre, la hoja ya se está por
+      // desmontar (onCerrar) — no hay forma de que un booleano "cumplido" lo detecte a tiempo.
+      avanzarTour('listo');
     });
   };
   // El `PanResponder` de más abajo se crea una sola vez (`useRef`) para no perder el gesto en
@@ -180,6 +188,13 @@ export function HojaSupers({
   const pedido = carrito.items.map(i => ({ ean: i.ean, cantidad: i.cantidad }));
   const montoTope = useCostoTope(pedido, carrito.tarjetas, borrador, topeBorrador, session?.access_token ?? null);
 
+  const refCoto = useTourPaso('coto', borrador.includes('coto'));
+  const refTope = useTourPaso('tope-elegido', topeBorrador !== topeInicialRef.current);
+  // `cumplido` siempre en `false`: este paso se completa con `avanzarTour('listo')` imperativo
+  // dentro de `cerrarYConfirmar` (arriba), no con una condición — para cuando se cumple, la
+  // hoja ya se está desmontando. El hook igual sirve para registrar el target a medir.
+  const refListo = useTourPaso('listo', false);
+
   if (!visible) return null;
 
   return (
@@ -223,13 +238,15 @@ export function HojaSupers({
         </View>
 
         {borrador.length > 1 ? (
-          <BloqueTope
-            n={borrador.length}
-            topeBorrador={topeBorrador}
-            onCambiarTope={setTopeBorrador}
-            monto={montoTope}
-            carritoVacio={pedido.length === 0}
-          />
+          <View ref={refTope}>
+            <BloqueTope
+              n={borrador.length}
+              topeBorrador={topeBorrador}
+              onCambiarTope={setTopeBorrador}
+              monto={montoTope}
+              carritoVacio={pedido.length === 0}
+            />
+          </View>
         ) : null}
 
         <View style={styles.contenedorLista}>
@@ -240,7 +257,12 @@ export function HojaSupers({
                 {comparando.map((key, i) => (
                   <React.Fragment key={key}>
                     {i > 0 ? <View style={styles.separador} /> : null}
-                    <FilaSuper superKey={key} activo onPress={() => toggle(key)} />
+                    <FilaSuper
+                      superKey={key}
+                      activo
+                      onPress={() => toggle(key)}
+                      tourRef={key === 'coto' ? refCoto : undefined}
+                    />
                   </React.Fragment>
                 ))}
               </View>
@@ -252,7 +274,12 @@ export function HojaSupers({
                 {afuera.map((key, i) => (
                   <React.Fragment key={key}>
                     {i > 0 ? <View style={styles.separador} /> : null}
-                    <FilaSuper superKey={key} activo={false} onPress={() => toggle(key)} />
+                    <FilaSuper
+                      superKey={key}
+                      activo={false}
+                      onPress={() => toggle(key)}
+                      tourRef={key === 'coto' ? refCoto : undefined}
+                    />
                   </React.Fragment>
                 ))}
               </View>
@@ -261,7 +288,7 @@ export function HojaSupers({
           {arrastrando ? <View style={StyleSheet.absoluteFill} /> : null}
         </View>
 
-        <Pressable onPress={cerrarYConfirmar} accessibilityRole="button" style={styles.botonListo}>
+        <Pressable ref={refListo} onPress={cerrarYConfirmar} accessibilityRole="button" style={styles.botonListo}>
           <Text style={styles.textoBotonListo}>Listo</Text>
         </Pressable>
       </Animated.View>
@@ -270,10 +297,17 @@ export function HojaSupers({
 }
 
 function FilaSuper({
-  superKey, activo, onPress,
-}: { superKey: SuperKey; activo: boolean; onPress: () => void }) {
+  superKey, activo, onPress, tourRef,
+}: {
+  superKey: SuperKey;
+  activo: boolean;
+  onPress: () => void;
+  /** Solo lo pasa el tour, y solo para la fila de Coto (ver más arriba). */
+  tourRef?: React.RefObject<View | null>;
+}) {
   return (
     <Pressable
+      ref={tourRef}
       onPress={onPress}
       accessibilityRole="checkbox"
       accessibilityState={{ checked: activo }}

@@ -38,12 +38,15 @@ const MAX_CELDAS = 4;
  * en la celda: a 10px el nombre era ilegible, y "Chango Más" se truncaba.
  */
 export function SelectorSupers({
-  activos, usoPorSuper, onQuitar, onAbrirHoja,
+  activos, usoPorSuper, onQuitar, onAbrirHoja, refCeldaOtros,
 }: {
   activos: SuperKey[];
   usoPorSuper: Partial<Record<SuperKey, number>>;
   onQuitar: (key: SuperKey) => void;
   onAbrirHoja: () => void;
+  /** Solo lo usa el tour (ver app/(tabs)/index.tsx) para medir la celda "+N otros" — no
+   *  pasarlo no cambia nada del comportamiento normal (ej. desde carrito.tsx). */
+  refCeldaOtros?: React.RefObject<View | null>;
 }) {
   const paletaOscura = paletaDe('dark');
 
@@ -82,6 +85,7 @@ export function SelectorSupers({
 
         {cantidadOtros > 0 ? (
           <Pressable
+            ref={refCeldaOtros}
             onPress={onAbrirHoja}
             hitSlop={{ top: 12, bottom: 12 }}
             accessibilityRole="button"

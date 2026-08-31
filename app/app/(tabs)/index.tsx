@@ -13,8 +13,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
+import { usePathname, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -34,18 +33,14 @@ import { useCarrito } from '../../src/carrito';
 import {
   BandaDisponibilidad, BotonPrincipal, NOMBRE_SUPER, ORDEN_SUPERS, Problema, Stepper, Vacio,
 } from '../../src/componentes/comunes';
-import { ComoFunciona } from '../../src/componentes/ComoFunciona';
 import { FotoProducto } from '../../src/componentes/FotoProducto';
 import { HeaderNegro, SelectorSupers, TituloHeader } from '../../src/componentes/HeaderNegro';
 import { PlacaLogoSuper } from '../../src/componentes/LogoSuper';
 import { HojaSupers } from '../../src/componentes/HojaSupers';
 import { useFiltrosSupers } from '../../src/filtrosSupers';
 import { espacio, pesos, radio, texto } from '../../src/theme';
+import { tourReportarAltoTabBar, tourYaVisto, useTour, useTourPaso } from '../../src/tour/TourContext';
 import { useTema } from '../../src/useTema';
-
-// Primera apertura de la app: el onboarding se muestra solo, además de poder reabrirlo a mano
-// (botón "Cómo funciona").
-const CLAVE_ONBOARDING_VISTO = 'allpromos:onboardingVisto:v1';
 
 /**
  * Precio/oferta de a lotes chicos, a medida que se scrollea — no de toda la búsqueda de una.
@@ -139,26 +134,39 @@ export default function PantallaBuscar() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const router = useRouter();
+  const pathname = usePathname();
   const carrito = useCarrito();
+  const tour = useTour();
   const { session } = useAuth();
   const accessToken = session?.access_token ?? null;
   const [consulta, setConsulta] = useState('');
   const consultaDemorada = useTextoDemorado(consulta.trim());
   const consultaValida = consultaDemorada.length >= 2;
   const [orden, setOrden] = useState<OrdenBusqueda>('alfabetico');
-  const [mostrarComoFunciona, setMostrarComoFunciona] = useState(false);
   const [mostrarHojaSupers, setMostrarHojaSupers] = useState(false);
   const { supersActivos, toggleSuper, topeSupers, setSupersYTope, usoPorSuper } = useFiltrosSupers();
 
-  // Auto-inicio del onboarding, una sola vez por dispositivo — el botón manual (EstadoInicial,
+  // El alto real de la tab bar solo se puede leer desde una pantalla que esté DENTRO del
+  // navigator de tabs (este hook depende de su Context) — el overlay del tour vive afuera
+  // (app/_layout.tsx), así que esta pantalla se lo reporta. Es un dato físico de layout, no
+  // una condición de avance, por eso no pasa por `useTourPaso`.
+  useEffect(() => {
+    tourReportarAltoTabBar(tabBarHeight);
+  }, [tabBarHeight]);
+
+  // Auto-inicio del tour, una sola vez por dispositivo — el botón manual (EstadoInicial,
   // Ajustes) sigue andando igual después de esto.
   useEffect(() => {
-    AsyncStorage.getItem(CLAVE_ONBOARDING_VISTO).then(visto => {
-      if (visto) return;
-      setMostrarComoFunciona(true);
-      AsyncStorage.setItem(CLAVE_ONBOARDING_VISTO, '1').catch(() => {});
+    tourYaVisto().then(visto => {
+      if (!visto) tour.iniciar();
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al montar
   }, []);
+
+  const refBuscador = useTourPaso<TextInput>('buscador-input', consultaDemorada.length >= 3);
+  const refCeldaOtros = useTourPaso('selector-otros', mostrarHojaSupers);
+  const refPrimerResultado = useTourPaso('primer-resultado', carrito.items.length > 0);
+  const refVerCarrito = useTourPaso('ver-carrito', pathname === '/carrito');
 
   const { data, isFetching, error, refetch } = useQuery({
     queryKey: ['catalogo', consultaDemorada, supersActivos, orden],
@@ -239,6 +247,7 @@ export default function PantallaBuscar() {
         <TituloHeader>Qué vas a comprar</TituloHeader>
         <View style={styles.buscador}>
           <TextInput
+            ref={refBuscador}
             value={consulta}
             onChangeText={setConsulta}
             placeholder="yerba, fideos, shampoo…"
@@ -270,13 +279,14 @@ export default function PantallaBuscar() {
             usoPorSuper={usoPorSuper}
             onQuitar={toggleSuper}
             onAbrirHoja={() => setMostrarHojaSupers(true)}
+            refCeldaOtros={refCeldaOtros}
           />
         ) : null}
       </HeaderNegro>
 
       {!consultaValida ? (
         <EstadoInicial
-          onAbrirComoFunciona={() => setMostrarComoFunciona(true)}
+          onAbrirTour={tour.iniciar}
           conCarritoFlotante={carrito.items.length > 0}
         />
       ) : (
@@ -293,7 +303,7 @@ export default function PantallaBuscar() {
           ItemSeparatorComponent={() => <View style={{ height: espacio.sm }} />}
           onViewableItemsChanged={onViewableItemsChanged}
           viewabilityConfig={viewabilityConfig}
-          renderItem={({ item }) => (
+          renderItem={({ item, index }) => (
             <FilaProducto
               producto={item}
               cantidad={carrito.cantidadDe(item.ean)}
@@ -301,6 +311,7 @@ export default function PantallaBuscar() {
               supersActivos={supersActivos}
               onAgregar={() => carrito.agregar(item)}
               onCambiarCantidad={n => carrito.cambiarCantidad(item.ean, n)}
+              tourRef={index === 0 ? refPrimerResultado : undefined}
             />
           )}
           ListEmptyComponent={
@@ -325,8 +336,6 @@ export default function PantallaBuscar() {
         />
       )}
 
-      <ComoFunciona visible={mostrarComoFunciona} onClose={() => setMostrarComoFunciona(false)} />
-
       <HojaSupers
         visible={mostrarHojaSupers}
         activos={supersActivos}
@@ -342,6 +351,7 @@ export default function PantallaBuscar() {
           de abrir la hoja, no con lo que se acababa de elegir ahí. */}
       {carrito.items.length > 0 && !mostrarHojaSupers ? (
         <View
+          ref={refVerCarrito}
           style={[
             styles.barraInferior,
             {
@@ -375,10 +385,10 @@ function filasDe<T>(items: T[], porFila: number): T[][] {
 /** Estado inicial de Buscar (SPEC § 4.1): lo que se ve antes de escribir nada. Es donde el
  *  usuario entiende qué es esto — nunca se vio antes en la app. */
 function EstadoInicial({
-  onAbrirComoFunciona,
+  onAbrirTour,
   conCarritoFlotante,
 }: {
-  onAbrirComoFunciona: () => void;
+  onAbrirTour: () => void;
   conCarritoFlotante: boolean;
 }) {
   const { paleta } = useTema();
@@ -440,11 +450,11 @@ function EstadoInicial({
       <View style={[styles.filaOnboarding, { borderTopColor: paleta.borde }]}>
         <Text style={[texto.cuerpo, { color: paleta.tintaSuave, flex: 1 }]}>Primera vez acá?</Text>
         <Pressable
-          onPress={onAbrirComoFunciona}
+          onPress={onAbrirTour}
           accessibilityRole="button"
           style={[styles.botonComoFunciona, { borderColor: paleta.tinta }]}
         >
-          <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>Cómo funciona</Text>
+          <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>Ver el tutorial</Text>
         </Pressable>
       </View>
     </ScrollView>
@@ -461,7 +471,7 @@ function EstadoInicial({
  * Stepper es el único elemento interactivo.
  */
 function FilaProducto({
-  producto, cantidad, precio, supersActivos, onAgregar, onCambiarCantidad,
+  producto, cantidad, precio, supersActivos, onAgregar, onCambiarCantidad, tourRef,
 }: {
   producto: ProductoCatalogo;
   cantidad: number;
@@ -470,6 +480,8 @@ function FilaProducto({
   supersActivos: SuperKey[];
   onAgregar: () => void;
   onCambiarCantidad: (n: number) => void;
+  /** Solo lo pasa el tour, y solo para la fila en índice 0 (ver renderItem más arriba). */
+  tourRef?: React.RefObject<View | null>;
 }) {
   const { paleta } = useTema();
   const enLista = cantidad > 0;
@@ -501,6 +513,7 @@ function FilaProducto({
   if (enLista) {
     return (
       <View
+        ref={tourRef}
         style={[styles.fila, { borderColor: paleta.borde }]}
         accessibilityLabel={`${producto.nombre}, ${cantidad} en el carrito`}
       >
@@ -511,6 +524,7 @@ function FilaProducto({
 
   return (
     <Pressable
+      ref={tourRef}
       onPress={onAgregar}
       accessibilityRole="button"
       accessibilityLabel={`${producto.nombre}, agregar al carrito`}
