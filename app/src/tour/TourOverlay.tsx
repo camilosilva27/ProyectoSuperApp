@@ -173,7 +173,9 @@ export function TourOverlay() {
         ]}
       >
         <View style={styles.cartel}>
-          <Text style={styles.pasoCartel}>Paso {ORDEN_PASOS.indexOf(pasoActivo) + 1} de {TOTAL_PASOS}</Text>
+          <View style={styles.badgePaso}>
+            <Text style={styles.pasoCartel}>Paso {ORDEN_PASOS.indexOf(pasoActivo) + 1} de {TOTAL_PASOS}</Text>
+          </View>
           <Text style={styles.tituloCartel}>{PASOS[pasoActivo].titulo}</Text>
           <Text style={styles.textoCartel}>{PASOS[pasoActivo].texto}</Text>
           <View style={styles.puntos} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
@@ -213,7 +215,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF', borderRadius: radio.tarjeta, padding: espacio.xl, gap: espacio.sm,
     boxShadow: '0 4px 20px rgba(11,18,32,.25)',
   },
-  pasoCartel: { fontFamily: fuentes.semi, fontSize: 12, lineHeight: 16, color: '#6B7280' },
+  badgePaso: {
+    alignSelf: 'flex-start', backgroundColor: '#FFD400', borderRadius: radio.pill,
+    paddingHorizontal: espacio.sm, paddingVertical: 2,
+  },
+  pasoCartel: { fontFamily: fuentes.semi, fontSize: 12, lineHeight: 16, color: '#14161A' },
   tituloCartel: { fontFamily: fuentes.semi, fontSize: 17, lineHeight: 22, color: '#14161A' },
   textoCartel: { fontFamily: fuentes.medio, fontSize: 16, lineHeight: 22, color: '#14161A' },
   puntos: { flexDirection: 'row', gap: espacio.xs, marginTop: espacio.xs },
