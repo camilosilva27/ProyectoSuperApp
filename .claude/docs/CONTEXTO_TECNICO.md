@@ -433,6 +433,14 @@ de orden si el usuario sigue tocando el segmentado mientras hay una consulta en 
 patrón que `usePreciosProgresivos` en la pantalla de Buscar). Con carrito vacío, o con "Los N"
 seleccionado, no se llama al backend.
 
+**Botones del segmentado (`BloqueTope` dentro de `HojaSupers.tsx`, 2026-08-31)**: son fijos,
+`1..ORDEN_SUPERS.length` (hoy 1-7), sin un botón "Todos"/"Los N" aparte — no dependen de
+cuántos supers están tildados en el borrador (`n`). Tocar el botón cuyo número coincide con
+`n` es la opción de "sin tope" (manda el sentinel `0` igual que antes). Los números por
+encima de `n` no desaparecen al destildar un super — quedan visibles pero
+deshabilitados/grisados (`disabled` + estilo `opcionTopeDeshabilitada`), así la fila no
+cambia de tamaño ni salta de lugar mientras se arma la selección.
+
 ---
 
 ## Tour interactivo guiado (reemplaza a "Cómo funciona")

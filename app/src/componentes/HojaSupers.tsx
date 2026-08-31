@@ -273,10 +273,11 @@ export function HojaSupers({
           ) : null}
         </View>
 
-        {borrador.length > 1 ? (
+        {ORDEN_SUPERS.length > 1 ? (
           <View ref={refTope}>
             <BloqueTope
               n={borrador.length}
+              total={ORDEN_SUPERS.length}
               topeBorrador={topeBorrador}
               onCambiarTope={setTopeBorrador}
               monto={montoTope}
@@ -366,46 +367,68 @@ function FilaSuper({
   );
 }
 
-/** Segmentado "1 / 2 / ... / Los N" + la línea que dice cuánto cuesta el tope elegido. Vive
- *  entre el título de la hoja y el grupo "COMPARANDO" — cambia el resultado del cálculo, no es
- *  una preferencia de vista, por eso no va mezclado con la lista de supers. */
+/** Fila de botones numéricos fijos (1..total de supers del catálogo) + la línea que dice
+ *  cuánto cuesta el tope elegido. Vive entre el título de la hoja y el grupo "COMPARANDO" —
+ *  cambia el resultado del cálculo, no es una preferencia de vista, por eso no va mezclado
+ *  con la lista de supers.
+ *
+ *  No hay botón "Todos": tocar el número que coincide con la cantidad de supers elegidos
+ *  (`n`) ES la opción de "sin tope" (internamente se guarda como el sentinel 0, ver
+ *  normalizarTope más arriba). Los números por encima de `n` no desaparecen al destildar un
+ *  super de la lista — quedan visibles pero deshabilitados/grisados, así los botones no
+ *  saltan de lugar mientras el usuario arma la selección. */
 function BloqueTope({
-  n, topeBorrador, onCambiarTope, monto, carritoVacio,
+  n, total, topeBorrador, onCambiarTope, monto, carritoVacio,
 }: {
   n: number;
+  total: number;
   topeBorrador: number;
   onCambiarTope: (tope: number) => void;
   monto: number | null;
   carritoVacio: boolean;
 }) {
-  // 0 = sentinel de "Los N" — ver normalizarTope más arriba en este archivo.
-  const opciones = [...Array.from({ length: n - 1 }, (_, i) => i + 1), 0];
+  const opciones = Array.from({ length: total }, (_, i) => i + 1);
 
   return (
     <View style={styles.bloqueTope}>
       <Text style={styles.labelGrupo}>CUÁNTOS QUERÉS VISITAR COMO MÁXIMO?</Text>
       <View style={styles.filaTope}>
         {opciones.map(valor => {
-          const seleccionado = valor === topeBorrador;
+          const deshabilitado = valor > n;
+          // El botón que coincide con `n` manda el sentinel 0 (sin tope, "Los N" de antes) en
+          // vez de su propio número — es el mismo botón, no uno aparte.
+          const valorEfectivo = valor === n ? 0 : valor;
+          const seleccionado = !deshabilitado
+            && (topeBorrador === 0 ? valor === n : valor === topeBorrador);
           return (
             <Pressable
               key={valor}
-              onPress={() => onCambiarTope(valor)}
+              onPress={() => onCambiarTope(valorEfectivo)}
+              disabled={deshabilitado}
               accessibilityRole="button"
-              accessibilityState={{ selected: seleccionado }}
+              accessibilityState={{ selected: seleccionado, disabled: deshabilitado }}
               accessibilityLabel={
-                valor === 0
-                  ? `Los ${n} supers elegidos`
-                  : `Como mucho ${valor} super${valor === 1 ? '' : 's'}`
+                deshabilitado
+                  ? `${valor}, deshabilitado — elegí al menos ${valor} supers para usar esta opción`
+                  : valor === n
+                    ? `Sin tope, comparar los ${n} supers elegidos`
+                    : `Como mucho ${valor} super${valor === 1 ? '' : 's'}`
               }
               style={[
                 styles.opcionTope,
-                valor === 0 ? styles.opcionTopeLosN : null,
-                seleccionado ? styles.opcionTopeSeleccionada : styles.opcionTopeNoSeleccionada,
+                deshabilitado
+                  ? styles.opcionTopeDeshabilitada
+                  : seleccionado ? styles.opcionTopeSeleccionada : styles.opcionTopeNoSeleccionada,
               ]}
             >
-              <Text style={seleccionado ? styles.textoOpcionTopeSeleccionada : styles.textoOpcionTope}>
-                {valor === 0 ? `Los ${n}` : valor}
+              <Text
+                style={
+                  deshabilitado
+                    ? styles.textoOpcionTopeDeshabilitada
+                    : seleccionado ? styles.textoOpcionTopeSeleccionada : styles.textoOpcionTope
+                }
+              >
+                {valor}
               </Text>
             </Pressable>
           );
@@ -469,11 +492,12 @@ const styles = StyleSheet.create({
   bloqueTope: { gap: 10, borderBottomWidth: 1, borderBottomColor: '#DFE3E7', paddingBottom: 18 },
   filaTope: { flexDirection: 'row', gap: 6 },
   opcionTope: { flex: 1, height: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  opcionTopeLosN: { flex: 1.6 },
   opcionTopeNoSeleccionada: { boxShadow: 'inset 0 0 0 1px #C6CCD3' },
   opcionTopeSeleccionada: { backgroundColor: '#14161A' },
+  opcionTopeDeshabilitada: { backgroundColor: '#F1F2F4' },
   textoOpcionTope: { fontFamily: fuentes.medio, fontSize: 15, color: '#14161A' },
   textoOpcionTopeSeleccionada: { fontFamily: fuentes.semi, fontSize: 15, color: '#FFFFFF' },
+  textoOpcionTopeDeshabilitada: { fontFamily: fuentes.medio, fontSize: 15, color: '#A6ACB3' },
   lineaCosto: { fontFamily: fuentes.cuerpo, fontSize: 14, lineHeight: 20, color: '#3C444D' },
   montoLineaCosto: { fontFamily: fuentes.semi, fontSize: 14, lineHeight: 20, color: '#14161A' },
   contenedorLista: { position: 'relative', flex: 1, minHeight: 0 },
