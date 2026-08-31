@@ -21,7 +21,7 @@ import { comparar, type SuperKey } from '../api';
 import { useAuth } from '../auth';
 import { useCarrito } from '../carrito';
 import { espacio, fuentes, paletaDe, pesosCorto, radio, texto, textoPretty } from '../theme';
-import { avanzarTour, useTourPaso } from '../tour/TourContext';
+import { avanzarTour, useEstadoTour, useTourPaso } from '../tour/TourContext';
 import { NOMBRE_SUPER, ORDEN_SUPERS } from './comunes';
 import { PlacaLogoSuper } from './LogoSuper';
 
@@ -202,6 +202,35 @@ export function HojaSupers({
   // hoja ya se está desmontando. El hook igual sirve para registrar el target a medir.
   const refListo = useTourPaso('listo', false);
 
+  // Coto puede no entrar en la primera pantalla de la lista (depende de cuántos supers y cuánto
+  // ocupa BloqueTope arriba) — el overlay del tour bloquea todo menos la fila de Coto, así que
+  // si queda tapada por el borde del scroll, no hay forma de llegar a ella. Se la trae a la
+  // vista sola apenas arranca este paso, en vez de depender de que el usuario adivine que puede
+  // scrollear dentro del hueco bloqueado.
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollYRef = useRef(0);
+  const refContenedorLista = useRef<View>(null);
+  const { pasoActivo } = useEstadoTour();
+  useEffect(() => {
+    if (pasoActivo !== 'coto') return;
+    // Espera a que termine la animación de apertura de la hoja — antes de eso, medir la fila
+    // da su posición todavía en tránsito (offscreen), y el scroll calculado sale mal.
+    const id = setTimeout(() => {
+      const fila = refCoto.current;
+      const contenedor = refContenedorLista.current;
+      if (!fila || !contenedor) return;
+      fila.measureInWindow((xF, yF, wF, hF) => {
+        if (!wF) return;
+        contenedor.measureInWindow((xC, yC, wC, hC) => {
+          if (yF >= yC && yF + hF <= yC + hC) return; // ya está a la vista
+          const delta = (yF + hF / 2) - (yC + hC / 2);
+          scrollRef.current?.scrollTo({ y: Math.max(0, scrollYRef.current + delta), animated: true });
+        });
+      });
+    }, 500);
+    return () => clearTimeout(id);
+  }, [pasoActivo]);
+
   if (!visible) return null;
 
   return (
@@ -256,8 +285,14 @@ export function HojaSupers({
           </View>
         ) : null}
 
-        <View style={styles.contenedorLista}>
-          <ScrollView style={styles.lista} contentContainerStyle={styles.listaContenido}>
+        <View style={styles.contenedorLista} ref={refContenedorLista}>
+          <ScrollView
+            ref={scrollRef}
+            onScroll={e => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
+            scrollEventThrottle={32}
+            style={styles.lista}
+            contentContainerStyle={styles.listaContenido}
+          >
             {comparando.length > 0 ? (
               <View style={styles.grupo}>
                 <Text style={styles.labelGrupo}>COMPARANDO</Text>
