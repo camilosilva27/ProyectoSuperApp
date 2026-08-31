@@ -368,7 +368,6 @@ export default function PantallaBuscar() {
               // Arriba del tab bar (que ya resuelve su propio safe-area), no contra el
               // borde de la pantalla: si no, tapaba las 4 pestañas de abajo.
               bottom: tabBarHeight,
-              paddingBottom: espacio.md,
             },
           ]}
         >
