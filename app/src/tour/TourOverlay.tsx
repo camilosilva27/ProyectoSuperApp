@@ -1,7 +1,11 @@
 /**
  * Capa visual del tour: 4 bloqueadores opacos alrededor del target actual (arriba/abajo/
  * izquierda/derecha) + el recorte del medio sin overlay (el toque real llega directo al
- * elemento real, no se envuelve en nada) + el cartel de instrucción + "Salir", siempre visible.
+ * elemento real, no se envuelve en nada) + el cartel de instrucción.
+ *
+ * Sin botón de salir en los pasos intermedios (a pedido) — el tour se completa siempre de
+ * punta a punta. Solo el último paso (`ahorro`, ver resultado.tsx) tiene un botón, "Finalizar",
+ * que hace lo mismo que tocar el recuadro resaltado: terminar.
  *
  * La medición reintenta en cada frame durante una ventana corta después de cada cambio de
  * paso, no solo una vez: esto cubre tanto el caso general (nodo recién montado, 0×0 hasta que
@@ -14,8 +18,10 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { espacio, fuentes, radio } from '../theme';
-import { PASOS } from './pasos';
+import { ORDEN_PASOS, PASOS } from './pasos';
 import { refDeTarget, salirTour, tourAltoTabBar, useEstadoTour } from './TourContext';
+
+const ULTIMO_PASO = ORDEN_PASOS[ORDEN_PASOS.length - 1];
 
 type Rect = { x: number; y: number; width: number; height: number };
 
@@ -167,9 +173,11 @@ export function TourOverlay() {
       >
         <View style={styles.cartel}>
           <Text style={styles.textoCartel}>{PASOS[pasoActivo].texto}</Text>
-          <Pressable onPress={salirTour} accessibilityRole="button" style={styles.botonSalir}>
-            <Text style={styles.textoSalir}>Salir del tutorial</Text>
-          </Pressable>
+          {pasoActivo === ULTIMO_PASO ? (
+            <Pressable onPress={salirTour} accessibilityRole="button" style={styles.botonFinalizar}>
+              <Text style={styles.textoBotonFinalizar}>Finalizar</Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
     </View>
@@ -198,9 +206,11 @@ const styles = StyleSheet.create({
     boxShadow: '0 4px 20px rgba(11,18,32,.25)',
   },
   textoCartel: { fontFamily: fuentes.medio, fontSize: 16, lineHeight: 22, color: '#14161A' },
-  botonSalir: { alignSelf: 'flex-start' },
-  textoSalir: {
-    fontFamily: fuentes.medio, fontSize: 13, lineHeight: 18, color: '#565E67',
-    textDecorationLine: 'underline',
+  botonFinalizar: {
+    alignSelf: 'flex-start', backgroundColor: '#14161A', borderRadius: radio.sm,
+    height: 44, paddingHorizontal: espacio.lg, alignItems: 'center', justifyContent: 'center',
+  },
+  textoBotonFinalizar: {
+    fontFamily: fuentes.semi, fontSize: 14, lineHeight: 18, color: '#FFFFFF',
   },
 });

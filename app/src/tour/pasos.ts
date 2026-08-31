@@ -10,9 +10,10 @@
  * propio overlay. Sin este split el usuario no podía salir de la hoja de supers.
  *
  * `ahorro` (a pedido, no estaba en el handoff original) resalta el bloque de precio/ahorro de
- * `/resultado` — a diferencia del resto, no espera un toque: se marca cumplido solo, a los
- * pocos segundos de verse (ver `DEMORA_PASO_AHORRO_MS` en resultado.tsx), porque no hay ninguna
- * acción que pedirle al usuario ahí, es la recompensa.
+ * `/resultado`. Es el único paso con un botón en el cartel ("Finalizar", ver TourOverlay.tsx) —
+ * los demás no tienen forma de salir a mitad de camino, a pedido. Termina tocando el recuadro
+ * resaltado (el bloque mismo es un `Pressable`, ver `refAhorro` en resultado.tsx) o tocando
+ * "Finalizar"; ninguno de los dos avanza solo.
  */
 
 export type PasoId =
