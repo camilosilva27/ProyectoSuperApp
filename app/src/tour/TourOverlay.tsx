@@ -22,6 +22,7 @@ import { ORDEN_PASOS, PASOS } from './pasos';
 import { refDeTarget, salirTour, tourAltoTabBar, useEstadoTour } from './TourContext';
 
 const ULTIMO_PASO = ORDEN_PASOS[ORDEN_PASOS.length - 1];
+const TOTAL_PASOS = ORDEN_PASOS.length;
 
 type Rect = { x: number; y: number; width: number; height: number };
 
@@ -172,7 +173,14 @@ export function TourOverlay() {
         ]}
       >
         <View style={styles.cartel}>
+          <Text style={styles.pasoCartel}>Paso {ORDEN_PASOS.indexOf(pasoActivo) + 1} de {TOTAL_PASOS}</Text>
+          <Text style={styles.tituloCartel}>{PASOS[pasoActivo].titulo}</Text>
           <Text style={styles.textoCartel}>{PASOS[pasoActivo].texto}</Text>
+          <View style={styles.puntos} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+            {ORDEN_PASOS.map(id => (
+              <View key={id} style={[styles.punto, id === pasoActivo ? styles.puntoActivo : null]} />
+            ))}
+          </View>
           {pasoActivo === ULTIMO_PASO ? (
             <Pressable onPress={salirTour} accessibilityRole="button" style={styles.botonFinalizar}>
               <Text style={styles.textoBotonFinalizar}>Finalizar</Text>
@@ -202,10 +210,15 @@ const styles = StyleSheet.create({
   },
   cartelContenedor: { position: 'absolute', left: espacio.pantalla, right: espacio.pantalla },
   cartel: {
-    backgroundColor: '#FFFFFF', borderRadius: radio.tarjeta, padding: espacio.lg, gap: espacio.md,
+    backgroundColor: '#FFFFFF', borderRadius: radio.tarjeta, padding: espacio.xl, gap: espacio.sm,
     boxShadow: '0 4px 20px rgba(11,18,32,.25)',
   },
+  pasoCartel: { fontFamily: fuentes.semi, fontSize: 12, lineHeight: 16, color: '#6B7280' },
+  tituloCartel: { fontFamily: fuentes.semi, fontSize: 17, lineHeight: 22, color: '#14161A' },
   textoCartel: { fontFamily: fuentes.medio, fontSize: 16, lineHeight: 22, color: '#14161A' },
+  puntos: { flexDirection: 'row', gap: espacio.xs, marginTop: espacio.xs },
+  punto: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#E2E5E9' },
+  puntoActivo: { backgroundColor: '#14161A' },
   botonFinalizar: {
     alignSelf: 'flex-start', backgroundColor: '#14161A', borderRadius: radio.sm,
     height: 44, paddingHorizontal: espacio.lg, alignItems: 'center', justifyContent: 'center',
