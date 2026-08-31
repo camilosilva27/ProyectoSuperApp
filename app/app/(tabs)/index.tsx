@@ -165,7 +165,12 @@ export default function PantallaBuscar() {
 
   const refBuscador = useTourPaso<TextInput>('buscador-input', consultaDemorada.length >= 3);
   const refCeldaOtros = useTourPaso('selector-otros', mostrarHojaSupers);
-  const refPrimerResultado = useTourPaso('primer-resultado', carrito.items.length > 0);
+  // NO mira `carrito.items.length > 0`: el carrito persiste entre sesiones (igual que
+  // `carrito.tarjetas`), así que si la cuenta ya tenía algo cargado de antes esa condición ya
+  // estaría cumplida apenas arranca este paso — mismo bug que ya se corrigió para "marcá Coto"
+  // y "activá Mercado Pago". Este estado exige el toque real sobre la primera fila.
+  const [tocoPrimerResultado, setTocoPrimerResultado] = useState(false);
+  const refPrimerResultado = useTourPaso('primer-resultado', tocoPrimerResultado);
   const refVerCarrito = useTourPaso('ver-carrito', pathname === '/carrito');
 
   const { data, isFetching, error, refetch } = useQuery({
@@ -309,7 +314,10 @@ export default function PantallaBuscar() {
               cantidad={carrito.cantidadDe(item.ean)}
               precio={precios[item.ean]}
               supersActivos={supersActivos}
-              onAgregar={() => carrito.agregar(item)}
+              onAgregar={() => {
+                if (index === 0) setTocoPrimerResultado(true);
+                carrito.agregar(item);
+              }}
               onCambiarCantidad={n => carrito.cambiarCantidad(item.ean, n)}
               tourRef={index === 0 ? refPrimerResultado : undefined}
             />

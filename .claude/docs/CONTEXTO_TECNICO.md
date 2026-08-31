@@ -473,17 +473,20 @@ medido, el overlay bloquea TODA la pantalla** (no deja pasar nada) en vez de no 
 nada — la versión anterior dejaba una ventana real, entre que el paso cambiaba y que el target
 se encontraba, en la que se podía tocar cualquier cosa antes de que el bloqueo "enganchara".
 
-**Ojo con condiciones de avance que miran estado persistido en vez del toque real.** Dos pasos
+**Ojo con condiciones de avance que miran estado persistido en vez del toque real.** Tres pasos
 tuvieron el mismo bug: miraban si algo YA estaba en el estado (`borrador.includes('coto')` en
-`coto`, `carrito.tarjetas.includes('Mercado Pago')` en `mercado-pago`) en vez de si el usuario
-lo acababa de tocar. Como `supersActivos` viene con los 7 supers activos por defecto, y
-`carrito.tarjetas` persiste entre sesiones de la misma cuenta, ambas condiciones podían estar
-cumplidas desde ANTES de que el paso arrancara — el paso se saltaba solo, sin que el usuario
-llegara a ver ni tocar nada. El arreglo en los dos casos es el mismo patrón: un booleano local
-que arranca en `false` y se pone en `true` recién dentro del handler real del control (`toggle`
-en `HojaSupers.tsx`, `onCambiar` del switch en `mis-descuentos.tsx`), nunca derivado del valor
-resultante. Cualquier paso nuevo que agregue algo al tour tiene que evaluar si su condición
-puede estar ya cumplida por estado persistido antes de escribirla.
+`coto`, `carrito.tarjetas.includes('Mercado Pago')` en `mercado-pago`, `carrito.items.length > 0`
+en `primer-resultado`) en vez de si el usuario lo acababa de tocar. Como `supersActivos` viene
+con los 7 supers activos por defecto, y tanto `carrito.tarjetas` como `carrito.items` persisten
+entre sesiones de la misma cuenta, las tres condiciones podían estar cumplidas desde ANTES de
+que el paso arrancara (muy fácil de pisar sin querer probando el tour varias veces seguidas con
+la misma cuenta) — el paso se saltaba solo, sin que el usuario llegara a ver ni tocar nada. El
+arreglo en los tres casos es el mismo patrón: un booleano local que arranca en `false` y se pone
+en `true` recién dentro del handler real del control (`toggle` en `HojaSupers.tsx`, `onCambiar`
+del switch en `mis-descuentos.tsx`, `onAgregar` de la fila índice 0 en `index.tsx`), nunca
+derivado del valor resultante ni de una condición leída directo de estado global/persistido.
+Cualquier paso nuevo que agregue algo al tour tiene que evaluar esto antes de escribir su
+condición — es el bug más repetido de todo el feature.
 
 **Coto puede quedar fuera de la pantalla visible de la hoja de supers** (depende de cuánto
 ocupa `BloqueTope` arriba y cuántos supers hay) — como el overlay bloquea todo menos su fila,
