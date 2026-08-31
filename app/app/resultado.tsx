@@ -36,10 +36,6 @@ import { espacio, pesos, pesosCorto, radio, texto } from '../src/theme';
 import { useTourPaso } from '../src/tour/TourContext';
 import { useTema } from '../src/useTema';
 
-// Último paso del tour: sin acción que hacer, es la recompensa (handoff §3) — se marca
-// "cumplido" solo, a los pocos segundos de verse, en vez de esperar un toque que no existe.
-const DEMORA_PASO_AHORRO_MS = 2500;
-
 /** Color de identidad de un super, con el borde de contraste de Día si corresponde (ver theme.ts). */
 function colorIdentidad(paleta: ReturnType<typeof useTema>['paleta'], key: SuperKey) {
   const borde = (paleta.supersBorde as Partial<Record<SuperKey, string>>)[key];
@@ -275,12 +271,10 @@ function HeaderVeredicto({
     registrarUso(data.supermercados.map(s => s.key));
   }, [data, montoAhorradoPromos, registrar, registrarUso]);
 
+  // Último paso del tour: no se cierra solo — el usuario tiene que tocar el recuadro
+  // resaltado (o "Finalizar" en el cartel, ver TourOverlay.tsx) para terminar.
   const [ahorroListo, setAhorroListo] = useState(false);
-  useEffect(() => {
-    setAhorroListo(false);
-    const id = setTimeout(() => setAhorroListo(true), DEMORA_PASO_AHORRO_MS);
-    return () => clearTimeout(id);
-  }, [data]);
+  useEffect(() => { setAhorroListo(false); }, [data]);
   const refAhorro = useTourPaso('ahorro', ahorroListo);
 
   const paradasNombres = data.supermercados
@@ -310,7 +304,13 @@ function HeaderVeredicto({
         <Text style={[texto.micro, styles.labelHeaderOscuro]}>DÓNDE COMPRAR</Text>
       </Pressable>
 
-      <View ref={refAhorro} style={{ gap: espacio.md }}>
+      <Pressable
+        ref={refAhorro}
+        onPress={() => setAhorroListo(true)}
+        accessibilityRole="button"
+        accessibilityLabel="Listo, ver el resultado"
+        style={{ gap: espacio.md }}
+      >
         {dosTotales ? (
           <View style={hayAhorroPorPromos ? styles.filaDosTotales : { gap: espacio.md }}>
             <View style={{ flex: 1, gap: 4 }}>
@@ -354,7 +354,7 @@ function HeaderVeredicto({
             <Text style={[texto.precioGrande, { color: paleta.ofertaTinta }]}>{pesos(ahorroRepartiendo)}</Text>
           </View>
         ) : null}
-      </View>
+      </Pressable>
 
       {promos.length ? (
         <Pressable onPress={onVerPromos} accessibilityRole="button" style={styles.bloqueAvisoPromos}>
