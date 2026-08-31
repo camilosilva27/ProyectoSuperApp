@@ -33,6 +33,7 @@ import { HeaderNegro } from '../src/componentes/HeaderNegro';
 import { useFiltrosSupers } from '../src/filtrosSupers';
 import { useHistorialAhorro } from '../src/historialAhorro';
 import { espacio, pesos, pesosCorto, radio, texto } from '../src/theme';
+import { useTourPaso } from '../src/tour/TourContext';
 import { useTema } from '../src/useTema';
 
 /** Color de identidad de un super, con el borde de contraste de Día si corresponde (ver theme.ts). */
@@ -270,6 +271,12 @@ function HeaderVeredicto({
     registrarUso(data.supermercados.map(s => s.key));
   }, [data, montoAhorradoPromos, registrar, registrarUso]);
 
+  // Último paso del tour: no se cierra solo — el usuario tiene que tocar el recuadro
+  // resaltado (o "Finalizar" en el cartel, ver TourOverlay.tsx) para terminar.
+  const [ahorroListo, setAhorroListo] = useState(false);
+  useEffect(() => { setAhorroListo(false); }, [data]);
+  const refAhorro = useTourPaso('ahorro', ahorroListo);
+
   const paradasNombres = data.supermercados
     .filter(s => (data.resumen.subtotalAsignadoPorSuper[s.key] ?? 0) > 0)
     .map(s => s.nombre);
@@ -297,49 +304,57 @@ function HeaderVeredicto({
         <Text style={[texto.micro, styles.labelHeaderOscuro]}>DÓNDE COMPRAR</Text>
       </Pressable>
 
-      {dosTotales ? (
-        <View style={hayAhorroPorPromos ? styles.filaDosTotales : { gap: espacio.md }}>
-          <View style={{ flex: 1, gap: 4 }}>
-            <Text style={[texto.micro, { color: paleta.oferta, letterSpacing: 0.7 }]}>
-              REPARTIENDO EN {paradasNombres.length} PARADAS
-            </Text>
-            <Text style={[texto.precioHero, styles.totalHero, styles.totalPrincipal]}>
-              {pesosCorto(totalOptimo)}
-            </Text>
-            <Text style={[texto.dato, styles.textoMutedOscuro]}>{paradasNombres.join(' · ')}</Text>
+      <Pressable
+        ref={refAhorro}
+        onPress={() => setAhorroListo(true)}
+        accessibilityRole="button"
+        accessibilityLabel="Listo, ver el resultado"
+        style={{ gap: espacio.md }}
+      >
+        {dosTotales ? (
+          <View style={hayAhorroPorPromos ? styles.filaDosTotales : { gap: espacio.md }}>
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={[texto.micro, { color: paleta.oferta, letterSpacing: 0.7 }]}>
+                REPARTIENDO EN {paradasNombres.length} PARADAS
+              </Text>
+              <Text style={[texto.precioHero, styles.totalHero, styles.totalPrincipal]}>
+                {pesosCorto(totalOptimo)}
+              </Text>
+              <Text style={[texto.dato, styles.textoMutedOscuro]}>{paradasNombres.join(' · ')}</Text>
+            </View>
+            {hayAhorroPorPromos ? (
+              <>
+                <View style={styles.divisorVertical} />
+                <View style={styles.columnaTotalUnico}>
+                  <Text style={[texto.micro, styles.textoMutedOscuro, { letterSpacing: 0.7 }]}>
+                    PRECIO SIN DESCUENTOS
+                  </Text>
+                  <Text style={[texto.precioGrande, styles.totalSecundario]}>{pesosCorto(totalSinPromo)}</Text>
+                </View>
+              </>
+            ) : null}
           </View>
-          {hayAhorroPorPromos ? (
-            <>
-              <View style={styles.divisorVertical} />
-              <View style={styles.columnaTotalUnico}>
-                <Text style={[texto.micro, styles.textoMutedOscuro, { letterSpacing: 0.7 }]}>
-                  PRECIO SIN DESCUENTOS
-                </Text>
-                <Text style={[texto.precioGrande, styles.totalSecundario]}>{pesosCorto(totalSinPromo)}</Text>
-              </View>
-            </>
-          ) : null}
-        </View>
-      ) : (
-        <View style={{ gap: 6 }}>
-          {hayAhorroPorPromos ? (
-            <Text style={[texto.dato, styles.precioSinPromoHero]}>{pesosCorto(totalSinPromo)}</Text>
-          ) : null}
-          <Text style={[texto.precioHero, styles.totalHero]}>{pesosCorto(totalOptimo)}</Text>
-          {mejorUnico ? (
-            <Text style={[texto.etiqueta, styles.subtitutloHero]}>
-              Comprando todo en {mejorUnico.nombre} pagás el mejor precio: no hace falta un segundo viaje.
-            </Text>
-          ) : null}
-        </View>
-      )}
+        ) : (
+          <View style={{ gap: 6 }}>
+            {hayAhorroPorPromos ? (
+              <Text style={[texto.dato, styles.precioSinPromoHero]}>{pesosCorto(totalSinPromo)}</Text>
+            ) : null}
+            <Text style={[texto.precioHero, styles.totalHero]}>{pesosCorto(totalOptimo)}</Text>
+            {mejorUnico ? (
+              <Text style={[texto.etiqueta, styles.subtitutloHero]}>
+                Comprando todo en {mejorUnico.nombre} pagás el mejor precio: no hace falta un segundo viaje.
+              </Text>
+            ) : null}
+          </View>
+        )}
 
-      {valeRepartir && mejorUnico ? (
-        <View style={[styles.bloqueAhorro, { backgroundColor: paleta.oferta }]}>
-          <Text style={[texto.cuerpoMedio, { color: paleta.ofertaTinta }]}>Repartiendo ahorrás</Text>
-          <Text style={[texto.precioGrande, { color: paleta.ofertaTinta }]}>{pesos(ahorroRepartiendo)}</Text>
-        </View>
-      ) : null}
+        {valeRepartir && mejorUnico ? (
+          <View style={[styles.bloqueAhorro, { backgroundColor: paleta.oferta }]}>
+            <Text style={[texto.cuerpoMedio, { color: paleta.ofertaTinta }]}>Repartiendo ahorrás</Text>
+            <Text style={[texto.precioGrande, { color: paleta.ofertaTinta }]}>{pesos(ahorroRepartiendo)}</Text>
+          </View>
+        ) : null}
+      </Pressable>
 
       {promos.length ? (
         <Pressable onPress={onVerPromos} accessibilityRole="button" style={styles.bloqueAvisoPromos}>
