@@ -28,7 +28,8 @@ const ALTO_TAB_BAR_FALLBACK = 56;
 
 const PADDING_RECORTE = 8;
 const RADIO_RECORTE = 14;
-const MAX_INTENTOS_MEDICION = 90; // ~1.5s a 60fps
+const INTENTOS_RAPIDOS = 90; // ~1.5s a 60fps — sigue al target mientras HojaSupers anima su entrada
+const INTERVALO_LENTO_MS = 400; // tras la ventana rápida, sigue reintentando así de por vida
 
 function medirNodo(nodo: unknown): Promise<Rect | null> {
   return new Promise(resolve => {
@@ -77,7 +78,14 @@ export function TourOverlay() {
       if (cancelado) return;
       if (medido) setRect(medido);
       intentos++;
-      if (intentos < MAX_INTENTOS_MEDICION) requestAnimationFrame(ciclo);
+      if (intentos < INTENTOS_RAPIDOS) {
+        requestAnimationFrame(ciclo);
+      } else {
+        // El target puede tardar en montarse por algo ajeno a la animación (ej. una pantalla
+        // esperando una respuesta de red antes de renderizar su lista) — sin este fallback, un
+        // paso cuyo target aparece después de ~1.5s se quedaba sin spotlight para siempre.
+        setTimeout(ciclo, INTERVALO_LENTO_MS);
+      }
     }
 
     setRect(null);
