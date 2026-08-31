@@ -484,6 +484,13 @@ El auto-onboarding (primera vez, `AsyncStorage` clave `allpromos:tourVisto:v1`) 
 manual ("Ver el tutorial", en el estado inicial de Buscar y en Ajustes) llaman a
 `iniciarTour()`/`useTour().iniciar`.
 
+**Último paso (`ahorro`, resultado.tsx)**: a diferencia de todos los demás, no espera un toque
+— resalta el bloque de precio/ahorro de `/resultado` y se marca cumplido solo a los ~2.5s de
+verse (`DEMORA_PASO_AHORRO_MS`), porque ahí no hay ninguna acción que pedirle al usuario, es la
+recompensa. El ref envuelve tanto el total (repartido o único) como el bloque "Repartiendo
+ahorrás $X" cuando existe — este último es condicional (`valeRepartir && mejorUnico`), así que
+el wrapper cubre siempre al menos el total para que el target nunca falte.
+
 ---
 
 ## Búsqueda por nombre — matchesBusqueda

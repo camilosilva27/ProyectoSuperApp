@@ -8,6 +8,11 @@
  * `listo`): tal como estaba escrito, el botón "Listo" —lo único que de verdad cierra y
  * confirma la hoja— quedaba fuera del recorte del spotlight y por lo tanto bloqueado por el
  * propio overlay. Sin este split el usuario no podía salir de la hoja de supers.
+ *
+ * `ahorro` (a pedido, no estaba en el handoff original) resalta el bloque de precio/ahorro de
+ * `/resultado` — a diferencia del resto, no espera un toque: se marca cumplido solo, a los
+ * pocos segundos de verse (ver `DEMORA_PASO_AHORRO_MS` en resultado.tsx), porque no hay ninguna
+ * acción que pedirle al usuario ahí, es la recompensa.
  */
 
 export type PasoId =
@@ -20,7 +25,8 @@ export type PasoId =
   | 'listo'
   | 'primer-resultado'
   | 'ver-carrito'
-  | 'comparar-precios';
+  | 'comparar-precios'
+  | 'ahorro';
 
 export const ORDEN_PASOS: PasoId[] = [
   'tab-descuentos',
@@ -33,6 +39,7 @@ export const ORDEN_PASOS: PasoId[] = [
   'primer-resultado',
   'ver-carrito',
   'comparar-precios',
+  'ahorro',
 ];
 
 export const PASOS: Record<PasoId, { texto: string }> = {
@@ -46,4 +53,5 @@ export const PASOS: Record<PasoId, { texto: string }> = {
   'primer-resultado': { texto: 'Tocá un producto para agregarlo al carrito.' },
   'ver-carrito': { texto: 'Tocá para ver tu carrito.' },
   'comparar-precios': { texto: 'Tocá para comparar precios y ver dónde conviene comprar.' },
+  ahorro: { texto: 'Así queda tu compra: cuánto pagás y cuánto ahorrás de verdad, con tus promos ya contadas.' },
 };
