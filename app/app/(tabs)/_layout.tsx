@@ -1,7 +1,12 @@
 /**
- * Cuatro pestañas (antes tres): buscar productos, ver la lista, Ahorros, y Ajustes.
- * El resultado no es una pestaña — es la consecuencia de una acción ("Comparar precios"),
- * así que se abre apilado encima.
+ * Cinco pestañas (antes cuatro): buscar productos, ver la lista, Mis descuentos, Ahorros, y
+ * Ajustes. El resultado no es una pestaña — es la consecuencia de una acción ("Comparar
+ * precios"), así que se abre apilado encima.
+ *
+ * "Mis descuentos" vivía como una fila dentro de Ajustes (una pantalla apilada, abierta con
+ * router.push) y pasó a ser su propia pestaña: es algo que se consulta y toca seguido (activar/
+ * desactivar tarjetas antes de comparar), no una preferencia de una sola vez como el resto de
+ * Ajustes.
  *
  * El contador de la pestaña "Carrito" muestra unidades, no productos distintos: es lo que
  * el usuario está por comparar.
@@ -32,7 +37,7 @@ export default function LayoutPestanas() {
           backgroundColor: paleta.superficie,
           borderTopColor: paleta.borde,
           // Sin esto, las barras CTA "flotantes" de Buscar/Carrito (position:absolute
-          // dentro de cada pantalla) podían pintarse por encima de las 4 pestañas: nada
+          // dentro de cada pantalla) podían pintarse por encima de las pestañas: nada
           // fijaba el orden de stacking entre ellas.
           zIndex: 10,
           elevation: 10,
@@ -53,6 +58,13 @@ export default function LayoutPestanas() {
         options={{
           title: 'Carrito',
           tabBarIcon: ({ color }) => <IconoLista color={color} cantidad={totalUnidades} />,
+        }}
+      />
+      <Tabs.Screen
+        name="mis-descuentos"
+        options={{
+          title: 'Descuentos',
+          tabBarIcon: ({ color }) => <IconoDescuentos color={color} />,
         }}
       />
       <Tabs.Screen
@@ -117,6 +129,19 @@ function IconoLista({ color, cantidad }: { color: ColorValue; cantidad: number }
   );
 }
 
+// Tag de descuento: un rombo con un "agujero" cerca de una punta, como el de una etiqueta de
+// precio perforada. El agujero es hijo del rombo (no un hermano posicionado aparte) para que
+// herede su rotación sin tener que recalcular la posición ya rotada a mano.
+function IconoDescuentos({ color }: { color: ColorValue }) {
+  return (
+    <View style={styles.icono}>
+      <View style={[styles.tagCuerpo, { borderColor: color }]}>
+        <View style={[styles.tagAgujero, { backgroundColor: color }]} />
+      </View>
+    </View>
+  );
+}
+
 // Tres barras de altura fija (9/15/20): el ícono no cambia de tamaño entre activo e inactivo,
 // solo de color — a diferencia del "globo" del carrito, acá no hay nada que contar.
 function IconoAhorros({ color }: { color: ColorValue }) {
@@ -162,6 +187,11 @@ const styles = StyleSheet.create({
   },
   lineas: { gap: 3 },
   linea: { height: 2, borderRadius: 1 },
+  tagCuerpo: {
+    width: 15, height: 15, borderWidth: 2, borderRadius: 3,
+    transform: [{ rotate: '45deg' }],
+  },
+  tagAgujero: { position: 'absolute', width: 3, height: 3, borderRadius: 1.5, top: 2, left: 2 },
   barrasAhorro: { flexDirection: 'row', alignItems: 'flex-end', gap: 3 },
   barraAhorro: { width: 4, borderRadius: 1 },
   diente: {

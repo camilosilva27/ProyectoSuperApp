@@ -7,23 +7,26 @@
  * El switch de cada fila es la MISMA selección que las tarjetas del carrito (`carrito.
  * tarjetas`) — no hay un estado separado que sincronizar, es una sola fuente de verdad con
  * dos lugares para tocarla.
+ *
+ * Pasó de ser una pantalla apilada (abierta desde Ajustes) a su propia pestaña de la barra
+ * inferior: por eso el header ya no tiene flecha de "volver" (no hay a dónde volver, es un
+ * tab más) y usa `TituloHeader` como el resto de las pestañas (ver ahorros.tsx).
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import React, { useEffect, useRef } from 'react';
 import {
   ActivityIndicator, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ErrorApi, misDescuentos, type Descuento } from '../src/api';
-import { useAuth } from '../src/auth';
-import { useCarrito } from '../src/carrito';
-import { NOMBRE_SUPER, ORDEN_SUPERS, Problema } from '../src/componentes/comunes';
-import { HeaderNegro } from '../src/componentes/HeaderNegro';
-import { espacio, fuentes, pesos, radio, texto } from '../src/theme';
-import { useTema } from '../src/useTema';
+import { ErrorApi, misDescuentos, type Descuento } from '../../src/api';
+import { useAuth } from '../../src/auth';
+import { useCarrito } from '../../src/carrito';
+import { NOMBRE_SUPER, ORDEN_SUPERS, Problema } from '../../src/componentes/comunes';
+import { HeaderNegro, TituloHeader } from '../../src/componentes/HeaderNegro';
+import { espacio, fuentes, pesos, radio, texto } from '../../src/theme';
+import { useTema } from '../../src/useTema';
 
 /**
  * Switch a medida (SPEC turno 6c): el nativo no puede dibujar el anillo interior de 1.5px que
@@ -101,7 +104,6 @@ function supersDe(d: Descuento): string | null {
 export default function PantallaMisDescuentos() {
   const { paleta } = useTema();
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const carrito = useCarrito();
   const { session } = useAuth();
   const accessToken = session?.access_token ?? null;
@@ -116,18 +118,8 @@ export default function PantallaMisDescuentos() {
   return (
     <View style={{ flex: 1, backgroundColor: paleta.fondo }}>
       <Head><title>Mis descuentos - Super App</title></Head>
-      <HeaderNegro paddingTop={insets.top + espacio.md} estilo={{ gap: espacio.sm }}>
-        {/* router.back() sin más falla con "GO_BACK not handled" si no hay historial previo
-            (recargar la página acá, o entrar por URL directa) — canGoBack() lo detecta y cae
-            a Carrito, que es de donde se llega siempre en el flujo normal. */}
-        <Pressable
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/carrito'))}
-          accessibilityRole="button"
-          style={styles.filaVolver}
-        >
-          <Text style={styles.flecha}>‹</Text>
-          <Text style={[texto.tituloHeader, styles.titulo]}>Mis descuentos</Text>
-        </Pressable>
+      <HeaderNegro paddingTop={insets.top + espacio.xl} estilo={{ gap: espacio.sm }}>
+        <TituloHeader>Mis descuentos</TituloHeader>
         <Text style={[texto.cuerpo, styles.bajada]}>
           Tarjetas, apps y clubes que tenés. Sus promos se suman al comparar.
         </Text>
@@ -197,12 +189,6 @@ export default function PantallaMisDescuentos() {
 }
 
 const styles = StyleSheet.create({
-  filaVolver: {
-    flexDirection: 'row', alignItems: 'center', gap: espacio.md,
-    height: 44, paddingRight: espacio.md, marginLeft: -espacio.xs, marginVertical: -espacio.xs,
-  },
-  flecha: { fontSize: 22, color: '#FFFFFF' },
-  titulo: { fontSize: 26, lineHeight: 26, color: '#FFFFFF' },
   bajada: { color: '#FFFFFF', opacity: 0.7 },
   centrado: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: espacio.xl },
   contenido: { padding: espacio.pantalla, gap: espacio.pantalla },

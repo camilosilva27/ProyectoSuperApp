@@ -101,14 +101,10 @@ export default function LayoutRaiz() {
                           name="resultado"
                           options={{ headerShown: false, presentation: 'card' }}
                         />
-                        <Stack.Screen
-                          name="mis-descuentos"
-                          options={{ headerShown: false, presentation: 'card' }}
-                        />
                         {/* El header nativo (flecha + título) queda visible a propósito acá,
-                            a diferencia de resultado/mis-descuentos: sin "title" mostraba el
-                            nombre del archivo tal cual ("plan-y-pago"). Dice "Ajustes" porque
-                            es adonde vuelve la flecha, no el nombre de esta pantalla. */}
+                            a diferencia de resultado: sin "title" mostraba el nombre del
+                            archivo tal cual ("plan-y-pago"). Dice "Ajustes" porque es adonde
+                            vuelve la flecha, no el nombre de esta pantalla. */}
                         <Stack.Screen
                           name="plan-y-pago"
                           options={{ title: 'Ajustes', presentation: 'card' }}
