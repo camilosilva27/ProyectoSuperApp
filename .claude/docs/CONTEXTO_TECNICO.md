@@ -515,6 +515,11 @@ El auto-onboarding (primera vez, `AsyncStorage` clave `allpromos:tourVisto:v1`) 
 manual ("Ver el tutorial", en el estado inicial de Buscar y en Ajustes) llaman a
 `iniciarTour()`/`useTour().iniciar`.
 
+**Orden real de los pasos, distinto del handoff original**: el handoff pedía abrir la hoja de
+supers apenas se escribía en el buscador, antes de tocar ningún resultado. A pedido, se invirtió
+— `primer-resultado` (agregar un producto) va antes que `selector-otros` (abrir la hoja), ver el
+orden final en `ORDEN_PASOS` de `pasos.ts`.
+
 **Sin botón de salir en los pasos intermedios (a pedido) — el tour se completa siempre de punta
 a punta.** Solo el último paso tiene un botón en el cartel.
 
