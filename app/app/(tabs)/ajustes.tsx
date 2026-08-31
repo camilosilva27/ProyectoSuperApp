@@ -3,9 +3,9 @@
  *
  * El rediseño v2 agrega este tab (antes eran solo Buscar/Carrito) pero su contenido no está
  * diseñado del todo (ver design_handoff_allpromos_v2/SPEC.md § 7.4): tema claro/oscuro y la
- * preferencia de compra online llegan en próximas fases, no como relleno acá. "Cómo funciona",
- * "Mis descuentos" y ahora "Cuenta" (Fase 1, Plan_Usuarios_y_cobros.md) sí tienen su punto de
- * entrada ya.
+ * preferencia de compra online llegan en próximas fases, no como relleno acá. "Cómo funciona"
+ * y "Cuenta" (Fase 1, Plan_Usuarios_y_cobros.md) sí tienen su punto de entrada ya. "Mis
+ * descuentos" tenía su fila acá pero pasó a ser su propia pestaña de la barra inferior.
  *
  * La cuenta ya no es opcional (Fase 2, `GateSesion.tsx`): sin sesión no se llega a este tab
  * (ni a ningún otro) — por eso acá abajo no hace falta un branch para el caso sin sesión.
@@ -163,15 +163,6 @@ export default function PantallaAjustes() {
         </View>
 
         <View style={[styles.grupo, { borderColor: paleta.borde }]}>
-          <Pressable
-            onPress={() => router.push('/mis-descuentos')}
-            accessibilityRole="button"
-            style={styles.fila}
-          >
-            <Text style={[texto.cuerpoMedio, { color: paleta.tinta, flex: 1 }]}>Mis descuentos</Text>
-            <Text style={[texto.subtitulo, { color: paleta.tintaTenue }]}>›</Text>
-          </Pressable>
-          <View style={[styles.separador, { backgroundColor: paleta.borde }]} />
           <Pressable
             onPress={() => setMostrarComoFunciona(true)}
             accessibilityRole="button"
