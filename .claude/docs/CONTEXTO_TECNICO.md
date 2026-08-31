@@ -485,6 +485,20 @@ en `HojaSupers.tsx`, `onCambiar` del switch en `mis-descuentos.tsx`), nunca deri
 resultante. Cualquier paso nuevo que agregue algo al tour tiene que evaluar si su condición
 puede estar ya cumplida por estado persistido antes de escribirla.
 
+**Coto puede quedar fuera de la pantalla visible de la hoja de supers** (depende de cuánto
+ocupa `BloqueTope` arriba y cuántos supers hay) — como el overlay bloquea todo menos su fila,
+sin nada más el usuario quedaba sin forma de scrollear hasta ella. `HojaSupers.tsx` mide su
+propia fila contra el contenedor de la lista (dos `measureInWindow`, no uno: hace falta la
+posición de los dos para calcular cuánto desplazar) y hace `scrollRef.current.scrollTo(...)`
+para centrarla, medio segundo después de que el paso arranca (tiempo para que la animación de
+apertura de la hoja termine — medir antes da la posición todavía en tránsito).
+
+**El toque de Mercado Pago en el paso `mercado-pago` nunca desactiva** — si la cuenta ya la
+tenía activada de una sesión anterior, el toque igual cuenta para avanzar el paso, pero
+`onCambiar` corta antes de mandarle `false` a `carrito.setTarjetas`. Apagar sin querer una
+promo real que el usuario ya tenía cargada, solo por seguir el tutorial, sería un efecto
+secundario que nadie pidió.
+
 **El target de la pestaña "Descuentos" en la barra inferior no se mide con un ref** — customizar
 `tabBarButton` en `app/(tabs)/_layout.tsx` para eso es frágil (vendoreado por Expo Router, no es
 un paquete propio). Se calcula por fórmula (5 tabs de ancho igual, índice 2) usando el alto real

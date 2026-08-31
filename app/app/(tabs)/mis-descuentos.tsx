@@ -27,7 +27,7 @@ import { useCarrito } from '../../src/carrito';
 import { NOMBRE_SUPER, ORDEN_SUPERS, Problema } from '../../src/componentes/comunes';
 import { HeaderNegro, TituloHeader } from '../../src/componentes/HeaderNegro';
 import { espacio, fuentes, pesos, radio, texto } from '../../src/theme';
-import { useTourPaso } from '../../src/tour/TourContext';
+import { useTour, useTourPaso } from '../../src/tour/TourContext';
 import { useTema } from '../../src/useTema';
 
 // Nombre exacto tal como lo devuelve el backend en `Descuento.nombre` — el paso del tour que
@@ -117,6 +117,7 @@ export default function PantallaMisDescuentos() {
   const carrito = useCarrito();
   const { session } = useAuth();
   const accessToken = session?.access_token ?? null;
+  const tour = useTour();
 
   // El target del paso 'tab-descuentos' (la celda de la barra inferior) se calcula por fórmula
   // en TourOverlay, no con un ref — pero el avance sigue necesitando este hook: si el usuario
@@ -189,7 +190,15 @@ export default function PantallaMisDescuentos() {
                     <SwitchDescuento
                       activa={activa}
                       onCambiar={valor => {
-                        if (d.nombre === NOMBRE_TARJETA_TOUR) setTocoMercadoPago(true);
+                        // Durante el tour, tocar la fila de Mercado Pago cuenta como el toque
+                        // que completa el paso pase lo que pase — pero si ya estaba activa (de
+                        // una sesión anterior), no la desactiva: el usuario no eligió activarla
+                        // ahora, solo tocó para seguir el tutorial, y apagarle una promo real
+                        // que ya tenía cargada sería un efecto secundario no pedido.
+                        if (d.nombre === NOMBRE_TARJETA_TOUR) {
+                          setTocoMercadoPago(true);
+                          if (tour.pasoActivo === 'mercado-pago' && activa && !valor) return;
+                        }
                         carrito.setTarjetas(
                           valor
                             ? [...carrito.tarjetas, d.nombre]
