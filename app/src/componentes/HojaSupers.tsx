@@ -110,12 +110,18 @@ export function HojaSupers({
   // Snapshot del tope con el que se abrió la hoja — el paso del tour "elegí un tope" (ver
   // TourContext.tsx) necesita distinguir "el usuario tocó una opción" de "el tope ya venía así".
   const topeInicialRef = useRef(tope);
+  // El paso del tour "marcá Coto" NO puede mirar si Coto está en `borrador`: por defecto los 7
+  // supers vienen activos, así que ya estaría "cumplido" apenas se abre la hoja, sin que el
+  // usuario toque nada — pasaba justo eso (saltaba directo al paso del tope). En cambio, esto
+  // se pone en `true` con el toque real sobre la fila, la marque o la desmarque.
+  const [tocoCoto, setTocoCoto] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
     setBorrador(activos);
     setTopeBorrador(normalizarTope(tope, activos.length));
     topeInicialRef.current = normalizarTope(tope, activos.length);
+    setTocoCoto(false);
     setBusqueda('');
     translateY.setValue(ALTURA_OFFSCREEN);
     Animated.spring(translateY, { toValue: 0, useNativeDriver: true, bounciness: 4 }).start();
@@ -148,6 +154,7 @@ export function HojaSupers({
   // anidar un setState dentro del callback de otro es frágil. `borrador` ya está fresco en
   // este closure porque el componente se re-renderiza en cada cambio de estado.
   const toggle = (key: SuperKey) => {
+    if (key === 'coto') setTocoCoto(true);
     const siguiente = borrador.includes(key)
       ? (borrador.length === 1 ? borrador : borrador.filter(k => k !== key)) // no se puede destildar el último activo
       : [...borrador, key];
@@ -188,7 +195,7 @@ export function HojaSupers({
   const pedido = carrito.items.map(i => ({ ean: i.ean, cantidad: i.cantidad }));
   const montoTope = useCostoTope(pedido, carrito.tarjetas, borrador, topeBorrador, session?.access_token ?? null);
 
-  const refCoto = useTourPaso('coto', borrador.includes('coto'));
+  const refCoto = useTourPaso('coto', tocoCoto);
   const refTope = useTourPaso('tope-elegido', topeBorrador !== topeInicialRef.current);
   // `cumplido` siempre en `false`: este paso se completa con `avanzarTour('listo')` imperativo
   // dentro de `cerrarYConfirmar` (arriba), no con una condición — para cuando se cumple, la

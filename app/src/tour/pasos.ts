@@ -40,7 +40,7 @@ export const PASOS: Record<PasoId, { texto: string }> = {
   'mercado-pago': { texto: 'Activá Mercado Pago: el comparador ya la va a tener en cuenta.' },
   'buscador-input': { texto: 'Escribí qué querés comprar.' },
   'selector-otros': { texto: 'Tocá acá para elegir qué supermercados comparar.' },
-  coto: { texto: 'Marcá Coto para sumarlo a la comparación.' },
+  coto: { texto: 'Tocá Coto: así activás o sacás un super de la comparación.' },
   'tope-elegido': { texto: 'Elegí cuántos supermercados como máximo querés visitar.' },
   listo: { texto: 'Tocá Listo para confirmar tu selección.' },
   'primer-resultado': { texto: 'Tocá un producto para agregarlo al carrito.' },
