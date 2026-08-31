@@ -1,0 +1,100 @@
+<!--
+  Template "Confirm signup" de Supabase Auth (Authentication → Email Templates).
+  Supabase no lee este archivo directo del repo, es solo la fuente de verdad versionada.
+
+  Este archivo es un HTML completo A PROPÓSITO (para poder abrirlo en el navegador y
+  previsualizarlo). Pero el campo "Message body" del dashboard de Supabase NO acepta
+  un documento completo — solo el FRAGMENTO interno (confirmado contra la doc oficial
+  de Supabase, 2026-08-31). Copiar y pegar ahí SOLO lo que está entre los comentarios
+  BEGIN/END PASTE de más abajo — no el <!DOCTYPE>, <html>, <head> ni las tags <body>.
+
+  El asunto del mail (subject) NO sale de ningún <title> de acá — se carga aparte, en el
+  campo "Subject heading" del mismo dashboard. Poner ahí algo como "Confirmá tu cuenta".
+
+  Importante: el link usa {{ .SiteURL }}/ajustes?token_hash={{ .TokenHash }}&type=email,
+  NO {{ .ConfirmationURL }}. Eso es lo que permite que `verifyOtp` (app/src/auth.tsx)
+  confirme el mail Y deje la sesión iniciada en el mismo paso. Ver .claude/docs/
+  email-confirmacion-embellecer.md y Plan_Usuarios_y_cobros.md para el porqué.
+
+  El logo se sirve desde https://mi-superapp.vercel.app/apple-touch-icon.png (180x180,
+  ya existe en app/public/) — si el dominio de producción cambia, actualizar esa URL acá.
+-->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Solo para preview en el navegador — no se usa como asunto del mail</title>
+</head>
+<body style="margin:0; padding:0; background-color:#F6F7F9;">
+  <!-- BEGIN PASTE INTO SUPABASE (Message body) -->
+  <!-- Preheader: texto que se ve en la bandeja de entrada antes de abrir el mail, oculto en el cuerpo -->
+  <div style="display:none; max-height:0; overflow:hidden; opacity:0;">
+    Confirmá tu cuenta para empezar a comparar precios entre los 7 supers.
+  </div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F6F7F9;">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px; width:100%; background-color:#FFFFFF; border-radius:12px; overflow:hidden;">
+
+          <!-- Banner -->
+          <tr>
+            <td align="center" style="background-color:#14161A; padding:32px 24px;">
+              <img
+                src="https://mi-superapp.vercel.app/apple-touch-icon.png"
+                width="56" height="56" alt="Super App"
+                style="display:block; border-radius:12px; margin-bottom:12px;"
+              />
+              <div style="font-family:Helvetica,Arial,sans-serif; font-size:20px; font-weight:700; color:#FFFFFF;">
+                Super App
+              </div>
+            </td>
+          </tr>
+
+          <!-- Cuerpo -->
+          <tr>
+            <td style="padding:32px 32px 24px 32px; font-family:Helvetica,Arial,sans-serif; color:#14161A;">
+              <div style="font-size:20px; font-weight:700; margin-bottom:12px;">
+                Confirmá tu cuenta
+              </div>
+              <p style="font-size:15px; line-height:1.5; color:#3C444D; margin:0 0 24px 0;">
+                Estás a un paso de empezar a comparar precios y promos entre Vea, Carrefour, Chango Más, Día, Coto, Jumbo y Disco. Tocá el botón para confirmar tu mail y entrar directo a tu cuenta.
+              </p>
+
+              <!-- Botón CTA -->
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 24px auto;">
+                <tr>
+                  <td align="center" style="border-radius:8px; background-color:#FFD400;">
+                    <a
+                      href="{{ .SiteURL }}/ajustes?token_hash={{ .TokenHash }}&type=email"
+                      target="_blank"
+                      style="display:inline-block; padding:14px 32px; font-family:Helvetica,Arial,sans-serif; font-size:16px; font-weight:700; color:#14161A; text-decoration:none; border-radius:8px;"
+                    >
+                      Confirmar mi cuenta
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="font-size:13px; line-height:1.5; color:#767E88; margin:0;">
+                Si el botón no funciona, copiá y pegá este link en tu navegador:<br />
+                <a href="{{ .SiteURL }}/ajustes?token_hash={{ .TokenHash }}&type=email" style="color:#1B5FD9; word-break:break-all;">{{ .SiteURL }}/ajustes?token_hash={{ .TokenHash }}&type=email</a>
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:20px 32px; background-color:#F6F7F9; font-family:Helvetica,Arial,sans-serif; font-size:12px; color:#767E88; text-align:center;">
+              Si no creaste esta cuenta, ignorá este mail — no se creó ningún acceso sin confirmar.
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+  <!-- END PASTE INTO SUPABASE -->
+</body>
+</html>
