@@ -443,6 +443,105 @@ cambia de tamaño ni salta de lugar mientras se arma la selección.
 
 ---
 
+## Tour interactivo guiado (reemplaza a "Cómo funciona")
+
+**2026-08-31, implementado.** `app/src/componentes/ComoFunciona.tsx` (modal estático de 4
+slides) se borró: lo reemplaza un tour de spotlight sobre la app real (`app/src/tour/`), que
+hace que el usuario arme una compra real guiada en vez de ver una demo — carga una tarjeta en
+Descuentos, busca un producto, elige supers y tope en la hoja de supers, arma el carrito y
+compara precios de verdad. Handoff de diseño original en
+`design_handoff_allpromos_v2 /design_handoff_allpromos_v2/TOUR-interactivo-handoff.md`.
+
+**Un solo mecanismo, sin Context de React para el estado del tour** (evita re-renderizar todo
+el árbol en cada tecla tipeada) — `app/src/tour/TourContext.tsx` es un store externo
+(`useSyncExternalStore`) con un hook colocado:
+
+```ts
+useTourPaso(id: PasoId, cumplido: boolean, alCompletar?: () => void): RefObject<T | null>
+```
+
+Se llama en el componente real que ya tiene el dato que decide si el paso está cumplido (su
+propio estado local, o un contexto global existente como `useCarrito()`/`useFiltrosSupers()`) y
+devuelve un ref para ponerle al elemento real. Mientras ese paso está activo, el ref queda
+anotado en un registro module-level (`targets`, fuera de React a propósito) que
+`app/src/tour/TourOverlay.tsx` lee para medir y dibujar el spotlight. `avanzarTour(id)` es la
+salida imperativa para el único paso que no puede detectarse con un booleano (cerrar la hoja de
+supers: el componente se desmonta como parte de la propia acción que completa el paso).
+
+**El paso 4 del handoff ("elegir tope → cierra la hoja") se partió en dos** (`tope-elegido` /
+`listo`, ver `pasos.ts`): tal como estaba escrito, el botón "Listo" —lo único que de verdad
+cierra y confirma la hoja de supers— quedaba fuera del recorte del spotlight y por lo tanto
+bloqueado por el propio overlay. Sin el split, el usuario no podía salir de la hoja.
+
+**Medición de targets**: `measureInWindow` con reintento en cada frame durante ~1.5s después de
+cada cambio de paso, y cada 400ms indefinidamente después de esa ventana (no cubre solo la
+animación de `HojaSupers` — un target que tarda en montar por otro motivo, ej. una pantalla
+esperando datos de red, antes se quedaba sin spotlight para siempre). **Mientras no hay rect
+medido, el overlay bloquea TODA la pantalla** (no deja pasar nada) en vez de no renderizar
+nada — la versión anterior dejaba una ventana real, entre que el paso cambiaba y que el target
+se encontraba, en la que se podía tocar cualquier cosa antes de que el bloqueo "enganchara".
+
+**Ojo con condiciones de avance que miran estado persistido en vez del toque real.** Tres pasos
+tuvieron el mismo bug: miraban si algo YA estaba en el estado (`borrador.includes('coto')` en
+`coto`, `carrito.tarjetas.includes('Mercado Pago')` en `mercado-pago`, `carrito.items.length > 0`
+en `primer-resultado`) en vez de si el usuario lo acababa de tocar. Como `supersActivos` viene
+con los 7 supers activos por defecto, y tanto `carrito.tarjetas` como `carrito.items` persisten
+entre sesiones de la misma cuenta, las tres condiciones podían estar cumplidas desde ANTES de
+que el paso arrancara (muy fácil de pisar sin querer probando el tour varias veces seguidas con
+la misma cuenta) — el paso se saltaba solo, sin que el usuario llegara a ver ni tocar nada. El
+arreglo en los tres casos es el mismo patrón: un booleano local que arranca en `false` y se pone
+en `true` recién dentro del handler real del control (`toggle` en `HojaSupers.tsx`, `onCambiar`
+del switch en `mis-descuentos.tsx`, `onAgregar` de la fila índice 0 en `index.tsx`), nunca
+derivado del valor resultante ni de una condición leída directo de estado global/persistido.
+Cualquier paso nuevo que agregue algo al tour tiene que evaluar esto antes de escribir su
+condición — es el bug más repetido de todo el feature.
+
+**Coto puede quedar fuera de la pantalla visible de la hoja de supers** (depende de cuánto
+ocupa `BloqueTope` arriba y cuántos supers hay) — como el overlay bloquea todo menos su fila,
+sin nada más el usuario quedaba sin forma de scrollear hasta ella. `HojaSupers.tsx` mide su
+propia fila contra el contenedor de la lista (dos `measureInWindow`, no uno: hace falta la
+posición de los dos para calcular cuánto desplazar) y hace `scrollRef.current.scrollTo(...)`
+para centrarla, medio segundo después de que el paso arranca (tiempo para que la animación de
+apertura de la hoja termine — medir antes da la posición todavía en tránsito).
+
+**El toque de Mercado Pago en el paso `mercado-pago` nunca desactiva** — si la cuenta ya la
+tenía activada de una sesión anterior, el toque igual cuenta para avanzar el paso, pero
+`onCambiar` corta antes de mandarle `false` a `carrito.setTarjetas`. Apagar sin querer una
+promo real que el usuario ya tenía cargada, solo por seguir el tutorial, sería un efecto
+secundario que nadie pidió.
+
+**El target de la pestaña "Descuentos" en la barra inferior no se mide con un ref** — customizar
+`tabBarButton` en `app/(tabs)/_layout.tsx` para eso es frágil (vendoreado por Expo Router, no es
+un paquete propio). Se calcula por fórmula (5 tabs de ancho igual, índice 2) usando el alto real
+de la tab bar, que `app/(tabs)/index.tsx` reporta una sola vez vía `tourReportarAltoTabBar()`
+(el `TourOverlay` vive fuera del navigator de tabs, en `app/_layout.tsx`, así que no puede leer
+`useBottomTabBarHeight()` directamente).
+
+**Montaje**: `<TourOverlay />` es hermano del `<Stack>` en `app/_layout.tsx`, dentro de
+`GatePaywallFinTrial` — sobrevive la navegación entre tabs y hacia `/resultado` sin remontarse.
+El auto-onboarding (primera vez, `AsyncStorage` clave `allpromos:tourVisto:v1`) y el botón
+manual ("Ver el tutorial", en el estado inicial de Buscar y en Ajustes) llaman a
+`iniciarTour()`/`useTour().iniciar`.
+
+**Orden real de los pasos, distinto del handoff original**: el handoff pedía abrir la hoja de
+supers apenas se escribía en el buscador, antes de tocar ningún resultado. A pedido, se invirtió
+— `primer-resultado` (agregar un producto) va antes que `selector-otros` (abrir la hoja), ver el
+orden final en `ORDEN_PASOS` de `pasos.ts`.
+
+**Sin botón de salir en los pasos intermedios (a pedido) — el tour se completa siempre de punta
+a punta.** Solo el último paso tiene un botón en el cartel.
+
+**Último paso (`ahorro`, resultado.tsx)**: resalta el bloque de precio/ahorro de `/resultado`.
+No avanza solo — termina tocando el recuadro resaltado (el bloque en sí es un `Pressable`, no
+solo una `View` con un ref) o tocando "Finalizar" en el cartel (único paso que lo tiene, ver
+`TourOverlay.tsx`: `ULTIMO_PASO = ORDEN_PASOS[ORDEN_PASOS.length - 1]`, así no queda hardcodeado
+si se agrega un paso después). El ref/Pressable envuelve tanto el total (repartido o único)
+como el bloque "Repartiendo ahorrás $X" cuando existe — este último es condicional
+(`valeRepartir && mejorUnico`), así que el wrapper cubre siempre al menos el total para que el
+target nunca falte.
+
+---
+
 ## Búsqueda por nombre — matchesBusqueda
 
 ```javascript

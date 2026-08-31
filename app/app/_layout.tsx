@@ -31,6 +31,7 @@ import { GateSesion } from '../src/componentes/GateSesion';
 import { ProveedorFiltrosSupers } from '../src/filtrosSupers';
 import { ProveedorHistorialAhorro } from '../src/historialAhorro';
 import { texto } from '../src/theme';
+import { TourOverlay } from '../src/tour/TourOverlay';
 import { useTema } from '../src/useTema';
 
 const cliente = new QueryClient({
@@ -110,6 +111,9 @@ export default function LayoutRaiz() {
                           options={{ title: 'Ajustes', presentation: 'card' }}
                         />
                       </Stack>
+                      {/* Hermano del Stack, no dentro de una screen: así sobrevive la
+                          navegación entre tabs y hacia /resultado sin remontarse. */}
+                      <TourOverlay />
                     </GatePaywallFinTrial>
                   </GateSesion>
                   {/* @vercel/analytics y speed-insights manipulan document.head — no existen en iOS/Android */}

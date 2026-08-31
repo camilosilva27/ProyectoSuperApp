@@ -21,6 +21,7 @@ import { comparar, type SuperKey } from '../api';
 import { useAuth } from '../auth';
 import { useCarrito } from '../carrito';
 import { espacio, fuentes, paletaDe, pesosCorto, radio, texto, textoPretty } from '../theme';
+import { avanzarTour, useEstadoTour, useTourPaso } from '../tour/TourContext';
 import { NOMBRE_SUPER, ORDEN_SUPERS } from './comunes';
 import { PlacaLogoSuper } from './LogoSuper';
 
@@ -106,11 +107,21 @@ export function HojaSupers({
   const translateY = useRef(new Animated.Value(ALTURA_OFFSCREEN)).current;
   const carrito = useCarrito();
   const { session } = useAuth();
+  // Snapshot del tope con el que se abrió la hoja — el paso del tour "elegí un tope" (ver
+  // TourContext.tsx) necesita distinguir "el usuario tocó una opción" de "el tope ya venía así".
+  const topeInicialRef = useRef(tope);
+  // El paso del tour "marcá Coto" NO puede mirar si Coto está en `borrador`: por defecto los 7
+  // supers vienen activos, así que ya estaría "cumplido" apenas se abre la hoja, sin que el
+  // usuario toque nada — pasaba justo eso (saltaba directo al paso del tope). En cambio, esto
+  // se pone en `true` con el toque real sobre la fila, la marque o la desmarque.
+  const [tocoCoto, setTocoCoto] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
     setBorrador(activos);
     setTopeBorrador(normalizarTope(tope, activos.length));
+    topeInicialRef.current = normalizarTope(tope, activos.length);
+    setTocoCoto(false);
     setBusqueda('');
     translateY.setValue(ALTURA_OFFSCREEN);
     Animated.spring(translateY, { toValue: 0, useNativeDriver: true, bounciness: 4 }).start();
@@ -124,6 +135,9 @@ export function HojaSupers({
       onAplicar(borrador, topeBorrador);
       onCerrar();
       setArrastrando(false);
+      // Imperativo, no vía `useTourPaso`: para cuando esto corre, la hoja ya se está por
+      // desmontar (onCerrar) — no hay forma de que un booleano "cumplido" lo detecte a tiempo.
+      avanzarTour('listo');
     });
   };
   // El `PanResponder` de más abajo se crea una sola vez (`useRef`) para no perder el gesto en
@@ -140,6 +154,7 @@ export function HojaSupers({
   // anidar un setState dentro del callback de otro es frágil. `borrador` ya está fresco en
   // este closure porque el componente se re-renderiza en cada cambio de estado.
   const toggle = (key: SuperKey) => {
+    if (key === 'coto') setTocoCoto(true);
     const siguiente = borrador.includes(key)
       ? (borrador.length === 1 ? borrador : borrador.filter(k => k !== key)) // no se puede destildar el último activo
       : [...borrador, key];
@@ -179,6 +194,42 @@ export function HojaSupers({
 
   const pedido = carrito.items.map(i => ({ ean: i.ean, cantidad: i.cantidad }));
   const montoTope = useCostoTope(pedido, carrito.tarjetas, borrador, topeBorrador, session?.access_token ?? null);
+
+  const refCoto = useTourPaso('coto', tocoCoto);
+  const refTope = useTourPaso('tope-elegido', topeBorrador !== topeInicialRef.current);
+  // `cumplido` siempre en `false`: este paso se completa con `avanzarTour('listo')` imperativo
+  // dentro de `cerrarYConfirmar` (arriba), no con una condición — para cuando se cumple, la
+  // hoja ya se está desmontando. El hook igual sirve para registrar el target a medir.
+  const refListo = useTourPaso('listo', false);
+
+  // Coto puede no entrar en la primera pantalla de la lista (depende de cuántos supers y cuánto
+  // ocupa BloqueTope arriba) — el overlay del tour bloquea todo menos la fila de Coto, así que
+  // si queda tapada por el borde del scroll, no hay forma de llegar a ella. Se la trae a la
+  // vista sola apenas arranca este paso, en vez de depender de que el usuario adivine que puede
+  // scrollear dentro del hueco bloqueado.
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollYRef = useRef(0);
+  const refContenedorLista = useRef<View>(null);
+  const { pasoActivo } = useEstadoTour();
+  useEffect(() => {
+    if (pasoActivo !== 'coto') return;
+    // Espera a que termine la animación de apertura de la hoja — antes de eso, medir la fila
+    // da su posición todavía en tránsito (offscreen), y el scroll calculado sale mal.
+    const id = setTimeout(() => {
+      const fila = refCoto.current;
+      const contenedor = refContenedorLista.current;
+      if (!fila || !contenedor) return;
+      fila.measureInWindow((xF, yF, wF, hF) => {
+        if (!wF) return;
+        contenedor.measureInWindow((xC, yC, wC, hC) => {
+          if (yF >= yC && yF + hF <= yC + hC) return; // ya está a la vista
+          const delta = (yF + hF / 2) - (yC + hC / 2);
+          scrollRef.current?.scrollTo({ y: Math.max(0, scrollYRef.current + delta), animated: true });
+        });
+      });
+    }, 500);
+    return () => clearTimeout(id);
+  }, [pasoActivo]);
 
   if (!visible) return null;
 
@@ -223,25 +274,38 @@ export function HojaSupers({
         </View>
 
         {ORDEN_SUPERS.length > 1 ? (
-          <BloqueTope
-            n={borrador.length}
-            total={ORDEN_SUPERS.length}
-            topeBorrador={topeBorrador}
-            onCambiarTope={setTopeBorrador}
-            monto={montoTope}
-            carritoVacio={pedido.length === 0}
-          />
+          <View ref={refTope}>
+            <BloqueTope
+              n={borrador.length}
+              total={ORDEN_SUPERS.length}
+              topeBorrador={topeBorrador}
+              onCambiarTope={setTopeBorrador}
+              monto={montoTope}
+              carritoVacio={pedido.length === 0}
+            />
+          </View>
         ) : null}
 
-        <View style={styles.contenedorLista}>
-          <ScrollView style={styles.lista} contentContainerStyle={styles.listaContenido}>
+        <View style={styles.contenedorLista} ref={refContenedorLista}>
+          <ScrollView
+            ref={scrollRef}
+            onScroll={e => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
+            scrollEventThrottle={32}
+            style={styles.lista}
+            contentContainerStyle={styles.listaContenido}
+          >
             {comparando.length > 0 ? (
               <View style={styles.grupo}>
                 <Text style={styles.labelGrupo}>COMPARANDO</Text>
                 {comparando.map((key, i) => (
                   <React.Fragment key={key}>
                     {i > 0 ? <View style={styles.separador} /> : null}
-                    <FilaSuper superKey={key} activo onPress={() => toggle(key)} />
+                    <FilaSuper
+                      superKey={key}
+                      activo
+                      onPress={() => toggle(key)}
+                      tourRef={key === 'coto' ? refCoto : undefined}
+                    />
                   </React.Fragment>
                 ))}
               </View>
@@ -253,7 +317,12 @@ export function HojaSupers({
                 {afuera.map((key, i) => (
                   <React.Fragment key={key}>
                     {i > 0 ? <View style={styles.separador} /> : null}
-                    <FilaSuper superKey={key} activo={false} onPress={() => toggle(key)} />
+                    <FilaSuper
+                      superKey={key}
+                      activo={false}
+                      onPress={() => toggle(key)}
+                      tourRef={key === 'coto' ? refCoto : undefined}
+                    />
                   </React.Fragment>
                 ))}
               </View>
@@ -262,7 +331,7 @@ export function HojaSupers({
           {arrastrando ? <View style={StyleSheet.absoluteFill} /> : null}
         </View>
 
-        <Pressable onPress={cerrarYConfirmar} accessibilityRole="button" style={styles.botonListo}>
+        <Pressable ref={refListo} onPress={cerrarYConfirmar} accessibilityRole="button" style={styles.botonListo}>
           <Text style={styles.textoBotonListo}>Listo</Text>
         </Pressable>
       </Animated.View>
@@ -271,10 +340,17 @@ export function HojaSupers({
 }
 
 function FilaSuper({
-  superKey, activo, onPress,
-}: { superKey: SuperKey; activo: boolean; onPress: () => void }) {
+  superKey, activo, onPress, tourRef,
+}: {
+  superKey: SuperKey;
+  activo: boolean;
+  onPress: () => void;
+  /** Solo lo pasa el tour, y solo para la fila de Coto (ver más arriba). */
+  tourRef?: React.RefObject<View | null>;
+}) {
   return (
     <Pressable
+      ref={tourRef}
       onPress={onPress}
       accessibilityRole="checkbox"
       accessibilityState={{ checked: activo }}
