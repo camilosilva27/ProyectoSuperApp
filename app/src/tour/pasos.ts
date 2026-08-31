@@ -20,11 +20,11 @@ export type PasoId =
   | 'tab-descuentos'
   | 'mercado-pago'
   | 'buscador-input'
+  | 'primer-resultado'
   | 'selector-otros'
   | 'coto'
   | 'tope-elegido'
   | 'listo'
-  | 'primer-resultado'
   | 'ver-carrito'
   | 'comparar-precios'
   | 'ahorro';
@@ -33,11 +33,14 @@ export const ORDEN_PASOS: PasoId[] = [
   'tab-descuentos',
   'mercado-pago',
   'buscador-input',
+  // Agregar el producto va antes de elegir supers (a pedido) — al revés del orden del handoff
+  // original, que abría la hoja de supers apenas se escribía, sin esperar a que el usuario
+  // llegara a tocar un resultado.
+  'primer-resultado',
   'selector-otros',
   'coto',
   'tope-elegido',
   'listo',
-  'primer-resultado',
   'ver-carrito',
   'comparar-precios',
   'ahorro',
