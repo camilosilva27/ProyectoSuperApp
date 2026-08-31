@@ -46,16 +46,16 @@ export const ORDEN_PASOS: PasoId[] = [
   'ahorro',
 ];
 
-export const PASOS: Record<PasoId, { texto: string }> = {
-  'tab-descuentos': { texto: 'Tocá Descuentos para cargar tus tarjetas y promos.' },
-  'mercado-pago': { texto: 'Activá Mercado Pago: el comparador ya la va a tener en cuenta.' },
-  'buscador-input': { texto: 'Escribí qué querés comprar.' },
-  'selector-otros': { texto: 'Tocá acá para elegir qué supermercados comparar.' },
-  coto: { texto: 'Tocá Coto: así activás o sacás un super de la comparación.' },
-  'tope-elegido': { texto: 'Elegí cuántos supermercados como máximo querés visitar.' },
-  listo: { texto: 'Tocá Listo para confirmar tu selección.' },
-  'primer-resultado': { texto: 'Tocá un producto para agregarlo al carrito.' },
-  'ver-carrito': { texto: 'Tocá para ver tu carrito.' },
-  'comparar-precios': { texto: 'Tocá para comparar precios y ver dónde conviene comprar.' },
-  ahorro: { texto: 'Así queda tu compra: cuánto pagás y cuánto ahorrás de verdad, con tus promos ya contadas.' },
+export const PASOS: Record<PasoId, { titulo: string; texto: string }> = {
+  'tab-descuentos': { titulo: 'Cargá tus descuentos', texto: 'Tocá Descuentos para cargar tus tarjetas y promos.' },
+  'mercado-pago': { titulo: 'Activá Mercado Pago', texto: 'Activá Mercado Pago: el comparador ya la va a tener en cuenta.' },
+  'buscador-input': { titulo: 'Buscá un producto', texto: 'Escribí qué querés comprar.' },
+  'selector-otros': { titulo: 'Elegí los supermercados', texto: 'Tocá acá para elegir qué supermercados comparar.' },
+  coto: { titulo: 'Sumá o sacá un super', texto: 'Tocá Coto: así activás o sacás un super de la comparación.' },
+  'tope-elegido': { titulo: 'Poné un tope', texto: 'Elegí cuántos supermercados como máximo querés visitar.' },
+  listo: { titulo: 'Confirmá tu selección', texto: 'Tocá Listo para confirmar tu selección.' },
+  'primer-resultado': { titulo: 'Agregá al carrito', texto: 'Tocá un producto para agregarlo al carrito.' },
+  'ver-carrito': { titulo: 'Mirá tu carrito', texto: 'Tocá para ver tu carrito.' },
+  'comparar-precios': { titulo: 'Comparar precios', texto: 'Tocá para comparar precios y ver dónde conviene comprar.' },
+  ahorro: { titulo: 'Así ahorrás', texto: 'Así queda tu compra: cuánto pagás y cuánto ahorrás de verdad, con tus promos ya contadas.' },
 };
