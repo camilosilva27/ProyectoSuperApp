@@ -95,7 +95,18 @@ export function TourOverlay() {
     };
   }, [pasoActivo, anchoVentana, altoVentana, insets.bottom]);
 
-  if (!activo || !pasoActivo || !rect) return null;
+  if (!activo || !pasoActivo) return null;
+
+  // Todavía no se pudo medir el target (recién se activó el paso, o el elemento recién está
+  // montando/animando) — bloquear TODO en vez de no bloquear nada: sin esto, había una ventana
+  // real en la que se podía tocar cualquier cosa antes de que el spotlight "enganchara".
+  if (!rect) {
+    return (
+      <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+        <Bloqueador estilo={{ top: 0, left: 0, right: 0, bottom: 0 }} />
+      </View>
+    );
+  }
 
   const recorte = {
     x: rect.x - PADDING_RECORTE,
