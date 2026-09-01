@@ -12,6 +12,7 @@ import {
 import { useAuth } from '../auth';
 import { espacio, radio, texto } from '../theme';
 import { useTema } from '../useTema';
+import { esEmailValido } from '../validacion';
 
 export function FormularioAuth({ onExito }: { onExito?: () => void }) {
   const { paleta } = useTema();
@@ -49,6 +50,10 @@ export function FormularioAuth({ onExito }: { onExito?: () => void }) {
     }
     if (!email.trim() || !password) {
       setError('Completá mail y contraseña.');
+      return;
+    }
+    if (modo === 'registro' && !esEmailValido(email)) {
+      setError('Ese mail no es válido.');
       return;
     }
     setEnviando(true);

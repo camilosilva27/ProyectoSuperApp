@@ -297,6 +297,10 @@ export function HojaSupers({
             scrollEventThrottle={32}
             style={styles.lista}
             contentContainerStyle={styles.listaContenido}
+            // Con el tour activo en 'coto' el spotlight resalta la fila de Coto dentro de esta
+            // misma lista scrolleable: si el usuario scrollea, la fila se desplaza por debajo
+            // del recorte fijo del overlay (mismo bug que en la lista de resultados, ver index.tsx).
+            scrollEnabled={pasoActivo !== 'coto'}
           >
             {comparando.length > 0 ? (
               <View style={styles.grupo}>
