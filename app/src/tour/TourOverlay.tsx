@@ -1,7 +1,13 @@
 /**
- * Capa visual del tour: 4 bloqueadores opacos alrededor del target actual (arriba/abajo/
- * izquierda/derecha) + el recorte del medio sin overlay (el toque real llega directo al
- * elemento real, no se envuelve en nada) + el cartel de instrucción.
+ * Capa visual del tour: 4 bloqueadores (solo bloquean toque, ya no pintan oscuro — ver abajo)
+ * alrededor del target actual (arriba/abajo/izquierda/derecha) + el recorte del medio sin
+ * overlay (el toque real llega directo al elemento real, no se envuelve en nada) + el cartel
+ * de instrucción.
+ *
+ * El oscurecido en sí lo pinta un único `boxShadow` (spread 9999px) sobre `marcoRecorte`, no
+ * los 4 bloqueadores: así el "agujero" de luz sigue el mismo `borderRadius` que el borde
+ * amarillo, en vez de quedar un rectángulo recto por debajo de un borde curvo (se veían las
+ * esquinas "marcadas" aunque el borde fuera redondeado).
  *
  * Sin botón de salir en los pasos intermedios (a pedido) — el tour se completa siempre de
  * punta a punta. Solo el último paso (`ahorro`, ver resultado.tsx) tiene un botón, "Finalizar",
@@ -110,7 +116,12 @@ export function TourOverlay() {
   if (!rect) {
     return (
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-        <Bloqueador estilo={{ top: 0, left: 0, right: 0, bottom: 0 }} />
+        <Pressable
+          onPress={() => {}}
+          style={[styles.bloqueador, styles.bloqueadorOpaco, { top: 0, left: 0, right: 0, bottom: 0 }]}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        />
       </View>
     );
   }
@@ -206,9 +217,15 @@ function Bloqueador({ estilo }: { estilo: { top?: number; bottom?: number; left?
 }
 
 const styles = StyleSheet.create({
-  bloqueador: { position: 'absolute', backgroundColor: 'rgba(11,18,32,.62)' },
+  // Transparente: solo bloquea el toque afuera del recorte. El oscurecido en sí lo pinta
+  // `marcoRecorte` con un boxShadow enorme, que sigue el borderRadius — así el "agujero" de
+  // luz queda redondeado igual que el borde amarillo, en vez de tener esquinas rectas por
+  // debajo de un borde curvo (ver nota al pie del archivo).
+  bloqueador: { position: 'absolute', backgroundColor: 'transparent' },
+  bloqueadorOpaco: { backgroundColor: 'rgba(11,18,32,.62)' },
   marcoRecorte: {
     position: 'absolute', borderRadius: RADIO_RECORTE, borderWidth: 2, borderColor: '#FFD400',
+    boxShadow: '0 0 0 9999px rgba(11,18,32,.62)',
   },
   cartelContenedor: { position: 'absolute', left: espacio.pantalla, right: espacio.pantalla },
   cartel: {
