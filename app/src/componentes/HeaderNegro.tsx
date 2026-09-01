@@ -8,7 +8,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import type { SuperKey } from '../api';
-import { espacio, fuentes, paletaDe, radio, texto, textoPretty } from '../theme';
+import { espacio, fuentes, paletaDe, radio, texto, textoPretty, usePantallaBaja } from '../theme';
 import { useTema } from '../useTema';
 import { NOMBRE_SUPER, ORDEN_SUPERS } from './comunes';
 import { PlacaLogoSuper } from './LogoSuper';
@@ -17,15 +17,28 @@ export function HeaderNegro({
   children, paddingTop, estilo,
 }: { children: React.ReactNode; paddingTop: number; estilo?: StyleProp<ViewStyle> }) {
   const { paleta } = useTema();
+  const pantallaBaja = usePantallaBaja();
   return (
-    <View style={[styles.header, { backgroundColor: paleta.tinta, paddingTop }, estilo]}>
+    <View
+      style={[
+        styles.header,
+        { backgroundColor: paleta.tinta, paddingTop },
+        pantallaBaja && styles.headerCompacto,
+        estilo,
+      ]}
+    >
       {children}
     </View>
   );
 }
 
 export function TituloHeader({ children }: { children: string }) {
-  return <Text style={[texto.tituloHeader, { color: '#FFFFFF' }]}>{children}</Text>;
+  const pantallaBaja = usePantallaBaja();
+  return (
+    <Text style={[texto.tituloHeader, pantallaBaja && styles.tituloHeaderCompacto, { color: '#FFFFFF' }]}>
+      {children}
+    </Text>
+  );
 }
 
 const MAX_CELDAS = 4;
@@ -49,6 +62,7 @@ export function SelectorSupers({
   refCeldaOtros?: React.RefObject<View | null>;
 }) {
   const paletaOscura = paletaDe('dark');
+  const pantallaBaja = usePantallaBaja();
 
   const activosPorUso = [...activos].sort((a, b) => {
     const diferencia = (usoPorSuper[b] ?? 0) - (usoPorSuper[a] ?? 0);
@@ -59,7 +73,7 @@ export function SelectorSupers({
   const inactivos = ORDEN_SUPERS.filter(key => !activos.includes(key));
 
   return (
-    <View style={{ gap: 10 }}>
+    <View style={{ gap: pantallaBaja ? 6 : 10 }}>
       <View style={styles.filaEncabezadoSelector}>
         <Text style={styles.tituloComparando}>
           COMPARANDO {activos.length} DE {ORDEN_SUPERS.length} SUPERS
@@ -76,10 +90,10 @@ export function SelectorSupers({
             hitSlop={{ top: 12, bottom: 12 }}
             accessibilityRole="button"
             accessibilityLabel={`${NOMBRE_SUPER[key]}, comparando. Tocá para sacar de la comparación`}
-            style={styles.celdaSuper}
+            style={[styles.celdaSuper, pantallaBaja && styles.celdaSuperCompacta]}
           >
             <View style={[styles.barraColorCelda, { backgroundColor: paletaOscura.supers[key] }]} />
-            <PlacaLogoSuper superKey={key} ancho="100%" alto={30} padding={2} radio={4} />
+            <PlacaLogoSuper superKey={key} ancho="100%" alto={pantallaBaja ? 22 : 30} padding={2} radio={4} />
           </Pressable>
         ))}
 
@@ -90,16 +104,16 @@ export function SelectorSupers({
             hitSlop={{ top: 12, bottom: 12 }}
             accessibilityRole="button"
             accessibilityLabel={`Ver los ${cantidadOtros} supers restantes y elegir cuáles comparar`}
-            style={styles.celdaOtros}
+            style={[styles.celdaOtros, pantallaBaja && styles.celdaOtrosCompacta]}
           >
-            <Text style={styles.numeroOtros}>+{cantidadOtros}</Text>
+            <Text style={[styles.numeroOtros, pantallaBaja && styles.numeroOtrosCompacto]}>+{cantidadOtros}</Text>
             <Text style={styles.etiquetaOtros}>otros</Text>
           </Pressable>
         ) : null}
       </View>
 
       {inactivos.length > 0 ? (
-        <View style={styles.cierreSelector}>
+        <View style={[styles.cierreSelector, pantallaBaja && styles.cierreSelectorCompacto]}>
           <Text style={[styles.textoCierre, textoPretty]}>
             {listaConY(inactivos.map(k => NOMBRE_SUPER[k]))} {inactivos.length === 1 ? 'está' : 'están'} afuera de la comparación.
           </Text>
@@ -117,6 +131,10 @@ function listaConY(nombres: string[]): string {
 
 const styles = StyleSheet.create({
   header: { paddingHorizontal: espacio.pantalla, paddingBottom: espacio.pantalla, gap: espacio.md },
+  // Ver usePantallaBaja (theme.ts): en un iPhone SE y similares el header negro comía más de
+  // la mitad de la pantalla, sobre todo por este padding/gap sumado al del título y el buscador.
+  headerCompacto: { paddingBottom: espacio.md, gap: espacio.sm },
+  tituloHeaderCompacto: { fontSize: 26, lineHeight: 26 },
   filaEncabezadoSelector: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   tituloComparando: {
     fontFamily: fuentes.semi, fontSize: 11, lineHeight: 14, letterSpacing: 1.2, color: '#FFFFFF',
@@ -128,6 +146,7 @@ const styles = StyleSheet.create({
     flex: 1, minWidth: 0, backgroundColor: 'rgba(255,255,255,.1)', borderRadius: 8,
     paddingVertical: 8, paddingHorizontal: 5, alignItems: 'center', justifyContent: 'center', gap: 7,
   },
+  celdaSuperCompacta: { paddingVertical: 5, gap: 4 },
   barraColorCelda: { width: '100%', height: 5, borderRadius: radio.pill },
   celdaOtros: {
     // `flexGrow`/`flexShrink` en 0 en vez de `flex: 0`: ese shorthand fija `flex-basis: 0%`
@@ -137,10 +156,13 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', gap: 1,
     boxShadow: 'inset 0 0 0 1px rgba(255,255,255,.35)',
   },
+  celdaOtrosCompacta: { width: 46 },
   numeroOtros: { fontFamily: fuentes.precio, fontSize: 22, lineHeight: 22, color: '#FFD400' },
+  numeroOtrosCompacto: { fontSize: 18, lineHeight: 18 },
   etiquetaOtros: { fontFamily: fuentes.medio, fontSize: 10, lineHeight: 12, color: '#C6CCD3' },
   cierreSelector: {
     borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,.18)', paddingTop: 12,
   },
+  cierreSelectorCompacto: { paddingTop: 8 },
   textoCierre: { fontFamily: fuentes.cuerpo, fontSize: 13, lineHeight: 18, color: '#C6CCD3' },
 });

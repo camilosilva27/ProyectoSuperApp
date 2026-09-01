@@ -38,7 +38,7 @@ import { HeaderNegro, SelectorSupers, TituloHeader } from '../../src/componentes
 import { PlacaLogoSuper } from '../../src/componentes/LogoSuper';
 import { HojaSupers } from '../../src/componentes/HojaSupers';
 import { useFiltrosSupers } from '../../src/filtrosSupers';
-import { espacio, pesos, radio, texto } from '../../src/theme';
+import { espacio, pesos, radio, texto, usePantallaBaja } from '../../src/theme';
 import { tourReportarAltoTabBar, tourYaVisto, useTour, useTourPaso } from '../../src/tour/TourContext';
 import { useTema } from '../../src/useTema';
 
@@ -131,6 +131,7 @@ function useTextoDemorado(valor: string, ms = 300) {
 
 export default function PantallaBuscar() {
   const { paleta } = useTema();
+  const pantallaBaja = usePantallaBaja();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const router = useRouter();
@@ -292,9 +293,9 @@ export default function PantallaBuscar() {
   return (
     <View style={[styles.pantalla, { backgroundColor: paleta.fondo }]}>
       <Head><title>Buscar productos - Super App</title></Head>
-      <HeaderNegro paddingTop={insets.top + espacio.xl}>
+      <HeaderNegro paddingTop={insets.top + (pantallaBaja ? espacio.md : espacio.xl)}>
         <TituloHeader>Qué vas a comprar</TituloHeader>
-        <View style={styles.buscador}>
+        <View style={[styles.buscador, pantallaBaja && styles.buscadorCompacto]}>
           <TextInput
             ref={refBuscador}
             value={consulta}
@@ -647,6 +648,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: espacio.sm,
     backgroundColor: '#FFFFFF', borderRadius: radio.md, paddingHorizontal: espacio.md, height: 50,
   },
+  // Ver usePantallaBaja (theme.ts) — un iPhone SE perdía más de la mitad de la pantalla contra
+  // este header.
+  buscadorCompacto: { height: 42 },
   input: { flex: 1, outlineWidth: 0, outlineStyle: 'none' },
   botonLimpiar: {
     width: 20, height: 20, borderRadius: radio.pill, alignItems: 'center', justifyContent: 'center',

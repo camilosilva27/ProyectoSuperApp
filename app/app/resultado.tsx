@@ -32,7 +32,7 @@ import { FotoProducto } from '../src/componentes/FotoProducto';
 import { HeaderNegro } from '../src/componentes/HeaderNegro';
 import { useFiltrosSupers } from '../src/filtrosSupers';
 import { useHistorialAhorro } from '../src/historialAhorro';
-import { espacio, fuentes, pesos, pesosCorto, radio, texto } from '../src/theme';
+import { espacio, fuentes, pesos, pesosCorto, radio, texto, usePantallaBaja } from '../src/theme';
 import { useTourPaso } from '../src/tour/TourContext';
 import { useTema } from '../src/useTema';
 
@@ -235,6 +235,7 @@ function HeaderVeredicto({
   onVerPromos: () => void;
 }) {
   const { paleta } = useTema();
+  const pantallaBaja = usePantallaBaja();
   const router = useRouter();
   const { registrar } = useHistorialAhorro();
   const { registrarUso } = useFiltrosSupers();
@@ -285,7 +286,10 @@ function HeaderVeredicto({
   const dosTotales = paradasNombres.length > 1;
 
   return (
-    <HeaderNegro paddingTop={insets.top + espacio.md} estilo={{ gap: espacio.md }}>
+    <HeaderNegro
+      paddingTop={insets.top + espacio.md}
+      estilo={{ gap: pantallaBaja ? espacio.sm : espacio.md }}
+    >
       {/* router.back() sin más falla con "GO_BACK not handled" si no hay historial previo
           (recargar la página en /resultado, o entrar por URL directa) — el botón quedaba sin
           responder en ese caso. canGoBack() lo detecta y cae a Carrito, que es de donde se
@@ -312,7 +316,12 @@ function HeaderVeredicto({
               <Text style={[texto.micro, { color: paleta.oferta, letterSpacing: 0.7, fontFamily: fuentes.titulo }]}>
                 COMPRA ÓPTIMA EN {paradasNombres.length} PARADAS
               </Text>
-              <Text style={[texto.precioHero, styles.totalHero, styles.totalPrincipal]}>
+              <Text
+                style={[
+                  texto.precioHero, styles.totalHero, styles.totalPrincipal,
+                  pantallaBaja && styles.totalPrincipalCompacto,
+                ]}
+              >
                 {pesosCorto(totalOptimo)}
               </Text>
               <Text style={[texto.dato, styles.textoMutedOscuro]}>{paradasNombres.join(' · ')}</Text>
@@ -334,7 +343,9 @@ function HeaderVeredicto({
             {hayAhorroPorPromos ? (
               <Text style={[texto.dato, styles.precioSinPromoHero]}>{pesosCorto(totalSinPromo)}</Text>
             ) : null}
-            <Text style={[texto.precioHero, styles.totalHero]}>{pesosCorto(totalOptimo)}</Text>
+            <Text style={[pantallaBaja ? texto.precioGrande : texto.precioHero, styles.totalHero]}>
+              {pesosCorto(totalOptimo)}
+            </Text>
             {mejorUnico ? (
               <Text style={[texto.etiqueta, styles.subtitutloHero]}>
                 Comprando todo en {mejorUnico.nombre} pagás el mejor precio: no hace falta un segundo viaje.
@@ -737,6 +748,9 @@ const styles = StyleSheet.create({
   subtitutloHero: { color: '#FFFFFF', opacity: 0.7 },
   filaDosTotales: { flexDirection: 'row', alignItems: 'flex-end', gap: espacio.md },
   totalPrincipal: { fontSize: 52, lineHeight: 48 },
+  // Ver usePantallaBaja (theme.ts) — un iPhone SE perdía más de la mitad de la pantalla contra
+  // este header, y este total de 52px era el mayor responsable.
+  totalPrincipalCompacto: { fontSize: 38, lineHeight: 36 },
   // Grises fijos del header negro (no de la paleta clara/oscura del resto de la app): este
   // header siempre es oscuro, lleve el sistema el tema que lleve — ver useTema.ts.
   textoMutedOscuro: { color: '#727B85' },
