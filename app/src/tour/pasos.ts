@@ -17,6 +17,7 @@
  */
 
 export type PasoId =
+  | "notificaciones"
   | "tab-descuentos"
   | "mercado-pago"
   | "buscador-input"
@@ -30,6 +31,9 @@ export type PasoId =
   | "ahorro";
 
 export const ORDEN_PASOS: PasoId[] = [
+  // Primero de todos, a pedido: sin spotlight sobre ningún elemento (es un permiso del
+  // navegador, no un componente en pantalla) — ver el caso especial en TourOverlay.tsx.
+  "notificaciones",
   "tab-descuentos",
   "mercado-pago",
   "buscador-input",
@@ -47,6 +51,10 @@ export const ORDEN_PASOS: PasoId[] = [
 ];
 
 export const PASOS: Record<PasoId, { titulo: string; texto: string }> = {
+  notificaciones: {
+    titulo: "Activá las notificaciones",
+    texto: "Te avisamos una vez por semana para que revises si hay mejores precios. Tocá el botón para activarlas.",
+  },
   "tab-descuentos": {
     titulo: "Cargá tus descuentos",
     texto: "Tocá Descuentos para cargar tus tarjetas y promos.",
