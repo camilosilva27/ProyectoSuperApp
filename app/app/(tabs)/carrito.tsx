@@ -32,12 +32,13 @@ import { GuardarCarritoHoja, ToastGuardado } from '../../src/componentes/Guardar
 import { HeaderNegro, SelectorSupers, TituloHeader } from '../../src/componentes/HeaderNegro';
 import { HojaSupers } from '../../src/componentes/HojaSupers';
 import { useFiltrosSupers } from '../../src/filtrosSupers';
-import { espacio, radio, texto } from '../../src/theme';
+import { espacio, radio, texto, usePantallaBaja } from '../../src/theme';
 import { useTourPaso } from '../../src/tour/TourContext';
 import { useTema } from '../../src/useTema';
 
 export default function PantallaCarrito() {
   const { paleta } = useTema();
+  const pantallaBaja = usePantallaBaja();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const router = useRouter();
@@ -83,7 +84,7 @@ export default function PantallaCarrito() {
   return (
     <View style={[styles.pantalla, { backgroundColor: paleta.fondo }]}>
       <Head><title>Carrito - Super App</title></Head>
-      <HeaderNegro paddingTop={insets.top + espacio.xl}>
+      <HeaderNegro paddingTop={insets.top + (pantallaBaja ? espacio.md : espacio.xl)}>
         <View style={styles.headerCarrito}>
           <TituloHeader>Carrito</TituloHeader>
           {!vacia ? (
