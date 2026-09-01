@@ -174,7 +174,7 @@ export default function PantallaAjustes() {
         </View>
 
         <Text style={[texto.cuerpo, { color: paleta.tintaSuave }]}>
-          Ante cualquier duda, opinión o problema, escribir a camilosilva28@gmail.com
+          Ante cualquier duda, opinión o problema, escribir a contacto@mi-superapp.com.ar
         </Text>
       </View>
       <ConfirmacionModal
