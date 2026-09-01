@@ -583,6 +583,71 @@ como `tour.activo ? ['vea','carr'] : []`. Se libera sola al salir del tour (depe
 
 ---
 
+## Notificaciones push web (recordatorio semanal)
+
+**2026-09-01, implementado y verificado.** Primer caso de uso de un circuito de Web Push
+completo (llegan a la barra de notificaciones nativa del OS, no dependen de tener la pestaña
+abierta) — sin `expo-notifications` (eso es para builds nativos, que no existen en este
+proyecto), es la Push API estándar del navegador.
+
+**Piezas:**
+- `supabase/migrations/0012_push_suscripciones.sql` — tabla `push_suscripcion` (`endpoint` como
+  PK, `usuario_id`, `p256dh`, `auth` — sí, se llama `auth` igual que el schema de Supabase, **ver
+  la nota más abajo sobre por qué eso no es un problema**). RLS con policies de insert/delete
+  propio únicamente (sin select — no hace falta, el cron lee con la service role). Corrida contra
+  el proyecto real con `supabase db push --linked` (usando `SUPABASE_ACCESS_TOKEN` del entorno —
+  no hay CLI instalado global, se usa `npx supabase`).
+- VAPID keys generadas una vez (`npx web-push generate-vapid-keys`) — privada en
+  `backend/.env` (`VAPID_PRIVATE_KEY`), pública duplicada en `backend/.env`
+  (`VAPID_PUBLIC_KEY`) y en `app/.env` (`EXPO_PUBLIC_VAPID_PUBLIC_KEY` — no es secreta, viaja en
+  el bundle a propósito).
+- `app/public/sw.js` — service worker mínimo (`push` → `showNotification`, `notificationclick` →
+  enfoca la app). Expo copia `app/public/` tal cual a la raíz del build web, igual que
+  `manifest.json`, así que queda servible en `/sw.js` sin config adicional.
+- `app/src/push/push.ts` — `soportaPush()` (feature-detect; en iOS Safari da `false` salvo que
+  la web esté agregada a la pantalla de inicio), `pedirPermisoYSuscribir(usuarioId)`,
+  `desuscribir()`, `yaSuscripto()`. Suscribe/desuscribe escribiendo directo en
+  `push_suscripcion` desde el cliente (mismo patrón que `tour_visto` en `TourContext.tsx` —
+  sin endpoint Express de por medio).
+- Toggle en `app/app/(tabs)/ajustes.tsx` (sección "NOTIFICACIONES") — solo visible si
+  `soportaPush()`, si no muestra un hint de "agregá la app a tu pantalla de inicio" (caso iOS).
+- Paso obligatorio en el tour (`app/src/tour/pasos.ts`, `PasoId "notificaciones"`, primero en
+  `ORDEN_PASOS`): sin target real en pantalla (es un permiso del navegador, no un componente), se
+  resuelve en `TourOverlay.tsx` con un `rect` fijo fuera de pantalla (spotlight invisible, overlay
+  oscurecido completo) y un botón propio en el cartel ("Activar notificaciones", mismo mecanismo
+  que el botón "Finalizar" del último paso). El botón llama `pedirPermisoYSuscribir` y **avanza el
+  tour en el `finally`, haya aceptado o rechazado el permiso** — un navegador no deja re-preguntar
+  tras un rechazo, así que bloquear el tour hasta que acepte dejaría afuera a quien rechace.
+- `backend/src/cron/recordatorioSemanal.js` — mismo esqueleto que `pingSupabase.js` (reporte a
+  `logs/`, `require.main === module`). Manda el mismo mensaje genérico a todas las filas de
+  `push_suscripcion` (lee con la service role) y borra las que respondan 404/410 (suscripción
+  vencida del lado del navegador). Crontab sugerido en el comentario del archivo: lunes 10:00
+  hora Argentina — **falta cargarlo a mano en la VM** (mismo criterio que los demás crons, no
+  vive en el repo).
+
+**Bug real encontrado y corregido al probar en navegador**: `pushManager.subscribe()` tira
+`AbortError: ... no active Service Worker` si se usa el resultado de `serviceWorker.register()`
+directo — el registro puede devolver antes de que el worker esté activo. Hay que esperar
+`navigator.serviceWorker.ready` (que resuelve recién con un worker activo) antes de llamar a
+`subscribe()`. Ya corregido en `push.ts`.
+
+**Nota sobre el nombre de columna `auth`**: se probó a fondo si `auth` como nombre de columna en
+`push_suscripcion` colisiona con el schema `auth` de Supabase dentro de las policies de RLS de
+esa misma tabla (`auth.uid()` ambiguo entre función y campo) — **se descartó**: se verificó con
+SQL directo que `auth.uid()` resuelve bien igual, incluso con una columna `auth` en scope. El 403
+que se vio al principio al probar manualmente era por pedir `Prefer: return=representation` (que
+exige policy de SELECT, que no existe a propósito) — el código real (`push.ts`) no la pide.
+
+**Verificado en navegador real (Chrome vía chrome-devtools-mcp) hasta donde el entorno de
+automatización lo permite**: paso del tour completo (incluye avance tras rechazo simulado del
+permiso), toggle de Ajustes disparando el flujo, y el insert a `push_suscripcion` confirmado por
+SQL directo. La suscripción real (`pushManager.subscribe`) se cuelga en el Chromium de
+automatización por no tener backend de push configurado (limitación del entorno, no del código) —
+falta una verificación final con un navegador real de usuario antes de dar la feature por 100%
+probada end-to-end.
+
+---
+
 ## Búsqueda por nombre — matchesBusqueda
 
 ```javascript
@@ -664,6 +729,7 @@ En producción, los scrapers los corre `backend/src/cron/refrescarCatalogos.js` 
 | Precio de Vea desactualizado en ~10,6% del catálogo (2026-08-20) — el fix del 13-08 de arriba no alcanzó | El fix del 13-08 solo tocó `core/fetchers.js`; `scraper-promos-vea.js` seguía mandando la misma cookie fija, y desde ese mismo día `precioCache.js` (que lee de `catalogo-*.json`) pasó a ser el camino común de precio en la app, no el fetch en vivo ya arreglado | Se sacó la cookie también de `scraper-promos-vea.js` (ver quirk de Vea arriba) |
 | Coto mostraba productos discontinuados con precio viejo (ej. "puré de tomate arcor" a $650/$110 en vez de $1.110) | `store_availability` (disponibilidad real por sucursal) nunca se leía — ni el scraper ni el fetch en vivo lo chequeaban | `scraper-promos-coto.js` y `parsearProductosCoto` en `core/fetchers.js` descartan SKUs con `store_availability` vacío (ver quirk de Coto arriba) |
 | Botón flotante "Ver carrito"/"Comparar precios" (Buscar/Carrito) quedaba separado del tab bar por un hueco vacío (~49px, medido en vivo en prod el 2026-08-31) | Dos causas apiladas: (1) el `paddingBottom` reservado en el scroll para no tapar el último ítem era un número fijo a ojo (120/140) que sobraba respecto al alto real del botón; (2) en **web** la escena del tab y el tab bar son hermanos que no se superponen (a diferencia de nativo, donde el tab bar flota encima de la escena) — sumarle `tabBarHeight` al `bottom` del botón, que hace falta en nativo para no quedar tapado, en web duplicaba ese alto y generaba el hueco | `app/(tabs)/index.tsx` y `carrito.tsx`: el alto del botón se mide con `onLayout` (nada de números fijos) y se usa para el `paddingBottom` del scroll; el `bottom` del contenedor pasa a `Platform.OS === 'web' ? 0 : tabBarHeight` |
+| En `resultado.tsx`, el bloque "Ahorrás" del header mostraba `ahorroRepartiendo` (comprar todo en un solo super vs. repartir entre paradas) en vez del ahorro por promos/descuentos — un número chico y confuso al lado de "PRECIO SIN DESCUENTOS" (2026-09-01) | Eran dos métricas distintas a propósito (ver el bug ya corregido de `ahorroRepartiendo` en el registro de historial, 2026-08-22), pero mostrar `ahorroRepartiendo` justo debajo de "precio sin descuentos" hacía pensar al usuario que esa era la diferencia entre ambos totales, y no lo era | "Ahorrás" ahora muestra `montoAhorradoPromos` (`totalSinPromo - totalOptimo`), la misma cuenta que ya se usaba para el historial de ahorro; `ahorroRepartiendo`/`valeRepartir` se eliminaron del componente. De paso, el título "REPARTIENDO EN N PARADAS" pasó a "Compra óptima en N paradas" (ya no en mayúsculas fijas) |
 
 ---
 

@@ -55,4 +55,11 @@ module.exports = {
     : null,
   // A dónde vuelve el navegador/webview de MP una vez que el usuario termina el checkout.
   urlVueltaCheckoutMP: process.env.URL_VUELTA_CHECKOUT_MP || 'https://mi-superapp.vercel.app',
+
+  // Notificaciones push web (recordatorio semanal, ver src/cron/recordatorioSemanal.js). La
+  // pública viaja también en app/.env (EXPO_PUBLIC_VAPID_PUBLIC_KEY) — no es secreta, es la
+  // misma clave que ya usa el navegador para suscribirse.
+  vapidPublicKey: process.env.VAPID_PUBLIC_KEY,
+  vapidPrivateKey: process.env.VAPID_PRIVATE_KEY,
+  vapidSubject: process.env.VAPID_SUBJECT || 'mailto:camilosilva28@gmail.com',
 };
