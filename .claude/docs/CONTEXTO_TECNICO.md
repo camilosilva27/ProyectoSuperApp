@@ -613,7 +613,15 @@ proyecto), es la Push API estándar del navegador.
   solo lo obtiene una instalación a pantalla de inicio hecha DESDE la app de Safari; hacerlo
   desde Chrome en iOS no habilita nada, es una restricción de Apple a nivel de sistema (bug real
   reportado 2026-09-01: el hint decía "agregá la app" sin más, y confundía a quien lo veía en
-  Chrome para iPhone pensando que agregarla desde ahí alcanzaba).
+  Chrome para iPhone pensando que agregarla desde ahí alcanzaba). `esIOS()` primero prueba
+  `/iPhone|iPad|iPod/` contra el user-agent; si no matchea, prueba `Macintosh` + `maxTouchPoints
+  > 1` — con "Sitio de escritorio" activado (Chrome iOS: Configuración > Configuración de
+  contenido > Sitio de escritorio), el user-agent se disfraza de Mac y el primer regex no
+  alcanza (un Mac de verdad no tiene pantalla táctil, por eso Mac+táctil = iOS igual). No pudo
+  verificarse en un dispositivo real (probado con user-agent spoofeado sobre Chromium de
+  escritorio, que no replica el `maxTouchPoints` real de iOS) — si el hint sigue sin acertar en
+  algún caso real, pedir el user-agent exacto reportado (`navigator.userAgent`) para ese
+  dispositivo antes de seguir ajustando el heurístico a ciegas.
 - Toggle en `app/app/(tabs)/ajustes.tsx` (sección "NOTIFICACIONES") — solo visible si
   `soportaPush()`; si no, el hint usa `esIOS()` para nombrar a Safari explícitamente en ese caso
   ("abrí este sitio en Safari... y agregalo desde ahí"), y un mensaje genérico en cualquier otro

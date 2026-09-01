@@ -30,9 +30,12 @@ export function soportaPush(): boolean {
  *  Safari específicamente (ver nota de arriba); en cualquier otro caso (navegador embebido de
  *  WhatsApp/Instagram, navegador de escritorio viejo, etc.) el hint genérico alcanza. */
 export function esIOS(): boolean {
-  return Platform.OS === 'web'
-    && typeof navigator !== 'undefined'
-    && /iPhone|iPad|iPod/.test(navigator.userAgent);
+  if (Platform.OS !== 'web' || typeof navigator === 'undefined') return false;
+  if (/iPhone|iPad|iPod/.test(navigator.userAgent)) return true;
+  // Con "Sitio de escritorio" activado (Chrome iOS: Configuración > Configuración de
+  // contenido > Sitio de escritorio), el user-agent se disfraza de "Macintosh" y no dice
+  // "iPhone" — un Mac de verdad no tiene pantalla táctil, así que Mac + táctil es iOS.
+  return /Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1;
 }
 
 // applicationServerKey necesita un Uint8Array, no el string base64url que da `web-push
