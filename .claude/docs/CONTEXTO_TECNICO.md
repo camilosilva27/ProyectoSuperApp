@@ -536,7 +536,7 @@ No avanza solo — termina tocando el recuadro resaltado (el bloque en sí es un
 solo una `View` con un ref) o tocando "Finalizar" en el cartel (único paso que lo tiene, ver
 `TourOverlay.tsx`: `ULTIMO_PASO = ORDEN_PASOS[ORDEN_PASOS.length - 1]`, así no queda hardcodeado
 si se agrega un paso después). El ref/Pressable envuelve tanto el total (repartido o único)
-como el bloque "Repartiendo ahorrás $X" cuando existe — este último es condicional
+como el bloque " ahorrás $X" cuando existe — este último es condicional
 (`valeRepartir && mejorUnico`), así que el wrapper cubre siempre al menos el total para que el
 target nunca falte.
 
@@ -663,6 +663,7 @@ En producción, los scrapers los corre `backend/src/cron/refrescarCatalogos.js` 
 | Promo real de MasClub (15% mié/jue, sin tope) no aparecía en la app aunque el usuario la vio en el sitio de Chango Más | `backend/logs/promos-bancarias.json` no existía en producción — `/api/health` nunca chequeaba esta caché (`fechaGeneracionPromosBancarias()` existía en `promosBancariasCache.js` "para /api/health" pero no estaba conectada) | Se regeneró el cache a mano y se conectó `fechaGeneracionPromosBancarias()` a `/api/health` (2026-08-19): ahora reporta `promosBancarias: {generado, horas}` y un problema si falta o supera `horasMaximoPromosBancarias` (6hs, `config.js`) |
 | Precio de Vea desactualizado en ~10,6% del catálogo (2026-08-20) — el fix del 13-08 de arriba no alcanzó | El fix del 13-08 solo tocó `core/fetchers.js`; `scraper-promos-vea.js` seguía mandando la misma cookie fija, y desde ese mismo día `precioCache.js` (que lee de `catalogo-*.json`) pasó a ser el camino común de precio en la app, no el fetch en vivo ya arreglado | Se sacó la cookie también de `scraper-promos-vea.js` (ver quirk de Vea arriba) |
 | Coto mostraba productos discontinuados con precio viejo (ej. "puré de tomate arcor" a $650/$110 en vez de $1.110) | `store_availability` (disponibilidad real por sucursal) nunca se leía — ni el scraper ni el fetch en vivo lo chequeaban | `scraper-promos-coto.js` y `parsearProductosCoto` en `core/fetchers.js` descartan SKUs con `store_availability` vacío (ver quirk de Coto arriba) |
+| Botón flotante "Ver carrito"/"Comparar precios" (Buscar/Carrito) quedaba separado del tab bar por un hueco vacío (~49px, medido en vivo en prod el 2026-08-31) | Dos causas apiladas: (1) el `paddingBottom` reservado en el scroll para no tapar el último ítem era un número fijo a ojo (120/140) que sobraba respecto al alto real del botón; (2) en **web** la escena del tab y el tab bar son hermanos que no se superponen (a diferencia de nativo, donde el tab bar flota encima de la escena) — sumarle `tabBarHeight` al `bottom` del botón, que hace falta en nativo para no quedar tapado, en web duplicaba ese alto y generaba el hueco | `app/(tabs)/index.tsx` y `carrito.tsx`: el alto del botón se mide con `onLayout` (nada de números fijos) y se usa para el `paddingBottom` del scroll; el `bottom` del contenedor pasa a `Platform.OS === 'web' ? 0 : tabBarHeight` |
 
 ---
 
