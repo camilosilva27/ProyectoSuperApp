@@ -17,7 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import type { View } from 'react-native';
 import { useAuth } from '../auth';
-import { useCarrito } from '../carrito';
+import { useCarrito, type ItemCarrito } from '../carrito';
 import { useFiltrosSupers } from '../filtrosSupers';
 import { supabase } from '../supabase';
 import { ORDEN_PASOS, type PasoId } from './pasos';
@@ -178,7 +178,20 @@ export function useTour() {
     tourReportarUsuario(userId);
   }, [userId]);
 
+  // Se actualiza en CADA render (no depende del closure memoizado de `iniciar`, que solo se
+  // recrea cuando cambia `session?.access_token`) — así, al arrancar el tour, siempre se
+  // guarda el carrito real tal cual está en ese momento, no una foto vieja de cuando `iniciar`
+  // se creó por última vez.
+  const carritoActualRef = useRef(carrito.items);
+  carritoActualRef.current = carrito.items;
+  // Foto del carrito real justo antes de que la precarga lo pise con la demo — se restaura al
+  // terminar el tour (ver el efecto de más abajo), sea que se complete entero o se corte con
+  // "Finalizar": todo lo que pasa con el carrito durante el tour (la demo + lo que el usuario
+  // toque siguiendo los pasos) es parte de la práctica, no compras reales.
+  const carritoAntesDelTourRef = useRef<ItemCarrito[] | null>(null);
+
   const iniciar = useCallback(() => {
+    carritoAntesDelTourRef.current = carritoActualRef.current;
     setSupersYTope(['vea', 'carr'], 0);
     precargarTour(session?.access_token ?? null, carrito.vaciar, carrito.agregar);
     iniciarTour();
@@ -186,6 +199,19 @@ export function useTour() {
     // estables por render (mismo patrón que el resto del archivo); solo importa que `iniciar`
     // no cambie de identidad en cada render de quien lo consume.
   }, [session?.access_token]);
+
+  // Restaura el carrito apenas el tour deja de estar activo (`activo` pasa de `true` a
+  // `false`) — cubre tanto llegar al último paso como cortar con "Finalizar" en cualquier
+  // punto, las dos formas de "terminar el tutorial".
+  const activoAnteriorRef = useRef(activo);
+  useEffect(() => {
+    if (activoAnteriorRef.current && !activo && carritoAntesDelTourRef.current) {
+      carrito.reemplazarItems(carritoAntesDelTourRef.current);
+      carritoAntesDelTourRef.current = null;
+    }
+    activoAnteriorRef.current = activo;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `carrito` es estable por render
+  }, [activo]);
 
   return { activo, pasoActivo, iniciar, salir: salirTour };
 }

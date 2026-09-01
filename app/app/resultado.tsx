@@ -266,8 +266,8 @@ function HeaderVeredicto({
     registrarUso(data.supermercados.map(s => s.key));
   }, [data, montoAhorradoPromos, registrar, registrarUso]);
 
-  // Último paso del tour: no se cierra solo — el usuario tiene que tocar el recuadro
-  // resaltado (o "Finalizar" en el cartel, ver TourOverlay.tsx) para terminar.
+  // El paso no avanza solo: hay que tocar el recuadro resaltado o "Finalizar" (en el
+  // cartel, ver TourOverlay.tsx) para pasar al siguiente paso ('notificaciones', el último).
   const [ahorroListo, setAhorroListo] = useState(false);
   useEffect(() => { setAhorroListo(false); }, [data]);
   const refAhorro = useTourPaso('ahorro', ahorroListo);

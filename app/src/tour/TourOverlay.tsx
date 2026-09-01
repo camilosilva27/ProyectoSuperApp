@@ -10,9 +10,10 @@
  * esquinas "marcadas" aunque el borde fuera redondeado).
  *
  * "Finalizar" arriba a la derecha del cartel, en todos los pasos: cierra el tour en cualquier
- * momento (antes solo se podía completarlo de punta a punta). El último paso (`ahorro`, ver
- * resultado.tsx) además tiene su propio botón de cierre, más prominente, que hace lo mismo que
- * tocar el recuadro resaltado: terminar.
+ * momento (antes solo se podía completarlo de punta a punta). El último paso (`ULTIMO_PASO`,
+ * hoy `notificaciones` — ver pasos.ts) además tiene su propio botón de cierre grande junto al
+ * botón de la acción del paso: los dos llevan al mismo lado (terminar el tour), dejando ese
+ * último paso explícitamente opcional.
  *
  * La medición reintenta en cada frame durante una ventana corta después de cada cambio de
  * paso, no solo una vez: esto cubre tanto el caso general (nodo recién montado, 0×0 hasta que
@@ -162,11 +163,14 @@ export function TourOverlay() {
     // este mismo efecto) y lo tomaba como si fuera "el paso anterior", reclasificando mal.
     if (pasoClasificadoRef.current !== idPaso) {
       const pasoAnterior = pasoAnteriorRef.current;
-      // 'notificaciones' no tiene target real (ver más abajo): tratarlo como "sin continuidad
-      // visual" también evita que el paso siguiente intente deslizar el recuadro desde el
-      // recorte fuera de pantalla que usa ese paso.
+      // 'notificaciones' no tiene target real (recorte fuera de pantalla, ver más abajo): sin
+      // continuidad visual tanto si es el paso ANTERIOR (evita que el siguiente intente
+      // deslizar desde ese recorte invisible) como si es el paso al que se está ENTRANDO —
+      // ahora es el último del tour (ver pasos.ts), y sin este segundo chequeo el recuadro
+      // intentaría deslizar desde el bloque de ahorro hasta ese punto fuera de pantalla, un
+      // slide raro hacia la nada en vez de un simple oscurecido.
       sinContinuidadVisualRef.current = pasoAnterior !== null
-        && (pasoAnterior === 'notificaciones' || PASOS_CAMBIO_PANTALLA.has(pasoAnterior));
+        && (pasoAnterior === 'notificaciones' || PASOS_CAMBIO_PANTALLA.has(pasoAnterior) || idPaso === 'notificaciones');
       pasoAnteriorRef.current = idPaso;
       pasoClasificadoRef.current = idPaso;
       if (sinContinuidadVisualRef.current) {
@@ -438,13 +442,24 @@ export function TourOverlay() {
             ))}
           </View>
           {pasoActivo === 'notificaciones' ? (
-            <Pressable onPress={activarNotificaciones} accessibilityRole="button" style={styles.botonFinalizar}>
-              <Text style={styles.textoBotonFinalizar}>Activar notificaciones</Text>
+            <Pressable
+              onPress={activarNotificaciones}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.botonPrimario, pressed ? { opacity: 0.9 } : null]}
+            >
+              <Text style={styles.textoBotonPrimario}>Activar notificaciones</Text>
             </Pressable>
           ) : null}
           {pasoActivo === ULTIMO_PASO ? (
-            <Pressable onPress={salirTour} accessibilityRole="button" style={styles.botonFinalizar}>
-              <Text style={styles.textoBotonFinalizar}>Finalizar</Text>
+            // Mismo tamaño que el botón primario de arriba (radio.md, minHeight 52), pero sin
+            // relleno — la jerarquía visual (lleno vs. contorno) es lo que comunica "opcional"
+            // sin necesitar texto de más: activar es la acción principal, esto es la salida.
+            <Pressable
+              onPress={salirTour}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.botonSecundario, pressed ? { opacity: 0.7 } : null]}
+            >
+              <Text style={styles.textoBotonSecundario}>Ahora no</Text>
             </Pressable>
           ) : null}
         </View>
@@ -499,11 +514,29 @@ const styles = StyleSheet.create({
   puntos: { flexDirection: 'row', gap: espacio.xs, marginTop: espacio.xs },
   punto: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#E2E5E9' },
   puntoActivo: { backgroundColor: '#14161A' },
-  botonFinalizar: {
-    alignSelf: 'flex-start', backgroundColor: '#14161A', borderRadius: radio.sm,
-    height: 44, paddingHorizontal: espacio.lg, alignItems: 'center', justifyContent: 'center',
+  // Mismo lenguaje que `BotonPrincipal` (comunes.tsx) y el resto de los CTA grandes de la app
+  // (radio.md, minHeight 52, texto semi 17) — antes este botón usaba radio.sm/height 44/font 14,
+  // más chico y sin borde que cualquier otro CTA de cierre de flujo en la app (ver botonListo en
+  // HojaSupers.tsx, ctaFijo en PlanSelect.tsx). El borde amarillo fino reutiliza el mismo acento
+  // que ya tiene el propio overlay (marcoRecorte, badgePaso) — nunca amarillo de relleno, eso
+  // está reservado en el resto de la app para CTAs de pago/suscripción.
+  botonPrimario: {
+    alignSelf: 'stretch', backgroundColor: '#14161A', borderRadius: radio.md,
+    borderWidth: 1.5, borderColor: '#FFD400',
+    minHeight: 52, paddingHorizontal: espacio.lg, alignItems: 'center', justifyContent: 'center',
   },
-  textoBotonFinalizar: {
-    fontFamily: fuentes.semi, fontSize: 14, lineHeight: 18, color: '#FFFFFF',
+  textoBotonPrimario: {
+    fontFamily: fuentes.semi, fontSize: 17, lineHeight: 22, color: '#FFFFFF',
+  },
+  // Contorno, sin relleno: mismo tamaño que el primario, pero la ausencia de color de fondo ya
+  // comunica "esta es la salida, no la acción" sin competir visualmente con "Activar
+  // notificaciones" (a pedido: el último paso queda opcional).
+  botonSecundario: {
+    alignSelf: 'stretch', backgroundColor: 'transparent', borderRadius: radio.md,
+    borderWidth: 1, borderColor: '#C6CCD3',
+    minHeight: 52, paddingHorizontal: espacio.lg, alignItems: 'center', justifyContent: 'center',
+  },
+  textoBotonSecundario: {
+    fontFamily: fuentes.semi, fontSize: 17, lineHeight: 22, color: '#565E67',
   },
 });

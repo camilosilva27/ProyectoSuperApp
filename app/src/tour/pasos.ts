@@ -10,10 +10,16 @@
  * propio overlay. Sin este split el usuario no podía salir de la hoja de supers.
  *
  * `ahorro` (a pedido, no estaba en el handoff original) resalta el bloque de precio/ahorro de
- * `/resultado`. Es el único paso con un botón en el cartel ("Finalizar", ver TourOverlay.tsx) —
- * los demás no tienen forma de salir a mitad de camino, a pedido. Termina tocando el recuadro
- * resaltado (el bloque mismo es un `Pressable`, ver `refAhorro` en resultado.tsx) o tocando
- * "Finalizar"; ninguno de los dos avanza solo.
+ * `/resultado`. Termina tocando el recuadro resaltado (el bloque mismo es un `Pressable`, ver
+ * `refAhorro` en resultado.tsx) o tocando "Finalizar" en el cartel (visible en todo paso, ver
+ * TourOverlay.tsx); ninguno de los dos avanza solo.
+ *
+ * `notificaciones` va AL FINAL a propósito (a pedido) — no al principio como en el handoff
+ * original: pedir un permiso del navegador antes de que el usuario vio una sola pantalla de la
+ * app se sentía invasivo. Al ser el ÚLTIMO paso (`ULTIMO_PASO` en TourOverlay.tsx), hereda
+ * gratis el botón "Finalizar" que ya se muestra en el último paso — así "Activar
+ * notificaciones" y "Finalizar" quedan uno al lado del otro, dejando el paso explícitamente
+ * opcional sin necesitar un botón de "omitir" aparte.
  */
 
 export type PasoId =
@@ -32,9 +38,6 @@ export type PasoId =
   | "ahorro";
 
 export const ORDEN_PASOS: PasoId[] = [
-  // Primero de todos, a pedido: sin spotlight sobre ningún elemento (es un permiso del
-  // navegador, no un componente en pantalla) — ver el caso especial en TourOverlay.tsx.
-  "notificaciones",
   "tab-descuentos",
   "mercado-pago",
   // Paso propio para volver a Buscar (a pedido): antes `mercado-pago` navegaba solo al
@@ -53,12 +56,17 @@ export const ORDEN_PASOS: PasoId[] = [
   "ver-carrito",
   "comparar-precios",
   "ahorro",
+  // Al final (a pedido, ver la nota más arriba): sin spotlight sobre ningún elemento (es un
+  // permiso del navegador, no un componente en pantalla) — ver el caso especial en
+  // TourOverlay.tsx. Al ser `ULTIMO_PASO`, el botón "Finalizar" aparece junto a "Activar
+  // notificaciones", dejándolo opcional.
+  "notificaciones",
 ];
 
 export const PASOS: Record<PasoId, { titulo: string; texto: string }> = {
   notificaciones: {
-    titulo: "Activá las notificaciones",
-    texto: "Presiona el botón para recibir notificaciones.",
+    titulo: "Por último, ¿te avisamos?",
+    texto: "Una vez por semana te contamos si hay mejores precios. Es opcional: activalas o tocá Finalizar.",
   },
   "tab-descuentos": {
     titulo: "Cargá tus descuentos",
