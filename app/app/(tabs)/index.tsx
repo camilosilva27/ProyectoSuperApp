@@ -17,7 +17,7 @@ import { usePathname, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, FlatList, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 // expo-router (v57) vendorea su propio bottom-tabs y no lo reexporta desde el root del
 // paquete: no hay `@react-navigation/bottom-tabs` instalado por separado, así que este es
@@ -148,7 +148,9 @@ export default function PantallaBuscar() {
   // "Ver carrito": antes era un 120 fijo a ojo, que sobraba y dejaba un espacio vacío entre
   // el botón y el tab bar (se veía la fila "Primera vez acá?" asomando en el hueco).
   const [altoBarraInferior, setAltoBarraInferior] = useState(0);
-  const reservaInferior = carrito.items.length > 0 ? tabBarHeight + altoBarraInferior : 0;
+  const reservaInferior = carrito.items.length > 0
+    ? altoBarraInferior + (Platform.OS === 'web' ? 0 : tabBarHeight)
+    : 0;
   const { supersActivos, toggleSuper, topeSupers, setSupersYTope, usoPorSuper } = useFiltrosSupers();
 
   // El alto real de la tab bar solo se puede leer desde una pantalla que esté DENTRO del
@@ -372,9 +374,12 @@ export default function PantallaBuscar() {
             {
               backgroundColor: paleta.superficie,
               borderTopColor: paleta.borde,
-              // Arriba del tab bar (que ya resuelve su propio safe-area), no contra el
-              // borde de la pantalla: si no, tapaba las 4 pestañas de abajo.
-              bottom: tabBarHeight,
+              // En native, esta vista se posiciona detrás del tab bar (hay que subirla
+              // tabBarHeight para no taparlo). En web, la escena ya excluye el alto del tab
+              // bar (son hermanos, no se superponen) — sumar tabBarHeight ahí duplicaba el
+              // offset y dejaba un hueco vacío de ese mismo alto contra el tab bar real
+              // (medido en vivo: contenedor de la escena terminaba ~49px antes del tab bar).
+              bottom: Platform.OS === 'web' ? 0 : tabBarHeight,
             },
           ]}
         >

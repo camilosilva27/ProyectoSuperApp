@@ -17,7 +17,7 @@
 import { usePathname, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 // expo-router (v57) vendorea su propio bottom-tabs y no lo reexporta desde el root del
 // paquete: no hay `@react-navigation/bottom-tabs` instalado por separado, así que este es
 // el único import que existe hoy para este hook.
@@ -56,7 +56,7 @@ export default function PantallaCarrito() {
   const [altoBarraInferior, setAltoBarraInferior] = useState(0);
 
   const vacia = carrito.items.length === 0;
-  const reservaInferior = vacia ? 0 : tabBarHeight + altoBarraInferior;
+  const reservaInferior = vacia ? 0 : altoBarraInferior + (Platform.OS === 'web' ? 0 : tabBarHeight);
 
   const vaciarConfirmado = () => {
     setMostrarConfirmarVaciar(false);
@@ -233,9 +233,10 @@ export default function PantallaCarrito() {
             styles.barraInferior,
             {
               backgroundColor: paleta.superficie, borderTopColor: paleta.borde,
-              // Arriba del tab bar (que ya resuelve su propio safe-area), no contra el
-              // borde de la pantalla: si no, tapaba las 4 pestañas de abajo.
-              bottom: tabBarHeight,
+              // Ver el comentario equivalente en index.tsx: en native hay que subir esta
+              // barra tabBarHeight para no quedar detrás del tab bar; en web la escena ya lo
+              // excluye (son hermanos), así que sumarlo ahí solo dejaba un hueco vacío.
+              bottom: Platform.OS === 'web' ? 0 : tabBarHeight,
             },
           ]}
         >
