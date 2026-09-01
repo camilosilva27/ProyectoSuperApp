@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:#E4E7EA;font-family:Archivo,system-ui,sans-serif}
+  a{color:#1B5FD9}a:hover{color:#14161A}
+  @keyframes pop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
+  @keyframes rise{0%{transform:translateY(16px);opacity:0}100%{transform:translateY(0);opacity:1}}
+  @keyframes sheetUp{0%{transform:translateY(100%)}100%{transform:translateY(0)}}
+  input{font-family:Archivo;outline:none;border:none;background:transparent}
+</style>
+</helmet>
+
+<div style="min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:32px 16px 48px;box-sizing:border-box">
+<div ref="{{ refFrame }}" style="width:390px;height:844px;position:relative;background:#EEF0F2;border:1px solid #C6CCD3;border-radius:14px;overflow:hidden;box-shadow:0 18px 50px rgba(20,22,26,.2)">
+
+  <sc-if value="{{ isBuscar }}" hint-placeholder-val="{{ true }}">
+  <div style="position:absolute;inset:0;display:flex;flex-direction:column">
+    <div style="flex:1;overflow:hidden;padding:28px 16px 0;display:flex;flex-direction:column">
+      <div style="display:flex;flex-direction:column;gap:2px;padding-bottom:12px">
+        <div style="font:700 24px/28px Archivo;color:#14161A">Qué vas a comprar</div>
+        <div style="font:400 15px/21px Archivo;color:#565E67">Buscá el producto y tocalo para sumarlo al carrito.</div>
+      </div>
+
+      <div style="background:#14161A;border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:12px;margin-bottom:12px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="font:600 11px/14px Archivo;letter-spacing:1.2px;color:#FFFFFF">{{ barTitle }}</div>
+          <div style="flex:1;height:1px;background:rgba(255,255,255,.18)"></div>
+          <div style="font:400 12px/16px Archivo;color:#C6CCD3">tocá para sacar</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:stretch">
+          <div style="flex:1;min-width:0;background:rgba(255,255,255,.1);border-radius:8px;padding:8px 4px 7px;display:flex;flex-direction:column;align-items:center;gap:6px">
+            <div style="width:100%;height:5px;border-radius:999px;background:#2EA35C"></div>
+            <div style="width:100%;height:22px;background:#FFFFFF;border-radius:4px;display:flex;align-items:center;justify-content:center;overflow:hidden"><img src="assets/logos/vea.png" alt="" style="width:100%;height:18px;object-fit:contain;display:block"></div>
+            <div style="font:600 10px/12px Archivo;color:#FFFFFF;text-align:center">Vea</div>
+          </div>
+          <div style="flex:1;min-width:0;background:rgba(255,255,255,.1);border-radius:8px;padding:8px 4px 7px;display:flex;flex-direction:column;align-items:center;gap:6px">
+            <div style="width:100%;height:5px;border-radius:999px;background:#4C8DF6"></div>
+            <div style="width:100%;height:22px;background:#FFFFFF;border-radius:4px;display:flex;align-items:center;justify-content:center;overflow:hidden"><img src="assets/logos/carrefour.svg" alt="" style="width:100%;height:18px;object-fit:contain;display:block"></div>
+            <div style="font:600 10px/12px Archivo;color:#FFFFFF;text-align:center">Carrefour</div>
+          </div>
+          <div style="flex:1;min-width:0;background:rgba(255,255,255,.1);border-radius:8px;padding:8px 4px 7px;display:flex;flex-direction:column;align-items:center;gap:6px">
+            <div style="width:100%;height:5px;border-radius:999px;background:#A66FE0"></div>
+            <div style="width:100%;height:22px;background:#FFFFFF;border-radius:4px;display:flex;align-items:center;justify-content:center;overflow:hidden"><img src="assets/logos/changomas.png" alt="" style="width:100%;height:18px;object-fit:contain;display:block"></div>
+            <div style="font:600 10px/12px Archivo;color:#FFFFFF;text-align:center">Chango<br>Más</div>
+          </div>
+          <div style="flex:1;min-width:0;background:rgba(255,255,255,.1);border-radius:8px;padding:8px 4px 7px;display:flex;flex-direction:column;align-items:center;gap:6px">
+            <div style="width:100%;height:5px;border-radius:999px;background:#FF4438"></div>
+            <div style="width:100%;height:22px;background:#FFFFFF;border-radius:4px;display:flex;align-items:center;justify-content:center;overflow:hidden"><img src="assets/logos/dia.svg" alt="" style="width:100%;height:18px;object-fit:contain;display:block"></div>
+            <div style="font:600 10px/12px Archivo;color:#FFFFFF;text-align:center">Día</div>
+          </div>
+          <sc-if value="{{ cotoIn }}" hint-placeholder-val="{{ false }}">
+            <div style="flex:1;min-width:0;background:rgba(255,255,255,.1);border-radius:8px;padding:8px 4px 7px;display:flex;flex-direction:column;align-items:center;gap:6px">
+              <div style="width:100%;height:5px;border-radius:999px;background:#FF6B7A"></div>
+              <div style="width:100%;height:22px;background:#FFFFFF;border-radius:4px;display:flex;align-items:center;justify-content:center;overflow:hidden"><img src="assets/logos/coto.svg" alt="" style="width:100%;height:18px;object-fit:contain;display:block"></div>
+              <div style="font:600 10px/12px Archivo;color:#FFFFFF;text-align:center">Coto</div>
+            </div>
+          </sc-if>
+          <div ref="{{ refBarPlus }}" onClick="{{ openSupers }}" style="flex:none;width:56px;border:1px solid rgba(255,255,255,.35);box-sizing:border-box;border-radius:8px;padding:8px 4px 7px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px">
+            <div style="font:700 20px/20px 'Barlow Condensed';color:#FFD400">{{ barPlus }}</div>
+            <div style="font:500 10px/12px Archivo;color:#C6CCD3;text-align:center">otros</div>
+          </div>
+        </div>
+        <div style="font:400 13px/18px Archivo;color:#C6CCD3;border-top:1px solid rgba(255,255,255,.18);padding-top:10px;text-wrap:pretty">{{ barFooter }}</div>
+      </div>
+
+      <div ref="{{ refSearch }}" style="display:flex;align-items:center;gap:8px;background:#FFFFFF;border:1px solid #DFE3E7;border-radius:10px;padding:0 12px;box-shadow:0 2px 10px rgba(11,18,32,.07)">
+        <input value="{{ query }}" onChange="{{ onQuery }}" placeholder="Buscá un producto" style="flex:1;padding:13px 0;font:400 15px/21px Archivo;color:#14161A;width:100%">
+      </div>
+
+      <div style="font:500 11px/14px Archivo;letter-spacing:.7px;color:#8A929B;padding:12px 0 4px">{{ resultsLabel }}</div>
+
+      <div ref="{{ refResults }}">
+      <sc-for list="{{ results }}" as="p" hint-placeholder-count="4">
+        <div onClick="{{ p.tap }}">
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 0">
+            <div style="width:44px;height:44px;border-radius:10px;background:#5B7A8C;display:flex;align-items:center;justify-content:center;font:600 17.6px Archivo;color:#fff">{{ p.initial }}</div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:3px">
+              <div style="font:500 15px/21px Archivo;color:#14161A">{{ p.name }}</div>
+              <div style="font:500 13px/18px Archivo;color:#8A929B">{{ p.size }}</div>
+              <div style="font:500 11px/14px Archivo;letter-spacing:.7px;color:#8A929B">{{ p.cat }}</div>
+            </div>
+            <sc-if value="{{ p.added }}" hint-placeholder-val="{{ false }}">
+              <div style="width:34px;height:34px;border-radius:999px;background:#14161A;display:flex;align-items:center;justify-content:center;font:600 15px/22px Archivo;color:#FFD400">✓</div>
+            </sc-if>
+            <sc-if value="{{ p.notAdded }}" hint-placeholder-val="{{ true }}">
+              <div style="width:34px;height:34px;border-radius:999px;border:1px solid #C6CCD3;display:flex;align-items:center;justify-content:center;font:600 17px/22px Archivo;color:#14161A">+</div>
+            </sc-if>
+          </div>
+          <div style="height:1px;background:#DFE3E7"></div>
+        </div>
+      </sc-for>
+      </div>
+
+      <div style="{{ emptyStyle }}">Escribí arriba para ver productos.</div>
+    </div>
+
+    <div style="background:#FFFFFF;border-top:1px solid #DFE3E7;padding:12px 16px">
+      <div ref="{{ refCartBar }}" onClick="{{ goCarrito }}" style="background:#14161A;border:1px solid #14161A;border-radius:10px;min-height:52px;padding:14px 0;display:flex;flex-direction:column;align-items:center;gap:2px">
+        <div style="font:600 17px/22px Archivo;color:#FFFFFF">Ver carrito</div>
+        <div style="font:500 11px/14px Archivo;letter-spacing:.7px;color:#FFFFFF;opacity:.75">{{ cartSummary }}</div>
+      </div>
+    </div>
+
+    <div style="background:#FFFFFF;border-top:1px solid #DFE3E7;display:flex;padding:6px 0 20px">
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+        <div style="width:24px;height:24px;position:relative;display:flex;align-items:center;justify-content:center">
+          <div style="width:14px;height:14px;border-radius:999px;border:2px solid #14161A;box-sizing:border-box"></div>
+          <div style="position:absolute;width:2px;height:7px;border-radius:2px;background:#14161A;right:4px;bottom:3px;transform:rotate(-45deg)"></div>
+        </div>
+        <div style="font:500 11px/14px Archivo;letter-spacing:.7px;color:#14161A">Buscar</div>
+      </div>
+      <div ref="{{ refTabDesc }}" onClick="{{ goDescuentos }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+        <div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center">
+          <div style="width:18px;height:18px;border-radius:5px;border:2px solid #8A929B;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font:700 11px/11px 'Barlow Condensed';color:#8A929B">%</div>
+        </div>
+        <div style="font:500 11px/14px Archivo;letter-spacing:.7px;color:#8A929B">Descuentos</div>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+        <div style="width:24px;height:24px;position:relative;display:flex;align-items:center;justify-content:center">
+          <div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start">
+            <div style="height:2px;width:16px;border-radius:1px;background:#8A929B"></div>
+            <div style="height:2px;width:16px;border-radius:1px;background:#8A929B"></div>
+            <div style="height:2px;width:10px;border-radius:1px;background:#8A929B"></div>
+          </div>
+          <div style="position:absolute;top:-4px;right:-6px;min-width:16px;height:16px;border-radius:999px;background:#FFD400;display:flex;align-items:center;justify-content:center;padding:0 3px;font:500 9px/14px Archivo;color:#14161A">{{ units }}</div>
+        </div>
+        <div style="font:500 11px/14px Archivo;letter-spacing:.7px;color:#8A929B">Carrito</div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ isCarrito }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;inset:0;display:flex;flex-direction:column">
+    <div style="flex:1;overflow:hidden;padding:28px 16px 0;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;flex-direction:column;gap:2px;padding-bottom:12px">
+        <div style="font:700 24px/28px Archivo;color:#14161A">Carrito</div>
+        <div style="font:400 15px/21px Archivo;color:#565E67">{{ cartSummary }}</div>
+      </div>
+
+      <div style="background:#FFFFFF;border:1px solid #DFE3E7;border-radius:14px;padding:0 12px;box-shadow:0 2px 10px rgba(11,18,32,.07)">
+        <sc-for list="{{ cartRows }}" as="i" hint-placeholder-count="5">
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 0">
+            <div style="width:40px;height:40px;border-radius:10px;background:#6B7280;display:flex;align-items:center;justify-content:center;font:600 16px Archivo;color:#fff">{{ i.initial }}</div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:3px">
+              <div style="font:500 15px/21px Archivo;color:#14161A">{{ i.name }}</div>
+              <div style="font:400 12px/16px 'IBM Plex Mono';color:#8A929B">{{ i.ean }}</div>
+            </div>
+            <div style="display:flex;align-items:center;border:1px solid #DFE3E7;background:#FFFFFF;border-radius:999px;padding:0 2px">
+              <div style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;font:600 17px/22px Archivo;color:#565E67">−</div>
+              <div style="min-width:22px;text-align:center;font:600 17px/19px 'Barlow Condensed';color:#14161A">{{ i.qty }}</div>
+              <div style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;font:600 17px/22px Archivo;color:#565E67">+</div>
+            </div>
+          </div>
+          <div style="height:1px;background:#DFE3E7"></div>
+        </sc-for>
+      </div>
+
+      <div style="background:#FFFFFF;border:1px solid #DFE3E7;border-radius:14px;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 2px 10px rgba(11,18,32,.07)">
+        <div style="flex:1;display:flex;flex-direction:column;gap:3px;min-width:0">
+          <div style="font:500 15px/21px Archivo;color:#14161A">Tus tarjetas</div>
+          <div style="font:500 13px/18px Archivo;color:#565E67;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ promosLabel }}</div>
+        </div>
+        <div style="font:600 17px/22px Archivo;color:#8A929B">›</div>
+      </div>
+
+      <div style="background:#FFFFFF;border:1px solid #DFE3E7;border-radius:14px;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 2px 10px rgba(11,18,32,.07)">
+        <div style="flex:1;display:flex;flex-direction:column;gap:3px;min-width:0">
+          <div style="font:500 15px/21px Archivo;color:#14161A">Supermercados</div>
+          <div style="font:500 13px/18px Archivo;color:#565E67;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ supersSummary }}</div>
+        </div>
+        <div style="font:600 17px/22px Archivo;color:#8A929B">›</div>
+      </div>
+    </div>
+
+    <div style="background:#FFFFFF;border-top:1px solid #DFE3E7;padding:12px 16px">
+      <div ref="{{ refCompare }}" onClick="{{ doCompare }}" style="background:#14161A;border:1px solid #14161A;border-radius:10px;min-height:52px;padding:14px 0;display:flex;flex-direction:column;align-items:center;gap:2px">
+        <div style="font:600 17px/22px Archivo;color:#FFFFFF">Comparar precios</div>
+        <div style="font:500 11px/14px Archivo;letter-spacing:.7px;color:#FFFFFF;opacity:.75">{{ compareSub }}</div>
+      </div>
+    </div>
+
+    <div style="background:#FFFFFF;border-top:1px solid #DFE3E7;display:flex;padding:6px 0 20px">
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+        <div style="width:24px;height:24px;position:relative;display:flex;align-items:center;justify-content:center">
+          <div style="width:14px;height:14px;border-radius:999px;border:2px solid #8A929B;box-sizing:border-box"></div>
+          <div style="position:absolute;width:2px;height:7px;border-radius:2px;background:#8A929B;right:4px;bottom:3px;transform:rotate(-45deg)"></div>
+        </div>
+        <div style="font:500 11px/14px Archivo;letter-spacing:.7px;color:#8A929B">Buscar</div>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+        <div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center">
+          <div style="width:18px;height:18px;border-radius:5px;border:2px solid #8A929B;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font:700 11px/11px 'Barlow Condensed';color:#8A929B">%</div>
+        </div>
+        <div style="font:500 11px/14px Archivo;letter-spacing:.7px;color:#8A929B">Descuentos</div>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+        <div style="width:24px;height:24px;position:relative;display:flex;align-items:center;justify-content:center">
+          <div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start">
+            <div style="height:2px;width:16px;border-radius:1px;background:#14161A"></div>
+            <div style="height:2px;width:16px;border-radius:1px;background:#14161A"></div>
+            <div style="height:2px;width:10px;border-radius:1px;background:#14161A"></div>
+          </div>
+          <div style="position:absolute;top:-4px;right:-6px;min-width:16px;height:16px;border-radius:999px;background:#FFD400;display:flex;align-items:center;justify-content:center;padding:0 3px;font:500 9px/14px Archivo;color:#14161A">{{ units }}</div>
+        </div>
+        <div style="font:500 11px/14px Archivo;letter-spacing:.7px;color:#14161A">Carrito</div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ isResultado }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;inset:0;display:flex;flex-direction:column">
+    <div style="background:#EEF0F2;padding:28px 16px 8px;display:flex;align-items:center;gap:10px">
+      <div onClick="{{ backToCart }}" style="font:400 20px Archivo;color:#14161A">‹</div>
+      <div style="font:600 17px/22px Archivo;color:#14161A">Dónde comprar</div>
+    </div>
+
+    <div style="flex:1;overflow-y:auto;padding:10px 20px 24px;display:flex;flex-direction:column;gap:20px">
+      <div style="background:#FFD400;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:14px">
+        <div style="font:600 11px/14px Archivo;letter-spacing:1.2px;color:#14161A;opacity:.7">{{ planHeader }}</div>
+        <div style="font:700 56px/54px 'Barlow Condensed';color:#14161A">{{ bestFmt }}</div>
+        <div style="border-top:1px solid rgba(20,22,26,.2);padding-top:12px;display:flex;align-items:baseline;justify-content:space-between">
+          <div style="font:500 15px/20px Archivo;color:#14161A">{{ savingVs }}</div>
+          <div style="font:700 26px/26px 'Barlow Condensed';color:#14161A">{{ savingFmt }}</div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="font:500 11px/14px Archivo;letter-spacing:1.2px;color:#8A929B">{{ planLabel }}</div>
+        <sc-for list="{{ plan }}" as="g" hint-placeholder-count="2">
+          <div style="background:#FFFFFF;border:1px solid #DFE3E7;border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px;box-shadow:0 2px 10px rgba(11,18,32,.07)">
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="width:24px;height:24px;border-radius:999px;background:#14161A;color:#FFD400;display:flex;align-items:center;justify-content:center;font:600 13px Archivo;flex:none">{{ g.n }}</div>
+              <div style="flex:1;font:600 19px/24px Archivo;color:#14161A">{{ g.superName }}</div>
+              <div style="font:700 26px/26px 'Barlow Condensed';color:#14161A">{{ g.total }}</div>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px">
+              <sc-for list="{{ g.chips }}" as="c" hint-placeholder-count="2">
+                <div style="background:#F6F7F9;border-radius:6px;padding:4px 8px;font:400 12px/16px 'IBM Plex Mono';color:#565E67">{{ c.t }}</div>
+              </sc-for>
+            </div>
+            <sc-if value="{{ g.hasPromo }}" hint-placeholder-val="{{ false }}">
+              <div style="background:#FFF6C9;border:1px solid #FFD400;border-radius:8px;padding:10px;display:flex;align-items:center;gap:10px">
+                <div style="flex:1;font:500 13px/18px Archivo;color:#14161A">{{ g.promoLine }}</div>
+              </div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="background:#FFFFFF;border:1px solid #DFE3E7;border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <div style="font:500 11px/14px Archivo;letter-spacing:1.2px;color:#8A929B">SI PREFERÍS UNA SOLA PARADA</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <sc-for list="{{ alternatives }}" as="a" hint-placeholder-count="5">
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="flex:1;font:500 14px/18px Archivo;color:#14161A">{{ a.label }}</div>
+              <div style="font:600 15px/16px 'Barlow Condensed';color:#565E67">{{ a.diff }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="background:#FFF6C9;border:1px solid #FFD400;border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:4px">
+        <div style="font:500 15px/21px Archivo;color:#14161A">{{ promoHeadline }}</div>
+        <div style="font:400 12px/16px 'IBM Plex Mono';color:#565E67">{{ promoDetail }}</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="font:500 11px/14px Archivo;letter-spacing:.7px;color:#8A929B">PRODUCTO POR PRODUCTO</div>
+        <sc-for list="{{ perItem }}" as="p" hint-placeholder-count="5">
+          <div style="background:#FFFFFF;border:1px solid #DFE3E7;border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:10px;box-shadow:0 2px 10px rgba(11,18,32,.07)">
+            <div style="display:flex;align-items:flex-start;gap:8px">
+              <div style="flex:1;font:500 15px/21px Archivo;color:#14161A">{{ p.name }}</div>
+              <div style="font:500 13px/18px Archivo;color:#8A929B">{{ p.qty }}</div>
+            </div>
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
+              <div style="display:flex;align-items:center;gap:6px">
+                <div style="font:500 13px/18px Archivo;color:#14161A">{{ p.superName }}</div>
+                <div style="background:#FFD400;border-radius:6px;padding:3px 7px;font:500 11px/14px Archivo;letter-spacing:.7px;color:#14161A">MÁS BARATO</div>
+              </div>
+              <div style="font:700 22px/24px 'Barlow Condensed';color:#14161A">{{ p.priceFmt }}</div>
+            </div>
+            <sc-if value="{{ p.hasPromo }}" hint-placeholder-val="{{ false }}">
+              <div style="background:#FFF6C9;border:1px solid #FFD400;border-radius:6px;padding:8px;display:flex;flex-direction:column;gap:1px">
+                <div style="font:500 13px/18px Archivo;color:#14161A">{{ p.promoLine }}</div>
+                <div style="font:400 12px/16px 'IBM Plex Mono';color:#565E67">{{ p.promoDetail }}</div>
+              </div>
+            </sc-if>
+            <div style="font:400 12px/16px 'IBM Plex Mono';color:#8A929B">{{ p.vs }}</div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="text-align:center;font:400 12px/16px 'IBM Plex Mono';color:#8A929B">{{ stamp }}</div>
+    </div>
+  </div>
+  </sc-if>
+
+  <div style="{{ sheetScrim }}"></div>
+
+  <sc-if value="{{ isDescuentos }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;inset:0;display:flex;flex-direction:column">
+    <div style="flex:1;overflow:hidden;padding:28px 16px 0;display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <div style="font:700 24px/28px Archivo;color:#14161A">Mis descuentos</div>
+      <div style="font:400 15px/21px Archivo;color:#565E67">Activá las tarjetas y promos que tengas. Las aplicamos solas al comparar.</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div ref="{{ refCardNacion }}" onClick="{{ tapNacion }}">
+        <sc-if value="{{ nacionOn }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:12px;background:#FFF6C9;border:1px solid #FFD400">
+            <div style="width:8px;height:36px;border-radius:999px;background:#FFD400"></div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:2px">
+              <div style="font:500 15px/21px Archivo;color:#14161A">Banco Nación</div>
+              <div style="font:500 13px/18px Archivo;color:#565E67">30% en Coto · bebidas</div>
+            </div>
+            <div style="width:26px;height:26px;border-radius:999px;background:#14161A;display:flex;align-items:center;justify-content:center;font:600 13px/13px Archivo;color:#FFD400">✓</div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ nacionOff }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:12px;background:#F6F7F9;border:1px solid #DFE3E7">
+            <div style="width:8px;height:36px;border-radius:999px;background:#DFE3E7"></div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:2px">
+              <div style="font:500 15px/21px Archivo;color:#14161A">Banco Nación</div>
+              <div style="font:500 13px/18px Archivo;color:#565E67">30% en Coto · bebidas</div>
+            </div>
+            <div style="width:26px;height:26px;border-radius:999px;border:1px solid #C6CCD3;box-sizing:border-box"></div>
+          </div>
+        </sc-if>
+      </div>
+      <sc-for list="{{ cards }}" as="c" hint-placeholder-count="2">
+        <div onClick="{{ c.tap }}">
+          <sc-if value="{{ c.on }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:12px;background:#FFF6C9;border:1px solid #FFD400">
+              <div style="width:8px;height:36px;border-radius:999px;background:#FFD400"></div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:2px">
+                <div style="font:500 15px/21px Archivo;color:#14161A">{{ c.name }}</div>
+                <div style="font:500 13px/18px Archivo;color:#565E67">{{ c.detail }}</div>
+              </div>
+              <div style="width:26px;height:26px;border-radius:999px;background:#14161A;display:flex;align-items:center;justify-content:center;font:600 13px/13px Archivo;color:#FFD400">✓</div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ c.off }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:12px;background:#F6F7F9;border:1px solid #DFE3E7">
+              <div style="width:8px;height:36px;border-radius:999px;background:#DFE3E7"></div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:2px">
+                <div style="font:500 15px/21px Archivo;color:#14161A">{{ c.name }}</div>
+                <div style="font:500 13px/18px Archivo;color:#565E67">{{ c.detail }}</div>
+              </div>
+              <div style="width:26px;height:26px;border-radius:999px;border:1px solid #C6CCD3;box-sizing:border-box"></div>
+            </div>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+    </div>
+    <div style="background:#FFFFFF;border-top:1px solid #DFE3E7;display:flex;padding:6px 0 20px">
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+        <div style="width:24px;height:24px;position:relative;display:flex;align-items:center;justify-content:center">
+          <div style="width:14px;height:14px;border-radius:999px;border:2px solid #8A929B;box-sizing:border-box"></div>
+          <div style="position:absolute;width:2px;height:7px;border-radius:2px;background:#8A929B;right:4px;bottom:3px;transform:rotate(-45deg)"></div>
+        </div>
+        <div style="font:500 11px/14px Archivo;letter-spacing:.7px;color:#8A929B">Buscar</div>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+        <div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center">
+          <div style="width:18px;height:18px;border-radius:5px;border:2px solid #14161A;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font:700 11px/11px 'Barlow Condensed';color:#14161A">%</div>
+        </div>
+        <div style="font:500 11px/14px Archivo;letter-spacing:.7px;color:#14161A">Descuentos</div>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+        <div style="width:24px;height:24px;position:relative;display:flex;align-items:center;justify-content:center">
+          <div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start">
+            <div style="height:2px;width:16px;border-radius:1px;background:#8A929B"></div>
+            <div style="height:2px;width:16px;border-radius:1px;background:#8A929B"></div>
+            <div style="height:2px;width:10px;border-radius:1px;background:#8A929B"></div>
+          </div>
+          <div style="position:absolute;top:-4px;right:-6px;min-width:16px;height:16px;border-radius:999px;background:#FFD400;display:flex;align-items:center;justify-content:center;padding:0 3px;font:500 9px/14px Archivo;color:#14161A">{{ units }}</div>
+        </div>
+        <div style="font:500 11px/14px Archivo;letter-spacing:.7px;color:#8A929B">Carrito</div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ sheetSupers }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;left:0;right:0;bottom:0;z-index:30;background:#FFFFFF;border-top-left-radius:18px;border-top-right-radius:18px;padding:14px 16px 24px;display:flex;flex-direction:column;gap:16px;box-shadow:0 -8px 30px rgba(11,18,32,.18)">
+    <div style="width:38px;height:4px;border-radius:999px;background:#DFE3E7;align-self:center"></div>
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <div style="font:700 20px/24px Archivo;color:#14161A">Supermercados</div>
+      <div style="font:400 13px/18px Archivo;color:#565E67">Elegí los que tenés cerca y hasta cuántos estás dispuesto a ir.</div>
+    </div>
+
+    <div ref="{{ refSupersList }}" style="display:flex;flex-direction:column;gap:8px">
+      <div style="font:600 11px/14px Archivo;letter-spacing:1.2px;color:#565E67">COMPARANDO</div>
+      <div style="display:flex;flex-direction:column">
+        <div onClick="{{ sVea.tap }}" style="display:flex;align-items:center;gap:12px;padding:9px 0">
+          <sc-if value="{{ sVea.on }}" hint-placeholder-val="{{ true }}"><div style="width:22px;height:22px;border-radius:5px;background:#14161A;flex:none;display:flex;align-items:center;justify-content:center"><div style="width:11px;height:6px;border-left:2px solid #FFFFFF;border-bottom:2px solid #FFFFFF;transform:rotate(-45deg);margin-top:-3px"></div></div></sc-if>
+          <sc-if value="{{ sVea.off }}" hint-placeholder-val="{{ false }}"><div style="width:22px;height:22px;border-radius:5px;box-shadow:inset 0 0 0 1.5px #14161A;flex:none"></div></sc-if>
+          <div style="width:24px;height:8px;border-radius:999px;background:#12874A;flex:none"></div>
+          <img src="assets/logos/vea.png" alt="" style="width:54px;height:22px;flex:none;border-radius:5px;background:#FFFFFF;padding:2px;box-sizing:border-box;object-fit:contain;display:block">
+          <div style="flex:1;font:500 15px/21px Archivo;color:#14161A">Vea</div>
+        </div>
+        <div style="height:1px;background:#DFE3E7"></div>
+        <div onClick="{{ sCarrefour.tap }}" style="display:flex;align-items:center;gap:12px;padding:9px 0">
+          <sc-if value="{{ sCarrefour.on }}" hint-placeholder-val="{{ true }}"><div style="width:22px;height:22px;border-radius:5px;background:#14161A;flex:none;display:flex;align-items:center;justify-content:center"><div style="width:11px;height:6px;border-left:2px solid #FFFFFF;border-bottom:2px solid #FFFFFF;transform:rotate(-45deg);margin-top:-3px"></div></div></sc-if>
+          <sc-if value="{{ sCarrefour.off }}" hint-placeholder-val="{{ false }}"><div style="width:22px;height:22px;border-radius:5px;box-shadow:inset 0 0 0 1.5px #14161A;flex:none"></div></sc-if>
+          <div style="width:24px;height:8px;border-radius:999px;background:#1B5FD9;flex:none"></div>
+          <img src="assets/logos/carrefour.svg" alt="" style="width:54px;height:22px;flex:none;border-radius:5px;background:#FFFFFF;padding:2px;box-sizing:border-box;object-fit:contain;display:block">
+          <div style="flex:1;font:500 15px/21px Archivo;color:#14161A">Carrefour</div>
+        </div>
+        <div style="height:1px;background:#DFE3E7"></div>
+        <div onClick="{{ sChangomas.tap }}" style="display:flex;align-items:center;gap:12px;padding:9px 0">
+          <sc-if value="{{ sChangomas.on }}" hint-placeholder-val="{{ true }}"><div style="width:22px;height:22px;border-radius:5px;background:#14161A;flex:none;display:flex;align-items:center;justify-content:center"><div style="width:11px;height:6px;border-left:2px solid #FFFFFF;border-bottom:2px solid #FFFFFF;transform:rotate(-45deg);margin-top:-3px"></div></div></sc-if>
+          <sc-if value="{{ sChangomas.off }}" hint-placeholder-val="{{ false }}"><div style="width:22px;height:22px;border-radius:5px;box-shadow:inset 0 0 0 1.5px #14161A;flex:none"></div></sc-if>
+          <div style="width:24px;height:8px;border-radius:999px;background:#7A3FB8;flex:none"></div>
+          <img src="assets/logos/changomas.png" alt="" style="width:54px;height:22px;flex:none;border-radius:5px;background:#FFFFFF;padding:2px;box-sizing:border-box;object-fit:contain;display:block">
+          <div style="flex:1;font:500 15px/21px Archivo;color:#14161A">Chango Más</div>
+        </div>
+        <div style="height:1px;background:#DFE3E7"></div>
+        <div onClick="{{ sDia.tap }}" style="display:flex;align-items:center;gap:12px;padding:9px 0">
+          <sc-if value="{{ sDia.on }}" hint-placeholder-val="{{ true }}"><div style="width:22px;height:22px;border-radius:5px;background:#14161A;flex:none;display:flex;align-items:center;justify-content:center"><div style="width:11px;height:6px;border-left:2px solid #FFFFFF;border-bottom:2px solid #FFFFFF;transform:rotate(-45deg);margin-top:-3px"></div></div></sc-if>
+          <sc-if value="{{ sDia.off }}" hint-placeholder-val="{{ false }}"><div style="width:22px;height:22px;border-radius:5px;box-shadow:inset 0 0 0 1.5px #14161A;flex:none"></div></sc-if>
+          <div style="width:24px;height:8px;border-radius:999px;background:#E30613;flex:none"></div>
+          <img src="assets/logos/dia.svg" alt="" style="width:54px;height:22px;flex:none;border-radius:5px;background:#FFFFFF;padding:2px;box-sizing:border-box;object-fit:contain;display:block">
+          <div style="flex:1;font:500 15px/21px Archivo;color:#14161A">Día</div>
+        </div>
+        <div style="height:1px;background:#DFE3E7"></div>
+        <div onClick="{{ sCoto.tap }}" style="display:flex;align-items:center;gap:12px;padding:9px 0">
+          <sc-if value="{{ sCoto.on }}" hint-placeholder-val="{{ false }}"><div style="width:22px;height:22px;border-radius:5px;background:#14161A;flex:none;display:flex;align-items:center;justify-content:center"><div style="width:11px;height:6px;border-left:2px solid #FFFFFF;border-bottom:2px solid #FFFFFF;transform:rotate(-45deg);margin-top:-3px"></div></div></sc-if>
+          <sc-if value="{{ sCoto.off }}" hint-placeholder-val="{{ true }}"><div style="width:22px;height:22px;border-radius:5px;box-shadow:inset 0 0 0 1.5px #14161A;flex:none"></div></sc-if>
+          <div style="width:24px;height:8px;border-radius:999px;background:#D6293E;flex:none"></div>
+          <img src="assets/logos/coto.svg" alt="" style="width:54px;height:22px;flex:none;border-radius:5px;background:#FFFFFF;padding:2px;box-sizing:border-box;object-fit:contain;display:block">
+          <div style="flex:1;font:500 15px/21px Archivo;color:#14161A">Coto</div>
+        </div>
+        <div style="height:1px;background:#DFE3E7"></div>
+        <div onClick="{{ sJumbo.tap }}" style="display:flex;align-items:center;gap:12px;padding:9px 0">
+          <sc-if value="{{ sJumbo.on }}" hint-placeholder-val="{{ false }}"><div style="width:22px;height:22px;border-radius:5px;background:#14161A;flex:none;display:flex;align-items:center;justify-content:center"><div style="width:11px;height:6px;border-left:2px solid #FFFFFF;border-bottom:2px solid #FFFFFF;transform:rotate(-45deg);margin-top:-3px"></div></div></sc-if>
+          <sc-if value="{{ sJumbo.off }}" hint-placeholder-val="{{ true }}"><div style="width:22px;height:22px;border-radius:5px;box-shadow:inset 0 0 0 1.5px #14161A;flex:none"></div></sc-if>
+          <div style="width:24px;height:8px;border-radius:999px;background:#F07C2E;flex:none"></div>
+          <img src="assets/logos/jumbo.png" alt="" style="width:54px;height:22px;flex:none;border-radius:5px;background:#FFFFFF;padding:2px;box-sizing:border-box;object-fit:contain;display:block">
+          <div style="flex:1;font:500 15px/21px Archivo;color:#14161A">Jumbo</div>
+        </div>
+        <div style="height:1px;background:#DFE3E7"></div>
+        <div onClick="{{ sDisco.tap }}" style="display:flex;align-items:center;gap:12px;padding:9px 0">
+          <sc-if value="{{ sDisco.on }}" hint-placeholder-val="{{ false }}"><div style="width:22px;height:22px;border-radius:5px;background:#14161A;flex:none;display:flex;align-items:center;justify-content:center"><div style="width:11px;height:6px;border-left:2px solid #FFFFFF;border-bottom:2px solid #FFFFFF;transform:rotate(-45deg);margin-top:-3px"></div></div></sc-if>
+          <sc-if value="{{ sDisco.off }}" hint-placeholder-val="{{ true }}"><div style="width:22px;height:22px;border-radius:5px;box-shadow:inset 0 0 0 1.5px #14161A;flex:none"></div></sc-if>
+          <div style="width:24px;height:8px;border-radius:999px;background:#35B8C4;flex:none"></div>
+          <img src="assets/logos/disco.svg" alt="" style="width:54px;height:22px;flex:none;border-radius:5px;background:#FFFFFF;padding:2px;box-sizing:border-box;object-fit:contain;display:block">
+          <div style="flex:1;font:500 15px/21px Archivo;color:#14161A">Disco</div>
+        </div>
+      </div>
+    </div>
+
+    <div ref="{{ refTope }}" style="display:flex;flex-direction:column;gap:10px;border-top:1px solid #DFE3E7;padding-top:16px">
+      <div style="font:600 11px/14px Archivo;letter-spacing:1.2px;color:#565E67">CUÁNTOS QUERÉS VISITAR</div>
+      <div style="display:flex;gap:6px">
+        <sc-for list="{{ topes }}" as="k" hint-placeholder-count="4">
+          <div style="flex:1" onClick="{{ k.tap }}">
+            <sc-if value="{{ k.on }}" hint-placeholder-val="{{ false }}">
+              <div style="height:44px;border-radius:8px;background:#14161A;display:flex;align-items:center;justify-content:center;font:600 15px Archivo;color:#FFFFFF">{{ k.n }}</div>
+            </sc-if>
+            <sc-if value="{{ k.off }}" hint-placeholder-val="{{ true }}">
+              <div style="height:44px;border-radius:8px;box-shadow:inset 0 0 0 1px #C6CCD3;display:flex;align-items:center;justify-content:center;font:500 15px Archivo;color:#14161A">{{ k.n }}</div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+      <div style="font:400 14px/20px Archivo;color:#3C444D;text-wrap:pretty">{{ topeCost }}</div>
+    </div>
+  </div>
+  </sc-if>
+
+  <div style="{{ holeStyle }}"></div>
+  <div style="{{ blockTop }}"></div>
+  <div style="{{ blockBottom }}"></div>
+  <div style="{{ blockLeft }}"></div>
+  <div style="{{ blockRight }}"></div>
+
+  <sc-if value="{{ coachAtBottom }}" hint-placeholder-val="{{ true }}">
+  <div style="position:absolute;left:12px;right:12px;bottom:20px;z-index:50">
+    <div style="background:#FFFFFF;border:1px solid #DFE3E7;border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px;box-shadow:0 8px 30px rgba(11,18,32,.22)">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="background:#FFD400;border-radius:6px;padding:3px 7px;font:500 11px/14px Archivo;letter-spacing:.7px;color:#14161A">{{ stepLabel }}</div>
+        <div style="flex:1"></div>
+        <div style="display:flex;gap:4px;align-items:center">
+          <sc-for list="{{ dots }}" as="d" hint-placeholder-count="8">
+            <sc-if value="{{ d.done }}" hint-placeholder-val="{{ false }}">
+              <div style="width:6px;height:6px;border-radius:999px;background:#FFD400"></div>
+            </sc-if>
+            <sc-if value="{{ d.now }}" hint-placeholder-val="{{ false }}">
+              <div style="width:16px;height:6px;border-radius:999px;background:#14161A"></div>
+            </sc-if>
+            <sc-if value="{{ d.todo }}" hint-placeholder-val="{{ true }}">
+              <div style="width:6px;height:6px;border-radius:999px;background:#DFE3E7"></div>
+            </sc-if>
+          </sc-for>
+        </div>
+      </div>
+      <div style="font:600 17px/22px Archivo;color:#14161A">{{ coachTitle }}</div>
+      <div style="font:400 15px/21px Archivo;color:#565E67;text-wrap:pretty">{{ coachBody }}</div>
+      <div style="{{ restartStyle }}" onClick="{{ restart }}">{{ restartLabel }}</div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ coachAtTop }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;left:12px;right:12px;top:16px;z-index:50">
+    <div style="background:#FFFFFF;border:1px solid #DFE3E7;border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px;box-shadow:0 8px 30px rgba(11,18,32,.22)">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="background:#FFD400;border-radius:6px;padding:3px 7px;font:500 11px/14px Archivo;letter-spacing:.7px;color:#14161A">{{ stepLabel }}</div>
+        <div style="flex:1"></div>
+        <div style="display:flex;gap:4px;align-items:center">
+          <sc-for list="{{ dots }}" as="d" hint-placeholder-count="8">
+            <sc-if value="{{ d.done }}" hint-placeholder-val="{{ false }}">
+              <div style="width:6px;height:6px;border-radius:999px;background:#FFD400"></div>
+            </sc-if>
+            <sc-if value="{{ d.now }}" hint-placeholder-val="{{ false }}">
+              <div style="width:16px;height:6px;border-radius:999px;background:#14161A"></div>
+            </sc-if>
+            <sc-if value="{{ d.todo }}" hint-placeholder-val="{{ true }}">
+              <div style="width:6px;height:6px;border-radius:999px;background:#DFE3E7"></div>
+            </sc-if>
+          </sc-for>
+        </div>
+      </div>
+      <div style="font:600 17px/22px Archivo;color:#14161A">{{ coachTitle }}</div>
+      <div style="font:400 15px/21px Archivo;color:#565E67;text-wrap:pretty">{{ coachBody }}</div>
+      <div style="{{ restartStyle }}" onClick="{{ restart }}">{{ restartLabel }}</div>
+    </div>
+  </div>
+  </sc-if>
+
+</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:460,&quot;height&quot;:920}}">
+class Component extends DCLogic {
+  constructor(p){
+    super(p);
+    this.nodes = {}; this._refs = {};
+    this.SUPERS = [
+      {id:'vea',name:'Vea'},{id:'carrefour',name:'Carrefour'},{id:'changomas',name:'Chango Más'},
+      {id:'dia',name:'Día'},{id:'coto',name:'Coto'},{id:'jumbo',name:'Jumbo'},{id:'disco',name:'Disco'}
+    ];
+    this.CARDS = [
+      {id:'nacion',name:'Banco Nación',detail:'30% en Coto · bebidas',sup:'coto',pct:30,cats:['bebidas'],short:'30% en bebidas de Coto'},
+      {id:'carre',name:'Mi Carrefour',detail:'25% en Carrefour · almacén',sup:'carrefour',pct:25,cats:['almacen'],short:'25% en almacén de Carrefour'},
+      {id:'modo',name:'MODO',detail:'20% en Jumbo · cuidado personal',sup:'jumbo',pct:20,cats:['cuidado'],short:'20% en cuidado personal de Jumbo'}
+    ];
+    this.CATALOG = [
+      {id:'coca',name:'Coca Cola Regular 2.25 Lts',size:'Botella 2.25 L',cat:'bebidas',ean:'7790895000122',qty:2,
+        prices:{vea:5647,carrefour:5650,changomas:5649,dia:5720,coto:5680,jumbo:5710,disco:5735}},
+      {id:'coca-zero',name:'Coca Cola Sin Azúcar 2.25 Lts',size:'Botella 2.25 L',cat:'bebidas',ean:'7790895000139',qty:1,
+        prices:{vea:5590,carrefour:5620,changomas:5600,dia:5680,coto:5640,jumbo:5670,disco:5700}},
+      {id:'coca-light',name:'Coca Cola Light 2.25 Lts',size:'Botella 2.25 L',cat:'bebidas',ean:'7790895000146',qty:1,
+        prices:{vea:5610,carrefour:5640,changomas:5620,dia:5700,coto:5660,jumbo:5690,disco:5720}},
+      {id:'coca-pack',name:'Coca Cola Regular 2.25 Lts Pack X2',size:'Pack 2 unidades',cat:'bebidas',ean:'7790895000153',qty:1,
+        prices:{vea:10980,carrefour:11020,changomas:10990,dia:11150,coto:11060,jumbo:11120,disco:11180}},
+      {id:'fideos',name:'Fideos Matarazzo Spaghetti 500 Gr',size:'500 g',cat:'almacen',ean:'7790580123456',qty:4,
+        prices:{vea:1909,carrefour:1360,changomas:1420,dia:1450,coto:1480,jumbo:1500,disco:1520}},
+      {id:'yerba',name:'Yerba Mate Playadito 1 Kg',size:'1 kg',cat:'almacen',ean:'7792100002233',qty:1,
+        prices:{vea:9250,carrefour:8990,changomas:9100,dia:9300,coto:9450,jumbo:9380,disco:9500}},
+      {id:'oreo',name:'Oreo Galletitas 3 Pack 354 Gr',size:'354 g',cat:'almacen',ean:'7622300741234',qty:3,
+        prices:{vea:3480,carrefour:3520,changomas:3400,dia:3560,coto:3610,jumbo:3650,disco:3700}},
+      {id:'sensodyne',name:'Sensodyne Pasta Dental 90 Gr',size:'90 g',cat:'cuidado',ean:'7795001112345',qty:1,
+        prices:{vea:5100,carrefour:4950,changomas:4980,dia:5050,coto:4890,jumbo:5150,disco:5200}}
+    ];
+    this.BASE_CART = ['fideos','yerba','oreo','sensodyne'];
+    this.SEARCH_IDS = ['coca','coca-zero','coca-light','coca-pack'];
+    this.state = {step:1, sub:0, cards:{}, query:'', supers:['vea','carrefour','changomas','dia'], tope:null, added:false,
+      view:'buscar', sheet:null, rect:null};
+  }
+
+  mk(k){ if(!this._refs[k]) this._refs[k] = el => { this.nodes[k] = el; }; return this._refs[k]; }
+
+  targetKey(){
+    const st = this.state;
+    if (st.step === 1) return st.sub === 0 ? 'tabDesc' : 'cardNacion';
+    if (st.step === 3) return st.sub === 0 ? 'barPlus' : 'supersList';
+    return {2:'search', 4:'tope', 5:'resultsList', 6:'cartBar', 7:'compare'}[st.step] || null;
+  }
+  measure(){
+    const k = this.targetKey(), n = k && this.nodes[k], f = this.nodes.frame;
+    if (!n || !f) { if (this.state.rect) this.setState({rect:null}); return; }
+    const a = n.getBoundingClientRect(), b = f.getBoundingClientRect();
+    if (!a.width || !a.height) { if (this.state.rect) this.setState({rect: null}); this.retry(); return; }
+    const r = {t: a.top - b.top, l: a.left - b.left, w: a.width, h: a.height};
+    const c = this.state.rect;
+    if (!c || Math.abs(c.t-r.t) > 1 || Math.abs(c.l-r.l) > 1 || Math.abs(c.w-r.w) > 1 || Math.abs(c.h-r.h) > 1) this.setState({rect: r});
+  }
+  retry(){
+    (this._retries || (this._retries = [])).forEach(clearTimeout);
+    this._retries = [150, 400, 900].map(ms => setTimeout(() => this.measure(), ms));
+  }
+  componentDidMount(){ this._t = setTimeout(() => this.measure(), 160); this.retry(); }
+  componentDidUpdate(){ clearTimeout(this._t); this._t = setTimeout(() => this.measure(), 60); }
+  componentWillUnmount(){ clearTimeout(this._t); clearTimeout(this._t2); }
+  later(ms, fn){ clearTimeout(this._t2); this._t2 = setTimeout(fn, ms); }
+
+  fmt(n){ return '$' + Math.round(n).toLocaleString('es-AR'); }
+  activePromo(supId, item){
+    return this.CARDS.find(c => c.sup === supId && this.state.cards[c.id] && (!item || c.cats.indexOf(item.cat) >= 0)) || null;
+  }
+  eff(item, supId){
+    const pr = this.activePromo(supId, item);
+    return item.prices[supId] * (pr ? 1 - pr.pct/100 : 1);
+  }
+  items(){
+    const ids = this.BASE_CART.slice();
+    if (this.state.added) ids.unshift('coca');
+    return ids.map(id => this.CATALOG.find(x => x.id === id));
+  }
+  solve(){
+    const items = this.items(), sel = this.state.supers.length ? this.state.supers : this.SUPERS.map(s => s.id);
+    const cap = this.state.tope || sel.length;
+    let best = null;
+    for (let m = 1; m < (1 << sel.length); m++) {
+      const sub = []; for (let i = 0; i < sel.length; i++) if (m & (1 << i)) sub.push(sel[i]);
+      if (sub.length > cap) continue;
+      let total = 0; const rows = [];
+      for (const it of items) {
+        let bs = sub[0], bp = this.eff(it, sub[0]);
+        for (const s of sub) { const v = this.eff(it, s); if (v < bp) { bp = v; bs = s; } }
+        total += bp * it.qty; rows.push({item: it, sup: bs, unit: bp});
+      }
+      if (!best || total < best.total) best = {total, rows, sub: sub.filter(s => rows.some(r => r.sup === s))};
+    }
+    const singles = sel.map(s => {
+      let t = 0; for (const it of items) t += this.eff(it, s) * it.qty;
+      return {sup: s, total: t};
+    }).sort((a,b) => a.total - b.total);
+    return {best, singles, items};
+  }
+  solveWith(cap){
+    const items = this.items(), sel = this.state.supers.length ? this.state.supers : this.SUPERS.map(s => s.id);
+    let best = Infinity;
+    for (let m = 1; m < (1 << sel.length); m++) {
+      const sub = []; for (let i = 0; i < sel.length; i++) if (m & (1 << i)) sub.push(sel[i]);
+      if (sub.length > cap) continue;
+      let total = 0;
+      for (const it of items) {
+        let bp = Infinity;
+        for (const s of sub) { const v = this.eff(it, s); if (v < bp) bp = v; }
+        total += bp * it.qty;
+      }
+      if (total < best) best = total;
+    }
+    return best;
+  }
+  supName(id){ const s = this.SUPERS.find(s => s.id === id); return s ? s.name : id; }
+
+  renderVals(){
+    const st = this.state, step = st.step;
+    const cardsOn = this.CARDS.filter(c => st.cards[c.id]);
+    const selSupers = st.supers.length ? st.supers : this.SUPERS.map(s => s.id);
+
+    const cards = this.CARDS.filter(c => c.id !== 'nacion').map(c => {
+      const on = !!st.cards[c.id];
+      return {name: c.name, detail: c.detail, on: on, off: !on, tap: () => {}};
+    });
+    const tapNacion = () => { if (step !== 1 || st.sub !== 1) return;
+      const cs = Object.assign({}, st.cards); cs.nacion = true;
+      this.setState({cards: cs});
+      this.later(700, () => this.setState({view: 'buscar', step: 2, sub: 0, rect: null})); };
+
+    const supers = {};
+    this.SUPERS.forEach(s => {
+      const on = st.supers.indexOf(s.id) >= 0;
+      supers['s' + s.id.charAt(0).toUpperCase() + s.id.slice(1)] = {on: on, off: !on,
+        tap: () => { if (step !== 3 || st.sub !== 1) return;
+          const list = st.supers.slice(), i = list.indexOf(s.id);
+          if (i >= 0) list.splice(i,1); else list.push(s.id);
+          this.setState({supers: list});
+          if (list.indexOf('coto') >= 0) this.later(480, () => this.setState({step: 4})); }};
+    });
+
+    const nSel = selSupers.length;
+    const topes = [1,2,3,nSel].map(n => {
+      const on = st.tope === n;
+      return {n: n === nSel ? ('Los ' + n) : String(n), label: '', on: on, off: !on,
+        tap: () => { if (step !== 4) return; this.setState({tope: n});
+          this.later(900, () => this.setState({sheet: null, step: 5, sub: 0, rect: null})); }};
+    });
+
+    let topeCost = 'Cuantos menos supers visites, menos ahorrás — pero hacés menos viajes.';
+    if (st.tope && st.tope < nSel) {
+      const withTope = this.solveWith(st.tope), withAll = this.solveWith(nSel);
+      const gap = withTope - withAll;
+      if (gap > 0) topeCost = 'Con ' + st.tope + (st.tope === 1 ? ' super ahorrás ' : ' supers ahorrás ') + this.fmt(gap) + ' menos que visitando los ' + nSel + ', pero hacés menos viajes.';
+      else topeCost = 'Con ' + st.tope + ' supers ahorrás lo mismo que visitando los ' + nSel + '.';
+    }
+
+    const q = st.query.trim().toLowerCase();
+    const show = q.length >= 3;
+    const results = show ? this.SEARCH_IDS.map(id => this.CATALOG.find(x => x.id === id)).filter(p => p.name.toLowerCase().indexOf(q) >= 0 || q.indexOf('coca') >= 0).map((p, idx) => {
+      const added = p.id === 'coca' && st.added;
+      return {name: p.name, size: p.size, initial: p.name.slice(0,1), cat: p.cat === 'bebidas' ? 'GASEOSAS' : 'ALMACÉN',
+        added: added, notAdded: !added,
+        tap: () => { if (step !== 5 || p.id !== 'coca') return;
+          this.setState({added: true}); this.later(620, () => this.setState({step: 6})); }};
+    }) : [];
+    if (results[0]) results[0].refHook = true;
+
+    const cartIds = this.items();
+    const units = cartIds.reduce((a,i) => a + i.qty, 0);
+    const cartRows = cartIds.map(i => ({name: i.name, ean: i.ean, qty: String(i.qty), initial: i.name.slice(0,1)}));
+
+    let R = {planHeader:'REPARTIENDO LA COMPRA', planLabel:'PLAN DE COMPRA', bestFmt:'', savingFmt:'', savingVs:'', alternatives:[], plan:[], perItem:[],
+      promoHeadline:'', promoDetail:''};
+    if (st.view === 'resultado') {
+      const s = this.solve(), best = s.best, worst = s.singles[s.singles.length - 1];
+      const saving = worst.total - best.total;
+      let promoSaved = 0;
+      const groups = {};
+      const perItem = best.rows.map(r => {
+        const pr = this.activePromo(r.sup, r.item);
+        const list = r.item.prices[r.sup];
+        if (pr) promoSaved += (list - r.unit) * r.item.qty;
+        const others = best.sub.filter(x => x !== r.sup).map(x => ({s:x, v:this.eff(r.item, x)})).sort((a,b) => a.v - b.v);
+        (groups[r.sup] = groups[r.sup] || []).push({name: r.item.name, sub: r.unit * r.item.qty});
+        return {name: r.item.name, qty: '×' + r.item.qty, superName: this.supName(r.sup),
+          priceFmt: this.fmt(r.unit * r.item.qty),
+          hasPromo: !!pr,
+          promoLine: pr ? ('Con ' + pr.name + ': ' + this.fmt(r.unit * r.item.qty)) : '',
+          promoDetail: pr ? (pr.pct + '% ' + pr.cats[0] + ' · antes ' + this.fmt(list * r.item.qty)) : '',
+          vs: others.length ? ('en ' + this.supName(others[0].s) + ': ' + this.fmt(others[0].v * r.item.qty) + '  +' + this.fmt((others[0].v - r.unit) * r.item.qty)) : ''};
+      });
+      const plan = Object.keys(groups).map((k, idx) => {
+        const pr = this.CARDS.find(c => c.sup === k && this.state.cards[c.id]);
+        return {n: String(idx + 1), superName: this.supName(k),
+          total: this.fmt(groups[k].reduce((a,x) => a + x.sub, 0)),
+          chips: groups[k].map(x => ({t: x.name.toLowerCase()})),
+          hasPromo: !!pr, promoLine: pr ? ('Con ' + pr.name + ' ya aplicado: ' + pr.pct + '% en ' + pr.cats[0]) : ''};
+      });
+      const alternatives = s.singles.slice().reverse().slice(0, 4).map(x => ({
+        label: 'Todo en ' + this.supName(x.sup), diff: '+' + this.fmt(x.total - best.total)}));
+      R = {
+        planHeader: 'REPARTIENDO EN ' + best.sub.length + (best.sub.length === 1 ? ' SUPER' : ' SUPERS'),
+        planLabel: 'PLAN DE COMPRA · ' + best.sub.length + (best.sub.length === 1 ? ' PARADA' : ' PARADAS'),
+        bestFmt: this.fmt(best.total),
+        savingFmt: this.fmt(saving),
+        savingVs: 'Ahorrás vs. todo en ' + this.supName(worst.sup),
+        alternatives, plan, perItem,
+        promoHeadline: promoSaved > 0 ? ('Tus promos activadas descontaron ' + this.fmt(promoSaved)) : 'No activaste promos para estos productos',
+        promoDetail: cardsOn.length ? cardsOn.map(c => c.name + ' · ' + c.short).join('  |  ') : 'Activá tus tarjetas para bajar más el total'
+      };
+    }
+
+    const coach = {
+      1: st.sub === 0
+        ? ['PASO 1 DE 8', 'Abrí Descuentos', 'Tus tarjetas y promos viven en la pestaña Descuentos. Tocala para entrar.']
+        : ['PASO 1 DE 8', 'Activá tu promo', 'Tocá Banco Nación para activar el 30% en bebidas de Coto. Después la aplicamos sola en cada precio.'],
+      2: ['PASO 2 DE 8', 'Buscá un producto', 'Escribí en el buscador lo que necesitás. Probá con “coca”.'],
+      3: st.sub === 0
+        ? ['PASO 3 DE 8', 'Sumá un super', 'Estás comparando 4 de 7. Tocá +3 para ver los que quedaron afuera.']
+        : ['PASO 3 DE 8', 'Elegí los supers', 'Marcá Coto para sumarlo a la comparación.'],
+      4: ['PASO 4 DE 8', 'Poné tu tope', 'Elegí a cuántos supers estás dispuesto a ir. Abajo te decimos cuánto ahorro resigna cada tope.'],
+      5: ['PASO 5 DE 8', 'Sumá el producto', 'Tocá Coca Cola Regular 2.25 Lts para agregarla al carrito.'],
+      6: ['PASO 6 DE 8', 'Abrí el carrito', 'Revisá lo que cargaste antes de comparar.'],
+      7: ['PASO 7 DE 8', 'Compará precios', 'Cruzamos los 7 supers con tus promos activas.'],
+      8: ['LISTO', 'Esto es lo que hace la app', 'Cada producto va al super donde sale menos, sin pasarte del tope, y con tus promos ya aplicadas. Abajo tenés el detalle producto por producto.']
+    }[step];
+
+    const dots = [1,2,3,4,5,6,7,8].map(i => ({done: i < step, now: i === step, todo: i > step}));
+
+    const r = st.rect, pad = 8;
+    const hasHole = !!r && step < 8;
+    const holeStyle = hasHole
+      ? {position:'absolute', top:(r.t - pad)+'px', left:(r.l - pad)+'px', width:(r.w + pad*2)+'px', height:(r.h + pad*2)+'px',
+         borderRadius:'14px', boxShadow:'0 0 0 2px #FFD400, 0 0 0 9999px rgba(11,18,32,.62)', pointerEvents:'none', zIndex:40,
+         transition:'all .34s cubic-bezier(.22,.8,.3,1)'}
+      : {display:'none'};
+    const blk = {position:'absolute', zIndex:41, background:'transparent'};
+    const blocks = hasHole ? {
+      blockTop: Object.assign({}, blk, {top:'0', left:'0', right:'0', height: Math.max(0, r.t - pad)+'px'}),
+      blockBottom: Object.assign({}, blk, {top:(r.t + r.h + pad)+'px', left:'0', right:'0', bottom:'0'}),
+      blockLeft: Object.assign({}, blk, {top:(r.t - pad)+'px', left:'0', width: Math.max(0, r.l - pad)+'px', height:(r.h + pad*2)+'px'}),
+      blockRight: Object.assign({}, blk, {top:(r.t - pad)+'px', left:(r.l + r.w + pad)+'px', right:'0', height:(r.h + pad*2)+'px'})
+    } : {blockTop:{display:'none'}, blockBottom:{display:'none'}, blockLeft:{display:'none'}, blockRight:{display:'none'}};
+
+    const holeLow = hasHole && (r.t + r.h / 2) > 400;
+    const coachAtTop = !!holeLow, coachAtBottom = !holeLow;
+
+    return {
+      refFrame: this.mk('frame'), refSearch: this.mk('search'), refSupers: this.mk('supersChip'),
+      refSupersList: this.mk('supersList'), refTope: this.mk('tope'), refCartBar: this.mk('cartBar'),
+      refCompare: this.mk('compare'), refResults: this.mk('resultsList'),
+
+      isBuscar: st.view === 'buscar', isCarrito: st.view === 'carrito', isResultado: st.view === 'resultado',
+      sheetCards: st.sheet === 'cards', sheetSupers: st.sheet === 'supers',
+      sheetScrim: st.sheet ? {position:'absolute', inset:'0', background:'rgba(11,18,32,.25)', zIndex:29} : {display:'none'},
+
+      cards, topes, results, topeCost,
+      sVea: supers.sVea, sCarrefour: supers.sCarrefour, sChangomas: supers.sChangomas,
+      sDia: supers.sDia, sCoto: supers.sCoto, sJumbo: supers.sJumbo, sDisco: supers.sDisco,
+      refCardNacion: this.mk('cardNacion'), tapNacion: tapNacion,
+      nacionOn: !!st.cards.nacion, nacionOff: !st.cards.nacion,
+      query: st.query,
+      onQuery: e => { const v = e.target.value;
+        this.setState({query: v});
+        if (step === 2 && v.trim().length >= 3) this.later(560, () => this.setState({step: 3, sub: 0, rect: null})); },
+      openSupers: () => { if (step !== 3 || st.sub !== 0) return; this.setState({sheet: 'supers', sub: 1, rect: null}); },
+      goDescuentos: () => { if (step !== 1 || st.sub !== 0) return; this.setState({view: 'descuentos', sub: 1, rect: null}); },
+      isDescuentos: st.view === 'descuentos',
+      refTabDesc: this.mk('tabDesc'), refBarPlus: this.mk('barPlus'),
+      cotoIn: st.supers.indexOf('coto') >= 0,
+      barTitle: 'COMPARANDO ' + st.supers.length + ' DE 7 SUPERS',
+      barPlus: '+' + (7 - st.supers.length),
+      barFooter: this.SUPERS.filter(s => st.supers.indexOf(s.id) < 0).map(s => s.name).join(', ') + ' están afuera de la comparación.',
+      resultsLabel: show ? (results.length + ' RESULTADOS') : 'BUSCÁ UN PRODUCTO',
+      supersChip: st.supers.length ? (st.supers.length + ' supers') : '7 supers',
+      emptyStyle: results.length ? {display:'none'} : {padding:'20px 0', font:'400 15px/21px Archivo', color:'#8A929B'},
+
+      units: String(units),
+      cartSummary: cartIds.length + ' productos · ' + units + ' unidades',
+      cartRows,
+      promosLabel: cardsOn.length ? cardsOn.map(c => c.name).join(', ') : 'Ninguna activa',
+      supersSummary: st.supers.map(x => this.supName(x)).join(', ') || 'Los 7',
+      compareSub: 'Precios en vivo · ' + selSupers.length + ' supers · ' + cardsOn.length + ' tarjetas',
+
+      goCarrito: () => { if (step !== 6) return; this.setState({view:'carrito', step:7, rect:null}); },
+      doCompare: () => { if (step !== 7) return; this.setState({view:'resultado', step:8, rect:null}); },
+      backToCart: () => this.setState({view:'carrito', rect:null}),
+      restart: () => { clearTimeout(this._t2);
+        this.setState({step:1, sub:0, cards:{}, query:'', supers:['vea','carrefour','changomas','dia'], tope:null, added:false, view:'buscar', sheet:null, rect:null}); },
+      restartLabel: step === 8 ? 'Ver el tour de nuevo' : 'Empezar de nuevo',
+      restartStyle: {marginTop:'2px', minHeight:'44px', borderRadius:'10px', border:'1px solid #DFE3E7', display:'flex',
+        alignItems:'center', justifyContent:'center', font:'500 15px/21px Archivo', color:'#14161A', cursor:'pointer'},
+
+      stepLabel: coach[0], coachTitle: coach[1], coachBody: coach[2], dots,
+      holeStyle, coachAtTop, coachAtBottom,
+      blockTop: blocks.blockTop, blockBottom: blocks.blockBottom, blockLeft: blocks.blockLeft, blockRight: blocks.blockRight,
+
+      stamp: 'Precios consultados 31/8/2026, 10:34:02',
+      planHeader: R.planHeader, planLabel: R.planLabel, bestFmt: R.bestFmt, savingFmt: R.savingFmt, savingVs: R.savingVs,
+      alternatives: R.alternatives, plan: R.plan, perItem: R.perItem,
+      promoHeadline: R.promoHeadline, promoDetail: R.promoDetail
+    };
+  }
+}
+</script>
+</body>
+</html>

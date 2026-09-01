@@ -1,0 +1,85 @@
+/* SAP-icons helper — most common glyphs used in Corellia.
+   Usage: <i class="sapi icon-home"></i>
+   Full set: icons in SAP-icons.woff2 live in the PUA (U+E000+).
+   This is a curated subset — add more as needed. */
+
+.icon-home::before        { content: "\e0ad"; }
+.icon-nav-back::before    { content: "\e06c"; }
+.icon-navigation-left::before { content: "\e0a9"; }
+.icon-navigation-right::before { content: "\e066"; }
+.icon-navigation-up::before   { content: "\e1e7"; }
+.icon-navigation-down::before { content: "\e1e8"; }
+.icon-menu::before        { content: "\e1f4"; }
+.icon-menu2::before       { content: "\e0e4"; }
+.icon-search::before      { content: "\e00d"; }
+.icon-filter::before      { content: "\e076"; }
+.icon-sort::before        { content: "\e06d"; }
+.icon-add::before         { content: "\e03f"; }
+.icon-add2::before        { content: "\e03e"; }
+.icon-close::before       { content: "\e03e"; }
+.icon-decline::before     { content: "\e03f"; }
+.icon-delete::before      { content: "\e04a"; }
+.icon-edit::before        { content: "\e0f6"; }
+.icon-settings::before    { content: "\e076"; }
+.icon-action-settings::before { content: "\e076"; }
+.icon-overflow::before    { content: "\e1a4"; }
+.icon-more::before        { content: "\e1a4"; }
+.icon-accept::before      { content: "\e05b"; }
+.icon-check::before       { content: "\e05b"; }
+.icon-reject::before      { content: "\e03e"; }
+.icon-sys-enter::before   { content: "\e03b"; }
+.icon-alert::before       { content: "\e0b1"; }
+.icon-warning::before     { content: "\e0b1"; }
+.icon-error::before       { content: "\e0b0"; }
+.icon-information::before { content: "\e1c3"; }
+.icon-notification::before{ content: "\e040"; }
+.icon-favorite::before    { content: "\e05e"; }
+.icon-favorite-fill::before{ content: "\e05f"; }
+.icon-person::before      { content: "\e144"; }
+.icon-employee::before    { content: "\e144"; }
+.icon-customer::before    { content: "\e14e"; }
+.icon-business-card::before { content: "\e058"; }
+.icon-group::before       { content: "\e119"; }
+.icon-chat::before        { content: "\e14c"; }
+.icon-discussion::before  { content: "\e1ef"; }
+.icon-comment::before     { content: "\e188"; }
+.icon-email::before       { content: "\e0fb"; }
+.icon-attachment::before  { content: "\e0c4"; }
+.icon-document::before    { content: "\e0d9"; }
+.icon-folder::before      { content: "\e1ce"; }
+.icon-calendar::before    { content: "\e038"; }
+.icon-clock::before       { content: "\e04b"; }
+.icon-time-entry::before  { content: "\e111"; }
+.icon-bell::before        { content: "\e040"; }
+.icon-refresh::before     { content: "\e0f9"; }
+.icon-download::before    { content: "\e122"; }
+.icon-upload::before      { content: "\e10b"; }
+.icon-share::before       { content: "\e1b6"; }
+.icon-copy::before        { content: "\e148"; }
+.icon-play::before        { content: "\e104"; }
+.icon-pause::before       { content: "\e102"; }
+.icon-stop::before        { content: "\e103"; }
+.icon-paper-plane::before { content: "\e18c"; }
+.icon-send::before        { content: "\e18c"; }
+.icon-cart::before        { content: "\e005"; }
+.icon-product::before     { content: "\e052"; }
+.icon-factory::before     { content: "\e051"; }
+.icon-shipment::before    { content: "\e18f"; }
+.icon-begin::before       { content: "\e110"; }
+.icon-end::before         { content: "\e10f"; }
+.icon-grid::before        { content: "\e099"; }
+.icon-list::before        { content: "\e1a7"; }
+.icon-show::before        { content: "\e1ca"; }
+.icon-hide::before        { content: "\e1cb"; }
+.icon-lock::before        { content: "\e0e1"; }
+.icon-unlock::before      { content: "\e0e2"; }
+.icon-ai::before          { content: "\e14c"; } /* alias — AI chat uses chat glyph */
+.icon-thumb-up::before    { content: "\e085"; }
+.icon-thumb-down::before  { content: "\e086"; }
+.icon-drag::before        { content: "\e1b8"; }
+.icon-expand::before      { content: "\e1ff"; }
+.icon-collapse::before    { content: "\e1fe"; }
+.icon-sap-ui5::before     { content: "\e14f"; }
+.icon-bar-chart::before   { content: "\e06f"; }
+.icon-line-chart::before  { content: "\e070"; }
+.icon-pie-chart::before   { content: "\e071"; }

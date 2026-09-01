@@ -350,7 +350,7 @@ function HeaderVeredicto({
 
         {valeRepartir && mejorUnico ? (
           <View style={[styles.bloqueAhorro, { backgroundColor: paleta.oferta }]}>
-            <Text style={[texto.cuerpoMedio, { color: paleta.ofertaTinta }]}>Repartiendo ahorrás</Text>
+            <Text style={[texto.cuerpoMedio, { color: paleta.ofertaTinta }]}>Ahorrás</Text>
             <Text style={[texto.precioGrande, { color: paleta.ofertaTinta }]}>{pesos(ahorroRepartiendo)}</Text>
           </View>
         ) : null}
