@@ -5,13 +5,10 @@
  * nativos, que hoy no existen en este proyecto).
  *
  * En iOS, `soportaPush()` da `false` salvo que la web esté agregada a la pantalla de inicio
- * DESDE SAFARI. No es una limitación de "Safari" puntualmente sino de iOS en general: todo
- * navegador en iOS (Chrome, Firefox, Edge incluidos) corre sobre el motor de Safari por regla
- * de Apple, pero solo la instalación hecha desde la propia app de Safari obtiene el permiso de
- * push — agregar el sitio a la pantalla de inicio desde Chrome/Firefox en iOS no habilita nada,
- * es una restricción de Apple a nivel de sistema. Por eso el hint de Ajustes cuando no hay
- * soporte (`esperaInstalarEnIOS()`) nombra a Safari explícitamente en vez de decir "tu
- * navegador" — si no, en Chrome para iOS confunde: parece un problema de la app, no del SO.
+ * DESDE SAFARI (agregarla desde Chrome/Firefox/Edge en iOS no alcanza, aunque corran sobre el
+ * mismo motor — es una restricción de Apple a nivel de sistema, no del navegador). A pedido, el
+ * toggle de Ajustes simplemente no se muestra cuando `soportaPush()` da `false`, sin explicar
+ * por qué — no hace falta detectar el caso puntual de iOS para un mensaje.
  */
 
 import { Platform } from 'react-native';
@@ -24,18 +21,6 @@ export function soportaPush(): boolean {
     && typeof navigator !== 'undefined'
     && 'serviceWorker' in navigator
     && 'PushManager' in window;
-}
-
-/** Para elegir el texto del hint cuando `soportaPush()` da `false` — en iOS hay que nombrar a
- *  Safari específicamente (ver nota de arriba); en cualquier otro caso (navegador embebido de
- *  WhatsApp/Instagram, navegador de escritorio viejo, etc.) el hint genérico alcanza. */
-export function esIOS(): boolean {
-  if (Platform.OS !== 'web' || typeof navigator === 'undefined') return false;
-  if (/iPhone|iPad|iPod/.test(navigator.userAgent)) return true;
-  // Con "Sitio de escritorio" activado (Chrome iOS: Configuración > Configuración de
-  // contenido > Sitio de escritorio), el user-agent se disfraza de "Macintosh" y no dice
-  // "iPhone" — un Mac de verdad no tiene pantalla táctil, así que Mac + táctil es iOS.
-  return /Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1;
 }
 
 // applicationServerKey necesita un Uint8Array, no el string base64url que da `web-push

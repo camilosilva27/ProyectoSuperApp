@@ -29,7 +29,7 @@ import { precioSuscripcion } from '../../src/api';
 import { useAuth } from '../../src/auth';
 import { ConfirmacionModal } from '../../src/componentes/Confirmacion';
 import { HeaderNegro, TituloHeader } from '../../src/componentes/HeaderNegro';
-import { desuscribir, esIOS, pedirPermisoYSuscribir, soportaPush, yaSuscripto } from '../../src/push/push';
+import { desuscribir, pedirPermisoYSuscribir, soportaPush, yaSuscripto } from '../../src/push/push';
 import { diasRestantesTrial, usePlanUsuario } from '../../src/plan';
 import { espacio, pesosCorto, radio, texto } from '../../src/theme';
 import { useTour } from '../../src/tour/TourContext';
@@ -185,9 +185,9 @@ export default function PantallaAjustes() {
           ) : null}
         </View>
 
-        <View style={styles.seccion}>
-          <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>NOTIFICACIONES</Text>
-          {notifsSoportadas ? (
+        {notifsSoportadas ? (
+          <View style={styles.seccion}>
+            <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>NOTIFICACIONES</Text>
             <View style={[styles.grupo, { borderColor: paleta.borde }]}>
               <View style={styles.fila}>
                 <Text style={[texto.cuerpoMedio, { color: paleta.tinta, flex: 1 }]}>
@@ -196,14 +196,8 @@ export default function PantallaAjustes() {
                 <Switch value={notifsActivas} onValueChange={alCambiarNotifs} disabled={notifsCargando} />
               </View>
             </View>
-          ) : (
-            <Text style={[texto.dato, { color: paleta.tintaSuave }]}>
-              {esIOS()
-                ? 'En iPhone, abrí este sitio en Safari (no alcanza con Chrome u otro navegador) y agregalo a tu pantalla de inicio desde ahí para poder activar notificaciones.'
-                : 'Tu navegador no soporta notificaciones.'}
-            </Text>
-          )}
-        </View>
+          </View>
+        ) : null}
 
         <View style={[styles.grupo, { borderColor: paleta.borde }]}>
           <Pressable
