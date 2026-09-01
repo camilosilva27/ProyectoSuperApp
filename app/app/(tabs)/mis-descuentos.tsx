@@ -14,9 +14,9 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import Head from 'expo-router/head';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
@@ -131,25 +131,44 @@ function supersDe(d: Descuento): string | null {
 export default function PantallaMisDescuentos() {
   const { paleta } = useTema();
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const carrito = useCarrito();
   const { session } = useAuth();
   const accessToken = session?.access_token ?? null;
   const tour = useTour();
 
   // El target del paso 'tab-descuentos' (la celda de la barra inferior) se calcula por fórmula
-  // en TourOverlay, no con un ref — pero el avance sigue necesitando este hook: si el usuario
-  // ya está en esta pantalla, la condición del paso ("navegó a Descuentos") está cumplida. El
-  // ref que devuelve no se usa en ningún lado a propósito.
-  useTourPaso('tab-descuentos', true);
+  // en TourOverlay, no con un ref — el ref que devuelve `useTourPaso` no se usa en ningún lado
+  // a propósito. NO usa `true` fijo: los tabs de expo-router no se desmontan al cambiar de
+  // pestaña, así que si el usuario ya había visitado esta pantalla antes de arrancar el tour,
+  // esa condición ya estaría cumplida apenas el paso se activa, saltándolo sin cartel — mismo
+  // bug que ya se corrigió para "marcá Coto"/"activá Mercado Pago". `useFocusEffect` sí exige
+  // una transición real de foco (un tap genuino en la pestaña): se resetea a `false` en el
+  // blur, así que un foco viejo de antes de iniciar el tour no cuenta.
+  const [enfocada, setEnfocada] = useState(false);
+  useFocusEffect(useCallback(() => {
+    setEnfocada(true);
+    return () => setEnfocada(false);
+  }, []));
+  useTourPaso('tab-descuentos', enfocada);
 
   // NO mira `carrito.tarjetas.includes(...)`: si la cuenta ya tenía Mercado Pago activado de
   // antes (persiste entre sesiones, igual que el carrito), esa condición ya estaría cumplida
   // apenas monta la pantalla, saltando el paso sin que el usuario llegue a ver el switch —
-  // mismo bug que ya se corrigió para "marcá Coto" en HojaSupers.tsx. Este estado local sí se
-  // resetea en cada visita a la pantalla, que es justo lo que hace falta acá.
+  // mismo bug que ya se corrigió para "marcá Coto" en HojaSupers.tsx.
+  //
+  // El toggle de esta fila también se marca acá abajo (`onCambiar`) — pero SOLO cuenta si pasa
+  // con el paso 'mercado-pago' activo (ver el guard `tour.pasoActivo === 'mercado-pago'`): la
+  // pantalla no se desmonta al cambiar de tab, así que un toque de Mercado Pago hecho fuera del
+  // tour (antes de arrancarlo, o en una sesión previa del tour) dejaba esta bandera en `true`
+  // para siempre y el paso se saltaba sin que el usuario tocara nada esta vez. También se
+  // resetea al perder el foco de la pantalla, para que un tour anterior no deje esto "gastado"
+  // si se reinicia el tutorial más de una vez en la misma sesión.
   const [tocoMercadoPago, setTocoMercadoPago] = useState(false);
-  const refMercadoPago = useTourPaso('mercado-pago', tocoMercadoPago, () => router.navigate('/'));
+  useFocusEffect(useCallback(() => () => setTocoMercadoPago(false), []));
+  // Sin callback de navegación: antes este paso volvía solo a Buscar (`router.navigate('/')`)
+  // apenas se completaba, "teletransportando" al usuario — ahora el paso siguiente
+  // ('volver-buscar', ver pasos.ts) le pide el toque real sobre la pestaña.
+  const refMercadoPago = useTourPaso('mercado-pago', tocoMercadoPago);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['mis-descuentos'],
@@ -200,9 +219,15 @@ export default function PantallaMisDescuentos() {
                     // una sesión anterior), no la desactiva: el usuario no eligió activarla
                     // ahora, solo tocó para seguir el tutorial, y apagarle una promo real
                     // que ya tenía cargada sería un efecto secundario no pedido.
-                    if (d.nombre === NOMBRE_TARJETA_TOUR) {
+                    //
+                    // El guard `tour.pasoActivo === 'mercado-pago'` es a propósito: sin él,
+                    // CUALQUIER toque a esta fila (incluso fuera del tour, o de un tour previo
+                    // en la misma sesión) dejaba `tocoMercadoPago` en `true` para siempre —la
+                    // pantalla no se desmonta al cambiar de tab— y el paso se salteaba la
+                    // próxima vez sin que el usuario tocara nada.
+                    if (d.nombre === NOMBRE_TARJETA_TOUR && tour.pasoActivo === 'mercado-pago') {
                       setTocoMercadoPago(true);
-                      if (tour.pasoActivo === 'mercado-pago' && activa && !valor) return;
+                      if (activa && !valor) return;
                     }
                     carrito.setTarjetas(
                       valor

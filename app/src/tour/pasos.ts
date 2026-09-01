@@ -20,6 +20,7 @@ export type PasoId =
   | "notificaciones"
   | "tab-descuentos"
   | "mercado-pago"
+  | "volver-buscar"
   | "buscador-input"
   | "primer-resultado"
   | "selector-otros"
@@ -36,6 +37,10 @@ export const ORDEN_PASOS: PasoId[] = [
   "notificaciones",
   "tab-descuentos",
   "mercado-pago",
+  // Paso propio para volver a Buscar (a pedido): antes `mercado-pago` navegaba solo al
+  // completarse (`router.navigate('/')`), lo que "teletransportaba" al usuario sin que tocara
+  // nada — acá se le pide el toque real sobre la pestaña, igual que con "Descuentos".
+  "volver-buscar",
   "buscador-input",
   // Agregar el producto va antes de elegir supers (a pedido) — al revés del orden del handoff
   // original, que abría la hoja de supers apenas se escribía, sin esperar a que el usuario
@@ -53,16 +58,19 @@ export const ORDEN_PASOS: PasoId[] = [
 export const PASOS: Record<PasoId, { titulo: string; texto: string }> = {
   notificaciones: {
     titulo: "Activá las notificaciones",
-    texto: "Te avisamos una vez por semana para que revises si hay mejores precios. Tocá el botón para activarlas.",
+    texto: "Presiona el botón para recibir notificaciones.",
   },
   "tab-descuentos": {
     titulo: "Cargá tus descuentos",
-    texto: "Tocá Descuentos para cargar tus tarjetas y promos.",
+    texto: "Presiona Descuentos para cargar tus tarjetas y promos.",
   },
   "mercado-pago": {
     titulo: "Activá Mercado Pago",
-    texto:
-      "Activá Mercado Pago: De esta forma te mostraremos las promociones que lo necesiten.",
+    texto: "Así activas tus tarjetas y promociones.",
+  },
+  "volver-buscar": {
+    titulo: "Volvé a Buscar",
+    texto: "Presiona Buscar para seguir armando tu carrito.",
   },
   "buscador-input": {
     titulo: "Buscá un producto",
@@ -70,15 +78,15 @@ export const PASOS: Record<PasoId, { titulo: string; texto: string }> = {
   },
   "primer-resultado": {
     titulo: "Agregá al carrito",
-    texto: "Tocá un producto para agregarlo al carrito.",
+    texto: "Presiona un producto para agregarlo al carrito.",
   },
   "selector-otros": {
     titulo: "Elegí los supermercados",
-    texto: "Tocá acá para elegir qué supermercados comparar.",
+    texto: "Presiona acá para elegir qué supermercados comparar.",
   },
   coto: {
     titulo: "Sumá o sacá un super",
-    texto: "Tocá Coto: así agregás o sacás a un super de la comparación.",
+    texto: "Presiona para agregar o sacar un supermercado de la comparación.",
   },
   "tope-elegido": {
     titulo: "Poné un máximo de supermercados",
@@ -86,15 +94,15 @@ export const PASOS: Record<PasoId, { titulo: string; texto: string }> = {
   },
   listo: {
     titulo: "Confirmá tu selección",
-    texto: "Tocá Listo para confirmar tu selección.",
+    texto: "Presiona Listo para confirmar tu selección.",
   },
   "ver-carrito": {
     titulo: "Mirá tu carrito",
-    texto: "Tocá para ver tu carrito.",
+    texto: "Presiona para ver tu carrito.",
   },
   "comparar-precios": {
     titulo: "Comparar precios",
-    texto: "Tocá para comparar precios y ver dónde conviene comprar.",
+    texto: "Presiona para comparar precios y ver dónde conviene comprar.",
   },
   ahorro: {
     titulo: "Así ahorrás",

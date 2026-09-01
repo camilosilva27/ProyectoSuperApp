@@ -16,7 +16,7 @@
 
 import { usePathname, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 // expo-router (v57) vendorea su propio bottom-tabs y no lo reexporta desde el root del
 // paquete: no hay `@react-navigation/bottom-tabs` instalado por separado, así que este es
@@ -45,7 +45,17 @@ export default function PantallaCarrito() {
   const carrito = useCarrito();
   const carritosGuardados = useCarritosGuardados();
   const { supersActivos, toggleSuper, topeSupers, setSupersYTope, usoPorSuper } = useFiltrosSupers();
-  const refComparar = useTourPaso('comparar-precios', pathname === '/resultado');
+  // NO mira `pathname === '/resultado'` directo: si el usuario ya estaba en /resultado cuando
+  // el paso 'comparar-precios' se activa, la condición ya sería verdadera de entrada y el paso
+  // se saltearía sin cartel — mismo bug que ya se corrigió para "marcá Coto"/"activá Mercado
+  // Pago". Solo cuenta una transición real hacia /resultado, no el estado ya alcanzado.
+  const pathnameAnteriorRef = useRef(pathname);
+  const [navegoAResultado, setNavegoAResultado] = useState(false);
+  useEffect(() => {
+    if (pathname === '/resultado' && pathnameAnteriorRef.current !== '/resultado') setNavegoAResultado(true);
+    pathnameAnteriorRef.current = pathname;
+  }, [pathname]);
+  const refComparar = useTourPaso('comparar-precios', navegoAResultado);
   const [mostrarHoja, setMostrarHoja] = useState(false);
   const [recienGuardadoId, setRecienGuardadoId] = useState<string | null>(null);
   const [toastNombre, setToastNombre] = useState<string | null>(null);
