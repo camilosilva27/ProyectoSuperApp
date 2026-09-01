@@ -144,6 +144,11 @@ export default function PantallaBuscar() {
   const consultaValida = consultaDemorada.length >= 2;
   const [orden, setOrden] = useState<OrdenBusqueda>('alfabetico');
   const [mostrarHojaSupers, setMostrarHojaSupers] = useState(false);
+  // Reserva real del contenido de abajo (lista/estado inicial) para no quedar tapado por
+  // "Ver carrito": antes era un 120 fijo a ojo, que sobraba y dejaba un espacio vacío entre
+  // el botón y el tab bar (se veía la fila "Primera vez acá?" asomando en el hueco).
+  const [altoBarraInferior, setAltoBarraInferior] = useState(0);
+  const reservaInferior = carrito.items.length > 0 ? tabBarHeight + altoBarraInferior : 0;
   const { supersActivos, toggleSuper, topeSupers, setSupersYTope, usoPorSuper } = useFiltrosSupers();
 
   // El alto real de la tab bar solo se puede leer desde una pantalla que esté DENTRO del
@@ -292,7 +297,7 @@ export default function PantallaBuscar() {
       {!consultaValida ? (
         <EstadoInicial
           onAbrirTour={tour.iniciar}
-          conCarritoFlotante={carrito.items.length > 0}
+          reservaInferior={reservaInferior}
         />
       ) : (
         <FlatList
@@ -301,7 +306,7 @@ export default function PantallaBuscar() {
           ListHeaderComponent={encabezadoLista}
           contentContainerStyle={[
             styles.lista,
-            { paddingBottom: carrito.items.length ? 120 : espacio.xl },
+            { paddingBottom: reservaInferior || espacio.xl },
           ]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
@@ -361,6 +366,7 @@ export default function PantallaBuscar() {
       {carrito.items.length > 0 && !mostrarHojaSupers ? (
         <View
           ref={refVerCarrito}
+          onLayout={e => setAltoBarraInferior(e.nativeEvent.layout.height)}
           style={[
             styles.barraInferior,
             {
@@ -394,10 +400,11 @@ function filasDe<T>(items: T[], porFila: number): T[][] {
  *  usuario entiende qué es esto — nunca se vio antes en la app. */
 function EstadoInicial({
   onAbrirTour,
-  conCarritoFlotante,
+  reservaInferior,
 }: {
   onAbrirTour: () => void;
-  conCarritoFlotante: boolean;
+  /** Alto real de la barra "Ver carrito" (0 si no está flotando) — ver PantallaBuscar. */
+  reservaInferior: number;
 }) {
   const { paleta } = useTema();
 
@@ -405,7 +412,7 @@ function EstadoInicial({
     <ScrollView
       contentContainerStyle={[
         styles.estadoInicial,
-        conCarritoFlotante ? { paddingBottom: 120 } : null,
+        reservaInferior ? { paddingBottom: reservaInferior } : null,
       ]}
       keyboardShouldPersistTaps="handled"
     >
