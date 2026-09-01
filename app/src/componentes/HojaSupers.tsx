@@ -92,13 +92,16 @@ const ALTURA_OFFSCREEN = Dimensions.get('window').height;
 const UMBRAL_CIERRE_ARRASTRE = 120;
 
 export function HojaSupers({
-  visible, activos, tope, onCerrar, onAplicar,
+  visible, activos, tope, onCerrar, onAplicar, bloqueados = [],
 }: {
   visible: boolean;
   activos: SuperKey[];
   tope: number;
   onCerrar: () => void;
   onAplicar: (keys: SuperKey[], tope: number) => void;
+  /** Supers que no se pueden destildar (ver tour: Vea+Carrefour quedan fijos mientras está
+   *  activo, para que sumar Coto sea la única acción posible en ese paso). */
+  bloqueados?: SuperKey[];
 }) {
   const [borrador, setBorrador] = useState<SuperKey[]>(activos);
   const [topeBorrador, setTopeBorrador] = useState(tope);
@@ -154,6 +157,7 @@ export function HojaSupers({
   // anidar un setState dentro del callback de otro es frágil. `borrador` ya está fresco en
   // este closure porque el componente se re-renderiza en cada cambio de estado.
   const toggle = (key: SuperKey) => {
+    if (bloqueados.includes(key)) return;
     if (key === 'coto') setTocoCoto(true);
     const siguiente = borrador.includes(key)
       ? (borrador.length === 1 ? borrador : borrador.filter(k => k !== key)) // no se puede destildar el último activo
@@ -303,6 +307,7 @@ export function HojaSupers({
                     <FilaSuper
                       superKey={key}
                       activo
+                      bloqueado={bloqueados.includes(key)}
                       onPress={() => toggle(key)}
                       tourRef={key === 'coto' ? refCoto : undefined}
                     />
@@ -340,29 +345,34 @@ export function HojaSupers({
 }
 
 function FilaSuper({
-  superKey, activo, onPress, tourRef,
+  superKey, activo, onPress, tourRef, bloqueado = false,
 }: {
   superKey: SuperKey;
   activo: boolean;
   onPress: () => void;
   /** Solo lo pasa el tour, y solo para la fila de Coto (ver más arriba). */
   tourRef?: React.RefObject<View | null>;
+  /** Fijo mientras dura el tour (Vea+Carrefour) — se ve como el resto de las filas, pero
+   *  grisado y sin acción, igual criterio visual que los botones deshabilitados de BloqueTope. */
+  bloqueado?: boolean;
 }) {
   return (
     <Pressable
       ref={tourRef}
-      onPress={onPress}
+      onPress={bloqueado ? undefined : onPress}
       accessibilityRole="checkbox"
-      accessibilityState={{ checked: activo }}
-      accessibilityLabel={`${NOMBRE_SUPER[superKey]}, ${activo ? 'comparando' : 'afuera'}`}
-      style={styles.fila}
+      accessibilityState={{ checked: activo, disabled: bloqueado }}
+      accessibilityLabel={`${NOMBRE_SUPER[superKey]}, ${activo ? 'comparando' : 'afuera'}${bloqueado ? ', fijo durante el tour' : ''}`}
+      style={[styles.fila, bloqueado && styles.filaBloqueada]}
     >
-      <View style={[styles.checkbox, activo ? styles.checkboxTildado : styles.checkboxVacio]}>
+      <View style={[styles.checkbox, activo ? styles.checkboxTildado : styles.checkboxVacio, bloqueado && styles.checkboxBloqueado]}>
         {activo ? <Text style={styles.check}>✓</Text> : null}
       </View>
       <View style={[styles.barraColorFila, { backgroundColor: paletaDe('light').supers[superKey] }]} />
       <PlacaLogoSuper superKey={superKey} ancho={54} alto={22} padding={2} radio={5} />
-      <Text style={[texto.cuerpoMedio, styles.nombreFila]} numberOfLines={1}>{NOMBRE_SUPER[superKey]}</Text>
+      <Text style={[texto.cuerpoMedio, styles.nombreFila, bloqueado && styles.nombreFilaBloqueada]} numberOfLines={1}>
+        {NOMBRE_SUPER[superKey]}
+      </Text>
     </Pressable>
   );
 }
@@ -511,14 +521,17 @@ const styles = StyleSheet.create({
   fila: {
     flexDirection: 'row', alignItems: 'center', gap: espacio.md, paddingVertical: 9,
   },
+  filaBloqueada: { opacity: 0.5 },
   checkbox: {
     width: 22, height: 22, borderRadius: 5, alignItems: 'center', justifyContent: 'center',
   },
   checkboxTildado: { backgroundColor: '#14161A' },
   checkboxVacio: { backgroundColor: 'transparent', boxShadow: 'inset 0 0 0 1.5px #14161A' },
+  checkboxBloqueado: { backgroundColor: '#A6ACB3' },
   check: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
   barraColorFila: { width: 24, height: 8, borderRadius: radio.pill },
   nombreFila: { flex: 1, color: '#14161A' },
+  nombreFilaBloqueada: { color: '#565E67' },
   botonListo: {
     backgroundColor: '#14161A', borderRadius: radio.md, minHeight: 52,
     alignItems: 'center', justifyContent: 'center',

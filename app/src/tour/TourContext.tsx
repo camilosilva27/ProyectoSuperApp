@@ -14,9 +14,13 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import type { View } from 'react-native';
+import { useAuth } from '../auth';
+import { useCarrito } from '../carrito';
+import { useFiltrosSupers } from '../filtrosSupers';
 import { ORDEN_PASOS, type PasoId } from './pasos';
+import { precargarTour } from './precarga';
 
 const CLAVE_TOUR_VISTO = 'allpromos:tourVisto:v1';
 
@@ -134,8 +138,26 @@ export function useTourPaso<T = View>(id: PasoId, cumplido: boolean, alCompletar
   return ref;
 }
 
-/** Para los 3 puntos de entrada (auto-onboarding, botón en Buscar, botón en Ajustes). */
+/** Para los 3 puntos de entrada (auto-onboarding, botón en Buscar, botón en Ajustes). Centraliza
+ *  acá la precarga de productos/supers (ver precarga.ts) en vez de tocar la firma de
+ *  `iniciarTour` — así los 3 call-sites la reciben gratis con solo llamar a `iniciar()`. */
 export function useTour() {
   const { activo, pasoActivo } = useEstadoTour();
-  return { activo, pasoActivo, iniciar: iniciarTour, salir: salirTour };
+  const carrito = useCarrito();
+  const { setSupersYTope } = useFiltrosSupers();
+  const { session } = useAuth();
+
+  const iniciar = useCallback(() => {
+    // Solo con carrito vacío: si el usuario reabre el tour desde Ajustes con una compra en
+    // curso, no se la pisamos ni le sumamos productos de demo encima.
+    if (carrito.items.length === 0) {
+      precargarTour(session?.access_token ?? null, carrito.agregar, setSupersYTope);
+    }
+    iniciarTour();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `carrito`/`setSupersYTope` son
+    // estables por render (mismo patrón que el resto del archivo); solo importa que `iniciar`
+    // no cambie de identidad en cada render de quien lo consume.
+  }, [carrito.items.length, session?.access_token]);
+
+  return { activo, pasoActivo, iniciar, salir: salirTour };
 }

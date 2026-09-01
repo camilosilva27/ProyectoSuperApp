@@ -540,6 +540,37 @@ como el bloque "Repartiendo ahorrás $X" cuando existe — este último es condi
 (`valeRepartir && mejorUnico`), así que el wrapper cubre siempre al menos el total para que el
 target nunca falte.
 
+### Precarga dinámica de productos (2026-08-31)
+
+Al iniciar el tour con el carrito vacío (`useTour().iniciar` en `TourContext.tsx`, ver
+`app/src/tour/precarga.ts`), se precargan 2-3 productos elegidos dinámicamente y se fuerzan
+Vea+Carrefour como únicos supers activos (`setSupersYTope(['vea','carr'], 0)`) — así el paso
+`coto` (sumar Coto en la hoja de supers) tiene un efecto visible real en vez de ser un toggle
+sin consecuencia, y la comparación final no depende de qué producto elija buscar el usuario.
+
+**Backend — `elegirProductosTour()` en `backend/src/precioCache.js`**: recorre el índice ya
+construido por `asegurarIndice()` buscando EANs con precio real en Vea, Carrefour Y Coto,
+reusando `calcularOpciones()` de `AllPromos/core/comparador.js` (la misma función que ordena
+por precio en `/api/comparar`, no hay una segunda lógica de promos). Filtra por
+`UMBRAL_DIFERENCIA` (10% entre el más barato y el más caro de los 3) y prioriza los que además
+tienen `descuentoFuerte` (≥15% de descuento en alguno de los 3) — constantes al tope del
+archivo, ajustables sin tocar la lógica. Expuesto en `GET /api/catalogo/tour-sugeridos`
+(`backend/src/routes/catalogo.js`, mismo patrón `requiereSesion`/`requierePlanActivo` que el
+resto de `/api/catalogo/*`), que resuelve los EANs a la forma pública de `ProductoCatalogo` vía
+`catalogoUnificado.porEAN`.
+
+**Nota de calidad de datos**: en la corrida de verificación, `diferenciaPct` salió tan alto como
+~213% para algún candidato — no se investigó si es una diferencia real de precio o un problema
+de matching/empaquetado entre el EAN de Coto y el de los otros supers (ver
+`fix-empaquetado-ean-compartido` en memoria). Si algún producto precargado se ve sospechoso en
+la demo (precio absurdamente distinto), revisar ese EAN puntual antes de asumir que el criterio
+de selección está mal.
+
+**Frontend — bloqueo en la hoja de supers**: `HojaSupers.tsx` acepta una prop `bloqueados:
+SuperKey[]` (default `[]`) que hace no-op a `toggle()` y grisa la fila — `index.tsx` la pasa
+como `tour.activo ? ['vea','carr'] : []`. Se libera sola al salir del tour (depende de
+`tour.activo`, no de un flag separado).
+
 ---
 
 ## Búsqueda por nombre — matchesBusqueda

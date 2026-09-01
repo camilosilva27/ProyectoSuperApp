@@ -28,6 +28,8 @@ const {
   interpretarPromoPorTexto, interpretarPromoCarrefour, interpretarTeaserTarjetaPropia,
 } = require('../../AllPromos/promo-engine');
 const { sanearPorEmpaquetado } = require('../../AllPromos/core/empaquetado');
+const { calcularOpciones } = require('../../AllPromos/core/comparador');
+const { SUPERMERCADOS } = require('../../AllPromos/core/fetchers');
 
 const FUENTES = [
   { key: 'vea', archivo: 'catalogo-vea.json', nombre: 'Vea' },
@@ -211,4 +213,43 @@ function estadoFuentes() {
   return FUENTES.map(({ key, archivo, nombre }) => ({ key, archivo, nombre, fecha: fechasPorFuente[key] }));
 }
 
-module.exports = { precioPorEAN, estadoFuentes };
+const SUPERS_TOUR = ['vea', 'carr', 'coto'];
+const SUPERMERCADOS_TOUR = SUPERMERCADOS.filter(s => SUPERS_TOUR.includes(s.key));
+// Umbrales pensados para el tour (ver plan): "diferencia real" entre el más barato y el más
+// caro de los 3, y "descuento fuerte" en al menos uno para que se dispare el cartel de promo.
+const UMBRAL_DIFERENCIA = 0.10;
+const UMBRAL_DESCUENTO = 0.15;
+const CANTIDAD_PRODUCTOS_TOUR = 3;
+
+/**
+ * Elige EANs para precargar el carrito del tour: productos con precio real en Vea, Carrefour
+ * Y Coto (los 3 tienen que estar, si no la demo de "sumá Coto" no cambiaría nada) donde el más
+ * caro de los 3 supera al más barato por `UMBRAL_DIFERENCIA`, priorizando los que además tienen
+ * un descuento fuerte en alguno de los 3 (`UMBRAL_DESCUENTO`) — reusa `calcularOpciones` de
+ * `core/comparador.js`, la misma función que ordena por precio en /api/comparar, para no
+ * reinterpretar promos por su cuenta acá.
+ * @returns [{ ean, diferenciaPct, descuentoFuerte }], hasta `CANTIDAD_PRODUCTOS_TOUR`
+ */
+function elegirProductosTour() {
+  asegurarIndice();
+  const candidatos = [];
+
+  for (const [ean, grupo] of indice) {
+    if (!SUPERS_TOUR.every(key => grupo[key]?.length)) continue;
+    const opciones = calcularOpciones(grupo, 1, SUPERMERCADOS_TOUR);
+    if (opciones.length < SUPERS_TOUR.length) continue;
+
+    const masBarato = opciones[0];
+    const masCaro = opciones[opciones.length - 1];
+    const diferenciaPct = (masCaro.total - masBarato.total) / masBarato.total;
+    if (diferenciaPct < UMBRAL_DIFERENCIA) continue;
+
+    const descuentoFuerte = opciones.some(o => o.mejor.promo && (1 - o.total / o.mejor.precioBase) >= UMBRAL_DESCUENTO);
+    candidatos.push({ ean, diferenciaPct, descuentoFuerte });
+  }
+
+  candidatos.sort((a, b) => (b.diferenciaPct + (b.descuentoFuerte ? 0.5 : 0)) - (a.diferenciaPct + (a.descuentoFuerte ? 0.5 : 0)));
+  return candidatos.slice(0, CANTIDAD_PRODUCTOS_TOUR);
+}
+
+module.exports = { precioPorEAN, estadoFuentes, elegirProductosTour };
