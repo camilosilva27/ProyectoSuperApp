@@ -17,7 +17,7 @@ import { usePathname, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, FlatList, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 // expo-router (v57) vendorea su propio bottom-tabs y no lo reexporta desde el root del
 // paquete: no hay `@react-navigation/bottom-tabs` instalado por separado, así que este es
@@ -137,13 +137,20 @@ export default function PantallaBuscar() {
   const pathname = usePathname();
   const carrito = useCarrito();
   const tour = useTour();
-  const { session } = useAuth();
+  const { session, cargando: cargandoSesion } = useAuth();
   const accessToken = session?.access_token ?? null;
   const [consulta, setConsulta] = useState('');
   const consultaDemorada = useTextoDemorado(consulta.trim());
   const consultaValida = consultaDemorada.length >= 2;
   const [orden, setOrden] = useState<OrdenBusqueda>('alfabetico');
   const [mostrarHojaSupers, setMostrarHojaSupers] = useState(false);
+  // Reserva real del contenido de abajo (lista/estado inicial) para no quedar tapado por
+  // "Ver carrito": antes era un 120 fijo a ojo, que sobraba y dejaba un espacio vacío entre
+  // el botón y el tab bar (se veía la fila "Primera vez acá?" asomando en el hueco).
+  const [altoBarraInferior, setAltoBarraInferior] = useState(0);
+  const reservaInferior = carrito.items.length > 0
+    ? altoBarraInferior + (Platform.OS === 'web' ? 0 : tabBarHeight)
+    : 0;
   const { supersActivos, toggleSuper, topeSupers, setSupersYTope, usoPorSuper } = useFiltrosSupers();
 
   // El alto real de la tab bar solo se puede leer desde una pantalla que esté DENTRO del
@@ -154,14 +161,19 @@ export default function PantallaBuscar() {
     tourReportarAltoTabBar(tabBarHeight);
   }, [tabBarHeight]);
 
-  // Auto-inicio del tour, una sola vez por dispositivo — el botón manual (EstadoInicial,
-  // Ajustes) sigue andando igual después de esto.
+  // Auto-inicio del tour, una sola vez por cuenta (antes era por dispositivo) — el botón manual
+  // (EstadoInicial, Ajustes) sigue andando igual después de esto. Espera a que resuelva la
+  // sesión: si dispara con `cargandoSesion` todavía en `true`, siempre lee el storage local en
+  // vez de `perfil_usuario`, y un usuario ya logueado en otro dispositivo vería el tour de nuevo.
   useEffect(() => {
-    tourYaVisto().then(visto => {
+    if (cargandoSesion) return;
+    tourYaVisto(session?.user.id ?? null).then(visto => {
       if (!visto) tour.iniciar();
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al montar
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `tour.iniciar` no es estable
+    // entre renders (depende de `session?.access_token`), pero solo debe correr cuando cambia
+    // el estado de sesión, no en cada render.
+  }, [cargandoSesion, session?.user.id]);
 
   const refBuscador = useTourPaso<TextInput>('buscador-input', consultaDemorada.length >= 3);
   const refCeldaOtros = useTourPaso('selector-otros', mostrarHojaSupers);
@@ -292,7 +304,7 @@ export default function PantallaBuscar() {
       {!consultaValida ? (
         <EstadoInicial
           onAbrirTour={tour.iniciar}
-          conCarritoFlotante={carrito.items.length > 0}
+          reservaInferior={reservaInferior}
         />
       ) : (
         <FlatList
@@ -301,7 +313,7 @@ export default function PantallaBuscar() {
           ListHeaderComponent={encabezadoLista}
           contentContainerStyle={[
             styles.lista,
-            { paddingBottom: carrito.items.length ? 120 : espacio.xl },
+            { paddingBottom: reservaInferior || espacio.xl },
           ]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
@@ -350,6 +362,7 @@ export default function PantallaBuscar() {
         tope={topeSupers}
         onCerrar={() => setMostrarHojaSupers(false)}
         onAplicar={setSupersYTope}
+        bloqueados={tour.activo ? ['vea', 'carr'] : []}
       />
 
       {/* Oculto mientras la hoja está abierta: sin esto queda pintado ARRIBA del scrim (es un
@@ -360,15 +373,18 @@ export default function PantallaBuscar() {
       {carrito.items.length > 0 && !mostrarHojaSupers ? (
         <View
           ref={refVerCarrito}
+          onLayout={e => setAltoBarraInferior(e.nativeEvent.layout.height)}
           style={[
             styles.barraInferior,
             {
               backgroundColor: paleta.superficie,
               borderTopColor: paleta.borde,
-              // Arriba del tab bar (que ya resuelve su propio safe-area), no contra el
-              // borde de la pantalla: si no, tapaba las 4 pestañas de abajo.
-              bottom: tabBarHeight,
-              paddingBottom: espacio.md,
+              // En native, esta vista se posiciona detrás del tab bar (hay que subirla
+              // tabBarHeight para no taparlo). En web, la escena ya excluye el alto del tab
+              // bar (son hermanos, no se superponen) — sumar tabBarHeight ahí duplicaba el
+              // offset y dejaba un hueco vacío de ese mismo alto contra el tab bar real
+              // (medido en vivo: contenedor de la escena terminaba ~49px antes del tab bar).
+              bottom: Platform.OS === 'web' ? 0 : tabBarHeight,
             },
           ]}
         >
@@ -394,10 +410,11 @@ function filasDe<T>(items: T[], porFila: number): T[][] {
  *  usuario entiende qué es esto — nunca se vio antes en la app. */
 function EstadoInicial({
   onAbrirTour,
-  conCarritoFlotante,
+  reservaInferior,
 }: {
   onAbrirTour: () => void;
-  conCarritoFlotante: boolean;
+  /** Alto real de la barra "Ver carrito" (0 si no está flotando) — ver PantallaBuscar. */
+  reservaInferior: number;
 }) {
   const { paleta } = useTema();
 
@@ -405,7 +422,7 @@ function EstadoInicial({
     <ScrollView
       contentContainerStyle={[
         styles.estadoInicial,
-        conCarritoFlotante ? { paddingBottom: 120 } : null,
+        reservaInferior ? { paddingBottom: reservaInferior } : null,
       ]}
       keyboardShouldPersistTaps="handled"
     >

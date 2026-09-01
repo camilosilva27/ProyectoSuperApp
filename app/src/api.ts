@@ -216,6 +216,14 @@ export function buscarProductos(q: string, accessToken: string, opciones: {
   );
 }
 
+/** Productos para precargar el carrito del tour (ver src/tour/precarga.ts). */
+export function productosTour(accessToken: string) {
+  return pedir<{ productos: ProductoCatalogo[] }>(
+    '/api/catalogo/tour-sugeridos',
+    { headers: conSesion(accessToken) }
+  );
+}
+
 export function comparar(
   items: { ean: string; cantidad: number }[],
   tarjetas: string[],

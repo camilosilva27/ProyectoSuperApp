@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#E4E7EA;font-family:Archivo,system-ui,sans-serif}a{color:#1B5FD9}a:hover{color:#14161A}</style>
+</helmet>
+
+<section style="padding:40px 44px 48px;display:flex;flex-direction:column;gap:24px">
+  <div style="display:flex;align-items:baseline;gap:10px">
+    <span style="font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px">0</span>
+    <span style="font:600 13px/1.2 Archivo,sans-serif;color:#14161A">Recreación del estado actual — app/ (expo-router), tema de src/theme.ts</span>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:32px;align-items:flex-start">
+
+    <!-- ============ BUSCAR ============ -->
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <div style="font:400 11px/1.3 Archivo,sans-serif;color:rgba(0,0,0,.55)">app/(tabs)/index.tsx · Buscar</div>
+      <div style="width:390px;height:844px;background:#EEF0F2;border:1px solid #C6CCD3;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;position:relative">
+        <div style="flex:1;overflow:hidden;padding:28px 16px 0;display:flex;flex-direction:column">
+          <div style="display:flex;flex-direction:column;gap:2px;padding-bottom:12px">
+            <div style="font:700 24px/28px Archivo;color:#14161A">Qué vas a comprar</div>
+            <div style="font:400 15px/21px Archivo;color:#565E67">Buscá el producto y tocalo para sumarlo al carrito.</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;background:#FFFFFF;border:1px solid #DFE3E7;border-radius:10px;padding:0 12px;box-shadow:0 2px 10px rgba(11,18,32,.07)">
+            <div style="flex:1;padding:13px 0;font:400 15px/21px Archivo;color:#14161A">coca cola 2.25</div>
+          </div>
+          <div style="font:500 11px/14px Archivo;letter-spacing:.7px;color:#8A929B;padding:12px 0 4px">4 RESULTADOS</div>
+
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 0">
+            <div style="width:44px;height:44px;border-radius:10px;background:#5B7A8C;display:flex;align-items:center;justify-content:center;font:600 17.6px Archivo;color:#fff">C</div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:3px">
+              <div style="font:500 15px/21px Archivo;color:#14161A">Coca Cola Regular 2.25 Lts</div>
+              <div style="font:500 13px/18px Archivo;color:#8A929B">Botella 2.25 L</div>
+              <div style="display:flex;align-items:center;gap:8px;padding-top:2px">
+                <div style="display:flex;gap:4px;align-items:center">
+                  <div style="width:8px;height:8px;border-radius:999px;background:#12874A"></div>
+                  <div style="width:8px;height:8px;border-radius:999px;background:#1B5FD9"></div>
+                  <div style="width:8px;height:8px;border-radius:999px;background:#7A3FB8"></div>
+                  <div style="width:8px;height:8px;border-radius:999px;background:#FFFFFF;border:1px solid #C6CCD3;box-sizing:border-box"></div>
+                  <div style="width:8px;height:8px;border-radius:999px;background:#D6293E"></div>
+                </div>
+                <div style="font:500 11px/14px Archivo;letter-spacing:.7px;color:#8A929B">GASEOSAS</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;border:1px solid #DFE3E7;background:#FFFFFF;border-radius:999px;padding:0 2px">
+              <div style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;font:600 17px/22px Archivo;color:#565E67">−</div>
+              <div style="min-width:22px;text-align:center;font:600 17px/19px 'Barlow Condensed';color:#14161A">2</div>
+              <div style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;font:600 17px/22px Archivo;color:#565E67">+</div>
+            </div>
+          </div>
+          <div style="height:1px;background:#DFE3E7"></div>
+
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 0">
+            <div style="width:44px;height:44px;border-radius:10px;background:#6B7280;display:flex;align-items:center;justify-content:center;font:600 17.6px Archivo;color:#fff">C</div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:3px">
+              <div style="font:500 15px/21px Archivo;color:#14161A">Coca Cola Sin Azúcar 2.25 Lts</div>
+              <div style="font:500 13px/18px Archivo;color:#8A929B">Botella 2.25 L</div>
+              <div style="display:flex;align-items:center;gap:8px;padding-top:2px">
+                <div style="display:flex;gap:4px;align-items:center">
+                  <div style="width:8px;height:8px;border-radius:999px;background:#12874A"></div>
+                  <div style="width:8px;height:8px;border-radius:999px;background:#1B5FD9"></div>
+                  <div style="width:8px;height:8px;border-radius:999px;border:1px solid #DFE3E7;box-sizing:border-box"></div>
+                  <div style="width:8px;height:8px;border-radius:999px;background:#FFFFFF;border:1px solid #C6CCD3;box-sizing:border-box"></div>
+                  <div style="width:8px;height:8px;border-radius:999px;border:1px solid #DFE3E7;box-sizing:border-box"></div>
+                </div>
+                <div style="font:500 11px/14px Archivo;letter-spacing:.7px;color:#8A929B">GASEOSAS</div>
+              </div>
+            </div>
+            <div style="width:34px;height:34px;border-radius:999px;border:1px solid #C6CCD3;display:flex;align-items:center;justify-content:center;font:600 17px/22px Archivo;color:#14161A">+</div>
+          </div>
+          <div style="height:1px;background:#DFE3E7"></div>
+
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 0">
+            <div style="width:44px;height:44px;border-radius:10px;background:#7A6A8C;display:flex;align-items:center;justify-content:center;font:600 17.6px Archivo;color:#fff">C</div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:3px">
+              <div style="font:500 15px/21px Archivo;color:#14161A">Coca Cola Light 2.25 Lts</div>
+              <div style="display:flex;align-items:center;gap:8px;padding-top:2px">
+                <div style="display:flex;gap:4px;align-items:center">
+                  <div style="width:8px;height:8px;border-radius:999px;border:1px solid #DFE3E7;box-sizing:border-box"></div>
+                  <div style="width:8px;height:8px;border-radius:999px;background:#1B5FD9"></div>
+                  <div style="width:8px;height:8px;border-radius:999px;background:#7A3FB8"></div>
+                  <div style="width:8px;height:8px;border-radius:999px;border:1px solid #DFE3E7;box-sizing:border-box"></div>
+                  <div style="width:8px;height:8px;border-radius:999px;background:#D6293E"></div>
+                </div>
+                <div style="font:500 11px/14px Archivo;letter-spacing:.7px;color:#8A929B">GASEOSAS</div>
+              </div>
+            </div>
+            <div style="width:34px;height:34px;border-radius:999px;border:1px solid #C6CCD3;display:flex;align-items:center;justify-content:center;font:600 17px/22px Archivo;color:#14161A">+</div>
+          </div>
+          <div style="height:1px;background:#DFE3E7"></div>
+
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 0">
+            <div style="width:44px;height:44px;border-radius:10px;background:#6B8C7A;display:flex;align-items:center;justify-content:center;font:600 17.6px Archivo;color:#fff">C</div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:3px">
+              <div style="font:500 15px/21px Archivo;color:#14161A">Coca Cola Regular 2.25 Lts Pack X2</div>
+              <div style="font:500 13px/18px Archivo;color:#8A929B">Pack 2 unidades</div>
+              <div style="display:flex;align-items:center;gap:8px;padding-top:2px">
+                <div style="display:flex;gap:4px;align-items:center">
+                  <div style="width:8px;height:8px;border-radius:999px;background:#12874A"></div>
+                  <div style="width:8px;height:8px;border-radius:999px;border:1px solid #DFE3E7;box-sizing:border-box"></div>
+                  <div style="width:8px;height:8px;border-radius:999px;border:1px solid #DFE3E7;box-sizing:border-box"></div>
+                  <div style="width:8px;height:8px;border-radius:999px;border:1px solid #DFE3E7;box-sizing:border-box"></div>
+                  <div style="width:8px;height:8px;border-radius:999px;background:#D6293E"></div>
+                </div>
+                <div style="font:500 11px/14px Archivo;letter-spacing:.7px;color:#8A929B">GASEOSAS</div>
+              </div>
+            </div>
+            <div style="width:34px;height:34px;border-radius:999px;border:1px solid #C6CCD3;display:flex;align-items:center;justify-content:center;font:600 17px/22px Archivo;color:#14161A">+</div>
+          </div>
+        </div>
+
+        <div style="background:#FFFFFF;border-top:1px solid #DFE3E7;padding:12px 16px">
+          <div style="background:#14161A;border:1px solid #14161A;border-radius:10px;min-height:52px;padding:14px 0;display:flex;flex-direction:column;align-items:center;gap:2px">
+            <div style="font:600 17px/22px Archivo;color:#FFFFFF">Ver carrito</div>
+            <div style="font:500 11px/14px Archivo;letter-spacing:.7px;color:#FFFFFF;opacity:.75">5 productos · 11 unidades</div>
+          </div>
+        </div>
+        <div style="background:#FFFFFF;border-top:1px solid #DFE3E7;display:flex;padding:6px 0 20px">
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+            <div style="width:24px;height:24px;position:relative;display:flex;align-items:center;justify-content:center">
+              <div style="width:14px;height:14px;border-radius:999px;border:2px solid #14161A;box-sizing:border-box"></div>
+              <div style="position:absolute;width:2px;height:7px;border-radius:2px;background:#14161A;right:4px;bottom:3px;transform:rotate(-45deg)"></div>
+            </div>
+            <div style="font:500 11px/14px Archivo;letter-spacing:.7px;color:#14161A">Buscar</div>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+            <div style="width:24px;height:24px;position:relative;display:flex;align-items:center;justify-content:center">
+              <div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start">
+                <div style="height:2px;width:16px;border-radius:1px;background:#8A929B"></div>
+                <div style="height:2px;width:16px;border-radius:1px;background:#8A929B"></div>
+                <div style="height:2px;width:10px;border-radius:1px;background:#8A929B"></div>
+              </div>
+              <div style="position:absolute;top:-4px;right:-6px;min-width:16px;height:16px;border-radius:999px;background:#FFD400;display:flex;align-items:center;justify-content:center;padding:0 3px;font:500 9px/14px Archivo;color:#14161A">11</div>
+            </div>
+            <div style="font:500 11px/14px Archivo;letter-spacing:.7px;color:#8A929B">Carrito</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ CARRITO ============ -->
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <div style="font:400 11px/1.3 Archivo,sans-serif;color:rgba(0,0,0,.55)">app/(tabs)/carrito.tsx · Carrito</div>
+      <div style="width:390px;height:844px;background:#EEF0F2;border:1px solid #C6CCD3;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;position:relative">
+        <div style="flex:1;overflow:hidden;padding:28px 16px 0;display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;flex-direction:column;gap:2px;padding-bottom:12px">
+            <div style="font:700 24px/28px Archivo;color:#14161A">Carrito</div>
+            <div style="font:400 15px/21px Archivo;color:#565E67">5 productos · 11 unidades</div>
+          </div>
+
+          <div style="background:#FFFFFF;border:1px solid #DFE3E7;border-radius:14px;padding:0 12px;box-shadow:0 2px 10px rgba(11,18,32,.07)">
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 0">
+              <div style="width:40px;height:40px;border-radius:10px;background:#5B7A8C;display:flex;align-items:center;justify-content:center;font:600 16px Archivo;color:#fff">C</div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:3px">
+                <div style="font:500 15px/21px Archivo;color:#14161A">Coca Cola Regular 2.25 Lts</div>
+                <div style="font:400 12px/16px 'IBM Plex Mono';color:#8A929B">7790895000122</div>
+              </div>
+              <div style="display:flex;align-items:center;border:1px solid #DFE3E7;background:#FFFFFF;border-radius:999px;padding:0 2px">
+                <div style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;font:600 17px/22px Archivo;color:#565E67">−</div>
+                <div style="min-width:22px;text-align:center;font:600 17px/19px 'Barlow Condensed';color:#14161A">2</div>
+                <div style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;font:600 17px/22px Archivo;color:#565E67">+</div>
+              </div>
+            </div>
+            <div style="height:1px;background:#DFE3E7"></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 0">
+              <div style="width:40px;height:40px;border-radius:10px;background:#7C6F64;display:flex;align-items:center;justify-content:center;font:600 16px Archivo;color:#fff">F</div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:3px">
+                <div style="font:500 15px/21px Archivo;color:#14161A">Fideos Matarazzo Spaghetti 500 Gr</div>
+                <div style="font:400 12px/16px 'IBM Plex Mono';color:#8A929B">7790580123456</div>
+              </div>
+              <div style="display:flex;align-items:center;border:1px solid #DFE3E7;background:#FFFFFF;border-radius:999px;padding:0 2px">
+                <div style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;font:600 17px/22px Archivo;color:#565E67">−</div>
+                <div style="min-width:22px;text-align:center;font:600 17px/19px 'Barlow Condensed';color:#14161A">4</div>
+                <div style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;font:600 17px/22px Archivo;color:#565E67">+</div>
+              </div>
+            </div>
+            <div style="height:1px;background:#DFE3E7"></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 0">
+              <div style="width:40px;height:40px;border-radius:10px;background:#6B8C7A;display:flex;align-items:center;justify-content:center;font:600 16px Archivo;color:#fff">Y</div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:3px">
+                <div style="font:500 15px/21px Archivo;color:#14161A">Yerba Mate Playadito 1 Kg</div>
+                <div style="font:400 12px/16px 'IBM Plex Mono';color:#8A929B">7792100002233</div>
+              </div>
+              <div style="display:flex;align-items:center;border:1px solid #DFE3E7;background:#FFFFFF;border-radius:999px;padding:0 2px">
+                <div style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;font:600 17px/22px Archivo;color:#565E67">−</div>
+                <div style="min-width:22px;text-align:center;font:600 17px/19px 'Barlow Condensed';color:#14161A">1</div>
+                <div style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;font:600 17px/22px Archivo;color:#565E67">+</div>
+              </div>
+            </div>
+            <div style="height:1px;background:#DFE3E7"></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 0">
+              <div style="width:40px;height:40px;border-radius:10px;background:#8C6B6B;display:flex;align-items:center;justify-content:center;font:600 16px Archivo;color:#fff">O</div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:3px">
+                <div style="font:500 15px/21px Archivo;color:#14161A">Oreo Galletitas 3 Pack 354 Gr</div>
+                <div style="font:400 12px/16px 'IBM Plex Mono';color:#8A929B">7622300741234</div>
+              </div>
+              <div style="display:flex;align-items:center;border:1px solid #DFE3E7;background:#FFFFFF;border-radius:999px;padding:0 2px">
+                <div style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;font:600 17px/22px Archivo;color:#565E67">−</div>
+                <div style="min-width:22px;text-align:center;font:600 17px/19px 'Barlow Condensed';color:#14161A">3</div>
+                <div style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;font:600 17px/22px Archivo;color:#565E67">+</div>
+              </div>
+            </div>
+            <div style="height:1px;background:#DFE3E7"></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 0">
+              <div style="width:40px;height:40px;border-radius:10px;background:#6B7280;display:flex;align-items:center;justify-content:center;font:600 16px Archivo;color:#fff">S</div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:3px">
+                <div style="font:500 15px/21px Archivo;color:#14161A">Sensodyne Pasta Dental 90 Gr</div>
+                <div style="font:400 12px/16px 'IBM Plex Mono';color:#8A929B">7795001112345</div>
+              </div>
+              <div style="display:flex;align-items:center;border:1px solid #DFE3E7;background:#FFFFFF;border-radius:999px;padding:0 2px">
+                <div style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;font:600 17px/22px Archivo;color:#565E67">−</div>
+                <div style="min-width:22px;text-align:center;font:600 17px/19px 'Barlow Condensed';color:#14161A">1</div>
+                <div style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;font:600 17px/22px Archivo;color:#565E67">+</div>
+              </div>
+            </div>
+          </div>
+
+          <div style="background:#FFFFFF;border:1px solid #DFE3E7;border-radius:14px;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 2px 10px rgba(11,18,32,.07)">
+            <div style="flex:1;display:flex;flex-direction:column;gap:3px;min-width:0">
+              <div style="font:500 15px/21px Archivo;color:#14161A">Tus tarjetas (opcional)</div>
+              <div style="font:500 13px/18px Archivo;color:#565E67;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Vas a ver todas las promos igual; elegí acá las que usás siempre</div>
+            </div>
+            <div style="font:600 17px/22px Archivo;color:#8A929B">›</div>
+          </div>
+
+          <div style="align-self:center;padding:12px 0;font:500 13px/18px Archivo;color:#8A929B;text-decoration:underline">Vaciar carrito</div>
+        </div>
+
+        <div style="background:#FFFFFF;border-top:1px solid #DFE3E7;padding:12px 16px">
+          <div style="background:#14161A;border:1px solid #14161A;border-radius:10px;min-height:52px;padding:14px 0;display:flex;flex-direction:column;align-items:center;gap:2px">
+            <div style="font:600 17px/22px Archivo;color:#FFFFFF">Comparar precios</div>
+            <div style="font:500 11px/14px Archivo;letter-spacing:.7px;color:#FFFFFF;opacity:.75">Precios en vivo de los 5 supermercados</div>
+          </div>
+        </div>
+        <div style="background:#FFFFFF;border-top:1px solid #DFE3E7;display:flex;padding:6px 0 20px">
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+            <div style="width:24px;height:24px;position:relative;display:flex;align-items:center;justify-content:center">
+              <div style="width:14px;height:14px;border-radius:999px;border:2px solid #8A929B;box-sizing:border-box"></div>
+              <div style="position:absolute;width:2px;height:7px;border-radius:2px;background:#8A929B;right:4px;bottom:3px;transform:rotate(-45deg)"></div>
+            </div>
+            <div style="font:500 11px/14px Archivo;letter-spacing:.7px;color:#8A929B">Buscar</div>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+            <div style="width:24px;height:24px;position:relative;display:flex;align-items:center;justify-content:center">
+              <div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start">
+                <div style="height:2px;width:16px;border-radius:1px;background:#14161A"></div>
+                <div style="height:2px;width:16px;border-radius:1px;background:#14161A"></div>
+                <div style="height:2px;width:10px;border-radius:1px;background:#14161A"></div>
+              </div>
+              <div style="position:absolute;top:-4px;right:-6px;min-width:16px;height:16px;border-radius:999px;background:#FFD400;display:flex;align-items:center;justify-content:center;padding:0 3px;font:500 9px/14px Archivo;color:#14161A">11</div>
+            </div>
+            <div style="font:500 11px/14px Archivo;letter-spacing:.7px;color:#14161A">Carrito</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ RESULTADO ============ -->
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <div style="font:400 11px/1.3 Archivo,sans-serif;color:rgba(0,0,0,.55)">app/resultado.tsx · Dónde comprar</div>
+      <div style="width:390px;height:1440px;background:#EEF0F2;border:1px solid #C6CCD3;border-radius:14px;overflow:hidden;display:flex;flex-direction:column">
+        <div style="background:#EEF0F2;padding:28px 16px 8px;display:flex;align-items:center;gap:10px">
+          <div style="font:400 20px Archivo;color:#14161A">‹</div>
+          <div style="font:600 17px/22px Archivo;color:#14161A">Dónde comprar</div>
+        </div>
+
+        <div style="flex:1;overflow:hidden;padding:16px;display:flex;flex-direction:column;gap:16px">
+          <div style="background:#FFFFFF;border:1px solid #DFE3E7;border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:8px;box-shadow:0 2px 10px rgba(11,18,32,.07)">
+            <div style="font:500 11px/14px Archivo;letter-spacing:.7px;color:#8A929B">REPARTIENDO LA COMPRA</div>
+            <div style="font:700 40px/42px 'Barlow Condensed';color:#14161A">$132.686,49</div>
+            <div style="background:#FFF6C9;border:1px solid #FFD400;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:2px">
+              <div style="font:500 15px/21px Archivo;color:#14161A">Ahorrás $6.864,30</div>
+              <div style="font:500 13px/18px Archivo;color:#565E67">contra comprar todo en Vea ($139.550,79)</div>
+            </div>
+            <div style="border-top:1px solid #DFE3E7;padding-top:12px;display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <div style="display:flex;align-items:center;gap:6px">
+                  <div style="width:9px;height:9px;border-radius:999px;background:#12874A"></div>
+                  <div style="font:500 13px/18px Archivo;color:#565E67">Todo en Vea</div>
+                </div>
+                <div style="font:600 17px/19px 'Barlow Condensed';color:#565E67">+$6.864,30</div>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <div style="display:flex;align-items:center;gap:6px">
+                  <div style="width:9px;height:9px;border-radius:999px;background:#D6293E"></div>
+                  <div style="font:500 13px/18px Archivo;color:#565E67">Todo en Coto</div>
+                </div>
+                <div style="font:600 17px/19px 'Barlow Condensed';color:#565E67">+$13.902,10</div>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <div style="display:flex;align-items:center;gap:6px">
+                  <div style="width:9px;height:9px;border-radius:999px;background:#7A3FB8"></div>
+                  <div style="font:500 13px/18px Archivo;color:#565E67">Todo en Chango Más</div>
+                </div>
+                <div style="font:600 17px/19px 'Barlow Condensed';color:#565E67">+$18.514,00</div>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <div style="display:flex;align-items:center;gap:6px">
+                  <div style="width:9px;height:9px;border-radius:999px;background:#1B5FD9"></div>
+                  <div style="font:500 13px/18px Archivo;color:#565E67">Todo en Carrefour</div>
+                </div>
+                <div style="font:600 17px/19px 'Barlow Condensed';color:#565E67">+$21.351,37</div>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <div style="display:flex;align-items:center;gap:6px">
+                  <div style="width:9px;height:9px;border-radius:999px;background:#FFFFFF;border:1px solid #C6CCD3;box-sizing:border-box"></div>
+                  <div style="font:500 13px/18px Archivo;color:#565E67">Todo en Día</div>
+                </div>
+                <div style="font:600 17px/19px 'Barlow Condensed';color:#565E67">+$24.008,55</div>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="font:500 11px/14px Archivo;letter-spacing:.7px;color:#8A929B">PLAN DE COMPRA</div>
+            <div style="display:flex;background:#FFFFFF;border:1px solid #DFE3E7;border-radius:14px;overflow:hidden;box-shadow:0 2px 10px rgba(11,18,32,.07)">
+              <div style="width:4px;background:#12874A"></div>
+              <div style="flex:1;padding:12px;display:flex;flex-direction:column;gap:4px">
+                <div style="display:flex;align-items:baseline;justify-content:space-between">
+                  <div style="font:600 17px/22px Archivo;color:#14161A">Vea</div>
+                  <div style="font:700 22px/24px 'Barlow Condensed';color:#14161A">$48.310,20</div>
+                </div>
+                <div style="font:500 11px/14px Archivo;letter-spacing:.7px;color:#9A5B08">REQUIERE COMPRAR ONLINE</div>
+                <div style="font:400 15px/21px Archivo;color:#565E67">coca cola 2.25 · yerba playadito 1kg</div>
+              </div>
+            </div>
+            <div style="display:flex;background:#FFFFFF;border:1px solid #DFE3E7;border-radius:14px;overflow:hidden;box-shadow:0 2px 10px rgba(11,18,32,.07)">
+              <div style="width:4px;background:#1B5FD9"></div>
+              <div style="flex:1;padding:12px;display:flex;flex-direction:column;gap:4px">
+                <div style="display:flex;align-items:baseline;justify-content:space-between">
+                  <div style="font:600 17px/22px Archivo;color:#14161A">Carrefour</div>
+                  <div style="font:700 22px/24px 'Barlow Condensed';color:#14161A">$61.129,84</div>
+                </div>
+                <div style="font:400 15px/21px Archivo;color:#565E67">fideos matarazzo · oreo galletitas 3 · sensodyne</div>
+              </div>
+            </div>
+            <div style="display:flex;background:#FFFFFF;border:1px solid #DFE3E7;border-radius:14px;overflow:hidden;box-shadow:0 2px 10px rgba(11,18,32,.07)">
+              <div style="width:4px;background:#D6293E"></div>
+              <div style="flex:1;padding:12px;display:flex;flex-direction:column;gap:4px">
+                <div style="display:flex;align-items:baseline;justify-content:space-between">
+                  <div style="font:600 17px/22px Archivo;color:#14161A">Coto</div>
+                  <div style="font:700 22px/24px 'Barlow Condensed';color:#14161A">$23.246,45</div>
+                </div>
+                <div style="font:400 15px/21px Archivo;color:#565E67">aquarius 2.25</div>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="font:500 11px/14px Archivo;letter-spacing:.7px;color:#8A929B">PRODUCTO POR PRODUCTO</div>
+
+            <div style="background:#FFFFFF;border:1px solid #DFE3E7;border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:12px;box-shadow:0 2px 10px rgba(11,18,32,.07)">
+              <div style="display:flex;align-items:flex-start;gap:8px">
+                <div style="width:36px;height:36px;border-radius:10px;background:#5B7A8C;display:flex;align-items:center;justify-content:center;font:600 14.4px Archivo;color:#fff">C</div>
+                <div style="flex:1;font:500 15px/21px Archivo;color:#14161A">Coca Cola Regular 2.25 Lts</div>
+                <div style="font:500 13px/18px Archivo;color:#8A929B">×2</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:12px">
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
+                    <div style="display:flex;align-items:center;gap:6px">
+                      <div style="width:9px;height:9px;border-radius:999px;background:#12874A"></div>
+                      <div style="font:500 13px/18px Archivo;color:#14161A">Vea</div>
+                      <div style="padding:1px 5px;border:1px solid #DFE3E7;border-radius:6px;font:500 9px/14px Archivo;letter-spacing:.7px;color:#8A929B">ONLINE</div>
+                    </div>
+                    <div style="font:700 22px/24px 'Barlow Condensed';color:#14161A">$11.294,00</div>
+                  </div>
+                  <div style="min-height:18px;display:flex;align-items:center">
+                    <div style="background:#FFD400;border-radius:6px;padding:3px 7px;font:500 11px/14px Archivo;letter-spacing:.7px;color:#14161A">MÁS BARATO</div>
+                  </div>
+                  <div style="font:400 12px/16px 'IBM Plex Mono';color:#8A929B">3x2 GALLETAS | Ofertas Trafico · necesitás 3</div>
+                </div>
+
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
+                    <div style="display:flex;align-items:center;gap:6px">
+                      <div style="width:9px;height:9px;border-radius:999px;background:#7A3FB8"></div>
+                      <div style="font:500 13px/18px Archivo;color:#14161A">Chango Más</div>
+                    </div>
+                    <div style="font:700 22px/24px 'Barlow Condensed';color:#565E67">$11.298,00</div>
+                  </div>
+                  <div style="min-height:18px;display:flex;align-items:center;gap:8px">
+                    <div style="flex:1;height:6px;border-radius:999px;background:#F6F7F9;overflow:hidden">
+                      <div style="width:4%;height:6px;border-radius:999px;background:#8A929B"></div>
+                    </div>
+                    <div style="font:400 12px/16px 'IBM Plex Mono';color:#8A929B">+$4,00</div>
+                  </div>
+                </div>
+
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
+                    <div style="display:flex;align-items:center;gap:6px">
+                      <div style="width:9px;height:9px;border-radius:999px;background:#1B5FD9"></div>
+                      <div style="font:500 13px/18px Archivo;color:#14161A">Carrefour</div>
+                    </div>
+                    <div style="font:700 22px/24px 'Barlow Condensed';color:#565E67">$11.300,00</div>
+                  </div>
+                  <div style="min-height:18px;display:flex;align-items:center;gap:8px">
+                    <div style="flex:1;height:6px;border-radius:999px;background:#F6F7F9;overflow:hidden">
+                      <div style="width:4%;height:6px;border-radius:999px;background:#8A929B"></div>
+                    </div>
+                    <div style="font:400 12px/16px 'IBM Plex Mono';color:#8A929B">+$6,00</div>
+                  </div>
+                  <div style="background:#FFF6C9;border:1px solid #FFD400;border-radius:6px;padding:8px;display:flex;align-items:center;gap:8px">
+                    <div style="flex:1;display:flex;flex-direction:column;gap:1px;min-width:0">
+                      <div style="font:500 13px/18px Archivo;color:#14161A">Con Mi Carrefour: $8.475,00</div>
+                      <div style="font:400 12px/16px 'IBM Plex Mono';color:#565E67;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">25% con Tarjeta Mi Carrefour · tocá para activarla</div>
+                    </div>
+                    <div style="font:600 17px/22px Archivo;color:#14161A">›</div>
+                  </div>
+                </div>
+              </div>
+
+              <div style="background:#FFF6C9;border:1px solid #FFD400;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px">
+                <div style="font:500 13px/18px Archivo;color:#14161A">Con 2 unidades no se activa una promo</div>
+                <div style="display:flex;align-items:center;gap:8px;border-top:1px solid #FFD400;padding-top:8px">
+                  <div style="flex:1;display:flex;flex-direction:column">
+                    <div style="font:500 15px/21px Archivo;color:#14161A">Llevá 3: $11.638,00 en Vea</div>
+                    <div style="font:400 12px/16px 'IBM Plex Mono';color:#565E67">3x2 GALLETAS | Ofertas Trafico</div>
+                  </div>
+                  <div style="font:600 17px/22px Archivo;color:#14161A">›</div>
+                </div>
+              </div>
+            </div>
+
+            <div style="background:#FFFFFF;border:1px solid #DFE3E7;border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:12px;box-shadow:0 2px 10px rgba(11,18,32,.07)">
+              <div style="display:flex;align-items:flex-start;gap:8px">
+                <div style="width:36px;height:36px;border-radius:10px;background:#7C6F64;display:flex;align-items:center;justify-content:center;font:600 14.4px Archivo;color:#fff">F</div>
+                <div style="flex:1;font:500 15px/21px Archivo;color:#14161A">Fideos Matarazzo Spaghetti 500 Gr</div>
+                <div style="font:500 13px/18px Archivo;color:#8A929B">×4</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:12px">
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
+                    <div style="display:flex;align-items:center;gap:6px">
+                      <div style="width:9px;height:9px;border-radius:999px;background:#1B5FD9"></div>
+                      <div style="font:500 13px/18px Archivo;color:#14161A">Carrefour</div>
+                    </div>
+                    <div style="font:700 22px/24px 'Barlow Condensed';color:#14161A">$5.439,99</div>
+                  </div>
+                  <div style="min-height:18px;display:flex;align-items:center">
+                    <div style="background:#FFD400;border-radius:6px;padding:3px 7px;font:500 11px/14px Archivo;letter-spacing:.7px;color:#14161A">MÁS BARATO</div>
+                  </div>
+                  <div style="font:400 12px/16px 'IBM Plex Mono';color:#8A929B">25% de descuento</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
+                    <div style="display:flex;align-items:center;gap:6px">
+                      <div style="width:9px;height:9px;border-radius:999px;background:#12874A"></div>
+                      <div style="font:500 13px/18px Archivo;color:#14161A">Vea</div>
+                    </div>
+                    <div style="font:700 22px/24px 'Barlow Condensed';color:#565E67">$7.636,00</div>
+                  </div>
+                  <div style="min-height:18px;display:flex;align-items:center;gap:8px">
+                    <div style="flex:1;height:6px;border-radius:999px;background:#F6F7F9;overflow:hidden">
+                      <div style="width:40%;height:6px;border-radius:999px;background:#8A929B"></div>
+                    </div>
+                    <div style="font:400 12px/16px 'IBM Plex Mono';color:#8A929B">+$2.196,01</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="text-align:center;font:400 12px/16px 'IBM Plex Mono';color:#8A929B">Precios consultados 12/8/2026, 10:34:02</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+</x-dc>
+</body>
+</html>

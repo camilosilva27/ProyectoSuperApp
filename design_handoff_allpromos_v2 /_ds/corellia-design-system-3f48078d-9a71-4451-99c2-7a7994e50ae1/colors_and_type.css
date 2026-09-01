@@ -1,0 +1,249 @@
+/* =========================================================
+   Corellia Design System — Colors & Typography
+   Derived from sovanta Corellia / Innovation Factory (SAP-based)
+   ========================================================= */
+
+/* ----- Fonts ----- */
+@font-face { font-family: "72"; font-weight: 300; font-style: normal;
+  src: url("./fonts/72-Light.ttf") format("truetype"); font-display: swap; }
+@font-face { font-family: "72"; font-weight: 400; font-style: normal;
+  src: url("./fonts/72-Regular.ttf") format("truetype"); font-display: swap; }
+@font-face { font-family: "72"; font-weight: 400; font-style: italic;
+  src: url("./fonts/72-Italic.ttf") format("truetype"); font-display: swap; }
+@font-face { font-family: "72"; font-weight: 600; font-style: normal;
+  src: url("./fonts/72-Semibold.ttf") format("truetype"); font-display: swap; }
+@font-face { font-family: "72"; font-weight: 700; font-style: normal;
+  src: url("./fonts/72-Bold.ttf") format("truetype"); font-display: swap; }
+@font-face { font-family: "72"; font-weight: 700; font-style: italic;
+  src: url("./fonts/72-BoldItalic.ttf") format("truetype"); font-display: swap; }
+@font-face { font-family: "72"; font-weight: 900; font-style: normal;
+  src: url("./fonts/72-Black.ttf") format("truetype"); font-display: swap; }
+@font-face { font-family: "72 Condensed"; font-weight: 400;
+  src: url("./fonts/72-Condensed.ttf") format("truetype"); font-display: swap; }
+@font-face { font-family: "72 Condensed"; font-weight: 700;
+  src: url("./fonts/72-CondensedBold.ttf") format("truetype"); font-display: swap; }
+
+/* SAP icon font — used via class="sapi" + content from SAP-icons map */
+@font-face {
+  font-family: "SAP-icons";
+  src: url("./fonts/SAP-icons.woff2") format("woff2"),
+       url("./fonts/SAP-icons.woff") format("woff"),
+       url("./fonts/SAP-icons.ttf") format("truetype");
+  font-weight: normal; font-style: normal; font-display: swap;
+}
+.sapi { font-family: "SAP-icons"; font-style: normal; font-weight: normal;
+  -webkit-font-smoothing: antialiased; line-height: 1; speak: none;
+  text-transform: none; display: inline-block; vertical-align: middle; }
+
+:root {
+  /* ====== Base palette — from /Colors-Modes/Colors/index.jsx ======
+     The Corellia scale goes -10 (lightest) → -100 (brand) → -130 (darkest).
+     10-step swatches are included for each major hue. */
+
+  /* Neutrals */
+  --white: #FFFFFF;
+  --black: #000000;
+
+  /* Anchor Grey (primary text + dark UI chrome) */
+  --anchor-grey-10: #EBEDEE; --anchor-grey-20: #D8DADC; --anchor-grey-30: #C4C8CB;
+  --anchor-grey-40: #B1B6B9; --anchor-grey-50: #9DA3A8; --anchor-grey-60: #899197;
+  --anchor-grey-70: #767F85; --anchor-grey-80: #626D74; --anchor-grey-90: #4F5A62;
+  --anchor-grey-100: #3B4851; --anchor-grey-110: #2F3A41; --anchor-grey-130: #232B31;
+
+  /* Silver Grey (neutral surfaces / dividers) */
+  --silver-grey-10: #F9F9F9; --silver-grey-20: #F3F3F3; --silver-grey-30: #EDEDED;
+  --silver-grey-40: #E7E7E7; --silver-grey-50: #E1E1E1; --silver-grey-60: #DCDCDC;
+  --silver-grey-70: #D6D6D6; --silver-grey-80: #D0D0D0; --silver-grey-90: #CACACA;
+  --silver-grey-100: #C4C4C4; --silver-grey-110: #9D9D9D; --silver-grey-130: #767676;
+
+  /* Light Steel Blue (application bg / monitoring) */
+  --steel-10: #F7F9FA; --steel-20: #F0F3F6; --steel-30: #E8EDF1;
+  --steel-40: #E0E7ED; --steel-50: #D8E1E8; --steel-60: #D1DCE3;
+  --steel-70: #C9D6DF; --steel-80: #C1D0DA; --steel-90: #BACAD6;
+  --steel-100: #B2C4D1; --steel-110: #98A9B6; --steel-130: #7E8D99;
+
+  /* Azure Blue (primary action / active / info) */
+  --azure-10: #E5F1FE; --azure-20: #CCE2FC; --azure-30: #B2D4FB;
+  --azure-40: #99C6FA; --azure-50: #80B7F8; --azure-60: #66A9F7;
+  --azure-70: #4D9BF6; --azure-80: #338DF5; --azure-90: #1A7EF3;
+  --azure-100: #0070F2; --azure-110: #005AC1; --azure-130: #004391;
+
+  /* sovanta Green (success / production) */
+  --sovanta-green-10: #EBF7EB; --sovanta-green-20: #D8EED7; --sovanta-green-30: #C4E5C2;
+  --sovanta-green-40: #B0DDAE; --sovanta-green-50: #9CD49A; --sovanta-green-60: #89CC86;
+  --sovanta-green-70: #75C372; --sovanta-green-80: #61BB5D; --sovanta-green-90: #4EB249;
+  --sovanta-green-100: #3AAA35; --sovanta-green-110: #2E882A; --sovanta-green-130: #236620;
+
+  /* Turquoise Blue (design / accent) */
+  --turquoise-10: #EAF4F3; --turquoise-20: #D5E9E7; --turquoise-30: #C0DEDB;
+  --turquoise-40: #ABD3CF; --turquoise-50: #96C8C3; --turquoise-60: #81BDB7;
+  --turquoise-70: #6CB2AB; --turquoise-80: #57A79F; --turquoise-90: #429C93;
+  --turquoise-100: #2D9187; --turquoise-110: #24746C; --turquoise-130: #1B5751;
+
+  /* Bayou Blue (engineering) */
+  --bayou-10: #EEF2F2; --bayou-20: #DEE4E5; --bayou-30: #CDD7D9;
+  --bayou-40: #BCCACC; --bayou-50: #ABBDBF; --bayou-60: #9BB0B2;
+  --bayou-70: #8AA3A5; --bayou-80: #799599; --bayou-90: #69888C;
+  --bayou-100: #587B7F; --bayou-110: #466266; --bayou-130: #354A4C;
+
+  /* Deep Purple */
+  --deep-purple-10: #EBEAF4; --deep-purple-20: #D7D5E9; --deep-purple-30: #C3C0DE;
+  --deep-purple-40: #AFABD3; --deep-purple-50: #9B96C8; --deep-purple-60: #8781BD;
+  --deep-purple-70: #736CB2; --deep-purple-80: #5F57A7; --deep-purple-90: #4B429C;
+  --deep-purple-100: #372D91; --deep-purple-110: #2C2474; --deep-purple-130: #211B57;
+
+  /* Apple Red (error / negative) */
+  --apple-red-10: #F6E6E6; --apple-red-20: #EECECE; --apple-red-30: #E5B5B5;
+  --apple-red-40: #DD9C9C; --apple-red-50: #D48383; --apple-red-60: #CC6B6B;
+  --apple-red-70: #C45252; --apple-red-80: #BB3939; --apple-red-90: #B22121;
+  --apple-red-100: #AA0808; --apple-red-110: #880606; --apple-red-130: #660505;
+
+  /* Pumpkin Orange (warning / parts) */
+  --pumpkin-10: #FCF3E5; --pumpkin-20: #F9E7CC; --pumpkin-30: #F6DBB2;
+  --pumpkin-40: #F3CF99; --pumpkin-50: #F0C380; --pumpkin-60: #EDB766;
+  --pumpkin-70: #EAAB4D; --pumpkin-80: #E79F33; --pumpkin-90: #E4931A;
+  --pumpkin-100: #E18700; --pumpkin-110: #B46C00; --pumpkin-130: #875100;
+
+  /* Golden Yellow (design area) */
+  --golden-10: #FBF8F0; --golden-20: #F8F1E0; --golden-30: #F4EBD1;
+  --golden-40: #F0E4C1; --golden-50: #ECDDB2; --golden-60: #E9D6A2;
+  --golden-70: #E5CF93; --golden-80: #E1C984; --golden-90: #DEC274;
+  --golden-100: #DABB65; --golden-110: #AE9651; --golden-130: #83703D;
+
+  /* Orchid Pink */
+  --orchid-10: #FDF8F9; --orchid-20: #FCF1F2; --orchid-30: #FAEAEC;
+  --orchid-40: #F8E3E6; --orchid-50: #F7DCDF; --orchid-60: #F5D5D9;
+  --orchid-70: #F3CED3; --orchid-80: #F1C7CD; --orchid-90: #F0C0C6;
+  --orchid-100: #EEB9C0; --orchid-110: #D89EA5; --orchid-130: #BF868D;
+
+  /* Additional — Lavender Purple */
+  --lavender-10: #F5F0FA; --lavender-20: #EBE2F6; --lavender-30: #E1D3F1;
+  --lavender-50: #CDB6E7; --lavender-80: #AF8AD9; --lavender-100: #9B6DD0;
+
+  /* Additional — Ocean Blue */
+  --ocean-10: #E5F8FE; --ocean-20: #CCF1FC; --ocean-30: #B2EAFB;
+  --ocean-50: #80DBF8; --ocean-80: #33C6F5; --ocean-100: #00B8F2;
+
+  /* ====== Semantic tokens (from /Colors-Modes SemanticColors) ====== */
+  --fg-primary: var(--anchor-grey-130);   /* #232B31  headings, body */
+  --fg-secondary: var(--anchor-grey-80);  /* #626D74  secondary text */
+  --fg-label: var(--anchor-grey-50);      /* #9DA3A8  meta / labels */
+  --fg-active: var(--azure-100);          /* #0070F2  links / active */
+  --fg-on-dark: var(--white);
+  --fg-disabled: #BCC4CB;
+
+  --bg-app: var(--white);
+  --bg-app-2: var(--steel-10);            /* #F7F9FA application area */
+  --bg-app-3: var(--steel-30);            /* panels */
+  --bg-footer: var(--silver-grey-50);     /* #E1E1E1 */
+  --bg-list-item-hover: var(--steel-10);
+  --bg-list-item-selected: var(--azure-10);
+  --bg-list-divider: var(--silver-grey-50);
+
+  /* Status / value states */
+  --status-info: var(--azure-100);
+  --status-info-bg: var(--azure-10);
+  --status-success: var(--sovanta-green-100);
+  --status-success-bg: var(--sovanta-green-10);
+  --status-warning: var(--pumpkin-100);
+  --status-warning-bg: var(--pumpkin-10);
+  --status-error: var(--apple-red-100);
+  --status-error-bg: var(--apple-red-10);
+  --status-neutral: var(--silver-grey-100);
+  --status-neutral-bg: var(--silver-grey-20);
+
+  /* Borders & strokes */
+  --border-subtle: var(--silver-grey-70);  /* #D6D6D6 */
+  --border-default: var(--anchor-grey-20); /* #D8DADC */
+  --border-strong: var(--anchor-grey-50);  /* #9DA3A8 */
+  --border-input: #D4DAE0;                 /* inputs */
+  --border-focus: var(--azure-100);
+
+  /* Factory / Area tokens (semantic per business area) */
+  --area-design: var(--golden-100);
+  --area-design-bg: var(--golden-20);
+  --area-engineering: var(--bayou-100);
+  --area-engineering-bg: var(--bayou-20);
+  --area-production: var(--sovanta-green-100);
+  --area-production-bg: var(--sovanta-green-20);
+  --area-shipment: var(--silver-grey-100);
+  --area-shipment-bg: var(--silver-grey-20);
+  --area-parts: var(--pumpkin-100);
+  --area-parts-bg: var(--pumpkin-20);
+  --area-monitoring: var(--steel-100);
+  --area-monitoring-bg: var(--steel-20);
+  --area-service: var(--lavender-100);
+  --area-service-bg: var(--lavender-10);
+  --area-academy: var(--ocean-100);
+  --area-academy-bg: var(--ocean-10);
+  --area-strategy: var(--deep-purple-100);
+  --area-strategy-bg: var(--deep-purple-10);
+
+  /* Elevation — from shadows observed in Figma */
+  --shadow-1: 0 0 0 1px rgba(85,107,130,0.08);
+  --shadow-2: 0 2px 2px 0 rgba(85,107,130,0.10),
+              inset 0 -1px 0 0 rgba(85,107,130,0.20);
+  --shadow-card: 0 1px 2px 0 rgba(85,107,130,0.16),
+                 0 0 2px 0 rgba(85,107,130,0.16);
+  --shadow-pop: 0 10px 30px 0 rgba(0,0,0,0.15);
+
+  /* Radii — design system calls out 8 and 16 */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+  --radius-full: 999px;
+
+  /* Spacing — 8-pt grid: 8, 12, 16, 20, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120 */
+  --s-8: 8px; --s-12: 12px; --s-16: 16px; --s-20: 20px; --s-24: 24px;
+  --s-32: 32px; --s-40: 40px; --s-48: 48px; --s-56: 56px; --s-64: 64px;
+  --s-72: 72px; --s-80: 80px; --s-88: 88px; --s-96: 96px; --s-104: 104px;
+  --s-112: 112px; --s-120: 120px;
+
+  /* ====== Typography scale ====== */
+  --font-body: "72", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-display: "72", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+
+  /* Headlines (72 Bold / Light / Semibold) */
+  --t-hero-size: 48px;    --t-hero-lh: 56px;    --t-hero-weight: 700;
+  --t-h1-size: 32px;      --t-h1-lh: 38px;      --t-h1-weight: 700;
+  --t-h1-light-size: 32px;--t-h1-light-lh: 38px;--t-h1-light-weight: 300;
+  --t-h2-size: 24px;      --t-h2-lh: 28px;      --t-h2-weight: 600;
+  --t-h3-size: 20px;      --t-h3-lh: 24px;      --t-h3-weight: 600;
+  --t-h4-size: 16px;      --t-h4-lh: 22px;      --t-h4-weight: 600;
+  --t-h5-size: 14px;      --t-h5-lh: 20px;      --t-h5-weight: 600;
+  --t-h6-size: 12px;      --t-h6-lh: 16px;      --t-h6-weight: 600;
+
+  /* Text */
+  --t-body-size: 14px;    --t-body-lh: 20px;    --t-body-weight: 400;
+  --t-body-sm-size: 12px; --t-body-sm-lh: 16px;
+  --t-tag-size: 14px;     --t-tag-lh: 20px;     --t-tag-weight: 600;
+  --t-button-size: 14px;  --t-button-lh: 20px;  --t-button-weight: 400;
+  --t-label-size: 12px;   --t-label-lh: 16px;   --t-label-weight: 700;
+}
+
+/* ====== Semantic element styles ====== */
+html, body {
+  font-family: var(--font-body);
+  font-size: var(--t-body-size);
+  line-height: var(--t-body-lh);
+  color: var(--fg-primary);
+  background: var(--bg-app);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, .h1 { font: var(--t-h1-weight) var(--t-h1-size)/var(--t-h1-lh) var(--font-display); color: var(--fg-primary); margin: 0; }
+h1.light, .h1-light { font-weight: 300; }
+h2, .h2 { font: var(--t-h2-weight) var(--t-h2-size)/var(--t-h2-lh) var(--font-display); color: var(--fg-primary); margin: 0; }
+h3, .h3 { font: var(--t-h3-weight) var(--t-h3-size)/var(--t-h3-lh) var(--font-display); color: var(--fg-primary); margin: 0; }
+h4, .h4 { font: var(--t-h4-weight) var(--t-h4-size)/var(--t-h4-lh) var(--font-body); color: var(--fg-primary); margin: 0; }
+h5, .h5 { font: var(--t-h5-weight) var(--t-h5-size)/var(--t-h5-lh) var(--font-body); color: var(--fg-primary); margin: 0; }
+h6, .h6 { font: var(--t-h6-weight) var(--t-h6-size)/var(--t-h6-lh) var(--font-body); color: var(--fg-primary); margin: 0; }
+.hero { font: var(--t-hero-weight) var(--t-hero-size)/var(--t-hero-lh) var(--font-display); color: var(--fg-primary); margin: 0; }
+p { margin: 0 0 var(--s-8); }
+.text-sm { font-size: var(--t-body-sm-size); line-height: var(--t-body-sm-lh); }
+.text-label { font-size: var(--t-label-size); line-height: var(--t-label-lh); font-weight: var(--t-label-weight); color: var(--fg-label); text-transform: none; }
+.text-muted { color: var(--fg-secondary); }
+a { color: var(--fg-active); text-decoration: none; }
+a:hover { text-decoration: underline; }

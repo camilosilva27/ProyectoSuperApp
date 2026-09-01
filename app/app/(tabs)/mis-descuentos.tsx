@@ -38,54 +38,72 @@ import { useTema } from '../../src/useTema';
 const NOMBRE_TARJETA_TOUR = 'Mercado Pago';
 
 /**
- * Switch a medida (SPEC turno 6c): el nativo no puede dibujar el anillo interior de 1.5px que
- * pide el diseño para el estado apagado, así que esto reemplaza al `Switch` de RN acá. Colores
- * fijos (no de paleta): el diseño los da como valores absolutos, sin variante por tema.
+ * Ítem de la lista (SPEC diseño v2, tarjeta con barra de acento + radio circular): reemplaza al
+ * switch anterior. Cada fila es su propia "tarjeta" tocable (fondo, borde y barra de acento
+ * cambian juntos según el estado), en vez de un switch aislado dentro de una lista con borde
+ * único. Todos los colores salen de `paleta` (no fijos) para no romper el tema oscuro.
+ *
+ * Selección múltiple real (varias tarjetas activas a la vez) — visualmente es un radio circular
+ * con check, pero la semántica de accesibilidad sigue siendo checkbox, no radio.
  */
-const SWITCH_ANCHO = 46;
-const SWITCH_ALTO = 28;
-const SWITCH_PERILLA = 22;
-const SWITCH_INSET = 3;
-
-function SwitchDescuento({
-  activa, onCambiar, accessibilityLabel,
-}: { activa: boolean; onCambiar: (valor: boolean) => void; accessibilityLabel: string }) {
+function ItemDescuento({
+  paleta, filaRef, nombre, detalle, supersTexto, sinUsar, activa, onCambiar, accessibilityLabel,
+}: {
+  paleta: ReturnType<typeof useTema>['paleta'];
+  filaRef?: React.Ref<View>;
+  nombre: string;
+  detalle: string;
+  supersTexto: string | null;
+  sinUsar: boolean;
+  activa: boolean;
+  onCambiar: (valor: boolean) => void;
+  accessibilityLabel: string;
+}) {
   const progreso = useRef(new Animated.Value(activa ? 1 : 0)).current;
 
   useEffect(() => {
     Animated.timing(progreso, {
       toValue: activa ? 1 : 0,
-      duration: 150,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false, // anima translateX en un valor calculado en px, no en layout nativo
+      duration: 180,
+      easing: Easing.out(Easing.ease), // fade suave, sin rebote (spec: ease-out 150-200ms)
+      useNativeDriver: false, // anima colores, no soportado por el driver nativo
     }).start();
   }, [activa, progreso]);
 
-  const traslado = progreso.interpolate({
-    inputRange: [0, 1],
-    outputRange: [SWITCH_INSET, SWITCH_ANCHO - SWITCH_PERILLA - SWITCH_INSET],
-  });
+  const fondo = progreso.interpolate({ inputRange: [0, 1], outputRange: [paleta.superficieAlt, paleta.ofertaSuave] });
+  const borde = progreso.interpolate({ inputRange: [0, 1], outputRange: [paleta.borde, paleta.oferta] });
+  const acento = progreso.interpolate({ inputRange: [0, 1], outputRange: [paleta.borde, paleta.oferta] });
+  const radioFondo = progreso.interpolate({ inputRange: [0, 1], outputRange: [paleta.superficie, paleta.tinta] });
+  const radioBorde = progreso.interpolate({ inputRange: [0, 1], outputRange: [paleta.bordeFuerte, paleta.tinta] });
 
   return (
     <Pressable
+      ref={filaRef}
       onPress={() => onCambiar(!activa)}
-      accessibilityRole="switch"
+      accessibilityRole="checkbox"
       accessibilityState={{ checked: activa }}
       accessibilityLabel={accessibilityLabel}
-      hitSlop={8}
-      style={[
-        styles.switchPista,
-        activa
-          ? { backgroundColor: '#14161A' }
-          : { backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#14161A' },
-      ]}
     >
-      <Animated.View
-        style={[
-          styles.switchPerilla,
-          { backgroundColor: activa ? '#FFFFFF' : '#14161A', transform: [{ translateX: traslado }] },
-        ]}
-      />
+      <Animated.View style={[styles.fila, { backgroundColor: fondo, borderColor: borde }]}>
+        <Animated.View style={[styles.barraAcento, { backgroundColor: acento }]} />
+        <View style={styles.filaTexto}>
+          <View style={styles.filaNombreTag}>
+            <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>{nombre}</Text>
+            {sinUsar ? (
+              <View style={[styles.tagSinUsar, { borderColor: paleta.tinta }]}>
+                <Text style={[styles.tagSinUsarTexto, { color: paleta.tinta }]}>SIN USAR</Text>
+              </View>
+            ) : null}
+          </View>
+          <Text style={[texto.etiqueta, { color: paleta.tintaSuave }]}>{detalle}</Text>
+          {supersTexto ? (
+            <Text style={[texto.etiqueta, { color: paleta.tintaSuave }]}>{supersTexto}</Text>
+          ) : null}
+        </View>
+        <Animated.View style={[styles.radio, { backgroundColor: radioFondo, borderColor: radioBorde }]}>
+          <Animated.Text style={[styles.radioCheck, { color: paleta.oferta, opacity: progreso }]}>✓</Animated.Text>
+        </Animated.View>
+      </Animated.View>
     </Pressable>
   );
 }
@@ -163,52 +181,37 @@ export default function PantallaMisDescuentos() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={[styles.contenido, { paddingBottom: insets.bottom + espacio.xl }]}>
-          <View style={[styles.lista, { borderColor: paleta.borde }]}>
-            {data.descuentos.map((d, i) => {
+          <View style={styles.lista}>
+            {data.descuentos.map(d => {
               const activa = carrito.tarjetas.includes(d.nombre);
               return (
-                <View key={d.nombre}>
-                  {i > 0 ? <View style={[styles.separador, { backgroundColor: paleta.borde }]} /> : null}
-                  <View
-                    ref={d.nombre === NOMBRE_TARJETA_TOUR ? refMercadoPago : undefined}
-                    style={styles.fila}
-                  >
-                    <View style={{ flex: 1, gap: 3 }}>
-                      <View style={styles.filaNombreTag}>
-                        <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>{d.nombre}</Text>
-                        {!activa ? (
-                          <View style={[styles.tagSinUsar, { borderColor: paleta.tinta }]}>
-                            <Text style={[styles.tagSinUsarTexto, { color: paleta.tinta }]}>SIN USAR</Text>
-                          </View>
-                        ) : null}
-                      </View>
-                      <Text style={[texto.dato, { color: paleta.tintaSuave }]}>{descripcionDe(d)}</Text>
-                      {supersDe(d) ? (
-                        <Text style={[texto.micro, { color: paleta.tintaSuave }]}>{supersDe(d)}</Text>
-                      ) : null}
-                    </View>
-                    <SwitchDescuento
-                      activa={activa}
-                      onCambiar={valor => {
-                        // Durante el tour, tocar la fila de Mercado Pago cuenta como el toque
-                        // que completa el paso pase lo que pase — pero si ya estaba activa (de
-                        // una sesión anterior), no la desactiva: el usuario no eligió activarla
-                        // ahora, solo tocó para seguir el tutorial, y apagarle una promo real
-                        // que ya tenía cargada sería un efecto secundario no pedido.
-                        if (d.nombre === NOMBRE_TARJETA_TOUR) {
-                          setTocoMercadoPago(true);
-                          if (tour.pasoActivo === 'mercado-pago' && activa && !valor) return;
-                        }
-                        carrito.setTarjetas(
-                          valor
-                            ? [...carrito.tarjetas, d.nombre]
-                            : carrito.tarjetas.filter(t => t !== d.nombre)
-                        );
-                      }}
-                      accessibilityLabel={`${activa ? 'Tengo' : 'No tengo'} ${d.nombre}`}
-                    />
-                  </View>
-                </View>
+                <ItemDescuento
+                  key={d.nombre}
+                  paleta={paleta}
+                  filaRef={d.nombre === NOMBRE_TARJETA_TOUR ? refMercadoPago : undefined}
+                  nombre={d.nombre}
+                  detalle={descripcionDe(d)}
+                  supersTexto={supersDe(d)}
+                  sinUsar={!activa}
+                  activa={activa}
+                  onCambiar={valor => {
+                    // Durante el tour, tocar la fila de Mercado Pago cuenta como el toque
+                    // que completa el paso pase lo que pase — pero si ya estaba activa (de
+                    // una sesión anterior), no la desactiva: el usuario no eligió activarla
+                    // ahora, solo tocó para seguir el tutorial, y apagarle una promo real
+                    // que ya tenía cargada sería un efecto secundario no pedido.
+                    if (d.nombre === NOMBRE_TARJETA_TOUR) {
+                      setTocoMercadoPago(true);
+                      if (tour.pasoActivo === 'mercado-pago' && activa && !valor) return;
+                    }
+                    carrito.setTarjetas(
+                      valor
+                        ? [...carrito.tarjetas, d.nombre]
+                        : carrito.tarjetas.filter(t => t !== d.nombre)
+                    );
+                  }}
+                  accessibilityLabel={`${activa ? 'Tengo' : 'No tengo'} ${d.nombre}`}
+                />
               );
             })}
           </View>
@@ -229,13 +232,17 @@ const styles = StyleSheet.create({
   bajada: { color: '#FFFFFF', opacity: 0.7 },
   centrado: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: espacio.xl },
   contenido: { padding: espacio.pantalla, gap: espacio.pantalla },
-  lista: { borderWidth: 1, borderRadius: radio.tarjeta, paddingHorizontal: espacio.md },
-  fila: { flexDirection: 'row', alignItems: 'center', gap: espacio.md, paddingVertical: espacio.md },
-  separador: { height: StyleSheet.hairlineWidth },
+  lista: { gap: espacio.sm },
+  fila: {
+    flexDirection: 'row', alignItems: 'center', gap: espacio.md, padding: espacio.md,
+    borderRadius: radio.tarjeta, borderWidth: 1, minHeight: 44,
+  },
+  barraAcento: { width: 8, height: 36, borderRadius: radio.pill },
+  filaTexto: { flex: 1, gap: 2 },
   bloqueInfo: { borderRadius: radio.tarjeta, padding: espacio.md },
   filaNombreTag: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   tagSinUsar: { borderWidth: 1, borderRadius: 4, paddingHorizontal: 6 },
   tagSinUsarTexto: { fontFamily: fuentes.semi, fontSize: 10, lineHeight: 14, letterSpacing: 0.6 },
-  switchPista: { width: SWITCH_ANCHO, height: SWITCH_ALTO, borderRadius: radio.pill, justifyContent: 'center' },
-  switchPerilla: { position: 'absolute', width: SWITCH_PERILLA, height: SWITCH_PERILLA, borderRadius: radio.pill },
+  radio: { width: 26, height: 26, borderRadius: radio.pill, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  radioCheck: { fontFamily: fuentes.semi, fontSize: 13, lineHeight: 13 },
 });

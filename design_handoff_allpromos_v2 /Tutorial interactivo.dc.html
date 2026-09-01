@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:#E9ECEF;font-family:Archivo,system-ui,sans-serif}
+  a{color:#14161A}
+  a:hover{color:#000}
+  @keyframes halo{0%{box-shadow:0 0 0 0 rgba(255,212,0,.6)}70%{box-shadow:0 0 0 14px rgba(255,212,0,0)}100%{box-shadow:0 0 0 0 rgba(255,212,0,0)}}
+  @keyframes pop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}
+  @keyframes rise{0%{transform:translateY(14px);opacity:0}100%{transform:translateY(0);opacity:1}}
+  input{font-family:Archivo;outline:none;border:none;background:transparent}
+</style>
+</helmet>
+
+<div style="min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:28px 16px 40px;box-sizing:border-box">
+<div style="width:390px;height:844px;position:relative;background:#F2F4F6;border-radius:34px;overflow:hidden;box-shadow:0 18px 50px rgba(20,22,26,.22)">
+
+  <div style="height:56px;box-sizing:border-box;padding:0 18px;background:#14161A;display:flex;align-items:center;gap:10px">
+    <div style="font:700 22px/22px 'Barlow Condensed';letter-spacing:1px;color:#FFD400">ALLPROMOS</div>
+    <div style="flex:1"></div>
+    <div style="{{ headerPill }}">{{ headerPillText }}</div>
+  </div>
+
+  <div ref="{{ refScroll }}" style="position:absolute;top:56px;left:0;right:0;bottom:0;overflow-y:auto;overflow-x:hidden;padding:16px 16px 260px;box-sizing:border-box">
+
+    <sc-if value="{{ isShop }}" hint-placeholder-val="{{ true }}">
+    <div style="display:flex;flex-direction:column;gap:14px">
+
+      <div ref="{{ refCards }}" style="{{ sCards }}">
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px">
+          <div style="flex:1;font:600 11px/14px Archivo;letter-spacing:1.3px;color:#565E67">TUS TARJETAS Y PROMOS</div>
+          <div style="font:400 12px/14px Archivo;color:#8C949D">{{ cardsCount }}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <sc-for list="{{ cards }}" as="c" hint-placeholder-count="3">
+            <div onClick="{{ c.tap }}">
+              <sc-if value="{{ c.on }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;align-items:center;gap:10px;padding:12px;border-radius:12px;background:#FFFBE6;box-shadow:inset 0 0 0 2px #FFD400;cursor:pointer">
+                  <div style="width:8px;height:34px;border-radius:999px;background:#FFD400"></div>
+                  <div style="flex:1;display:flex;flex-direction:column;gap:2px">
+                    <div style="font:600 15px/20px Archivo;color:#14161A">{{ c.name }}</div>
+                    <div style="font:400 13px/18px Archivo;color:#3C444D">{{ c.detail }}</div>
+                  </div>
+                  <div style="width:26px;height:26px;border-radius:999px;display:flex;align-items:center;justify-content:center;background:#14161A;color:#FFD400;font:700 13px/13px 'Barlow Condensed';animation:pop .34s ease-out both">✓</div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ c.off }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;align-items:center;gap:10px;padding:12px;border-radius:12px;background:#F7F8F9;box-shadow:inset 0 0 0 1px #E3E7EA;cursor:pointer">
+                  <div style="width:8px;height:34px;border-radius:999px;background:#DFE3E7"></div>
+                  <div style="flex:1;display:flex;flex-direction:column;gap:2px">
+                    <div style="font:600 15px/20px Archivo;color:#14161A">{{ c.name }}</div>
+                    <div style="font:400 13px/18px Archivo;color:#3C444D">{{ c.detail }}</div>
+                  </div>
+                  <div style="width:26px;height:26px;border-radius:999px;box-shadow:inset 0 0 0 1.5px #C6CCD3"></div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div ref="{{ refSearch }}" style="{{ sSearch }}">
+        <div style="font:600 11px/14px Archivo;letter-spacing:1.3px;color:#565E67;margin-bottom:10px">BUSCAR PRODUCTO</div>
+        <div style="{{ searchBox }}">
+          <div style="font:600 16px/22px Archivo;color:#8C949D">⌕</div>
+          <input ref="{{ refInput }}" value="{{ query }}" onChange="{{ onQuery }}" placeholder="Probá con: aceite" style="flex:1;font:500 16px/22px Archivo;color:#14161A;width:100%">
+        </div>
+      </div>
+
+      <div ref="{{ refSupers }}" style="{{ sSupers }}">
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px">
+          <div style="flex:1;font:600 11px/14px Archivo;letter-spacing:1.3px;color:#565E67">SUPERS A COMPARAR</div>
+          <div style="font:400 12px/14px Archivo;color:#8C949D">{{ supersCount }}</div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <sc-for list="{{ supers }}" as="s" hint-placeholder-count="7">
+            <div onClick="{{ s.tap }}">
+              <sc-if value="{{ s.on }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:9px 14px;border-radius:999px;font:600 14px/20px Archivo;color:#14161A;background:#FFD400;cursor:pointer;animation:pop .26s ease-out both">{{ s.name }}</div>
+              </sc-if>
+              <sc-if value="{{ s.off }}" hint-placeholder-val="{{ true }}">
+                <div style="padding:9px 14px;border-radius:999px;font:500 14px/20px Archivo;color:#3C444D;background:#F7F8F9;box-shadow:inset 0 0 0 1px #DFE3E7;cursor:pointer">{{ s.name }}</div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div ref="{{ refCap }}" style="{{ sCap }}">
+        <div style="font:600 11px/14px Archivo;letter-spacing:1.3px;color:#565E67;margin-bottom:4px">¿A CUÁNTOS SUPERS VAS?</div>
+        <div style="font:400 13px/18px Archivo;color:#3C444D;margin-bottom:10px">Repartimos la compra como mucho entre esa cantidad.</div>
+        <div style="display:flex;gap:8px">
+          <sc-for list="{{ caps }}" as="k" hint-placeholder-count="4">
+            <div style="flex:1" onClick="{{ k.tap }}">
+              <sc-if value="{{ k.on }}" hint-placeholder-val="{{ false }}">
+                <div style="min-height:62px;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:#FFD400;color:#14161A;cursor:pointer;animation:pop .26s ease-out both">
+                  <div style="font:700 26px/26px 'Barlow Condensed'">{{ k.n }}</div>
+                  <div style="font:500 11px/14px Archivo">{{ k.label }}</div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ k.off }}" hint-placeholder-val="{{ true }}">
+                <div style="min-height:62px;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:#F7F8F9;box-shadow:inset 0 0 0 1px #DFE3E7;color:#565E67;cursor:pointer">
+                  <div style="font:700 26px/26px 'Barlow Condensed'">{{ k.n }}</div>
+                  <div style="font:400 11px/14px Archivo">{{ k.label }}</div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div ref="{{ refResults }}" style="{{ sResults }}">
+        <div style="font:600 11px/14px Archivo;letter-spacing:1.3px;color:#565E67;margin-bottom:10px">{{ resultsTitle }}</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <sc-for list="{{ results }}" as="p" hint-placeholder-count="3">
+            <div onClick="{{ p.tap }}">
+              <sc-if value="{{ p.on }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:12px;background:#FFFBE6;box-shadow:inset 0 0 0 2px #FFD400;cursor:pointer">
+                  <div style="width:44px;height:44px;border-radius:8px;background:#F4EFD6;display:flex;align-items:center;justify-content:center;font:700 15px/15px 'Barlow Condensed';color:#8C949D">{{ p.initials }}</div>
+                  <div style="flex:1;display:flex;flex-direction:column;gap:2px">
+                    <div style="font:600 15px/20px Archivo;color:#14161A">{{ p.name }}</div>
+                    <div style="font:400 13px/18px Archivo;color:#3C444D">{{ p.size }} · desde {{ p.from }}</div>
+                  </div>
+                  <div style="width:30px;height:30px;border-radius:999px;display:flex;align-items:center;justify-content:center;background:#14161A;color:#FFD400;font:700 16px/16px 'Barlow Condensed';animation:pop .34s ease-out both">✓</div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ p.off }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:12px;background:#F7F8F9;box-shadow:inset 0 0 0 1px #E3E7EA;cursor:pointer">
+                  <div style="width:44px;height:44px;border-radius:8px;background:#EDEFF2;display:flex;align-items:center;justify-content:center;font:700 15px/15px 'Barlow Condensed';color:#8C949D">{{ p.initials }}</div>
+                  <div style="flex:1;display:flex;flex-direction:column;gap:2px">
+                    <div style="font:600 15px/20px Archivo;color:#14161A">{{ p.name }}</div>
+                    <div style="font:400 13px/18px Archivo;color:#3C444D">{{ p.size }} · desde {{ p.from }}</div>
+                  </div>
+                  <div style="width:30px;height:30px;border-radius:999px;display:flex;align-items:center;justify-content:center;background:#FFD400;color:#14161A;font:700 16px/16px 'Barlow Condensed'">+</div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+        <div style="{{ emptyStyle }}">Escribí algo arriba para ver productos.</div>
+      </div>
+
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isCart }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:baseline;gap:8px">
+        <div style="flex:1;font:700 26px/30px Archivo;color:#14161A;letter-spacing:-.3px">Tu carrito</div>
+        <div style="font:400 13px/18px Archivo;color:#565E67">{{ cartCount }}</div>
+      </div>
+      <div style="background:#FFFFFF;border:1px solid #DFE3E7;border-radius:14px;overflow:hidden">
+        <sc-for list="{{ cartItems }}" as="i" hint-placeholder-count="4">
+          <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid #EDEFF2">
+            <div style="flex:1;display:flex;flex-direction:column;gap:2px">
+              <div style="font:600 15px/20px Archivo;color:#14161A">{{ i.name }}</div>
+              <div style="font:400 13px/18px Archivo;color:#3C444D">{{ i.size }}</div>
+            </div>
+            <div style="font:600 16px/18px 'Barlow Condensed';color:#565E67">{{ i.range }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="background:#FFFFFF;border:1px solid #DFE3E7;border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="flex:1;font:400 14px/20px Archivo;color:#3C444D">Supers elegidos</div>
+          <div style="font:500 14px/20px Archivo;color:#14161A">{{ chosenSupers }}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="flex:1;font:400 14px/20px Archivo;color:#3C444D">Tope de supers</div>
+          <div style="font:500 14px/20px Archivo;color:#14161A">{{ capLabel }}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="flex:1;font:400 14px/20px Archivo;color:#3C444D">Promos activadas</div>
+          <div style="font:500 14px/20px Archivo;color:#14161A">{{ promosLabel }}</div>
+        </div>
+      </div>
+      <div ref="{{ refCompare }}" style="{{ sCompare }}">
+        <div style="{{ compareBtn }}" onClick="{{ doCompare }}">COMPARAR</div>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isResult }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;flex-direction:column;gap:14px;animation:rise .45s ease-out both">
+
+      <div style="background:#14161A;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:16px">
+        <div style="font:600 11px/14px Archivo;letter-spacing:1.3px;color:#8C949D">TU AHORRO EN ESTA COMPRA</div>
+        <div style="display:flex;align-items:flex-end;gap:8px">
+          <div style="font:700 56px/48px 'Barlow Condensed';color:#FFD400">{{ savingBig }}</div>
+          <div style="font:600 15px/20px Archivo;color:#FFFFFF;padding-bottom:4px">{{ savingPct }}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;flex-direction:column;gap:5px">
+            <div style="display:flex;align-items:baseline;gap:8px">
+              <div style="flex:1;font:400 13px/18px Archivo;color:#C6CCD3">Todo en {{ worstName }}</div>
+              <div style="font:600 16px/18px 'Barlow Condensed';color:#C6CCD3">{{ worstFmt }}</div>
+            </div>
+            <div style="height:8px;border-radius:999px;background:rgba(255,255,255,.16)"><div style="height:8px;width:100%;border-radius:999px;background:#565E67"></div></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px">
+            <div style="display:flex;align-items:baseline;gap:8px">
+              <div style="flex:1;font:500 13px/18px Archivo;color:#FFFFFF">Repartida en {{ planSupersLabel }}</div>
+              <div style="font:700 18px/18px 'Barlow Condensed';color:#FFD400">{{ bestFmt }}</div>
+            </div>
+            <div style="height:8px;border-radius:999px;background:rgba(255,255,255,.16)"><div style="{{ bestBar }}"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="{{ promoCard }}">
+        <div style="width:34px;height:34px;border-radius:999px;background:#14161A;display:flex;align-items:center;justify-content:center;font:700 15px/15px 'Barlow Condensed';color:#FFD400">%</div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:2px">
+          <div style="font:600 15px/20px Archivo;color:#14161A">{{ promoHeadline }}</div>
+          <div style="font:400 13px/18px Archivo;color:#3C444D">{{ promoDetail }}</div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="font:600 11px/14px Archivo;letter-spacing:1.3px;color:#565E67">DÓNDE COMPRAR CADA COSA</div>
+        <sc-for list="{{ plan }}" as="p" hint-placeholder-count="4">
+          <div style="background:#FFFFFF;border:1px solid #DFE3E7;border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:flex-start;gap:10px">
+              <div style="flex:1;display:flex;flex-direction:column;gap:2px">
+                <div style="font:600 15px/20px Archivo;color:#14161A">{{ p.name }}</div>
+                <div style="font:400 12px/16px Archivo;color:#8C949D">{{ p.size }}</div>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px">
+                <div style="font:700 20px/20px 'Barlow Condensed';color:#14161A">{{ p.priceFmt }}</div>
+                <sc-if value="{{ p.hasPromo }}" hint-placeholder-val="{{ false }}">
+                  <div style="font:400 12px/16px Archivo;color:#8C949D;text-decoration:line-through">{{ p.listFmt }}</div>
+                </sc-if>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+              <div style="background:#EDEFF2;border-radius:6px;padding:3px 8px;font:600 12px/16px Archivo;color:#14161A">{{ p.superName }}</div>
+              <sc-if value="{{ p.hasPromo }}" hint-placeholder-val="{{ false }}">
+                <div style="background:#FFD400;border-radius:6px;padding:3px 8px;font:600 12px/16px Archivo;color:#14161A">{{ p.promoLabel }}</div>
+              </sc-if>
+              <div style="flex:1"></div>
+              <div style="font:400 12px/16px Archivo;color:#8C949D">{{ p.vs }}</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="background:#FFFFFF;border:1px solid #DFE3E7;border-radius:12px;padding:14px;font:400 13px/19px Archivo;color:#3C444D;text-wrap:pretty">{{ closing }}</div>
+
+      <div style="display:flex;gap:8px">
+        <div style="flex:1;min-height:52px;border-radius:10px;background:#FFD400;display:flex;align-items:center;justify-content:center;font:700 22px/24px 'Barlow Condensed';letter-spacing:1px;color:#14161A;cursor:pointer">VER MI LISTA</div>
+        <div onClick="{{ restart }}" style="min-height:52px;padding:0 16px;border-radius:10px;box-shadow:inset 0 0 0 1px #C6CCD3;display:flex;align-items:center;justify-content:center;font:500 14px/20px Archivo;color:#14161A;cursor:pointer">Repetir tour</div>
+      </div>
+
+    </div>
+    </sc-if>
+
+  </div>
+
+  <div style="{{ cartBarWrap }}">
+    <div ref="{{ refCartBar }}" style="{{ sCartBar }}">
+      <div style="{{ cartBarInner }}" onClick="{{ goCart }}">
+        <div style="width:28px;height:28px;border-radius:999px;background:#FFD400;display:flex;align-items:center;justify-content:center;font:700 15px/15px 'Barlow Condensed';color:#14161A">{{ cartN }}</div>
+        <div style="flex:1;font:600 15px/20px Archivo;color:#FFFFFF">Ir al carrito</div>
+        <div style="font:600 15px/20px Archivo;color:#FFD400">›</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="{{ coachWrap }}">
+    <div style="background:#FFFFFF;border-radius:16px;padding:16px;box-shadow:0 -2px 30px rgba(20,22,26,.18);display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="font:600 11px/14px Archivo;letter-spacing:1.3px;color:#565E67">{{ stepLabel }}</div>
+        <div style="flex:1"></div>
+        <div style="display:flex;gap:4px">
+          <sc-for list="{{ dots }}" as="d" hint-placeholder-count="8">
+            <div style="{{ d.s }}"></div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="font:700 19px/24px Archivo;color:#14161A;letter-spacing:-.2px">{{ coachTitle }}</div>
+      <div style="font:400 14px/20px Archivo;color:#3C444D;text-wrap:pretty">{{ coachBody }}</div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:460,&quot;height&quot;:900}}">
+class Component extends DCLogic {
+  constructor(p){
+    super(p);
+    this.nodes = {}; this._refs = {};
+    this.SUPERS = [
+      {id:'vea',name:'Vea'},{id:'carrefour',name:'Carrefour'},{id:'changomas',name:'Chango Más'},
+      {id:'dia',name:'Día'},{id:'coto',name:'Coto'},{id:'jumbo',name:'Jumbo'},{id:'disco',name:'Disco'}
+    ];
+    this.CARDS = [
+      {id:'nacion',name:'Banco Nación',detail:'Miércoles 30% en Coto · lácteos y frescos',sup:'coto',pct:30,cats:['lacteos'],short:'Nación 30% en lácteos de Coto'},
+      {id:'modo',name:'MODO',detail:'Jueves 20% en Jumbo · almacén',sup:'jumbo',pct:20,cats:['almacen'],short:'MODO 20% en almacén de Jumbo'},
+      {id:'galicia',name:'Galicia Éminent',detail:'Sábados 25% en Carrefour · limpieza',sup:'carrefour',pct:25,cats:['limpieza'],short:'Galicia 25% en limpieza de Carrefour'}
+    ];
+    this.CATALOG = [
+      {id:'aceite-natura',name:'Aceite de girasol Natura',size:'900 ml',cat:'almacen',prices:{coto:3190,carrefour:2990,jumbo:3150,dia:3090,vea:3040,changomas:3050,disco:3120}},
+      {id:'aceite-cocinero',name:'Aceite de girasol Cocinero',size:'900 ml',cat:'almacen',prices:{coto:2960,carrefour:2880,jumbo:2990,dia:2930,vea:2900,changomas:2910,disco:2960}},
+      {id:'aceite-legitimo',name:'Aceite de oliva Legítimo',size:'500 ml',cat:'almacen',prices:{coto:6690,carrefour:6390,jumbo:6790,dia:6650,vea:6620,changomas:6580,disco:6710}},
+      {id:'yerba',name:'Yerba mate Playadito',size:'1 kg',cat:'almacen',prices:{coto:5120,carrefour:4780,jumbo:5340,dia:4990,vea:5050,changomas:4890,disco:5290}},
+      {id:'leche',name:'Leche La Serenísima',size:'1 L · pack x6',cat:'lacteos',prices:{coto:7560,carrefour:7890,jumbo:8120,dia:7990,vea:8040,changomas:7720,disco:8090}},
+      {id:'papel',name:'Papel higiénico Elite',size:'4 rollos',cat:'limpieza',prices:{coto:3690,carrefour:3240,jumbo:3980,dia:3520,vea:3610,changomas:3380,disco:3900}}
+    ];
+    this.BASE_CART = ['yerba','leche','papel'];
+    this.state = {step:1, cards:{}, query:'', supers:[], cap:null, chosen:null, view:'shop', tick:0};
+  }
+
+  mk(k){ if(!this._refs[k]) this._refs[k] = el => { this.nodes[k] = el; }; return this._refs[k]; }
+
+  componentDidUpdate(){
+    const prev = this._prevStep; this._prevStep = this.state.step;
+    if (prev !== undefined && prev !== this.state.step) {
+      const map = {1:'cards',2:'search',3:'supers',4:'cap',5:'results',6:'cartBar',7:'compare'};
+      const n = this.nodes[map[this.state.step]], sc = this.nodes.scroll;
+      if (n && sc && this.state.step < 6) {
+        const OVERLAY = 190;
+        const bottomNeed = n.offsetTop + n.offsetHeight - (sc.clientHeight - OVERLAY);
+        const target = Math.max(0, Math.min(sc.scrollHeight - sc.clientHeight, Math.max(bottomNeed, Math.min(n.offsetTop - 24, bottomNeed + 40))));
+        this.smoothScroll(sc, target);
+      }
+      if (this.state.step === 2 && this.nodes.input) setTimeout(()=>this.nodes.input && this.nodes.input.focus(), 400);
+      if (this.state.step === 8) this.runCounter();
+    }
+  }
+
+  smoothScroll(sc, target){
+    clearInterval(this._siv);
+    const from = sc.scrollTop, delta = target - from, t0 = Date.now(), dur = 420;
+    if (Math.abs(delta) < 2) { sc.scrollTop = target; return; }
+    this._siv = setInterval(() => {
+      const k = Math.min(1, (Date.now() - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+      sc.scrollTop = from + delta * e;
+      if (k >= 1) clearInterval(this._siv);
+    }, 16);
+  }
+
+  runCounter(){
+    const t0 = Date.now(), dur = 1100;
+    clearInterval(this._iv);
+    this._iv = setInterval(()=>{
+      const k = Math.min(1, (Date.now()-t0)/dur);
+      this.setState({tick: 1 - Math.pow(1-k, 3)});
+      if (k >= 1) clearInterval(this._iv);
+    }, 30);
+  }
+  componentWillUnmount(){ clearInterval(this._iv); clearInterval(this._siv); }
+
+  fmt(n){ return '$' + Math.round(n).toLocaleString('es-AR'); }
+  activePromo(supId, item){
+    const c = this.CARDS.find(c => c.sup === supId && this.state.cards[c.id] && (!item || c.cats.indexOf(item.cat) >= 0));
+    return c || null;
+  }
+  eff(item, supId){
+    const p = item.prices[supId], pr = this.activePromo(supId, item);
+    return pr ? p * (1 - pr.pct/100) : p;
+  }
+  cartList(){
+    const ids = this.BASE_CART.slice();
+    if (this.state.chosen && ids.indexOf(this.state.chosen) < 0) ids.unshift(this.state.chosen);
+    return ids.map(id => this.CATALOG.find(x => x.id === id));
+  }
+  solve(){
+    const items = this.cartList(), sel = this.state.supers, cap = this.state.cap || sel.length;
+    let best = null;
+    const n = sel.length;
+    for (let m = 1; m < (1 << n); m++) {
+      const sub = []; for (let i = 0; i < n; i++) if (m & (1 << i)) sub.push(sel[i]);
+      if (sub.length > cap) continue;
+      let total = 0; const rows = [];
+      for (const it of items) {
+        let bs = sub[0], bp = this.eff(it, sub[0]);
+        for (const s of sub) { const v = this.eff(it, s); if (v < bp) { bp = v; bs = s; } }
+        total += bp; rows.push({item: it, sup: bs, price: bp});
+      }
+      if (!best || total < best.total) best = {total, rows, sub: sub.filter(s => rows.some(r => r.sup === s))};
+    }
+    let worst = null;
+    for (const s of sel) {
+      let t = 0; for (const it of items) t += this.eff(it, s);
+      if (!worst || t > worst.total) worst = {total: t, sup: s};
+    }
+    return {best, worst, items};
+  }
+  supName(id){ const s = this.SUPERS.find(s => s.id === id); return s ? s.name : id; }
+
+  set(o){ this.setState(o); }
+
+  renderVals(){
+    const st = this.state, step = st.step, view = st.view;
+    const dim = {opacity:.26, filter:'blur(1.4px)', pointerEvents:'none', transition:'all .38s cubic-bezier(.22,.8,.3,1)'};
+    const plain = {transition:'all .38s cubic-bezier(.22,.8,.3,1)'};
+    const box = (on, active) => Object.assign(
+      {background:'#FFFFFF', border:'1px solid #DFE3E7', borderRadius:'14px', padding:'14px'},
+      active ? {outline:'2px solid #FFD400', outlineOffset:'0px', transform:'scale(1.012)', animation:'halo 1.9s ease-out infinite', zIndex:2, position:'relative'} : {},
+      on ? plain : dim
+    );
+    const done = k => step > k;
+
+    const cards = this.CARDS.map(c => {
+      const on = !!st.cards[c.id];
+      return {
+        name: c.name, detail: c.detail, on: on, off: !on,
+        tap: () => { if (step !== 1) return; if (c.id !== 'nacion') return;
+          const cs = Object.assign({}, st.cards); cs[c.id] = !cs[c.id];
+          this.set({cards: cs, step: cs[c.id] ? 2 : 1}); }
+      };
+    });
+
+    const activeCards = this.CARDS.filter(c => st.cards[c.id]);
+
+    const supers = this.SUPERS.map(s => {
+      const on = st.supers.indexOf(s.id) >= 0;
+      return {
+        name: s.name, on: on, off: !on,
+        tap: () => { if (step !== 3) return;
+          const list = st.supers.slice(); const i = list.indexOf(s.id);
+          if (i >= 0) list.splice(i,1); else list.push(s.id);
+          this.set({supers: list, step: list.length >= 3 ? 4 : 3}); }
+      };
+    });
+
+    const caps = [1,2,3,4].map(n => {
+      const on = st.cap === n;
+      return {n: String(n), label: n === 1 ? 'super' : 'supers', on: on, off: !on,
+        tap: () => { if (step !== 4) return; this.set({cap: n, step: 5}); }};
+    });
+
+    const q = st.query.trim().toLowerCase();
+    let matches = q.length >= 3 ? this.CATALOG.filter(p => p.name.toLowerCase().indexOf(q) >= 0) : [];
+    if (q.length >= 3 && matches.length === 0) matches = this.CATALOG.slice(0,3);
+    const pool = st.supers.length ? st.supers : this.SUPERS.map(s => s.id);
+    const results = matches.slice(0,4).map(p => {
+      const min = Math.min.apply(null, pool.map(s => p.prices[s]));
+      const on = st.chosen === p.id;
+      return {name: p.name, size: p.size, initials: p.name.slice(0,2).toUpperCase(), from: this.fmt(min), on: on, off: !on,
+        tap: () => { if (step !== 5) return; this.set({chosen: p.id, step: 6}); }};
+    });
+
+    const cartN = this.BASE_CART.length + (st.chosen ? 1 : 0);
+    const cartItems = this.cartList().map(it => {
+      const lo = Math.min.apply(null, pool.map(s => it.prices[s]));
+      const hi = Math.max.apply(null, pool.map(s => it.prices[s]));
+      return {name: it.name, size: it.size, range: this.fmt(lo) + ' – ' + this.fmt(hi)};
+    });
+
+    let R = {savingBig:'', savingPct:'', worstFmt:'', worstName:'', bestFmt:'', bestBar:{}, plan:[], closing:'',
+      promoHeadline:'', promoDetail:'', promoCard:{display:'none'}, planSupersLabel:''};
+    if (view === 'result') {
+      const s = this.solve(), best = s.best, worst = s.worst;
+      const saving = worst.total - best.total, k = st.tick;
+      let promoSaved = 0;
+      const plan = best.rows.map(r => {
+        const pr = this.activePromo(r.sup, r.item);
+        const list = r.item.prices[r.sup];
+        if (pr) promoSaved += list - r.price;
+        const others = best.sub.filter(x => x !== r.sup).map(x => this.eff(r.item, x));
+        const nextBest = others.length ? Math.min.apply(null, others) : r.price;
+        return {name: r.item.name, size: r.item.size, superName: this.supName(r.sup), priceFmt: this.fmt(r.price),
+          hasPromo: !!pr, listFmt: pr ? this.fmt(list) : '',
+          promoLabel: pr ? ('−' + pr.pct + '% ' + pr.name) : '',
+          vs: nextBest > r.price ? (this.fmt(nextBest - r.price) + ' menos que el 2°') : 'mismo precio en otros'};
+      });
+      const supNames = best.sub.map(x => this.supName(x));
+      R = {
+        savingBig: this.fmt(saving * k),
+        savingPct: 'menos, un ' + Math.round(saving / worst.total * 100) + '%',
+        worstName: this.supName(worst.sup), worstFmt: this.fmt(worst.total),
+        bestFmt: this.fmt(best.total),
+        bestBar: {height:'8px', width: (best.total / worst.total * 100 * (0.15 + 0.85*k)) + '%', borderRadius:'999px', background:'#FFD400', transition:'width .2s linear'},
+        planSupersLabel: supNames.length === 1 ? supNames[0] : (supNames.length + ' supers'),
+        plan,
+        promoCard: promoSaved > 0
+          ? {background:'#FFFBE6', border:'1px solid #FFD400', borderRadius:'14px', padding:'14px', display:'flex', alignItems:'center', gap:'12px'}
+          : {display:'none'},
+        promoHeadline: promoSaved > 0 ? ('Tus promos descontaron ' + this.fmt(promoSaved)) : '',
+        promoDetail: activeCards.length ? activeCards.map(c => c.short).join(' · ') : '',
+        closing: 'Comprando en ' + supNames.join(' y ') + ' pagás ' + this.fmt(best.total) +
+          '. La misma compra entera en ' + this.supName(worst.sup) + ' te salía ' + this.fmt(worst.total) +
+          '. Respetamos tu tope de ' + (st.cap || supNames.length) + ' ' + ((st.cap||1) === 1 ? 'super' : 'supers') + '.'
+      };
+    }
+
+    const coach = {
+      1: ['Paso 1 de 8', 'Activá tu promo', 'Tocá la tarjeta Banco Nación para activar el 30% en Coto. Después la aplicamos sola a cada precio.'],
+      2: ['Paso 2 de 8', 'Buscá un producto', 'Escribí lo que necesitás en el buscador. Probá con “aceite”.'],
+      3: ['Paso 3 de 8', 'Elegí los supers', 'Marcá al menos 3 supermercados que te queden cerca.'],
+      4: ['Paso 4 de 8', '¿A cuántos vas?', 'Elegí el tope de supers a los que estás dispuesto a ir. Repartimos la compra dentro de ese límite.'],
+      5: ['Paso 5 de 8', 'Sumá el producto', 'Tocá el producto que buscabas para agregarlo al carrito.'],
+      6: ['Paso 6 de 8', 'Abrí el carrito', 'Revisá todo lo que cargaste antes de comparar.'],
+      7: ['Paso 7 de 8', 'Compará', 'Tocá Comparar. Cruzamos precios de los 7 supers con tus promos activas.']
+    }[step] || ['', '', ''];
+
+    const dots = [1,2,3,4,5,6,7,8].map(i => ({s: {width: i === step ? '16px' : '6px', height:'6px', borderRadius:'999px',
+      background: i < step ? '#FFD400' : (i === step ? '#14161A' : '#DFE3E7'), transition:'all .3s ease'}}));
+
+    const showCartBar = view === 'shop' && step >= 5;
+
+    return {
+      refScroll: this.mk('scroll'), refCards: this.mk('cards'), refSearch: this.mk('search'),
+      refSupers: this.mk('supers'), refCap: this.mk('cap'), refResults: this.mk('results'),
+      refCartBar: this.mk('cartBar'), refCompare: this.mk('compare'), refInput: this.mk('input'),
+
+      isShop: view === 'shop', isCart: view === 'cart', isResult: view === 'result',
+
+      headerPill: {padding:'5px 10px', borderRadius:'999px', background: step === 8 ? '#FFD400' : 'rgba(255,255,255,.12)',
+        font:'600 12px/16px Archivo', color: step === 8 ? '#14161A' : '#FFFFFF', transition:'all .3s ease'},
+      headerPillText: step === 8 ? 'Tour completo' : ('Tour · ' + step + '/8'),
+
+      sCards: box(step === 1 || done(1), step === 1),
+      sSearch: box(step === 2 || done(2), step === 2),
+      sSupers: box(step === 3 || done(3), step === 3),
+      sCap: box(step === 4 || done(4), step === 4),
+      sResults: box(step === 5 || done(5), step === 5),
+
+      cards, supers, caps, results,
+      cardsCount: activeCards.length ? (activeCards.length + (activeCards.length === 1 ? ' activa' : ' activas')) : 'ninguna activa',
+      supersCount: st.supers.length ? (st.supers.length + ' de 7') : 'elegí al menos 3',
+      resultsTitle: q.length >= 3 ? ('RESULTADOS PARA “' + st.query.trim() + '”') : 'RESULTADOS',
+      emptyStyle: results.length ? {display:'none'} : {padding:'14px 0', font:'400 13px/18px Archivo', color:'#8C949D'},
+
+      query: st.query,
+      searchBox: {height:'52px', boxSizing:'border-box', borderRadius:'10px', display:'flex', alignItems:'center', gap:'10px', padding:'0 14px',
+        boxShadow: step === 2 ? 'inset 0 0 0 2px #14161A' : 'inset 0 0 0 1px #C6CCD3', background:'#FFFFFF', transition:'box-shadow .25s ease'},
+      onQuery: e => { const v = e.target.value; this.set({query: v, step: (step === 2 && v.trim().length >= 3) ? 3 : step}); },
+
+      cartN: String(cartN), cartCount: cartN + ' productos', cartItems,
+      chosenSupers: st.supers.map(x => this.supName(x)).join(', ') || '—',
+      capLabel: st.cap ? (st.cap + (st.cap === 1 ? ' super' : ' supers')) : '—',
+      promosLabel: activeCards.length ? activeCards.map(c => c.name).join(', ') : 'ninguna',
+
+      cartBarWrap: {position:'absolute', left:'0', right:'0', bottom:'186px', padding:'0 16px',
+        opacity: showCartBar ? 1 : 0, transform: showCartBar ? 'translateY(0)' : 'translateY(12px)',
+        pointerEvents: showCartBar ? 'auto' : 'none', transition:'all .35s cubic-bezier(.22,.8,.3,1)'},
+      sCartBar: Object.assign({borderRadius:'14px'}, step === 6 ? {animation:'halo 1.9s ease-out infinite'} : {}, step === 5 ? {opacity:.4} : {}),
+      cartBarInner: {background:'#14161A', borderRadius:'14px', padding:'12px 14px', display:'flex', alignItems:'center', gap:'10px',
+        cursor: step === 6 ? 'pointer' : 'default', boxShadow: step === 6 ? '0 0 0 2px #FFD400' : 'none', transition:'box-shadow .3s ease'},
+      goCart: () => { if (step !== 6) return; this.set({view:'cart', step:7}); if (this.nodes.scroll) this.nodes.scroll.scrollTop = 0; },
+
+      sCompare: Object.assign({borderRadius:'10px'}, step === 7 ? {animation:'halo 1.9s ease-out infinite'} : {}),
+      compareBtn: {background:'#FFD400', borderRadius:'10px', minHeight:'58px', display:'flex', alignItems:'center', justifyContent:'center',
+        font:"700 24px/26px 'Barlow Condensed'", letterSpacing:'1px', color:'#14161A', cursor:'pointer'},
+      doCompare: () => { this.set({view:'result', step:8, tick:0}); if (this.nodes.scroll) this.nodes.scroll.scrollTop = 0; this.runCounter(); },
+
+      restart: () => { clearInterval(this._iv); this.setState({step:1, cards:{}, query:'', supers:[], cap:null, chosen:null, view:'shop', tick:0});
+        if (this.nodes.scroll) this.nodes.scroll.scrollTop = 0; },
+
+      coachWrap: {position:'absolute', left:'0', right:'0', bottom:'0', padding:'0 12px 16px',
+        opacity: step === 8 ? 0 : 1, transform: step === 8 ? 'translateY(30px)' : 'translateY(0)',
+        pointerEvents: step === 8 ? 'none' : 'auto', transition:'all .4s cubic-bezier(.22,.8,.3,1)'},
+      stepLabel: coach[0], coachTitle: coach[1], coachBody: coach[2], dots,
+
+      plan: R.plan, savingBig: R.savingBig, savingPct: R.savingPct, worstFmt: R.worstFmt, worstName: R.worstName,
+      bestFmt: R.bestFmt, bestBar: R.bestBar, planSupersLabel: R.planSupersLabel, closing: R.closing,
+      promoCard: R.promoCard, promoHeadline: R.promoHeadline, promoDetail: R.promoDetail
+    };
+  }
+}
+</script>
+</body>
+</html>
