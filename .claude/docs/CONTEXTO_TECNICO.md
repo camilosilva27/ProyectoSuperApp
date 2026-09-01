@@ -540,13 +540,23 @@ como el bloque "Repartiendo ahorrás $X" cuando existe — este último es condi
 (`valeRepartir && mejorUnico`), así que el wrapper cubre siempre al menos el total para que el
 target nunca falte.
 
-### Precarga dinámica de productos (2026-08-31)
+### Precarga dinámica de productos (2026-08-31, ajustado 2026-09-01)
 
-Al iniciar el tour con el carrito vacío (`useTour().iniciar` en `TourContext.tsx`, ver
-`app/src/tour/precarga.ts`), se precargan 2-3 productos elegidos dinámicamente y se fuerzan
-Vea+Carrefour como únicos supers activos (`setSupersYTope(['vea','carr'], 0)`) — así el paso
+Al iniciar el tour (`useTour().iniciar` en `TourContext.tsx`, ver `app/src/tour/precarga.ts`),
+se fuerza Vea+Carrefour como únicos supers activos (`setSupersYTope(['vea','carr'], 0)`,
+síncrono, no depende de red) y se precargan 2-3 productos elegidos dinámicamente — así el paso
 `coto` (sumar Coto en la hoja de supers) tiene un efecto visible real en vez de ser un toggle
 sin consecuencia, y la comparación final no depende de qué producto elija buscar el usuario.
+
+**A pedido, esto pisa cualquier carrito/selección real que hubiera antes — no hay guard de
+"solo si el carrito está vacío".** La primera versión sí lo tenía (para no destruir una compra
+real en curso si alguien reabría el tour desde Ajustes), pero eso hacía que la precarga
+quedara bloqueada en silencio con datos persistidos de sesiones anteriores — pasó en la propia
+cuenta de prueba: `perfil_usuario.carrito_items`/`supers_activos` tenían restos de un test
+viejo (19/08), así que ni los productos de demo ni el forzado de supers se aplicaban. Se sacó
+el guard a propósito: iniciar el tour (aun manualmente, con algo cargado) siempre muestra la
+misma demo. Si falla el fetch de productos (sin red/token), no se toca el carrito — mejor
+dejarlo real que vaciarlo sin nada para poner en su lugar (`precarga.ts`).
 
 **Backend — `elegirProductosTour()` en `backend/src/precioCache.js`**: recorre el índice ya
 construido por `asegurarIndice()` buscando EANs con precio real en Vea, Carrefour Y Coto,
