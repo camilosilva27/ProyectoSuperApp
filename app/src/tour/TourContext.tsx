@@ -139,8 +139,13 @@ export function useTourPaso<T = View>(id: PasoId, cumplido: boolean, alCompletar
 }
 
 /** Para los 3 puntos de entrada (auto-onboarding, botón en Buscar, botón en Ajustes). Centraliza
- *  acá la precarga de productos/supers (ver precarga.ts) en vez de tocar la firma de
- *  `iniciarTour` — así los 3 call-sites la reciben gratis con solo llamar a `iniciar()`. */
+ *  acá la precarga de productos y el forzado de supers (ver precarga.ts) en vez de tocar la
+ *  firma de `iniciarTour` — así los 3 call-sites la reciben gratis con solo llamar a `iniciar()`.
+ *
+ *  A pedido: iniciar el tour (incluso reabriéndolo manualmente) SIEMPRE fuerza Vea+Carrefour
+ *  como únicos supers activos y pisa el carrito con la demo — no hay guard de "solo si está
+ *  vacío". El forzado de supers es síncrono (no espera red); la precarga de productos si falla
+ *  no toca el carrito (ver precarga.ts). */
 export function useTour() {
   const { activo, pasoActivo } = useEstadoTour();
   const carrito = useCarrito();
@@ -148,16 +153,13 @@ export function useTour() {
   const { session } = useAuth();
 
   const iniciar = useCallback(() => {
-    // Solo con carrito vacío: si el usuario reabre el tour desde Ajustes con una compra en
-    // curso, no se la pisamos ni le sumamos productos de demo encima.
-    if (carrito.items.length === 0) {
-      precargarTour(session?.access_token ?? null, carrito.agregar, setSupersYTope);
-    }
+    setSupersYTope(['vea', 'carr'], 0);
+    precargarTour(session?.access_token ?? null, carrito.vaciar, carrito.agregar);
     iniciarTour();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `carrito`/`setSupersYTope` son
     // estables por render (mismo patrón que el resto del archivo); solo importa que `iniciar`
     // no cambie de identidad en cada render de quien lo consume.
-  }, [carrito.items.length, session?.access_token]);
+  }, [session?.access_token]);
 
   return { activo, pasoActivo, iniciar, salir: salirTour };
 }
