@@ -1,16 +1,16 @@
 /**
  * Pantalla Resultado: el veredicto.
  *
- * La pregunta que responde no es "cuánto sale cada cosa" sino "¿me conviene ir a dos
- * supermercados o comprar todo en uno?". Por eso arranca con el total repartido y cuánto se
- * ahorra contra la mejor opción de un solo super.
+ * La pregunta que responde no es "cuánto sale cada cosa" sino "¿cuánto ahorro comprando así
+ * en vez de sin ningún descuento?". Por eso arranca con el total de la compra óptima (repartida
+ * entre paradas si hace falta) y "Ahorrás" contra el precio sin descuentos/promos.
  *
  * Rediseño v2 (SPEC.md § 4.6, versión de un solo total — el header con los DOS totales de
  * 3c/5b queda para esa fase): header negro con el total, el ahorro y un aviso de promos sin
  * aplicar; PLAN DE COMPRA con un bloque grande por super; PROMOS SIN APLICAR agrupadas (de
  * tarjeta y de cantidad mínima — ver promosSinAplicarDe; el detalle completo de candidatas por
  * cantidad sigue además en "Producto por producto", que muestra todas las alternativas y no
- * solo la más chica); y "si comprás todo en uno" como gráfico de barras.
+ * solo la más chica).
  */
 
 import { useQuery } from '@tanstack/react-query';
@@ -32,7 +32,7 @@ import { FotoProducto } from '../src/componentes/FotoProducto';
 import { HeaderNegro } from '../src/componentes/HeaderNegro';
 import { useFiltrosSupers } from '../src/filtrosSupers';
 import { useHistorialAhorro } from '../src/historialAhorro';
-import { espacio, pesos, pesosCorto, radio, texto } from '../src/theme';
+import { espacio, fuentes, pesos, pesosCorto, radio, texto } from '../src/theme';
 import { useTourPaso } from '../src/tour/TourContext';
 import { useTema } from '../src/useTema';
 
@@ -217,8 +217,6 @@ export default function PantallaResultado() {
           </View>
         ) : null}
 
-        <SiComprasTodoEnUno data={data} />
-
         <DetalleProductoPorProducto data={data} isFetching={isFetching} />
       </ScrollView>
     </View>
@@ -249,19 +247,16 @@ function HeaderVeredicto({
     .sort((a, b) => a.total - b.total);
 
   const mejorUnico = supersConTotal[0];
-  const ahorroRepartiendo = mejorUnico ? mejorUnico.total - totalOptimo : 0;
-  const valeRepartir = ahorroRepartiendo >= 1;
 
   // Historial de ahorro (PANTALLAS-ahorros-y-paywall.md) y frecuencia de uso por super (para
   // el orden del selector, ver SelectorSupers en HeaderNegro.tsx): una comparación vista, un
   // evento — el ref evita duplicar el registro si este componente vuelve a renderizar sin que
   // `data` haya cambiado (misma respuesta de /api/comparar).
   //
-  // El monto registrado es el ahorro por DESCUENTOS/PROMOS (totalSinPromo - totalOptimo), no
-  // `ahorroRepartiendo` (ahorro por repartir entre supers vs. comprar todo en el más barato) —
-  // son cosas distintas: un carrito puede no ganar nada repartiendo (todo más barato en el
-  // mismo super) y aun así ahorrar mucho por promos activas, que es el caso real que expuso
-  // que este número se quedaba en $0 aunque el usuario sí estaba ahorrando (2026-08-22).
+  // `montoAhorradoPromos` (totalSinPromo - totalOptimo) es también lo que se muestra en el
+  // bloque "Ahorrás": antes ese bloque mostraba el ahorro de repartir entre supers vs. comprar
+  // todo en el más barato (mejorUnico.total - totalOptimo), un número distinto que confundía
+  // al lado de "PRECIO SIN DESCUENTOS" — el usuario esperaba ver justo esta diferencia (2026-09-01).
   const montoAhorradoPromos = Math.max(0, totalSinPromo - totalOptimo);
   const dataRegistradaRef = useRef<RespuestaComparar | null>(null);
   useEffect(() => {
@@ -314,8 +309,8 @@ function HeaderVeredicto({
         {dosTotales ? (
           <View style={hayAhorroPorPromos ? styles.filaDosTotales : { gap: espacio.md }}>
             <View style={{ flex: 1, gap: 4 }}>
-              <Text style={[texto.micro, { color: paleta.oferta, letterSpacing: 0.7 }]}>
-                REPARTIENDO EN {paradasNombres.length} PARADAS
+              <Text style={[texto.micro, { color: paleta.oferta, letterSpacing: 0.7, fontFamily: fuentes.titulo }]}>
+                COMPRA ÓPTIMA EN {paradasNombres.length} PARADAS
               </Text>
               <Text style={[texto.precioHero, styles.totalHero, styles.totalPrincipal]}>
                 {pesosCorto(totalOptimo)}
@@ -348,10 +343,10 @@ function HeaderVeredicto({
           </View>
         )}
 
-        {valeRepartir && mejorUnico ? (
+        {hayAhorroPorPromos ? (
           <View style={[styles.bloqueAhorro, { backgroundColor: paleta.oferta }]}>
             <Text style={[texto.cuerpoMedio, { color: paleta.ofertaTinta }]}>Ahorrás</Text>
-            <Text style={[texto.precioGrande, { color: paleta.ofertaTinta }]}>{pesos(ahorroRepartiendo)}</Text>
+            <Text style={[texto.precioGrande, { color: paleta.ofertaTinta }]}>{pesos(montoAhorradoPromos)}</Text>
           </View>
         ) : null}
       </Pressable>
@@ -606,44 +601,6 @@ function BloquePromo({ promo, onAplicar }: { promo: PromoSinAplicar; onAplicar: 
   );
 }
 
-/** SPEC § 4.6.4: sobrecosto de comprar todo en un solo super, como barras — alturas
- *  proporcionales y ancladas abajo. */
-function SiComprasTodoEnUno({ data }: { data: RespuestaComparar }) {
-  const { paleta } = useTema();
-  const { totalOptimo, totalesPorSuper } = data.resumen;
-
-  const barras = data.supermercados
-    .map(s => ({ ...s, delta: (totalesPorSuper[s.key] ?? 0) - totalOptimo }))
-    .filter(s => (totalesPorSuper[s.key] ?? 0) > 0)
-    .sort((a, b) => a.delta - b.delta);
-
-  if (barras.length < 2) return null;
-  const maxDelta = Math.max(...barras.map(b => b.delta), 1);
-
-  return (
-    <View style={styles.seccion}>
-      <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>SI COMPRÁS TODO EN UNO</Text>
-      <View style={styles.grafico}>
-        {barras.map(b => (
-          <View key={b.key} style={styles.columnaBarra}>
-            <Text style={[texto.precioChico, { color: paleta.tintaSuave, fontSize: 12, lineHeight: 14 }]}>
-              +{pesos(b.delta).replace(/,\d{2}$/, '')}
-            </Text>
-            <View
-              style={[
-                styles.barraVertical,
-                colorIdentidad(paleta, b.key),
-                { height: Math.max(6, (b.delta / maxDelta) * 100) },
-              ]}
-            />
-            <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave, fontSize: 10 }]}>{b.tag} {b.nombre.slice(0, 6).toUpperCase()}</Text>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-}
-
 /** Detalle por producto, visible por default (se puede ocultar con el link al pie) —
  *  acá vive la comparación con BarraDiferencia y el aviso de cantidad con TODAS las
  *  candidatas por producto; el agrupado de arriba solo muestra la candidata más chica de
@@ -789,7 +746,7 @@ const styles = StyleSheet.create({
   totalSecundario: { color: '#A6AEB8' },
   bloqueAhorro: {
     borderRadius: radio.md, padding: espacio.md,
-    flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
   },
   bloqueAvisoPromos: {
     backgroundColor: '#20242B', borderRadius: radio.md, padding: espacio.sm,
@@ -839,9 +796,6 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
 
-  grafico: { flexDirection: 'row', alignItems: 'flex-end', gap: espacio.sm, height: 130 },
-  columnaBarra: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 6 },
-  barraVertical: { width: '100%', borderTopLeftRadius: 4, borderTopRightRadius: 4 },
 
   pieDetalle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   linkDetalle: { height: 44, paddingHorizontal: espacio.sm, alignItems: 'center', justifyContent: 'center' },

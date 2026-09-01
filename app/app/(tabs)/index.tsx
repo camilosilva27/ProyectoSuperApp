@@ -137,7 +137,7 @@ export default function PantallaBuscar() {
   const pathname = usePathname();
   const carrito = useCarrito();
   const tour = useTour();
-  const { session } = useAuth();
+  const { session, cargando: cargandoSesion } = useAuth();
   const accessToken = session?.access_token ?? null;
   const [consulta, setConsulta] = useState('');
   const consultaDemorada = useTextoDemorado(consulta.trim());
@@ -161,14 +161,19 @@ export default function PantallaBuscar() {
     tourReportarAltoTabBar(tabBarHeight);
   }, [tabBarHeight]);
 
-  // Auto-inicio del tour, una sola vez por dispositivo — el botón manual (EstadoInicial,
-  // Ajustes) sigue andando igual después de esto.
+  // Auto-inicio del tour, una sola vez por cuenta (antes era por dispositivo) — el botón manual
+  // (EstadoInicial, Ajustes) sigue andando igual después de esto. Espera a que resuelva la
+  // sesión: si dispara con `cargandoSesion` todavía en `true`, siempre lee el storage local en
+  // vez de `perfil_usuario`, y un usuario ya logueado en otro dispositivo vería el tour de nuevo.
   useEffect(() => {
-    tourYaVisto().then(visto => {
+    if (cargandoSesion) return;
+    tourYaVisto(session?.user.id ?? null).then(visto => {
       if (!visto) tour.iniciar();
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al montar
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `tour.iniciar` no es estable
+    // entre renders (depende de `session?.access_token`), pero solo debe correr cuando cambia
+    // el estado de sesión, no en cada render.
+  }, [cargandoSesion, session?.user.id]);
 
   const refBuscador = useTourPaso<TextInput>('buscador-input', consultaDemorada.length >= 3);
   const refCeldaOtros = useTourPaso('selector-otros', mostrarHojaSupers);

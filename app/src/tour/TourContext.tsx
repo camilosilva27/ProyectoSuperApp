@@ -19,10 +19,20 @@ import type { View } from 'react-native';
 import { useAuth } from '../auth';
 import { useCarrito } from '../carrito';
 import { useFiltrosSupers } from '../filtrosSupers';
+import { supabase } from '../supabase';
 import { ORDEN_PASOS, type PasoId } from './pasos';
 import { precargarTour } from './precarga';
 
 const CLAVE_TOUR_VISTO = 'allpromos:tourVisto:v1';
+
+/** Reportado por `useTour()` (efecto sobre `session?.user.id`) — module-level porque
+ *  `salirTour` se importa directo en TourOverlay, sin pasar por el hook. Permite que
+ *  `marcarVisto` sincronice a `perfil_usuario` sin tener que enhebrar el userId por firma. */
+let usuarioIdReportado: string | null = null;
+
+export function tourReportarUsuario(userId: string | null) {
+  usuarioIdReportado = userId;
+}
 
 type EstadoTour = { activo: boolean; pasoActivo: PasoId | null };
 
@@ -90,9 +100,20 @@ export function avanzarTour(id: PasoId) {
 
 function marcarVisto() {
   AsyncStorage.setItem(CLAVE_TOUR_VISTO, '1').catch(() => {});
+  // Además de local: así viaja entre dispositivos/navegadores de la misma cuenta, en vez de
+  // depender de un storage que no se comparte entre ellos.
+  if (usuarioIdReportado) {
+    supabase.from('perfil_usuario').update({ tour_visto: true }).eq('id', usuarioIdReportado).then(() => {}, () => {});
+  }
 }
 
-export async function tourYaVisto(): Promise<boolean> {
+/** `userId`: si se pasa (usuario logueado), `perfil_usuario.tour_visto` es la fuente de verdad
+ *  (viaja entre dispositivos); si no hay fila o falla la consulta, cae al storage local. */
+export async function tourYaVisto(userId: string | null): Promise<boolean> {
+  if (userId) {
+    const { data } = await supabase.from('perfil_usuario').select('tour_visto').eq('id', userId).single();
+    if (data) return !!data.tour_visto;
+  }
   return !!(await AsyncStorage.getItem(CLAVE_TOUR_VISTO));
 }
 
@@ -151,6 +172,11 @@ export function useTour() {
   const carrito = useCarrito();
   const { setSupersYTope } = useFiltrosSupers();
   const { session } = useAuth();
+  const userId = session?.user.id ?? null;
+
+  useEffect(() => {
+    tourReportarUsuario(userId);
+  }, [userId]);
 
   const iniciar = useCallback(() => {
     setSupersYTope(['vea', 'carr'], 0);
