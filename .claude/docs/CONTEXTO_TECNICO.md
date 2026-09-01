@@ -604,13 +604,20 @@ proyecto), es la Push API estándar del navegador.
 - `app/public/sw.js` — service worker mínimo (`push` → `showNotification`, `notificationclick` →
   enfoca la app). Expo copia `app/public/` tal cual a la raíz del build web, igual que
   `manifest.json`, así que queda servible en `/sw.js` sin config adicional.
-- `app/src/push/push.ts` — `soportaPush()` (feature-detect; en iOS Safari da `false` salvo que
-  la web esté agregada a la pantalla de inicio), `pedirPermisoYSuscribir(usuarioId)`,
+- `app/src/push/push.ts` — `soportaPush()` (feature-detect), `esIOS()`, `pedirPermisoYSuscribir(usuarioId)`,
   `desuscribir()`, `yaSuscripto()`. Suscribe/desuscribe escribiendo directo en
   `push_suscripcion` desde el cliente (mismo patrón que `tour_visto` en `TourContext.tsx` —
   sin endpoint Express de por medio).
+  **`soportaPush()` da `false` en TODO navegador de iOS, no solo Safari** — Chrome/Firefox/Edge
+  para iOS corren sobre el motor de Safari por regla de Apple, pero el permiso de push en iOS
+  solo lo obtiene una instalación a pantalla de inicio hecha DESDE la app de Safari; hacerlo
+  desde Chrome en iOS no habilita nada, es una restricción de Apple a nivel de sistema (bug real
+  reportado 2026-09-01: el hint decía "agregá la app" sin más, y confundía a quien lo veía en
+  Chrome para iPhone pensando que agregarla desde ahí alcanzaba).
 - Toggle en `app/app/(tabs)/ajustes.tsx` (sección "NOTIFICACIONES") — solo visible si
-  `soportaPush()`, si no muestra un hint de "agregá la app a tu pantalla de inicio" (caso iOS).
+  `soportaPush()`; si no, el hint usa `esIOS()` para nombrar a Safari explícitamente en ese caso
+  ("abrí este sitio en Safari... y agregalo desde ahí"), y un mensaje genérico en cualquier otro
+  navegador sin soporte (ej. navegador embebido de WhatsApp/Instagram).
 - Paso obligatorio en el tour (`app/src/tour/pasos.ts`, `PasoId "notificaciones"`, primero en
   `ORDEN_PASOS`): sin target real en pantalla (es un permiso del navegador, no un componente), se
   resuelve en `TourOverlay.tsx` con un `rect` fijo fuera de pantalla (spotlight invisible, overlay

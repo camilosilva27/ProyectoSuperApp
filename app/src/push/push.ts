@@ -4,8 +4,14 @@
  * API del navegador (service worker + VAPID), no `expo-notifications` (eso es para builds
  * nativos, que hoy no existen en este proyecto).
  *
- * En iOS Safari, `soportaPush()` da `false` salvo que el usuario haya agregado la web a la
- * pantalla de inicio (PWA instalada) — es una limitación del navegador, no de esta app.
+ * En iOS, `soportaPush()` da `false` salvo que la web esté agregada a la pantalla de inicio
+ * DESDE SAFARI. No es una limitación de "Safari" puntualmente sino de iOS en general: todo
+ * navegador en iOS (Chrome, Firefox, Edge incluidos) corre sobre el motor de Safari por regla
+ * de Apple, pero solo la instalación hecha desde la propia app de Safari obtiene el permiso de
+ * push — agregar el sitio a la pantalla de inicio desde Chrome/Firefox en iOS no habilita nada,
+ * es una restricción de Apple a nivel de sistema. Por eso el hint de Ajustes cuando no hay
+ * soporte (`esperaInstalarEnIOS()`) nombra a Safari explícitamente en vez de decir "tu
+ * navegador" — si no, en Chrome para iOS confunde: parece un problema de la app, no del SO.
  */
 
 import { Platform } from 'react-native';
@@ -18,6 +24,15 @@ export function soportaPush(): boolean {
     && typeof navigator !== 'undefined'
     && 'serviceWorker' in navigator
     && 'PushManager' in window;
+}
+
+/** Para elegir el texto del hint cuando `soportaPush()` da `false` — en iOS hay que nombrar a
+ *  Safari específicamente (ver nota de arriba); en cualquier otro caso (navegador embebido de
+ *  WhatsApp/Instagram, navegador de escritorio viejo, etc.) el hint genérico alcanza. */
+export function esIOS(): boolean {
+  return Platform.OS === 'web'
+    && typeof navigator !== 'undefined'
+    && /iPhone|iPad|iPod/.test(navigator.userAgent);
 }
 
 // applicationServerKey necesita un Uint8Array, no el string base64url que da `web-push
