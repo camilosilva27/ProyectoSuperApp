@@ -628,9 +628,12 @@ proyecto), es la Push API estándar del navegador.
 - `backend/src/cron/recordatorioSemanal.js` — mismo esqueleto que `pingSupabase.js` (reporte a
   `logs/`, `require.main === module`). Manda el mismo mensaje genérico a todas las filas de
   `push_suscripcion` (lee con la service role) y borra las que respondan 404/410 (suscripción
-  vencida del lado del navegador). Crontab sugerido en el comentario del archivo: lunes 10:00
-  hora Argentina — **falta cargarlo a mano en la VM** (mismo criterio que los demás crons, no
-  vive en el repo).
+  vencida del lado del navegador). **Cargado en la crontab de la VM 2026-09-01**
+  (`0 13 * * 1`, bajo el usuario `camilosilva28` — mismo criterio que los demás crons, no vive
+  en el repo; la VM corre en UTC, así que 13:00 UTC = 10:00 hora Argentina). Las VAPID keys
+  también se cargaron a mano en `backend/.env` de la VM (no viajan por git, igual que el resto
+  de los secretos). Probado corriendo el comando del cron a mano en la VM: llegó una
+  notificación real al dispositivo suscripto.
 
 **Bug real encontrado y corregido al probar en navegador**: `pushManager.subscribe()` tira
 `AbortError: ... no active Service Worker` si se usa el resultado de `serviceWorker.register()`
