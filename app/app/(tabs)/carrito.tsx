@@ -51,8 +51,12 @@ export default function PantallaCarrito() {
   const [toastNombre, setToastNombre] = useState<string | null>(null);
   const [mostrarConfirmarVaciar, setMostrarConfirmarVaciar] = useState(false);
   const [mostrarHojaSupers, setMostrarHojaSupers] = useState(false);
+  // Reserva real del scroll para no quedar tapado por "Comparar precios": antes era un 140
+  // fijo a ojo, que sobraba y dejaba un espacio vacío entre el botón y el tab bar.
+  const [altoBarraInferior, setAltoBarraInferior] = useState(0);
 
   const vacia = carrito.items.length === 0;
+  const reservaInferior = vacia ? 0 : tabBarHeight + altoBarraInferior;
 
   const vaciarConfirmado = () => {
     setMostrarConfirmarVaciar(false);
@@ -93,7 +97,7 @@ export default function PantallaCarrito() {
       </HeaderNegro>
 
       <ScrollView
-        contentContainerStyle={[styles.contenido, { paddingBottom: vacia ? espacio.xl : 140 }]}
+        contentContainerStyle={[styles.contenido, { paddingBottom: reservaInferior || espacio.xl }]}
         keyboardShouldPersistTaps="handled"
       >
         {/* Vive fuera del "vacia ? …" de abajo a propósito: si el carrito activo está vacío,
@@ -224,6 +228,7 @@ export default function PantallaCarrito() {
           y navegar sin pasar por cerrarYConfirmar, comparando con la selección/tope viejos. */}
       {!vacia && !mostrarHojaSupers ? (
         <View
+          onLayout={e => setAltoBarraInferior(e.nativeEvent.layout.height)}
           style={[
             styles.barraInferior,
             {
