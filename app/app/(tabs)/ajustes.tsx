@@ -59,10 +59,14 @@ export default function PantallaAjustes() {
   const [notifsActivas, setNotifsActivas] = useState(false);
   const [notifsCargando, setNotifsCargando] = useState(false);
 
+  // El tour se lanza desde esta misma pantalla y su overlay se pinta encima sin desmontarla: el
+  // paso "notificaciones" pide el permiso y suscribe por su cuenta (TourOverlay.tsx), así que acá
+  // hay que volver a consultar `yaSuscripto()` cuando el tour termina, no solo al montar.
   useEffect(() => {
+    if (tour.activo) return;
     setNotifsSoportadas(soportaPush());
     yaSuscripto().then(setNotifsActivas);
-  }, []);
+  }, [tour.activo]);
 
   const alCambiarNotifs = useCallback(async (activar: boolean) => {
     setNotifsCargando(true);
