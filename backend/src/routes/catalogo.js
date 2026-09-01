@@ -14,6 +14,7 @@ const express = require('express');
 const catalogoUnificado = require('../catalogoUnificado');
 const { SUPERMERCADOS } = require('../../../AllPromos/core/fetchers');
 const { requiereSesion, requierePlanActivo } = require('../middleware/requiereSesion');
+const { elegirProductosTour } = require('../precioCache');
 
 const router = express.Router();
 const KEYS_SUPERMERCADOS = new Set(SUPERMERCADOS.map(s => s.key));
@@ -62,6 +63,20 @@ router.get('/catalogo/producto/:ean', requiereSesion, requierePlanActivo, (req, 
   // skuIdVea e imagenUrl son detalles internos (ver core/catalogoUnificado.js).
   const { skuIdVea, imagenUrl, imagenArchivo, ...publico } = producto;
   res.json(publico);
+});
+
+/**
+ * Productos para precargar el carrito del tour interactivo (ver app/src/tour/precarga.ts):
+ * elegidos entre Vea/Carrefour/Coto por precio real y diferencia/descuento (ver
+ * elegirProductosTour en precioCache.js). Devuelve la misma forma pública que
+ * /catalogo/producto/:ean, ya lista para carrito.agregar() en la app.
+ */
+router.get('/catalogo/tour-sugeridos', requiereSesion, requierePlanActivo, (req, res) => {
+  const productos = elegirProductosTour()
+    .map(({ ean }) => catalogoUnificado.porEAN(ean))
+    .filter(Boolean)
+    .map(({ skuIdVea, imagenUrl, imagenArchivo, ...publico }) => publico);
+  res.json({ productos });
 });
 
 module.exports = router;

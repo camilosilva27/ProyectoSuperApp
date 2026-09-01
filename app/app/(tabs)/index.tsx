@@ -350,6 +350,7 @@ export default function PantallaBuscar() {
         tope={topeSupers}
         onCerrar={() => setMostrarHojaSupers(false)}
         onAplicar={setSupersYTope}
+        bloqueados={tour.activo ? ['vea', 'carr'] : []}
       />
 
       {/* Oculto mientras la hoja está abierta: sin esto queda pintado ARRIBA del scrim (es un
