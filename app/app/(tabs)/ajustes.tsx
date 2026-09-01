@@ -23,12 +23,13 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { precioSuscripcion } from '../../src/api';
 import { useAuth } from '../../src/auth';
 import { ConfirmacionModal } from '../../src/componentes/Confirmacion';
 import { HeaderNegro, TituloHeader } from '../../src/componentes/HeaderNegro';
+import { desuscribir, pedirPermisoYSuscribir, soportaPush, yaSuscripto } from '../../src/push/push';
 import { diasRestantesTrial, usePlanUsuario } from '../../src/plan';
 import { espacio, pesosCorto, radio, texto } from '../../src/theme';
 import { useTour } from '../../src/tour/TourContext';
@@ -54,6 +55,28 @@ export default function PantallaAjustes() {
   const tour = useTour();
   const [mostrarConfirmarSalir, setMostrarConfirmarSalir] = useState(false);
   const [precios, setPrecios] = useState<{ mensual: number; anual: number; permanente: number } | null>(null);
+  const [notifsSoportadas, setNotifsSoportadas] = useState(false);
+  const [notifsActivas, setNotifsActivas] = useState(false);
+  const [notifsCargando, setNotifsCargando] = useState(false);
+
+  useEffect(() => {
+    setNotifsSoportadas(soportaPush());
+    yaSuscripto().then(setNotifsActivas);
+  }, []);
+
+  const alCambiarNotifs = useCallback(async (activar: boolean) => {
+    setNotifsCargando(true);
+    if (activar) {
+      const ok = await pedirPermisoYSuscribir(session!.user.id);
+      setNotifsActivas(ok);
+    } else {
+      await desuscribir();
+      setNotifsActivas(false);
+    }
+    setNotifsCargando(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `session` es estable mientras
+    // hay sesión (GateSesion garantiza que no se llega a esta pantalla sin ella).
+  }, []);
 
   // Al volver a esta pantalla (ej. después de ir y volver del checkout de Mercado Pago) se
   // refresca el plan — el webhook de MP ya pudo haber actualizado `perfil_usuario` mientras
@@ -160,6 +183,24 @@ export default function PantallaAjustes() {
                 : 'Acá cambiás de plan o cancelás.'}
             </Text>
           ) : null}
+        </View>
+
+        <View style={styles.seccion}>
+          <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>NOTIFICACIONES</Text>
+          {notifsSoportadas ? (
+            <View style={[styles.grupo, { borderColor: paleta.borde }]}>
+              <View style={styles.fila}>
+                <Text style={[texto.cuerpoMedio, { color: paleta.tinta, flex: 1 }]}>
+                  Recordatorio semanal
+                </Text>
+                <Switch value={notifsActivas} onValueChange={alCambiarNotifs} disabled={notifsCargando} />
+              </View>
+            </View>
+          ) : (
+            <Text style={[texto.dato, { color: paleta.tintaSuave }]}>
+              Agregá la app a tu pantalla de inicio para poder activar notificaciones.
+            </Text>
+          )}
         </View>
 
         <View style={[styles.grupo, { borderColor: paleta.borde }]}>

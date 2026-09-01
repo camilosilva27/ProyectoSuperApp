@@ -1,11 +1,18 @@
 /**
- * Capa visual del tour: 4 bloqueadores opacos alrededor del target actual (arriba/abajo/
- * izquierda/derecha) + el recorte del medio sin overlay (el toque real llega directo al
- * elemento real, no se envuelve en nada) + el cartel de instrucción.
+ * Capa visual del tour: 4 bloqueadores (solo bloquean toque, ya no pintan oscuro — ver abajo)
+ * alrededor del target actual (arriba/abajo/izquierda/derecha) + el recorte del medio sin
+ * overlay (el toque real llega directo al elemento real, no se envuelve en nada) + el cartel
+ * de instrucción.
  *
- * Sin botón de salir en los pasos intermedios (a pedido) — el tour se completa siempre de
- * punta a punta. Solo el último paso (`ahorro`, ver resultado.tsx) tiene un botón, "Finalizar",
- * que hace lo mismo que tocar el recuadro resaltado: terminar.
+ * El oscurecido en sí lo pinta un único `boxShadow` (spread 9999px) sobre `marcoRecorte`, no
+ * los 4 bloqueadores: así el "agujero" de luz sigue el mismo `borderRadius` que el borde
+ * amarillo, en vez de quedar un rectángulo recto por debajo de un borde curvo (se veían las
+ * esquinas "marcadas" aunque el borde fuera redondeado).
+ *
+ * "Finalizar" arriba a la derecha del cartel, en todos los pasos: cierra el tour en cualquier
+ * momento (antes solo se podía completarlo de punta a punta). El último paso (`ahorro`, ver
+ * resultado.tsx) además tiene su propio botón de cierre, más prominente, que hace lo mismo que
+ * tocar el recuadro resaltado: terminar.
  *
  * La medición reintenta en cada frame durante una ventana corta después de cada cambio de
  * paso, no solo una vez: esto cubre tanto el caso general (nodo recién montado, 0×0 hasta que
@@ -17,9 +24,11 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '../auth';
+import { pedirPermisoYSuscribir } from '../push/push';
 import { espacio, fuentes, radio } from '../theme';
 import { ORDEN_PASOS, PASOS } from './pasos';
-import { refDeTarget, salirTour, tourAltoTabBar, useEstadoTour } from './TourContext';
+import { avanzarTour, refDeTarget, salirTour, tourAltoTabBar, useEstadoTour } from './TourContext';
 
 const ULTIMO_PASO = ORDEN_PASOS[ORDEN_PASOS.length - 1];
 const TOTAL_PASOS = ORDEN_PASOS.length;
@@ -56,6 +65,17 @@ export function TourOverlay() {
   const { width: anchoVentana, height: altoVentana } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [rect, setRect] = useState<Rect | null>(null);
+  const { session } = useAuth();
+
+  async function activarNotificaciones() {
+    try {
+      if (session) await pedirPermisoYSuscribir(session.user.id);
+    } finally {
+      // Avanza haya aceptado o rechazado el permiso: un navegador no deja re-preguntar tras un
+      // rechazo, así que bloquear el tour hasta que acepte dejaría afuera a quien rechace.
+      avanzarTour('notificaciones');
+    }
+  }
 
   useEffect(() => {
     if (!pasoActivo) {
@@ -68,6 +88,13 @@ export function TourOverlay() {
 
     async function ciclo() {
       if (cancelado) return;
+      if (idPaso === 'notificaciones') {
+        // Sin target real en pantalla (es un permiso del navegador, no un componente): un
+        // recorte fuera de pantalla deja el oscurecido completo y el cartel con su botón
+        // propio (ver más abajo), sin spotlight sobre nada.
+        if (!cancelado) setRect({ x: -9999, y: -9999, width: 0, height: 0 });
+        return;
+      }
       if (idPaso === 'tab-descuentos') {
         const altoTabBar = tourAltoTabBar() ?? ALTO_TAB_BAR_FALLBACK + insets.bottom;
         const anchoTab = anchoVentana / CANTIDAD_TABS;
@@ -110,7 +137,12 @@ export function TourOverlay() {
   if (!rect) {
     return (
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-        <Bloqueador estilo={{ top: 0, left: 0, right: 0, bottom: 0 }} />
+        <Pressable
+          onPress={() => {}}
+          style={[styles.bloqueador, styles.bloqueadorOpaco, { top: 0, left: 0, right: 0, bottom: 0 }]}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        />
       </View>
     );
   }
@@ -173,8 +205,13 @@ export function TourOverlay() {
         ]}
       >
         <View style={styles.cartel}>
-          <View style={styles.badgePaso}>
-            <Text style={styles.pasoCartel}>Paso {ORDEN_PASOS.indexOf(pasoActivo) + 1} de {TOTAL_PASOS}</Text>
+          <View style={styles.filaSuperior}>
+            <View style={styles.badgePaso}>
+              <Text style={styles.pasoCartel}>Paso {ORDEN_PASOS.indexOf(pasoActivo) + 1} de {TOTAL_PASOS}</Text>
+            </View>
+            <Pressable onPress={salirTour} accessibilityRole="button" hitSlop={8}>
+              <Text style={styles.textoFinalizarLink}>Finalizar</Text>
+            </Pressable>
           </View>
           <Text style={styles.tituloCartel}>{PASOS[pasoActivo].titulo}</Text>
           <Text style={styles.textoCartel}>{PASOS[pasoActivo].texto}</Text>
@@ -183,6 +220,11 @@ export function TourOverlay() {
               <View key={id} style={[styles.punto, id === pasoActivo ? styles.puntoActivo : null]} />
             ))}
           </View>
+          {pasoActivo === 'notificaciones' ? (
+            <Pressable onPress={activarNotificaciones} accessibilityRole="button" style={styles.botonFinalizar}>
+              <Text style={styles.textoBotonFinalizar}>Activar notificaciones</Text>
+            </Pressable>
+          ) : null}
           {pasoActivo === ULTIMO_PASO ? (
             <Pressable onPress={salirTour} accessibilityRole="button" style={styles.botonFinalizar}>
               <Text style={styles.textoBotonFinalizar}>Finalizar</Text>
@@ -206,20 +248,35 @@ function Bloqueador({ estilo }: { estilo: { top?: number; bottom?: number; left?
 }
 
 const styles = StyleSheet.create({
-  bloqueador: { position: 'absolute', backgroundColor: 'rgba(11,18,32,.62)' },
+  // Transparente: solo bloquea el toque afuera del recorte. El oscurecido en sí lo pinta
+  // `marcoRecorte` con un boxShadow enorme, que sigue el borderRadius — así el "agujero" de
+  // luz queda redondeado igual que el borde amarillo, en vez de tener esquinas rectas por
+  // debajo de un borde curvo (ver nota al pie del archivo).
+  bloqueador: { position: 'absolute', backgroundColor: 'transparent' },
+  bloqueadorOpaco: { backgroundColor: 'rgba(11,18,32,.62)' },
   marcoRecorte: {
     position: 'absolute', borderRadius: RADIO_RECORTE, borderWidth: 2, borderColor: '#FFD400',
+    boxShadow: '0 0 0 9999px rgba(11,18,32,.62)',
   },
   cartelContenedor: { position: 'absolute', left: espacio.pantalla, right: espacio.pantalla },
   cartel: {
     backgroundColor: '#FFFFFF', borderRadius: radio.tarjeta, padding: espacio.xl, gap: espacio.sm,
     boxShadow: '0 4px 20px rgba(11,18,32,.25)',
   },
+  filaSuperior: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   badgePaso: {
     alignSelf: 'flex-start', backgroundColor: '#FFD400', borderRadius: radio.pill,
     paddingHorizontal: espacio.sm, paddingVertical: 2,
   },
   pasoCartel: { fontFamily: fuentes.semi, fontSize: 12, lineHeight: 16, color: '#14161A' },
+  // Gris = `tintaSuave` (theme.ts) a mano: este archivo no importa `colores` (el tema oscuro
+  // del rediseño no está diseñado todavía, ver ese archivo), pero el valor es el mismo — y es
+  // el piso de contraste válido para texto sobre blanco (`tintaTenue` es más claro pero solo
+  // vale para íconos, no pasa WCAG AA para texto).
+  textoFinalizarLink: {
+    fontFamily: fuentes.medio, fontSize: 14, lineHeight: 18, color: '#565E67',
+    textDecorationLine: 'underline',
+  },
   tituloCartel: { fontFamily: fuentes.semi, fontSize: 17, lineHeight: 22, color: '#14161A' },
   textoCartel: { fontFamily: fuentes.medio, fontSize: 16, lineHeight: 22, color: '#14161A' },
   puntos: { flexDirection: 'row', gap: espacio.xs, marginTop: espacio.xs },

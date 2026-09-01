@@ -17,7 +17,7 @@
 import { usePathname, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 // expo-router (v57) vendorea su propio bottom-tabs y no lo reexporta desde el root del
 // paquete: no hay `@react-navigation/bottom-tabs` instalado por separado, así que este es
 // el único import que existe hoy para este hook.
@@ -51,8 +51,12 @@ export default function PantallaCarrito() {
   const [toastNombre, setToastNombre] = useState<string | null>(null);
   const [mostrarConfirmarVaciar, setMostrarConfirmarVaciar] = useState(false);
   const [mostrarHojaSupers, setMostrarHojaSupers] = useState(false);
+  // Reserva real del scroll para no quedar tapado por "Comparar precios": antes era un 140
+  // fijo a ojo, que sobraba y dejaba un espacio vacío entre el botón y el tab bar.
+  const [altoBarraInferior, setAltoBarraInferior] = useState(0);
 
   const vacia = carrito.items.length === 0;
+  const reservaInferior = vacia ? 0 : altoBarraInferior + (Platform.OS === 'web' ? 0 : tabBarHeight);
 
   const vaciarConfirmado = () => {
     setMostrarConfirmarVaciar(false);
@@ -93,7 +97,7 @@ export default function PantallaCarrito() {
       </HeaderNegro>
 
       <ScrollView
-        contentContainerStyle={[styles.contenido, { paddingBottom: vacia ? espacio.xl : 140 }]}
+        contentContainerStyle={[styles.contenido, { paddingBottom: reservaInferior || espacio.xl }]}
         keyboardShouldPersistTaps="handled"
       >
         {/* Vive fuera del "vacia ? …" de abajo a propósito: si el carrito activo está vacío,
@@ -224,14 +228,15 @@ export default function PantallaCarrito() {
           y navegar sin pasar por cerrarYConfirmar, comparando con la selección/tope viejos. */}
       {!vacia && !mostrarHojaSupers ? (
         <View
+          onLayout={e => setAltoBarraInferior(e.nativeEvent.layout.height)}
           style={[
             styles.barraInferior,
             {
               backgroundColor: paleta.superficie, borderTopColor: paleta.borde,
-              // Arriba del tab bar (que ya resuelve su propio safe-area), no contra el
-              // borde de la pantalla: si no, tapaba las 4 pestañas de abajo.
-              bottom: tabBarHeight,
-              paddingBottom: espacio.md,
+              // Ver el comentario equivalente en index.tsx: en native hay que subir esta
+              // barra tabBarHeight para no quedar detrás del tab bar; en web la escena ya lo
+              // excluye (son hermanos), así que sumarlo ahí solo dejaba un hueco vacío.
+              bottom: Platform.OS === 'web' ? 0 : tabBarHeight,
             },
           ]}
         >
