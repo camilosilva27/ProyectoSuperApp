@@ -13,7 +13,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { usePathname, useRouter } from 'expo-router';
+import { useFocusEffect, usePathname, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -38,7 +38,7 @@ import { HeaderNegro, SelectorSupers, TituloHeader } from '../../src/componentes
 import { PlacaLogoSuper } from '../../src/componentes/LogoSuper';
 import { HojaSupers } from '../../src/componentes/HojaSupers';
 import { useFiltrosSupers } from '../../src/filtrosSupers';
-import { espacio, pesos, radio, texto } from '../../src/theme';
+import { espacio, pesos, radio, texto, usePantallaBaja } from '../../src/theme';
 import { tourReportarAltoTabBar, tourYaVisto, useTour, useTourPaso } from '../../src/tour/TourContext';
 import { useTema } from '../../src/useTema';
 
@@ -131,6 +131,7 @@ function useTextoDemorado(valor: string, ms = 300) {
 
 export default function PantallaBuscar() {
   const { paleta } = useTema();
+  const pantallaBaja = usePantallaBaja();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const router = useRouter();
@@ -175,7 +176,28 @@ export default function PantallaBuscar() {
     // el estado de sesión, no en cada render.
   }, [cargandoSesion, session?.user.id]);
 
-  const refBuscador = useTourPaso<TextInput>('buscador-input', consultaDemorada.length >= 3);
+  // 'volver-buscar' (ver pasos.ts): pide el toque real sobre la pestaña Buscar en vez de que
+  // 'mercado-pago' navegue solo. Misma lógica que 'tab-descuentos' en mis-descuentos.tsx —
+  // exige una transición real de foco (se resetea a `false` en el blur), no `true` fijo, para
+  // que un foco viejo de antes de este paso no lo dé por cumplido sin que el usuario toque nada.
+  const [volvioABuscar, setVolvioABuscar] = useState(false);
+  useFocusEffect(useCallback(() => {
+    setVolvioABuscar(true);
+    return () => setVolvioABuscar(false);
+  }, []));
+  useTourPaso('volver-buscar', volvioABuscar);
+
+  // No avanza apenas se llega a 3 caracteres (a pedido): eso corta al usuario a mitad de
+  // palabra, apenas empieza a escribir. Avanza recién 3s después de la última tecla (terminó
+  // de escribir) o al instante si aprieta Enter/buscar (confirmó explícitamente).
+  const [avanzarBuscador, setAvanzarBuscador] = useState(false);
+  useEffect(() => {
+    setAvanzarBuscador(false);
+    if (consulta.trim().length < 3) return;
+    const t = setTimeout(() => setAvanzarBuscador(true), 3000);
+    return () => clearTimeout(t);
+  }, [consulta]);
+  const refBuscador = useTourPaso<TextInput>('buscador-input', avanzarBuscador);
   const refCeldaOtros = useTourPaso('selector-otros', mostrarHojaSupers);
   // NO mira `carrito.items.length > 0`: el carrito persiste entre sesiones (igual que
   // `carrito.tarjetas`), así que si la cuenta ya tenía algo cargado de antes esa condición ya
@@ -183,7 +205,18 @@ export default function PantallaBuscar() {
   // y "activá Mercado Pago". Este estado exige el toque real sobre la primera fila.
   const [tocoPrimerResultado, setTocoPrimerResultado] = useState(false);
   const refPrimerResultado = useTourPaso('primer-resultado', tocoPrimerResultado);
-  const refVerCarrito = useTourPaso('ver-carrito', pathname === '/carrito');
+  // NO mira `pathname === '/carrito'` directo: si el usuario ya estaba en /carrito cuando el
+  // paso 'ver-carrito' se activa (venía de ahí, o la navegación quedó en ese estado por otro
+  // paso previo), la condición ya sería verdadera de entrada y el paso se saltearía sin cartel
+  // — mismo bug que ya se corrigió para "marcá Coto"/"activá Mercado Pago". Solo cuenta una
+  // transición real hacia /carrito, no el estado ya alcanzado.
+  const pathnameAnteriorRef = useRef(pathname);
+  const [navegoACarrito, setNavegoACarrito] = useState(false);
+  useEffect(() => {
+    if (pathname === '/carrito' && pathnameAnteriorRef.current !== '/carrito') setNavegoACarrito(true);
+    pathnameAnteriorRef.current = pathname;
+  }, [pathname]);
+  const refVerCarrito = useTourPaso('ver-carrito', navegoACarrito);
 
   const { data, isFetching, error, refetch } = useQuery({
     queryKey: ['catalogo', consultaDemorada, supersActivos, orden],
@@ -260,9 +293,9 @@ export default function PantallaBuscar() {
   return (
     <View style={[styles.pantalla, { backgroundColor: paleta.fondo }]}>
       <Head><title>Buscar productos - Super App</title></Head>
-      <HeaderNegro paddingTop={insets.top + espacio.xl}>
+      <HeaderNegro paddingTop={insets.top + (pantallaBaja ? espacio.md : espacio.xl)}>
         <TituloHeader>Qué vas a comprar</TituloHeader>
-        <View style={styles.buscador}>
+        <View style={[styles.buscador, pantallaBaja && styles.buscadorCompacto]}>
           <TextInput
             ref={refBuscador}
             value={consulta}
@@ -273,6 +306,7 @@ export default function PantallaBuscar() {
             autoCorrect={false}
             autoCapitalize="none"
             returnKeyType="search"
+            onSubmitEditing={() => setAvanzarBuscador(true)}
             accessibilityLabel="Buscar productos"
           />
           {consulta.length > 0 ? (
@@ -315,6 +349,11 @@ export default function PantallaBuscar() {
             styles.lista,
             { paddingBottom: reservaInferior || espacio.xl },
           ]}
+          // Con el tour activo en 'primer-resultado' el spotlight resalta la primera fila de
+          // esta misma lista: si se puede scrollear, la fila se mueve por debajo del recorte
+          // fijo del overlay y el resaltado queda desalineado (el overlay solo remide cada
+          // ~400ms una vez pasada la ventana inicial de medición rápida).
+          scrollEnabled={!(tour.activo && tour.pasoActivo === 'primer-resultado')}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           ItemSeparatorComponent={() => <View style={{ height: espacio.sm }} />}
@@ -609,6 +648,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: espacio.sm,
     backgroundColor: '#FFFFFF', borderRadius: radio.md, paddingHorizontal: espacio.md, height: 50,
   },
+  // Ver usePantallaBaja (theme.ts) — un iPhone SE perdía más de la mitad de la pantalla contra
+  // este header.
+  buscadorCompacto: { height: 42 },
   input: { flex: 1, outlineWidth: 0, outlineStyle: 'none' },
   botonLimpiar: {
     width: 20, height: 20, borderRadius: radio.pill, alignItems: 'center', justifyContent: 'center',

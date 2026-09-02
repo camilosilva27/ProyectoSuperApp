@@ -604,13 +604,20 @@ proyecto), es la Push API estándar del navegador.
 - `app/public/sw.js` — service worker mínimo (`push` → `showNotification`, `notificationclick` →
   enfoca la app). Expo copia `app/public/` tal cual a la raíz del build web, igual que
   `manifest.json`, así que queda servible en `/sw.js` sin config adicional.
-- `app/src/push/push.ts` — `soportaPush()` (feature-detect; en iOS Safari da `false` salvo que
-  la web esté agregada a la pantalla de inicio), `pedirPermisoYSuscribir(usuarioId)`,
+- `app/src/push/push.ts` — `soportaPush()` (feature-detect), `pedirPermisoYSuscribir(usuarioId)`,
   `desuscribir()`, `yaSuscripto()`. Suscribe/desuscribe escribiendo directo en
   `push_suscripcion` desde el cliente (mismo patrón que `tour_visto` en `TourContext.tsx` —
   sin endpoint Express de por medio).
-- Toggle en `app/app/(tabs)/ajustes.tsx` (sección "NOTIFICACIONES") — solo visible si
-  `soportaPush()`, si no muestra un hint de "agregá la app a tu pantalla de inicio" (caso iOS).
+  **`soportaPush()` da `false` en TODO navegador de iOS, no solo Safari** — Chrome/Firefox/Edge
+  para iOS corren sobre el motor de Safari por regla de Apple, pero el permiso de push en iOS
+  solo lo obtiene una instalación a pantalla de inicio hecha DESDE la app de Safari; hacerlo
+  desde Chrome en iOS no habilita nada, es una restricción de Apple a nivel de sistema.
+- Toggle en `app/app/(tabs)/ajustes.tsx` (sección "NOTIFICACIONES") — la sección entera (título
+  incluido) solo se renderiza si `soportaPush()` da `true`; a pedido, si no hay soporte no se
+  muestra nada, sin explicar por qué (se probó primero un hint explicando el caso de iOS/Safari,
+  descartado 2026-09-01 porque el user-agent es poco confiable para detectarlo bien — con "Sitio
+  de escritorio" activado en Chrome iOS, por ejemplo, se disfraza de Mac y rompe la detección
+  — y de todos modos no era el comportamiento que se quería).
 - Paso obligatorio en el tour (`app/src/tour/pasos.ts`, `PasoId "notificaciones"`, primero en
   `ORDEN_PASOS`): sin target real en pantalla (es un permiso del navegador, no un componente), se
   resuelve en `TourOverlay.tsx` con un `rect` fijo fuera de pantalla (spotlight invisible, overlay
@@ -621,9 +628,12 @@ proyecto), es la Push API estándar del navegador.
 - `backend/src/cron/recordatorioSemanal.js` — mismo esqueleto que `pingSupabase.js` (reporte a
   `logs/`, `require.main === module`). Manda el mismo mensaje genérico a todas las filas de
   `push_suscripcion` (lee con la service role) y borra las que respondan 404/410 (suscripción
-  vencida del lado del navegador). Crontab sugerido en el comentario del archivo: lunes 10:00
-  hora Argentina — **falta cargarlo a mano en la VM** (mismo criterio que los demás crons, no
-  vive en el repo).
+  vencida del lado del navegador). **Cargado en la crontab de la VM 2026-09-01**
+  (`0 13 * * 1`, bajo el usuario `camilosilva28` — mismo criterio que los demás crons, no vive
+  en el repo; la VM corre en UTC, así que 13:00 UTC = 10:00 hora Argentina). Las VAPID keys
+  también se cargaron a mano en `backend/.env` de la VM (no viajan por git, igual que el resto
+  de los secretos). Probado corriendo el comando del cron a mano en la VM: llegó una
+  notificación real al dispositivo suscripto.
 
 **Bug real encontrado y corregido al probar en navegador**: `pushManager.subscribe()` tira
 `AbortError: ... no active Service Worker` si se usa el resultado de `serviceWorker.register()`

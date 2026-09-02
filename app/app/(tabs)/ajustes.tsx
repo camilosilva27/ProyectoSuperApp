@@ -22,8 +22,10 @@
 
 import { useFocusEffect, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
-import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Animated, Easing, Pressable, StyleSheet, Text, View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { precioSuscripcion } from '../../src/api';
 import { useAuth } from '../../src/auth';
@@ -31,7 +33,7 @@ import { ConfirmacionModal } from '../../src/componentes/Confirmacion';
 import { HeaderNegro, TituloHeader } from '../../src/componentes/HeaderNegro';
 import { desuscribir, pedirPermisoYSuscribir, soportaPush, yaSuscripto } from '../../src/push/push';
 import { diasRestantesTrial, usePlanUsuario } from '../../src/plan';
-import { espacio, pesosCorto, radio, texto } from '../../src/theme';
+import { espacio, fuentes, pesosCorto, radio, texto } from '../../src/theme';
 import { useTour } from '../../src/tour/TourContext';
 import { useTema } from '../../src/useTema';
 
@@ -44,6 +46,55 @@ function formatearFecha(iso: string | null): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
   return d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+// Mismo diseño que ItemDescuento en mis-descuentos.tsx (tarjeta con barra de acento + radio
+// circular animado, SPEC diseño v2) — reimplementado acá en vez de importado porque esa versión
+// carga bastante contexto propio de descuentos (sinUsar, supersTexto) que este toggle no usa.
+function FilaToggleAnimada({
+  paleta, nombre, activa, deshabilitada, onCambiar, accessibilityLabel,
+}: {
+  paleta: ReturnType<typeof useTema>['paleta'];
+  nombre: string;
+  activa: boolean;
+  deshabilitada: boolean;
+  onCambiar: (valor: boolean) => void;
+  accessibilityLabel: string;
+}) {
+  const progreso = useRef(new Animated.Value(activa ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.timing(progreso, {
+      toValue: activa ? 1 : 0,
+      duration: 180,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: false,
+    }).start();
+  }, [activa, progreso]);
+
+  const fondo = progreso.interpolate({ inputRange: [0, 1], outputRange: [paleta.superficieAlt, paleta.ofertaSuave] });
+  const borde = progreso.interpolate({ inputRange: [0, 1], outputRange: [paleta.borde, paleta.oferta] });
+  const acento = progreso.interpolate({ inputRange: [0, 1], outputRange: [paleta.borde, paleta.oferta] });
+  const radioFondo = progreso.interpolate({ inputRange: [0, 1], outputRange: [paleta.superficie, paleta.tinta] });
+  const radioBorde = progreso.interpolate({ inputRange: [0, 1], outputRange: [paleta.bordeFuerte, paleta.tinta] });
+
+  return (
+    <Pressable
+      onPress={() => onCambiar(!activa)}
+      disabled={deshabilitada}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: activa, disabled: deshabilitada }}
+      accessibilityLabel={accessibilityLabel}
+    >
+      <Animated.View style={[styles.filaToggle, { backgroundColor: fondo, borderColor: borde, opacity: deshabilitada ? 0.6 : 1 }]}>
+        <Animated.View style={[styles.barraAcento, { backgroundColor: acento }]} />
+        <Text style={[texto.cuerpoMedio, { color: paleta.tinta, flex: 1 }]}>{nombre}</Text>
+        <Animated.View style={[styles.radio, { backgroundColor: radioFondo, borderColor: radioBorde }]}>
+          <Animated.Text style={[styles.radioCheck, { color: paleta.oferta, opacity: progreso }]}>✓</Animated.Text>
+        </Animated.View>
+      </Animated.View>
+    </Pressable>
+  );
 }
 
 export default function PantallaAjustes() {
@@ -189,23 +240,19 @@ export default function PantallaAjustes() {
           ) : null}
         </View>
 
-        <View style={styles.seccion}>
-          <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>NOTIFICACIONES</Text>
-          {notifsSoportadas ? (
-            <View style={[styles.grupo, { borderColor: paleta.borde }]}>
-              <View style={styles.fila}>
-                <Text style={[texto.cuerpoMedio, { color: paleta.tinta, flex: 1 }]}>
-                  Recordatorio semanal
-                </Text>
-                <Switch value={notifsActivas} onValueChange={alCambiarNotifs} disabled={notifsCargando} />
-              </View>
-            </View>
-          ) : (
-            <Text style={[texto.dato, { color: paleta.tintaSuave }]}>
-              Agregá la app a tu pantalla de inicio para poder activar notificaciones.
-            </Text>
-          )}
-        </View>
+        {notifsSoportadas ? (
+          <View style={styles.seccion}>
+            <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>NOTIFICACIONES</Text>
+            <FilaToggleAnimada
+              paleta={paleta}
+              nombre="Recordatorio semanal"
+              activa={notifsActivas}
+              deshabilitada={notifsCargando}
+              onCambiar={alCambiarNotifs}
+              accessibilityLabel={`Recordatorio semanal ${notifsActivas ? 'activado' : 'desactivado'}`}
+            />
+          </View>
+        ) : null}
 
         <View style={[styles.grupo, { borderColor: paleta.borde }]}>
           <Pressable
@@ -247,4 +294,11 @@ const styles = StyleSheet.create({
   },
   filaNombrePlan: { flexDirection: 'row', alignItems: 'center', gap: espacio.sm },
   badgeActivo: { borderRadius: 5, paddingHorizontal: espacio.sm, paddingVertical: 3 },
+  filaToggle: {
+    flexDirection: 'row', alignItems: 'center', gap: espacio.md, padding: espacio.md,
+    borderRadius: radio.tarjeta, borderWidth: 1, minHeight: 44,
+  },
+  barraAcento: { width: 8, height: 36, borderRadius: radio.pill },
+  radio: { width: 26, height: 26, borderRadius: radio.pill, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  radioCheck: { fontFamily: fuentes.semi, fontSize: 13, lineHeight: 13 },
 });

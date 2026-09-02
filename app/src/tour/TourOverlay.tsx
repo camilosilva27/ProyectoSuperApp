@@ -10,9 +10,10 @@
  * esquinas "marcadas" aunque el borde fuera redondeado).
  *
  * "Finalizar" arriba a la derecha del cartel, en todos los pasos: cierra el tour en cualquier
- * momento (antes solo se podía completarlo de punta a punta). El último paso (`ahorro`, ver
- * resultado.tsx) además tiene su propio botón de cierre, más prominente, que hace lo mismo que
- * tocar el recuadro resaltado: terminar.
+ * momento (antes solo se podía completarlo de punta a punta). El último paso (`ULTIMO_PASO`,
+ * hoy `notificaciones` — ver pasos.ts) además tiene su propio botón de cierre grande junto al
+ * botón de la acción del paso: los dos llevan al mismo lado (terminar el tour), dejando ese
+ * último paso explícitamente opcional.
  *
  * La medición reintenta en cada frame durante una ventana corta después de cada cambio de
  * paso, no solo una vez: esto cubre tanto el caso general (nodo recién montado, 0×0 hasta que
@@ -21,13 +22,15 @@
  * "viaja" con el target mientras se termina de mover.
  */
 
-import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import {
+  Platform, Pressable, StyleSheet, Text, View, useWindowDimensions,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../auth';
 import { pedirPermisoYSuscribir } from '../push/push';
 import { espacio, fuentes, radio } from '../theme';
-import { ORDEN_PASOS, PASOS } from './pasos';
+import { ORDEN_PASOS, PASOS, type PasoId } from './pasos';
 import { avanzarTour, refDeTarget, salirTour, tourAltoTabBar, useEstadoTour } from './TourContext';
 
 const ULTIMO_PASO = ORDEN_PASOS[ORDEN_PASOS.length - 1];
@@ -35,9 +38,10 @@ const TOTAL_PASOS = ORDEN_PASOS.length;
 
 type Rect = { x: number; y: number; width: number; height: number };
 
-// Índice de la pestaña "Descuentos" en la barra inferior (ver app/(tabs)/_layout.tsx: Buscar,
-// Carrito, Descuentos, Ahorros, Ajustes) y su alto de referencia si todavía no llegó el valor
-// real reportado por la pantalla Buscar (ver `tourReportarAltoTabBar` en index.tsx).
+// Índices de pestañas en la barra inferior (ver app/(tabs)/_layout.tsx: Buscar, Carrito,
+// Descuentos, Ahorros, Ajustes) y su alto de referencia si todavía no llegó el valor real
+// reportado por la pantalla Buscar (ver `tourReportarAltoTabBar` en index.tsx).
+const INDICE_TAB_BUSCAR = 0;
 const INDICE_TAB_DESCUENTOS = 2;
 const CANTIDAD_TABS = 5;
 const ALTO_TAB_BAR_FALLBACK = 56;
@@ -46,6 +50,31 @@ const PADDING_RECORTE = 8;
 const RADIO_RECORTE = 14;
 const INTENTOS_RAPIDOS = 90; // ~1.5s a 60fps — sigue al target mientras HojaSupers anima su entrada
 const INTERVALO_LENTO_MS = 400; // tras la ventana rápida, sigue reintentando así de por vida
+
+// Pasos cuya finalización implica navegar a otra pantalla (ver mis-descuentos.tsx, index.tsx,
+// carrito.tsx: son los únicos 4 con una condición de avance atada a un cambio real de ruta o
+// foco). El paso que entra DESPUÉS de completar uno de estos no tiene un target "anterior"
+// visible en la misma pantalla — deslizar el recuadro no tendría sentido (el punto de partida
+// no existe ahí), así que esos pasos "crecen" desde un punto en el centro del target nuevo en
+// vez de deslizar desde el viejo (ver DURACION_CRECIMIENTO_MS).
+const PASOS_CAMBIO_PANTALLA = new Set<PasoId>(['tab-descuentos', 'mercado-pago', 'volver-buscar', 'ver-carrito', 'comparar-precios']);
+const DURACION_SLIDE_MS = 380;
+// A PROPÓSITO no hay ninguna espera fija antes de mostrar el spotlight nuevo tras una
+// navegación: hacerlo dejaba una pausa en negro sin nada animándose, que se leía como que la
+// app estaba trabada — no como una transición. En vez de eso, apenas se puede medir el target
+// nuevo, el recuadro arranca a crecer desde un punto invisible en su centro (mismo mecanismo
+// que el slide, con un origen distinto) y el cartel entra en simultáneo — el tiempo que antes
+// era "pausa muerta" ahora es tiempo de animación real.
+const DURACION_CRECIMIENTO_MS = 650;
+const CURVA_CRECIMIENTO = 'cubic-bezier(0.22, 1, 0.36, 1)';
+// Cuánto tarda el bloqueo oscuro en aparecer mientras todavía no hay ningún target medido (el
+// único momento sin nada animándose de verdad: recién se navegó y la pantalla nueva ni montó) —
+// un fade, no un corte seco.
+const DURACION_ENTRADA_BLOQUEO_MS = 300;
+// El cartel entra junto con el recuadro (no antes ni mucho después): un adelanto chico alcanza
+// para que se perciba como "la luz encuentra el lugar, la instrucción lo confirma" sin que el
+// cartel se sienta atrasado.
+const DEMORA_CARTEL_MS = 60;
 
 function medirNodo(nodo: unknown): Promise<Rect | null> {
   return new Promise(resolve => {
@@ -67,6 +96,44 @@ export function TourOverlay() {
   const [rect, setRect] = useState<Rect | null>(null);
   const { session } = useAuth();
 
+  // Plain state + transición CSS (solo en web — nativo no tiene CSS transitions, cae a un
+  // corte instantáneo) para TODO lo que se anima en este archivo, en vez de `Animated` de
+  // React Native: se probó con `Animated.Value` + `Animated.timing({useNativeDriver:false})` y
+  // en este RN Web quedaba sistemáticamente "congelado" cerca del valor inicial (tanto el fade
+  // del cartel como este mismo pulso) — no avanzaba aunque `.start()` se llamara correctamente.
+  // No vale la pena perseguir la causa exacta del freeze: un número de estado + `transitionDuration`
+  // es más simple, no depende de un consumidor montado en el momento justo en que arranca, y
+  // se probó que sí funciona (ver `opacidadCartel`).
+  const [posicion, setPosicion] = useState({ left: 0, top: 0, width: 0, height: 0 });
+  // 0 = corte instantáneo (usado solo para fijar el punto de partida sin transición, ver más
+  // abajo); DURACION_SLIDE_MS = desliza dentro de la misma pantalla; DURACION_CRECIMIENTO_MS =
+  // crece desde un punto tras una transición dura.
+  const [duracionPosicionMs, setDuracionPosicionMs] = useState(0);
+  // Arranca en `false` a propósito (no `true`): el cartel recién existe en el árbol la primera
+  // vez que `rect` deja de ser `null`, y React pinta ese primer render CON lo que sea que este
+  // estado valga en ese momento — si arrancara en `true`, el paso 1 nacería visible por un
+  // instante antes de que el código de abajo lo pusiera en `false`, un parpadeo (aparece,
+  // desaparece, reaparece) en vez de un fade-in limpio. Entra con fade + un leve desplazamiento
+  // en toda transición dura (incluida la primera); en las blandas queda en `true` y el texto
+  // simplemente cambia sin animar.
+  const [cartelListo, setCartelListo] = useState(false);
+  // Fade de entrada del bloqueo oscuro (ver el JSX de más abajo): arranca en `false` apenas se
+  // monta (mientras el target nuevo todavía no se puede medir) y pasa a `true` un frame
+  // después, para que el oscurecido también entre con una transición en vez de un corte seco.
+  const [bloqueoListo, setBloqueoListo] = useState(false);
+  const pasoAnteriorRef = useRef<PasoId | null>(null);
+  const pasoClasificadoRef = useRef<PasoId | null>(null);
+  const sinContinuidadVisualRef = useRef(false);
+  const pasoDelUltimoRectRef = useRef<PasoId | null>(null);
+  const huboRectPrevioRef = useRef(false);
+
+  useEffect(() => {
+    if (rect !== null) return;
+    setBloqueoListo(false);
+    const id = requestAnimationFrame(() => setBloqueoListo(true));
+    return () => cancelAnimationFrame(id);
+  }, [rect]);
+
   async function activarNotificaciones() {
     try {
       if (session) await pedirPermisoYSuscribir(session.user.id);
@@ -80,37 +147,83 @@ export function TourOverlay() {
   useEffect(() => {
     if (!pasoActivo) {
       setRect(null);
+      pasoAnteriorRef.current = null;
+      pasoClasificadoRef.current = null;
       return;
     }
-    const idPaso = pasoActivo;
+    // Narrowing explícito: TS no preserva el `!pasoActivo` de arriba dentro de las funciones
+    // anidadas de más abajo (son `function`, no arrow, y capturan `pasoActivo` por closure).
+    const idPaso: PasoId = pasoActivo;
+
+    // La clasificación (¿el paso ANTERIOR implicó cambiar de pantalla?) se calcula una sola
+    // vez por transición real, guardada en `pasoClasificadoRef` — este efecto también depende
+    // de `anchoVentana`/`altoVentana`/`insets.bottom`, que pueden cambiar (resize, un inset que
+    // termina de resolver) SIN que el paso haya cambiado; sin este guard, ese re-render volvía
+    // a leer `pasoAnteriorRef` ya pisado con el propio paso actual (por la corrida anterior de
+    // este mismo efecto) y lo tomaba como si fuera "el paso anterior", reclasificando mal.
+    if (pasoClasificadoRef.current !== idPaso) {
+      const pasoAnterior = pasoAnteriorRef.current;
+      // 'notificaciones' no tiene target real (recorte fuera de pantalla, ver más abajo): sin
+      // continuidad visual tanto si es el paso ANTERIOR (evita que el siguiente intente
+      // deslizar desde ese recorte invisible) como si es el paso al que se está ENTRANDO —
+      // ahora es el último del tour (ver pasos.ts), y sin este segundo chequeo el recuadro
+      // intentaría deslizar desde el bloque de ahorro hasta ese punto fuera de pantalla, un
+      // slide raro hacia la nada en vez de un simple oscurecido.
+      sinContinuidadVisualRef.current = pasoAnterior !== null
+        && (pasoAnterior === 'notificaciones' || PASOS_CAMBIO_PANTALLA.has(pasoAnterior) || idPaso === 'notificaciones');
+      pasoAnteriorRef.current = idPaso;
+      pasoClasificadoRef.current = idPaso;
+      if (sinContinuidadVisualRef.current) {
+        // El cartel nuevo va a montar con esto ya en `false` (el efecto de más abajo lo pasa a
+        // `true` apenas el rect nuevo llega) — así la entrada arranca realmente desde invisible,
+        // en vez de nacer visible y recién después pedirle que retroceda (eso daba un parpadeo).
+        setCartelListo(false);
+      }
+    }
     let cancelado = false;
     let intentos = 0;
 
-    async function ciclo() {
-      if (cancelado) return;
+    async function calcularCandidato(): Promise<Rect | null> {
       if (idPaso === 'notificaciones') {
         // Sin target real en pantalla (es un permiso del navegador, no un componente): un
         // recorte fuera de pantalla deja el oscurecido completo y el cartel con su botón
-        // propio (ver más abajo), sin spotlight sobre nada.
-        if (!cancelado) setRect({ x: -9999, y: -9999, width: 0, height: 0 });
-        return;
+        // propio (ver más abajo), sin spotlight sobre nada. NO usar un offset tan grande como
+        // -9999: combinado con el spread de 9999px del boxShadow (ver marcoRecorte, más abajo)
+        // se cancelaban casi por completo y dejaban la pantalla SIN oscurecer — un offset chico
+        // alcanza para esconder el recuadro (tamaño 0) y el spread igual cubre todo el viewport.
+        return { x: -100, y: -100, width: 0, height: 0 };
       }
-      if (idPaso === 'tab-descuentos') {
+      if (idPaso === 'tab-descuentos' || idPaso === 'volver-buscar') {
         const altoTabBar = tourAltoTabBar() ?? ALTO_TAB_BAR_FALLBACK + insets.bottom;
         const anchoTab = anchoVentana / CANTIDAD_TABS;
-        if (!cancelado) {
-          setRect({
-            x: anchoTab * INDICE_TAB_DESCUENTOS,
-            y: altoVentana - altoTabBar,
-            width: anchoTab,
-            height: altoTabBar,
-          });
-        }
-        return; // calculado, no depende de medir ningún nodo
+        const indice = idPaso === 'tab-descuentos' ? INDICE_TAB_DESCUENTOS : INDICE_TAB_BUSCAR;
+        // `y + height` da justo `altoVentana` (la celda llega hasta el borde físico de la
+        // pantalla) — el recorte de más abajo le suma PADDING_RECORTE a los cuatro lados, así
+        // que el borde inferior terminaba PADDING_RECORTE por FUERA del viewport, invisible.
+        // Se descuenta acá (más un margen chico) para que, tras sumarle el padding, el borde
+        // completo quede adentro y se vea.
+        const alturaVisible = Math.max(0, altoTabBar - PADDING_RECORTE - 4);
+        return {
+          x: anchoTab * indice,
+          y: altoVentana - alturaVisible,
+          width: anchoTab,
+          height: alturaVisible,
+        };
       }
-      const medido = await medirNodo(refDeTarget(idPaso)?.current);
+      return medirNodo(refDeTarget(idPaso)?.current);
+    }
+
+    async function ciclo() {
       if (cancelado) return;
-      if (medido) setRect(medido);
+      const candidato = await calcularCandidato();
+      if (cancelado) return;
+      if (candidato) {
+        // Sin espera artificial: apenas hay un target medible se muestra — la animación de
+        // crecimiento (ver el otro efecto) es lo que le da tiempo al usuario a registrar que
+        // pasó algo, no una pausa en negro sin nada moviéndose.
+        setRect(candidato);
+        if (idPaso === 'notificaciones' || idPaso === 'tab-descuentos' || idPaso === 'volver-buscar') return; // calculado, no depende de medir ningún nodo
+      }
       intentos++;
       if (intentos < INTENTOS_RAPIDOS) {
         requestAnimationFrame(ciclo);
@@ -122,12 +235,86 @@ export function TourOverlay() {
       }
     }
 
-    setRect(null);
+    if (sinContinuidadVisualRef.current) {
+      // Transición dura: sin continuidad visual con el target viejo, se sostiene el bloqueo
+      // oscuro (con su propio fade de entrada, ver `bloqueoListo`) hasta que el nuevo target
+      // se pueda medir — normalmente un puñado de frames, el tiempo real que tarda la pantalla
+      // destino en montar.
+      setRect(null);
+    }
+    // Transición blanda: se deja el `rect` del paso anterior tal cual mientras se mide el
+    // nuevo — así el recuadro nunca desaparece del árbol y la animación de slide (ver el otro
+    // efecto) tiene una posición real de la que partir, en vez de "aparecer de la nada" después
+    // de un parpadeo a bloqueo oscuro.
     requestAnimationFrame(ciclo);
     return () => {
       cancelado = true;
     };
   }, [pasoActivo, anchoVentana, altoVentana, insets.bottom]);
+
+  useEffect(() => {
+    if (!rect || !pasoActivo) return;
+    const recorte = {
+      x: rect.x - PADDING_RECORTE,
+      y: rect.y - PADDING_RECORTE,
+      width: rect.width + PADDING_RECORTE * 2,
+      height: rect.height + PADDING_RECORTE * 2,
+    };
+    const esNuevoPaso = pasoDelUltimoRectRef.current !== pasoActivo;
+    if (!esNuevoPaso) {
+      // Sigue siendo el mismo target del mismo paso (remedición — el `FlatList`/lista sigue
+      // re-midiendo la fila varias veces por segundo, ver INTENTOS_RAPIDOS). NO toca
+      // `duracionPosicionMs` acá: si el slide recién arrancó (ver la rama de abajo), esta
+      // remedición corre unos ms después, en pleno slide — resetear la duración a 0 en esa
+      // rama cortaba la transición CSS casi al instante, dejándola invisible. Cuando de verdad
+      // no hay transición en curso (`duracionPosicionMs` ya volvió a 0 solo, ver el
+      // `setTimeout` de la rama de slide) esto simplemente sigue al target en vivo sin animar.
+      setPosicion({ left: recorte.x, top: recorte.y, width: recorte.width, height: recorte.height });
+      return;
+    }
+    pasoDelUltimoRectRef.current = pasoActivo;
+
+    if (!huboRectPrevioRef.current) {
+      // Primer spotlight del tour ('notificaciones'): sin target real en pantalla (recorte
+      // fuera de pantalla, ver calcularCandidato), así que el recuadro no tiene nada que
+      // animar — pero el cartel sí entra con fade, igual que en cualquier transición dura.
+      huboRectPrevioRef.current = true;
+      setDuracionPosicionMs(0);
+      setPosicion({ left: recorte.x, top: recorte.y, width: recorte.width, height: recorte.height });
+      setCartelListo(false);
+      requestAnimationFrame(() => setCartelListo(true));
+      return;
+    }
+
+    if (sinContinuidadVisualRef.current) {
+      // El paso anterior implicó navegar a otra pantalla: no hay una posición vieja de la que
+      // deslizar, así que el recuadro arranca como un punto invisible en el centro del target
+      // nuevo y CRECE hasta su tamaño real — mismo mecanismo que el slide (posición + tamaño
+      // animados), con un origen distinto en vez de con un salto instantáneo. El cartel entra
+      // en simultáneo (ver DEMORA_CARTEL_MS). El punto de partida se fija sin transición (dura
+      // 0) para que el "nace invisible" no se note — recién el crecimiento hacia el tamaño
+      // real es lo que se ve.
+      const centro = { x: recorte.x + recorte.width / 2, y: recorte.y + recorte.height / 2 };
+      setDuracionPosicionMs(0);
+      setPosicion({ left: centro.x, top: centro.y, width: 0, height: 0 });
+      requestAnimationFrame(() => {
+        setDuracionPosicionMs(DURACION_CRECIMIENTO_MS);
+        setPosicion({ left: recorte.x, top: recorte.y, width: recorte.width, height: recorte.height });
+        setCartelListo(true);
+      });
+    } else {
+      // Mismo screen que el paso anterior: el recuadro se desliza y cambia de tamaño hacia el
+      // nuevo target en vez de desaparecer de un lado y aparecer en el otro (a pedido). El
+      // `rect` del paso anterior se dejó tal cual en el otro efecto (no se limpió a `null`),
+      // así que este nodo nunca se desmontó — la transición CSS tiene una posición real de la
+      // que partir. La duración vuelve a 0 recién cuando el slide termina (no antes): así una
+      // remedición que llega en pleno slide (rama de arriba) no lo corta a mitad de camino.
+      setDuracionPosicionMs(DURACION_SLIDE_MS);
+      setPosicion({ left: recorte.x, top: recorte.y, width: recorte.width, height: recorte.height });
+      const id = setTimeout(() => setDuracionPosicionMs(0), DURACION_SLIDE_MS);
+      return () => clearTimeout(id);
+    }
+  }, [rect, pasoActivo]);
 
   if (!activo || !pasoActivo) return null;
 
@@ -137,9 +324,24 @@ export function TourOverlay() {
   if (!rect) {
     return (
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+        <View
+          pointerEvents="none"
+          style={[
+            styles.bloqueadorOpaco,
+            { top: 0, left: 0, right: 0, bottom: 0 },
+            { opacity: bloqueoListo ? 0.62 : 0 },
+            Platform.OS === 'web'
+              ? {
+                transitionProperty: 'opacity',
+                transitionDuration: `${DURACION_ENTRADA_BLOQUEO_MS}ms`,
+                transitionTimingFunction: 'ease-out',
+              } as object
+              : null,
+          ]}
+        />
         <Pressable
           onPress={() => {}}
-          style={[styles.bloqueador, styles.bloqueadorOpaco, { top: 0, left: 0, right: 0, bottom: 0 }]}
+          style={[styles.bloqueador, { top: 0, left: 0, right: 0, bottom: 0 }]}
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
         />
@@ -191,8 +393,15 @@ export function TourOverlay() {
         style={[
           styles.marcoRecorte,
           {
-            left: recorte.x, top: recorte.y, width: recorte.width, height: recorte.height,
+            left: posicion.left, top: posicion.top, width: posicion.width, height: posicion.height,
           },
+          Platform.OS === 'web'
+            ? {
+              transitionProperty: 'left, top, width, height',
+              transitionDuration: `${duracionPosicionMs}ms`,
+              transitionTimingFunction: duracionPosicionMs === DURACION_CRECIMIENTO_MS ? CURVA_CRECIMIENTO : 'ease-out',
+            } as object
+            : null,
         ]}
       />
 
@@ -202,6 +411,18 @@ export function TourOverlay() {
           targetEnMitadInferior
             ? { top: insets.top + espacio.lg }
             : { bottom: insets.bottom + espacio.lg },
+          { opacity: cartelListo ? 1 : 0 },
+          Platform.OS === 'web'
+            ? {
+              transform: cartelListo ? 'translateY(0) scale(1)' : 'translateY(10px) scale(0.96)',
+              transitionProperty: 'opacity, transform',
+              transitionDuration: `${DURACION_CRECIMIENTO_MS}ms, ${DURACION_CRECIMIENTO_MS}ms`,
+              transitionTimingFunction: `ease-out, ${CURVA_CRECIMIENTO}`,
+              // Entra casi junto con el recuadro (ver DEMORA_CARTEL_MS): un adelanto chico para
+              // que se perciba orden sin que se sienta atrasado.
+              transitionDelay: `${DEMORA_CARTEL_MS}ms, ${DEMORA_CARTEL_MS}ms`,
+            } as object
+            : null,
         ]}
       >
         <View style={styles.cartel}>
@@ -221,13 +442,40 @@ export function TourOverlay() {
             ))}
           </View>
           {pasoActivo === 'notificaciones' ? (
-            <Pressable onPress={activarNotificaciones} accessibilityRole="button" style={styles.botonFinalizar}>
-              <Text style={styles.textoBotonFinalizar}>Activar notificaciones</Text>
+            <Pressable
+              onPress={activarNotificaciones}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.botonPrimario, pressed ? { opacity: 0.9 } : null]}
+            >
+              <Text style={styles.textoBotonPrimario}>Activar notificaciones</Text>
+            </Pressable>
+          ) : null}
+          {pasoActivo === 'ahorro' ? (
+            // Antes de que 'notificaciones' pasara a ser el ÚLTIMO_PASO (ver pasos.ts), 'ahorro'
+            // heredaba el botón "Finalizar" de acá abajo, que además de cerrar servía como forma
+            // obvia de avanzar. Al mover 'notificaciones' al final, 'ahorro' se quedó sin ningún
+            // botón visible: la única forma de avanzar era tocar el bloque de precio/ahorro
+            // (`refAhorro` en resultado.tsx), que no se ve tocable — el usuario quedaba
+            // atrapado y su única salida visible era "Finalizar" (arriba), que CIERRA el tour
+            // en vez de avanzar al paso de notificaciones.
+            <Pressable
+              onPress={() => avanzarTour('ahorro')}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.botonPrimario, pressed ? { opacity: 0.9 } : null]}
+            >
+              <Text style={styles.textoBotonPrimario}>Siguiente</Text>
             </Pressable>
           ) : null}
           {pasoActivo === ULTIMO_PASO ? (
-            <Pressable onPress={salirTour} accessibilityRole="button" style={styles.botonFinalizar}>
-              <Text style={styles.textoBotonFinalizar}>Finalizar</Text>
+            // Mismo tamaño que el botón primario de arriba (radio.md, minHeight 52), pero sin
+            // relleno — la jerarquía visual (lleno vs. contorno) es lo que comunica "opcional"
+            // sin necesitar texto de más: activar es la acción principal, esto es la salida.
+            <Pressable
+              onPress={salirTour}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.botonSecundario, pressed ? { opacity: 0.7 } : null]}
+            >
+              <Text style={styles.textoBotonSecundario}>Ahora no</Text>
             </Pressable>
           ) : null}
         </View>
@@ -253,7 +501,7 @@ const styles = StyleSheet.create({
   // luz queda redondeado igual que el borde amarillo, en vez de tener esquinas rectas por
   // debajo de un borde curvo (ver nota al pie del archivo).
   bloqueador: { position: 'absolute', backgroundColor: 'transparent' },
-  bloqueadorOpaco: { backgroundColor: 'rgba(11,18,32,.62)' },
+  bloqueadorOpaco: { position: 'absolute', backgroundColor: 'rgb(11,18,32)' },
   marcoRecorte: {
     position: 'absolute', borderRadius: RADIO_RECORTE, borderWidth: 2, borderColor: '#FFD400',
     boxShadow: '0 0 0 9999px rgba(11,18,32,.62)',
@@ -282,11 +530,29 @@ const styles = StyleSheet.create({
   puntos: { flexDirection: 'row', gap: espacio.xs, marginTop: espacio.xs },
   punto: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#E2E5E9' },
   puntoActivo: { backgroundColor: '#14161A' },
-  botonFinalizar: {
-    alignSelf: 'flex-start', backgroundColor: '#14161A', borderRadius: radio.sm,
-    height: 44, paddingHorizontal: espacio.lg, alignItems: 'center', justifyContent: 'center',
+  // Mismo lenguaje que `BotonPrincipal` (comunes.tsx) y el resto de los CTA grandes de la app
+  // (radio.md, minHeight 52, texto semi 17) — antes este botón usaba radio.sm/height 44/font 14,
+  // más chico y sin borde que cualquier otro CTA de cierre de flujo en la app (ver botonListo en
+  // HojaSupers.tsx, ctaFijo en PlanSelect.tsx). El borde amarillo fino reutiliza el mismo acento
+  // que ya tiene el propio overlay (marcoRecorte, badgePaso) — nunca amarillo de relleno, eso
+  // está reservado en el resto de la app para CTAs de pago/suscripción.
+  botonPrimario: {
+    alignSelf: 'stretch', backgroundColor: '#14161A', borderRadius: radio.md,
+    borderWidth: 1.5, borderColor: '#FFD400',
+    minHeight: 52, paddingHorizontal: espacio.lg, alignItems: 'center', justifyContent: 'center',
   },
-  textoBotonFinalizar: {
-    fontFamily: fuentes.semi, fontSize: 14, lineHeight: 18, color: '#FFFFFF',
+  textoBotonPrimario: {
+    fontFamily: fuentes.semi, fontSize: 17, lineHeight: 22, color: '#FFFFFF',
+  },
+  // Contorno, sin relleno: mismo tamaño que el primario, pero la ausencia de color de fondo ya
+  // comunica "esta es la salida, no la acción" sin competir visualmente con "Activar
+  // notificaciones" (a pedido: el último paso queda opcional).
+  botonSecundario: {
+    alignSelf: 'stretch', backgroundColor: 'transparent', borderRadius: radio.md,
+    borderWidth: 1, borderColor: '#C6CCD3',
+    minHeight: 52, paddingHorizontal: espacio.lg, alignItems: 'center', justifyContent: 'center',
+  },
+  textoBotonSecundario: {
+    fontFamily: fuentes.semi, fontSize: 17, lineHeight: 22, color: '#565E67',
   },
 });

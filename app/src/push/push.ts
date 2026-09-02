@@ -4,8 +4,11 @@
  * API del navegador (service worker + VAPID), no `expo-notifications` (eso es para builds
  * nativos, que hoy no existen en este proyecto).
  *
- * En iOS Safari, `soportaPush()` da `false` salvo que el usuario haya agregado la web a la
- * pantalla de inicio (PWA instalada) — es una limitación del navegador, no de esta app.
+ * En iOS, `soportaPush()` da `false` salvo que la web esté agregada a la pantalla de inicio
+ * DESDE SAFARI (agregarla desde Chrome/Firefox/Edge en iOS no alcanza, aunque corran sobre el
+ * mismo motor — es una restricción de Apple a nivel de sistema, no del navegador). A pedido, el
+ * toggle de Ajustes simplemente no se muestra cuando `soportaPush()` da `false`, sin explicar
+ * por qué — no hace falta detectar el caso puntual de iOS para un mensaje.
  */
 
 import { Platform } from 'react-native';
