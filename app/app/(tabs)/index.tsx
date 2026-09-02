@@ -188,13 +188,13 @@ export default function PantallaBuscar() {
   useTourPaso('volver-buscar', volvioABuscar);
 
   // No avanza apenas se llega a 3 caracteres (a pedido): eso corta al usuario a mitad de
-  // palabra, apenas empieza a escribir. Avanza recién 2s después de la última tecla (terminó
+  // palabra, apenas empieza a escribir. Avanza recién 3s después de la última tecla (terminó
   // de escribir) o al instante si aprieta Enter/buscar (confirmó explícitamente).
   const [avanzarBuscador, setAvanzarBuscador] = useState(false);
   useEffect(() => {
     setAvanzarBuscador(false);
     if (consulta.trim().length < 3) return;
-    const t = setTimeout(() => setAvanzarBuscador(true), 2000);
+    const t = setTimeout(() => setAvanzarBuscador(true), 3000);
     return () => clearTimeout(t);
   }, [consulta]);
   const refBuscador = useTourPaso<TextInput>('buscador-input', avanzarBuscador);

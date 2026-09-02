@@ -450,6 +450,22 @@ export function TourOverlay() {
               <Text style={styles.textoBotonPrimario}>Activar notificaciones</Text>
             </Pressable>
           ) : null}
+          {pasoActivo === 'ahorro' ? (
+            // Antes de que 'notificaciones' pasara a ser el ÚLTIMO_PASO (ver pasos.ts), 'ahorro'
+            // heredaba el botón "Finalizar" de acá abajo, que además de cerrar servía como forma
+            // obvia de avanzar. Al mover 'notificaciones' al final, 'ahorro' se quedó sin ningún
+            // botón visible: la única forma de avanzar era tocar el bloque de precio/ahorro
+            // (`refAhorro` en resultado.tsx), que no se ve tocable — el usuario quedaba
+            // atrapado y su única salida visible era "Finalizar" (arriba), que CIERRA el tour
+            // en vez de avanzar al paso de notificaciones.
+            <Pressable
+              onPress={() => avanzarTour('ahorro')}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.botonPrimario, pressed ? { opacity: 0.9 } : null]}
+            >
+              <Text style={styles.textoBotonPrimario}>Siguiente</Text>
+            </Pressable>
+          ) : null}
           {pasoActivo === ULTIMO_PASO ? (
             // Mismo tamaño que el botón primario de arriba (radio.md, minHeight 52), pero sin
             // relleno — la jerarquía visual (lleno vs. contorno) es lo que comunica "opcional"
