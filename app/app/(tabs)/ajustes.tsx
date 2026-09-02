@@ -214,7 +214,7 @@ export default function PantallaAjustes() {
                     <Text style={[texto.micro, { color: paleta.ofertaTinta }]}>ACTIVO</Text>
                   </View>
                 </View>
-                <Text style={[texto.dato, { color: '#C6CCD3' }]}>{subtituloPlan}</Text>
+                <Text style={[texto.etiqueta, { color: '#C6CCD3', letterSpacing: 0.2 }]}>{subtituloPlan}</Text>
               </View>
               <Text style={[texto.subtitulo, { color: '#FFFFFF' }]}>›</Text>
             </Pressable>
@@ -226,13 +226,13 @@ export default function PantallaAjustes() {
             >
               <View style={{ flex: 1, gap: 2 }}>
                 <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>Plan y pago</Text>
-                <Text style={[texto.dato, { color: paleta.tintaSuave }]}>{subtituloPlan}</Text>
+                <Text style={[texto.etiqueta, { color: paleta.tintaSuave, letterSpacing: 0.2 }]}>{subtituloPlan}</Text>
               </View>
               <Text style={[texto.subtitulo, { color: paleta.tintaTenue }]}>›</Text>
             </Pressable>
           )}
           {infoPlan?.plan === 'premium' ? (
-            <Text style={[texto.dato, { color: paleta.tintaSuave }]}>
+            <Text style={[texto.etiqueta, { color: paleta.tintaSuave, letterSpacing: 0.2 }]}>
               {infoPlan.tipoPlan === 'permanente'
                 ? 'Tenés la app completa para siempre.'
                 : 'Acá cambiás de plan o cancelás.'}

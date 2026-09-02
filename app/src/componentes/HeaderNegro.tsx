@@ -8,7 +8,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import type { SuperKey } from '../api';
-import { espacio, fuentes, paletaDe, radio, texto, textoPretty, usePantallaBaja } from '../theme';
+import { espacio, fuentes, paletaDe, radio, texto, usePantallaBaja } from '../theme';
 import { useTema } from '../useTema';
 import { NOMBRE_SUPER, ORDEN_SUPERS } from './comunes';
 import { PlacaLogoSuper } from './LogoSuper';
@@ -70,7 +70,6 @@ export function SelectorSupers({
   });
   const mostrados = activosPorUso.slice(0, MAX_CELDAS);
   const cantidadOtros = ORDEN_SUPERS.length - mostrados.length;
-  const inactivos = ORDEN_SUPERS.filter(key => !activos.includes(key));
 
   return (
     <View style={{ gap: pantallaBaja ? 6 : 10 }}>
@@ -111,22 +110,8 @@ export function SelectorSupers({
           </Pressable>
         ) : null}
       </View>
-
-      {inactivos.length > 0 ? (
-        <View style={[styles.cierreSelector, pantallaBaja && styles.cierreSelectorCompacto]}>
-          <Text style={[styles.textoCierre, textoPretty]}>
-            {listaConY(inactivos.map(k => NOMBRE_SUPER[k]))} {inactivos.length === 1 ? 'está' : 'están'} afuera de la comparación.
-          </Text>
-        </View>
-      ) : null}
     </View>
   );
-}
-
-/** "a, b y c" — sin Oxford comma, como se lee en español. */
-function listaConY(nombres: string[]): string {
-  if (nombres.length <= 1) return nombres.join('');
-  return `${nombres.slice(0, -1).join(', ')} y ${nombres[nombres.length - 1]}`;
 }
 
 const styles = StyleSheet.create({
@@ -160,9 +145,4 @@ const styles = StyleSheet.create({
   numeroOtros: { fontFamily: fuentes.precio, fontSize: 22, lineHeight: 22, color: '#FFD400' },
   numeroOtrosCompacto: { fontSize: 18, lineHeight: 18 },
   etiquetaOtros: { fontFamily: fuentes.medio, fontSize: 10, lineHeight: 12, color: '#C6CCD3' },
-  cierreSelector: {
-    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,.18)', paddingTop: 12,
-  },
-  cierreSelectorCompacto: { paddingTop: 8 },
-  textoCierre: { fontFamily: fuentes.cuerpo, fontSize: 13, lineHeight: 18, color: '#C6CCD3' },
 });

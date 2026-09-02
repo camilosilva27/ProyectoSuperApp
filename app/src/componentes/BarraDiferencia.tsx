@@ -159,13 +159,13 @@ function FilaSuper({
             <View style={[styles.canal, { backgroundColor: paleta.superficie2 }]}>
               <Animated.View style={[styles.barra, { width: ancho, backgroundColor: paleta.tintaTenue }]} />
             </View>
-            <Text style={[texto.dato, { color: paleta.tintaSuave }]}>+{pesos(delta)}</Text>
+            <Text style={[texto.etiqueta, { color: paleta.tintaSuave, letterSpacing: 0.2 }]}>+{pesos(delta)}</Text>
           </View>
         )}
       </View>
 
       {opcion.promo && opcion.promo.tarjetaActiva ? (
-        <Text style={[texto.dato, { color: paleta.tintaSuave }]} numberOfLines={1}>
+        <Text style={[texto.etiqueta, { color: paleta.tintaSuave, letterSpacing: 0.2 }]} numberOfLines={1}>
           {opcion.promo.descripcion}
           {opcion.promo.activa ? '' : ` · necesitás ${opcion.promo.cantidadMinima}`}
         </Text>
@@ -185,7 +185,7 @@ function FilaSuper({
             <Text style={[texto.etiqueta, { color: paleta.tinta }]} numberOfLines={1}>
               Con {opcion.promo.requiereTarjeta}: {pesos(opcion.totalConTarjeta)}
             </Text>
-            <Text style={[texto.dato, { color: paleta.tintaSuave }]} numberOfLines={1}>
+            <Text style={[texto.etiqueta, { color: paleta.tintaSuave, letterSpacing: 0.2 }]} numberOfLines={1}>
               {opcion.promo.descripcion} · tocá para activarla
             </Text>
           </View>

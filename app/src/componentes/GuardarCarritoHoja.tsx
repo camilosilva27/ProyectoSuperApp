@@ -73,7 +73,7 @@ export function GuardarCarritoHoja({
               onSubmitEditing={confirmar}
               accessibilityLabel="Nombre del carrito"
             />
-            <Text style={[texto.dato, { color: paleta.tintaSuave }]}>
+            <Text style={[texto.etiqueta, { color: paleta.tintaSuave, letterSpacing: 0.2 }]}>
              {productos} producto{productos === 1 ? '' : 's'} · {unidades} unidad{unidades === 1 ? '' : 'es'}
             </Text>
           </View>

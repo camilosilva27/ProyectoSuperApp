@@ -169,7 +169,7 @@ function SeccionMesAMes({ ultimosMeses, paleta }: { ultimosMeses: ResumenMes[]; 
                   >
                     {pesosCorto(mes.monto)}
                   </Text>
-                  <Text style={[texto.dato, { color: esActual ? paleta.tinta : paleta.tintaSuave }]}>
+                  <Text style={[texto.etiqueta, { color: esActual ? paleta.tinta : paleta.tintaSuave, letterSpacing: 0.2 }]}>
                     {mes.conteo} comp.
                   </Text>
                 </View>
