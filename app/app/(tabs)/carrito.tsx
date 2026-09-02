@@ -14,9 +14,9 @@
  * cargar reemplaza la compra actual entera por la guardada.
  */
 
-import { usePathname, useRouter } from 'expo-router';
+import { useFocusEffect, usePathname, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 // expo-router (v57) vendorea su propio bottom-tabs y no lo reexporta desde el root del
 // paquete: no hay `@react-navigation/bottom-tabs` instalado por separado, así que este es
@@ -32,8 +32,8 @@ import { GuardarCarritoHoja, ToastGuardado } from '../../src/componentes/Guardar
 import { HeaderNegro, SelectorSupers, TituloHeader } from '../../src/componentes/HeaderNegro';
 import { HojaSupers } from '../../src/componentes/HojaSupers';
 import { useFiltrosSupers } from '../../src/filtrosSupers';
-import { espacio, radio, texto, usePantallaBaja } from '../../src/theme';
-import { useTourPaso } from '../../src/tour/TourContext';
+import { espacio, fuentes, radio, texto, usePantallaBaja } from '../../src/theme';
+import { tourRegistrarReinicio, useTourPaso } from '../../src/tour/TourContext';
 import { useTema } from '../../src/useTema';
 
 export default function PantallaCarrito() {
@@ -62,6 +62,15 @@ export default function PantallaCarrito() {
   const [toastNombre, setToastNombre] = useState<string | null>(null);
   const [mostrarConfirmarVaciar, setMostrarConfirmarVaciar] = useState(false);
   const [mostrarHojaSupers, setMostrarHojaSupers] = useState(false);
+  // Cierra la hoja al perder foco de la tab: si el usuario la dejó abierta y cambió de pestaña
+  // (los tabs no desmontan al perder foco), quedaba abierta-y-oculta en background — mismo bug
+  // que en Buscar (index.tsx), origen de un target fantasma para el tour (ver `habilitado` en
+  // useTourPaso/HojaSupers).
+  useFocusEffect(useCallback(() => () => setMostrarHojaSupers(false), []));
+  // Al arrancar el tour de verdad, cierra la hoja si había quedado abierta de antes (mismo caso
+  // que en Buscar, ver el comentario en index.tsx) — evita que tape la pantalla sin que nada la
+  // cierre para pasos que no son de esta pantalla.
+  useEffect(() => tourRegistrarReinicio(() => setMostrarHojaSupers(false)), []);
   // Reserva real del scroll para no quedar tapado por "Comparar precios": antes era un 140
   // fijo a ojo, que sobraba y dejaba un espacio vacío entre el botón y el tab bar.
   const [altoBarraInferior, setAltoBarraInferior] = useState(0);
@@ -117,7 +126,7 @@ export default function PantallaCarrito() {
         {!vacia || carritosGuardados.carritos.length > 0 ? (
           <View style={styles.seccion}>
             <View style={styles.filaCabeceraGuardados}>
-              <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>CARRITOS GUARDADOS</Text>
+              <Text style={[styles.tituloDeSeccion, { color: paleta.tinta }]}>Carritos Guardados</Text>
               {!vacia ? (
                 <Pressable
                   onPress={() => setMostrarHoja(true)}
@@ -151,7 +160,18 @@ export default function PantallaCarrito() {
         ) : (
           <>
             <View style={styles.seccion}>
-              <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>EN ESTA COMPRA</Text>
+              <View style={styles.filaCabeceraGuardados}>
+                <Text style={[styles.tituloDeSeccion, { color: paleta.tinta }]}>En esta Compra</Text>
+                <Pressable
+                  onPress={() => setMostrarConfirmarVaciar(true)}
+                  accessibilityRole="button"
+                  style={styles.vaciar}
+                >
+                  <Text style={[texto.etiqueta, { color: paleta.tintaSuave, textDecorationLine: 'underline' }]}>
+                    Vaciar carrito
+                  </Text>
+                </Pressable>
+              </View>
               {carrito.items.map(item => (
                 <View
                   key={item.ean}
@@ -220,16 +240,6 @@ export default function PantallaCarrito() {
                 })}
               </View>
             </View>
-
-            <Pressable
-              onPress={() => setMostrarConfirmarVaciar(true)}
-              accessibilityRole="button"
-              style={styles.vaciar}
-            >
-              <Text style={[texto.etiqueta, { color: paleta.tintaSuave, textDecorationLine: 'underline' }]}>
-                Vaciar carrito
-              </Text>
-            </Pressable>
           </>
         )}
       </ScrollView>
@@ -313,7 +323,7 @@ function TarjetaCarritoGuardado({
       <Text style={[texto.tituloHeader, styles.nombreGuardado, { color: paleta.tinta }]} numberOfLines={2}>
         {guardado.nombre}
       </Text>
-      <Text style={[texto.dato, { color: paleta.tintaSuave }]}>
+      <Text style={[texto.etiqueta, { color: paleta.tintaSuave, letterSpacing: 0.2 }]}>
         {guardado.items.length} producto{guardado.items.length === 1 ? '' : 's'} · {unidades} u
       </Text>
       <Pressable onPress={onCargar} accessibilityRole="button" style={styles.linkCargar}>
@@ -332,6 +342,7 @@ const styles = StyleSheet.create({
   contenido: { paddingHorizontal: espacio.pantalla, paddingTop: espacio.pantalla, gap: espacio.pantalla },
   seccion: { gap: espacio.sm },
   filaCabeceraGuardados: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  tituloDeSeccion: { fontFamily: fuentes.titulo, fontSize: 16, lineHeight: 20 },
   botonGuardarCarrito: {
     height: 44, paddingHorizontal: espacio.md, borderRadius: radio.sm,
     alignItems: 'center', justifyContent: 'center',
@@ -359,7 +370,7 @@ const styles = StyleSheet.create({
   chipsDescuentos: { flexDirection: 'row', flexWrap: 'wrap', gap: espacio.sm, padding: espacio.md },
   chip: { paddingHorizontal: espacio.md, paddingVertical: espacio.sm, borderRadius: radio.sm },
   vaciar: {
-    alignSelf: 'center', height: 44, paddingHorizontal: espacio.md,
+    height: 44, paddingHorizontal: espacio.md,
     alignItems: 'center', justifyContent: 'center',
   },
   barraInferior: {

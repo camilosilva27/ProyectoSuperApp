@@ -58,6 +58,9 @@ const paletas = {
     superficie2: '#E4E7EA',
     borde: '#DFE3E7',
     bordeFuerte: '#C6CCD3',
+    // Más claro que `borde` a propósito: separa filas dentro de una tarjeta (plan de compra)
+    // sin partirla en cajas — `borde` queda reservado para el contorno de la tarjeta misma.
+    bordeSuave: '#E7EAEE',
     tinta: '#14161A',
     // Prosa explicativa (onboarding, "Cómo funciona"): más oscura que `tintaSuave` a propósito,
     // ese texto enseña una mecánica de la app y se lee peor que el resto si se lo trata como
@@ -93,6 +96,8 @@ const paletas = {
     superficie2: '#2B3138',
     borde: '#2B3138',
     bordeFuerte: '#3C444D',
+    // Placeholder de continuidad, mismo criterio que el resto del tema oscuro (SPEC § 7.5).
+    bordeSuave: '#242830',
     tinta: '#F1F3F5',
     // Placeholder, igual que `superficie2`: el tema oscuro del rediseño todavía no está
     // diseñado, `tintaSuave` sostiene el rol hasta que se encare ese turno.

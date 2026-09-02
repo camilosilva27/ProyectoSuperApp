@@ -198,7 +198,7 @@ export default function PantallaResultado() {
 
         {promos.length ? (
           <View style={styles.seccion} onLayout={e => { yPromos.current = e.nativeEvent.layout.y; }}>
-            <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>PROMOS SIN APLICAR · {promos.length}</Text>
+            <Text style={[styles.tituloDeSeccion, { color: paleta.tinta }]}>Promos sin Aplicar · {promos.length}</Text>
             {promos.map(promo => (
               <BloquePromo
                 key={`${promo.ean}-${promo.tipo}`}
@@ -324,7 +324,9 @@ function HeaderVeredicto({
               >
                 {pesosCorto(totalOptimo)}
               </Text>
-              <Text style={[texto.dato, styles.textoMutedOscuro]}>{paradasNombres.join(' · ')}</Text>
+              <Text style={[texto.etiqueta, styles.textoMutedOscuro, { color: '#FFFFFF', letterSpacing: 0.2 }]}>
+                {paradasNombres.join(' · ')}
+              </Text>
             </View>
             {hayAhorroPorPromos ? (
               <>
@@ -341,7 +343,9 @@ function HeaderVeredicto({
         ) : (
           <View style={{ gap: 6 }}>
             {hayAhorroPorPromos ? (
-              <Text style={[texto.dato, styles.precioSinPromoHero]}>{pesosCorto(totalSinPromo)}</Text>
+              <Text style={[texto.etiqueta, styles.precioSinPromoHero, { letterSpacing: 0.2 }]}>
+                {pesosCorto(totalSinPromo)}
+              </Text>
             ) : null}
             <Text style={[pantallaBaja ? texto.precioGrande : texto.precioHero, styles.totalHero]}>
               {pesosCorto(totalOptimo)}
@@ -369,7 +373,9 @@ function HeaderVeredicto({
             <Text style={[texto.cuerpoMedio, { color: '#FFFFFF' }]}>
               {promos.length} promoción{promos.length === 1 ? '' : 'es'} sin aplicar
             </Text>
-            <Text style={[texto.dato, { color: paleta.oferta }]}>{pesos(montoPromos)} más de ahorro</Text>
+            <Text style={[texto.etiqueta, { color: paleta.oferta, letterSpacing: 0.2 }]}>
+              {pesos(montoPromos)} más de ahorro
+            </Text>
           </View>
           <View style={styles.pillVer}>
             <Text style={[texto.etiqueta, { color: '#FFFFFF' }]}>Ver</Text>
@@ -450,7 +456,7 @@ function PlanDeCompra({ data }: { data: RespuestaComparar }) {
 
   return (
     <View style={styles.seccion}>
-      <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>PLAN DE COMPRA</Text>
+      <Text style={[styles.tituloDeSeccion, { color: paleta.tinta }]}>Plan de Compra</Text>
       {paradas.map(s => {
         const url = linksCarrito[s.key];
         const ahorroBancario = bancario?.porSuper[s.key] ?? null;
@@ -475,19 +481,30 @@ function PlanDeCompra({ data }: { data: RespuestaComparar }) {
               </View>
             </View>
             <View style={styles.cuerpoSuper}>
-              {(itemsPorSuper.get(s.key) ?? []).map(item => (
-                <View key={item.ean} style={styles.filaItemSuper}>
-                  <View style={styles.nombreItemSuper}>
-                    <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]} numberOfLines={1}>
-                      {item.nombre ?? item.ean}
+              {(itemsPorSuper.get(s.key) ?? []).map((item, i, arr) => {
+                const opcion = opcionEnSuper(item, s.key)!;
+                return (
+                  <View
+                    key={item.ean}
+                    style={[
+                      styles.filaItemSuper,
+                      i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: paleta.bordeSuave },
+                    ]}
+                  >
+                    <View style={styles.nombreItemSuper}>
+                      <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>
+                        {item.nombre ?? item.ean}
+                      </Text>
+                      <Text style={[texto.etiqueta, { color: paleta.tintaSuave, letterSpacing: 0.2 }]}>
+                        {item.cantidad} un · {pesos(opcion.total / item.cantidad)} c/u
+                      </Text>
+                    </View>
+                    <Text style={[texto.precioChico, styles.subtotalItemSuper, { color: paleta.tinta }]}>
+                      {pesos(opcion.total)}
                     </Text>
                   </View>
-                  <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>×{item.cantidad}</Text>
-                  <Text style={[texto.precioChico, { color: paleta.tintaSuave }]}>
-                    {pesos(opcionEnSuper(item, s.key)!.total)}
-                  </Text>
-                </View>
-              ))}
+                );
+              })}
 
               {requiereOnlinePorSuper[s.key] ? (
                 <View style={[styles.avisoOnline, { backgroundColor: paleta.alertaFondo }]}>
@@ -506,7 +523,7 @@ function PlanDeCompra({ data }: { data: RespuestaComparar }) {
                     <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>
                       Pagando con {ahorroBancario.tarjeta} ahorrás {pesos(ahorroBancario.descuento)}
                     </Text>
-                    <Text style={[texto.dato, { color: paleta.tintaSuave }]}>
+                    <Text style={[texto.etiqueta, { color: paleta.tintaSuave, letterSpacing: 0.2 }]}>
                       {Math.round(ahorroBancario.descuentoPct * 100)}% de descuento
                       {ahorroBancario.topeDetectado && !topeIrreal
                         ? ` (tope ${pesos(ahorroBancario.tope!)})`
@@ -540,7 +557,7 @@ function BloqueExportar({
 }: { nombre: string; error: boolean; onPress: () => void }) {
   const { paleta } = useTema();
   return (
-    <View style={{ gap: 4, marginTop: 4 }}>
+    <View style={{ gap: 4, marginTop: espacio.sm }}>
       <Pressable
         onPress={onPress}
         accessibilityRole="button"
@@ -552,7 +569,7 @@ function BloqueExportar({
       >
         <Text style={[texto.cuerpoMedio, { color: paleta.superficie }]}>Exportar a {nombre}</Text>
       </Pressable>
-      <Text style={[texto.dato, styles.leyendaExportar, { color: paleta.tintaSuave }]}>
+      <Text style={[texto.etiqueta, styles.leyendaExportar, { color: paleta.tintaSuave, letterSpacing: 0.2 }]}>
         {error ? `No se pudo abrir el carrito de ${nombre}`: ""}
       </Text>
     </View>
@@ -579,12 +596,14 @@ function BloquePromo({ promo, onAplicar }: { promo: PromoSinAplicar; onAplicar: 
             −{pesos(promo.ahorro)}
           </Text>
         </View>
-        <Text style={[texto.dato, { color: paleta.ofertaTinta, textAlign: 'right' }]}>
+        <Text style={[texto.etiqueta, { color: paleta.ofertaTinta, textAlign: 'right', letterSpacing: 0.2 }]}>
           queda en{'\n'}{pesos(promo.quedaEn)}
         </Text>
       </View>
       <View style={[styles.bloquePromoAbajo, { backgroundColor: paleta.ofertaSuave }]}>
-        <Text style={[texto.dato, { color: paleta.tintaSuave, flex: 1 }]}>{promo.descripcion}</Text>
+        <Text style={[texto.etiqueta, { color: paleta.tintaSuave, letterSpacing: 0.2, flex: 1 }]}>
+          {promo.descripcion}
+        </Text>
         <Pressable
           onPress={onAplicar}
           accessibilityRole="button"
@@ -612,31 +631,25 @@ function BloquePromo({ promo, onAplicar }: { promo: PromoSinAplicar; onAplicar: 
   );
 }
 
-/** Detalle por producto, visible por default (se puede ocultar con el link al pie) —
- *  acá vive la comparación con BarraDiferencia y el aviso de cantidad con TODAS las
- *  candidatas por producto; el agrupado de arriba solo muestra la candidata más chica de
- *  cada una (ver promosSinAplicarDe), no reemplaza este detalle completo. */
+/** Detalle por producto — acá vive la comparación con BarraDiferencia y el aviso de cantidad
+ *  con TODAS las candidatas por producto; el agrupado de arriba solo muestra la candidata más
+ *  chica de cada una (ver promosSinAplicarDe), no reemplaza este detalle completo. */
 function DetalleProductoPorProducto({ data, isFetching }: { data: RespuestaComparar; isFetching: boolean }) {
   const { paleta } = useTema();
-  const [mostrar, setMostrar] = useState(true);
 
   return (
     <View style={styles.seccion}>
+      <Text style={[styles.tituloDeSeccion, { color: paleta.tinta }]}>Producto por Producto</Text>
       <View style={styles.pieDetalle}>
-        <Text style={[texto.dato, { color: paleta.tintaSuave }]}>
+        <Text style={[texto.etiqueta, { color: paleta.tintaSuave, letterSpacing: 0.2 }]}>
           {new Date(data.generado).toLocaleString('es-AR')}
           {isFetching ? ' · actualizando…' : ''}
         </Text>
-        <Pressable onPress={() => setMostrar(v => !v)} accessibilityRole="button" style={styles.linkDetalle}>
-          <Text style={[texto.etiqueta, { color: paleta.tinta, textDecorationLine: 'underline' }]}>
-            {mostrar ? 'Ocultar producto por producto' : 'Producto por producto'}
-          </Text>
-        </Pressable>
       </View>
 
-      {mostrar ? data.items.map((item, i) => (
+      {data.items.map((item, i) => (
         <TarjetaItem key={item.ean} item={item} indice={i} />
-      )) : null}
+      ))}
     </View>
   );
 }
@@ -721,7 +734,7 @@ function AvisoCantidad({
                 Llevá {previa.cantidad}: {pesos(mejorPrevia.total)} en {mejorPrevia.nombre}
               </Text>
               {mejorPrevia.oferta ? (
-                <Text style={[texto.dato, { color: paleta.tintaSuave }]}>
+                <Text style={[texto.etiqueta, { color: paleta.tintaSuave, letterSpacing: 0.2 }]}>
                   {mejorPrevia.oferta}
                 </Text>
               ) : null}
@@ -781,13 +794,21 @@ const styles = StyleSheet.create({
   nombreSuper: { color: '#FFFFFF', textTransform: 'uppercase', letterSpacing: 1 },
   totalSuper: { color: '#FFFFFF' },
   precioSinPromoTachado: { color: 'rgba(255,255,255,0.7)', textDecorationLine: 'line-through' },
-  cuerpoSuper: { padding: espacio.md, gap: espacio.sm },
-  filaItemSuper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: espacio.sm },
-  nombreItemSuper: { flex: 1 },
-  avisoOnline: { borderRadius: radio.sm, paddingHorizontal: espacio.sm, paddingVertical: espacio.xs },
+  cuerpoSuper: { paddingHorizontal: espacio.md, paddingBottom: espacio.md, paddingTop: espacio.xs },
+  filaItemSuper: {
+    flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: espacio.sm,
+    paddingVertical: espacio.md,
+  },
+  nombreItemSuper: { flex: 1, minWidth: 0, gap: 3 },
+  subtotalItemSuper: { flexShrink: 0 },
+  avisoOnline: {
+    borderRadius: radio.sm, paddingHorizontal: espacio.sm, paddingVertical: espacio.xs,
+    marginTop: espacio.xs,
+  },
   filaEstado: {
     flexDirection: 'row', alignItems: 'center', gap: espacio.sm,
     borderWidth: 1, borderRadius: radio.sm, padding: espacio.sm, minHeight: 44,
+    marginTop: espacio.sm,
   },
   checkAplicada: {
     width: 18, height: 18, borderRadius: radio.pill, backgroundColor: VERDE_APLICADA,
@@ -811,8 +832,11 @@ const styles = StyleSheet.create({
   },
 
 
-  pieDetalle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  linkDetalle: { height: 44, paddingHorizontal: espacio.sm, alignItems: 'center', justifyContent: 'center' },
+  tituloDeSeccion: {
+    fontFamily: fuentes.titulo, fontSize: 16, lineHeight: 20,
+    textAlign: 'center', textDecorationLine: 'underline',
+  },
+  pieDetalle: { flexDirection: 'row', alignItems: 'center' },
 
   tarjetaItem: { borderWidth: 1, borderRadius: radio.lg, padding: espacio.md, gap: espacio.md, marginTop: espacio.sm },
   itemEncabezado: { flexDirection: 'row', alignItems: 'flex-start', gap: espacio.sm },

@@ -194,18 +194,26 @@ export function TourOverlay() {
         return { x: -100, y: -100, width: 0, height: 0 };
       }
       if (idPaso === 'tab-descuentos' || idPaso === 'volver-buscar') {
-        const altoTabBar = tourAltoTabBar() ?? ALTO_TAB_BAR_FALLBACK + insets.bottom;
+        // El alto medido/fallback es el de la barra COMPLETA, que en iPhones con borde curvo
+        // incluye el colchón de `insets.bottom` (safe-area) debajo de los íconos — ver el fix
+        // de la tab bar en `(tabs)/_layout.tsx`. Ese colchón no tiene nada que resaltar, así
+        // que se descuenta acá para quedarse solo con la franja de íconos/label: sin esto el
+        // recuadro quedaba con un tramo vacío de más en la parte de abajo.
+        const altoTabBarMedido = tourAltoTabBar();
+        const altoTabBarContenido = altoTabBarMedido != null
+          ? Math.max(0, altoTabBarMedido - insets.bottom)
+          : ALTO_TAB_BAR_FALLBACK;
         const anchoTab = anchoVentana / CANTIDAD_TABS;
         const indice = idPaso === 'tab-descuentos' ? INDICE_TAB_DESCUENTOS : INDICE_TAB_BUSCAR;
-        // `y + height` da justo `altoVentana` (la celda llega hasta el borde físico de la
-        // pantalla) — el recorte de más abajo le suma PADDING_RECORTE a los cuatro lados, así
-        // que el borde inferior terminaba PADDING_RECORTE por FUERA del viewport, invisible.
-        // Se descuenta acá (más un margen chico) para que, tras sumarle el padding, el borde
-        // completo quede adentro y se vea.
-        const alturaVisible = Math.max(0, altoTabBar - PADDING_RECORTE - 4);
+        // `y + height` da justo `altoVentana - insets.bottom` (el borde inferior de la franja
+        // de íconos, justo arriba del colchón de safe-area) — el recorte de más abajo le suma
+        // PADDING_RECORTE a los cuatro lados, así que ese borde terminaba PADDING_RECORTE por
+        // FUERA del viewport, invisible. Se descuenta acá (más un margen chico) para que, tras
+        // sumarle el padding, el borde completo quede adentro y se vea.
+        const alturaVisible = Math.max(0, altoTabBarContenido - PADDING_RECORTE - 4);
         return {
           x: anchoTab * indice,
-          y: altoVentana - alturaVisible,
+          y: altoVentana - insets.bottom - alturaVisible,
           width: anchoTab,
           height: alturaVisible,
         };

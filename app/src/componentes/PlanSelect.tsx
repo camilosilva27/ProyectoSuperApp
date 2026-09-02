@@ -180,7 +180,7 @@ function TarjetaPlan({
             />
           ) : null}
         </View>
-        <Text style={[texto.dato, { color: colorProsa }]}>
+        <Text style={[texto.etiqueta, { color: colorProsa, letterSpacing: 0.2 }]}>
           {porMes !== null ? `${pesosCorto(porMes)} / mes` : 'Sin mensualidad'}
         </Text>
       </View>
@@ -331,13 +331,13 @@ export function PlanSelect({
             ) : null}
           </Pressable>
           {cargando ? (
-            <Text style={[texto.dato, { color: paleta.tintaSuave, textAlign: 'center' }]}>
+            <Text style={[texto.prosa, { color: paleta.tintaSuave, textAlign: 'center' }]}>
               Se va a abrir el checkout de Mercado Pago. Si no vuelve solo, tocá atrás y probá de nuevo: no se cobró nada todavía.
             </Text>
           ) : error ? (
             <Text style={[texto.cuerpo, { color: paleta.errorTexto, textAlign: 'center' }]}>{error}</Text>
           ) : (
-            <Text style={[texto.dato, { color: paleta.tintaSuave, textAlign: 'center' }]}>
+            <Text style={[texto.prosa, { color: paleta.tintaSuave, textAlign: 'center' }]}>
               Se paga con Mercado Pago
             </Text>
           )}
@@ -345,7 +345,7 @@ export function PlanSelect({
       ) : null}
 
       {hayCTA && esWeb && tienePlanActivo ? (
-        <Text style={[texto.dato, { color: paleta.tintaSuave, textAlign: 'center', marginTop: espacio.lg }]}>
+        <Text style={[texto.prosa, { color: paleta.tintaSuave, textAlign: 'center', marginTop: espacio.lg }]}>
           Se cobra el plan nuevo completo hoy. El Mensual se cancela y no se descuenta lo que te queda del mes en curso.
         </Text>
       ) : null}

@@ -111,17 +111,17 @@ export function MercadoPagoEmailSheet({
               accessibilityLabel="Mail de Mercado Pago"
             />
 
-            <Text style={[texto.dato, { color: paleta.tintaSuave }]}>
+            <Text style={[texto.prosa, { color: paleta.tintaSuave }]}>
               Es el mail con el que entrás a la app.
             </Text>
 
             {emailLimpio && !formatoValido ? (
-              <Text style={[texto.dato, { color: paleta.errorTexto }]}>
+              <Text style={[texto.prosa, { color: paleta.errorTexto }]}>
                 Falta el final del mail (.com, .com.ar).
               </Text>
             ) : esDistintoDelApp ? (
               <View style={[styles.avisoInfo, { backgroundColor: paleta.superficieAlt }]}>
-                <Text style={[texto.dato, { color: paleta.tintaProsa }]}>
+                <Text style={[texto.prosa, { color: paleta.tintaProsa }]}>
                   Distinto al mail de la app (
                   <Text style={{ color: paleta.tinta, fontWeight: '600' }}>{mailApp}</Text>
                   ). Está bien si tu cuenta de Mercado Pago es esa.
@@ -129,7 +129,7 @@ export function MercadoPagoEmailSheet({
               </View>
             ) : null}
 
-            <Text style={[texto.dato, { color: paleta.tintaSuave }]}>
+            <Text style={[texto.prosa, { color: paleta.tintaSuave }]}>
               No guardamos datos de tarjeta. El pago se completa en Mercado Pago.
             </Text>
           </View>
