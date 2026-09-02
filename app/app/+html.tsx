@@ -19,8 +19,11 @@ export default function Root({ children }: PropsWithChildren) {
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         {/* maximum-scale=1 + user-scalable=no bloquean el pinch-to-zoom y el double-tap-zoom
             en navegadores mobile (Safari/Chrome Android); el zoom de escritorio (ctrl +/-)
-            no lee esta meta, así que esto no afecta desktop. */}
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, shrink-to-fit=no" />
+            no lee esta meta, así que esto no afecta desktop.
+            viewport-fit=cover habilita las variables CSS env(safe-area-inset-*): sin esto,
+            Safari en iPhones con Dynamic Island/notch no las expone con un valor útil, y la
+            tab bar queda pegada al borde curvo de la pantalla. */}
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, shrink-to-fit=no, viewport-fit=cover" />
         {/* El <title> lo maneja expo-router/head desde _layout.tsx: si también lo pusiéramos
             acá, el navegador usa el PRIMER <title> del documento y quedaba vacío. */}
         <meta name="description" content={DESCRIPCION} />
