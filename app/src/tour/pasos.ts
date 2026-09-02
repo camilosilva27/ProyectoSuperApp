@@ -10,16 +10,25 @@
  * propio overlay. Sin este split el usuario no podía salir de la hoja de supers.
  *
  * `ahorro` (a pedido, no estaba en el handoff original) resalta el bloque de precio/ahorro de
- * `/resultado`. Es el único paso con un botón en el cartel ("Finalizar", ver TourOverlay.tsx) —
- * los demás no tienen forma de salir a mitad de camino, a pedido. Termina tocando el recuadro
- * resaltado (el bloque mismo es un `Pressable`, ver `refAhorro` en resultado.tsx) o tocando
- * "Finalizar"; ninguno de los dos avanza solo.
+ * `/resultado`. Avanza tocando el recuadro resaltado (el bloque mismo es un `Pressable`, ver
+ * `refAhorro` en resultado.tsx) o el botón "Siguiente" propio del cartel (ver TourOverlay.tsx,
+ * caso especial `pasoActivo === 'ahorro'`) — "Finalizar" (visible en todo paso) NO avanza, cierra
+ * el tour entero; antes de que `notificaciones` pasara a ser `ULTIMO_PASO` este paso heredaba el
+ * botón "Finalizar" de abajo y por eso servía también para avanzar, pero dejó de ser así.
+ *
+ * `notificaciones` va AL FINAL a propósito (a pedido) — no al principio como en el handoff
+ * original: pedir un permiso del navegador antes de que el usuario vio una sola pantalla de la
+ * app se sentía invasivo. Al ser el ÚLTIMO paso (`ULTIMO_PASO` en TourOverlay.tsx), hereda
+ * gratis el botón "Finalizar" que ya se muestra en el último paso — así "Activar
+ * notificaciones" y "Finalizar" quedan uno al lado del otro, dejando el paso explícitamente
+ * opcional sin necesitar un botón de "omitir" aparte.
  */
 
 export type PasoId =
   | "notificaciones"
   | "tab-descuentos"
   | "mercado-pago"
+  | "volver-buscar"
   | "buscador-input"
   | "primer-resultado"
   | "selector-otros"
@@ -31,11 +40,12 @@ export type PasoId =
   | "ahorro";
 
 export const ORDEN_PASOS: PasoId[] = [
-  // Primero de todos, a pedido: sin spotlight sobre ningún elemento (es un permiso del
-  // navegador, no un componente en pantalla) — ver el caso especial en TourOverlay.tsx.
-  "notificaciones",
   "tab-descuentos",
   "mercado-pago",
+  // Paso propio para volver a Buscar (a pedido): antes `mercado-pago` navegaba solo al
+  // completarse (`router.navigate('/')`), lo que "teletransportaba" al usuario sin que tocara
+  // nada — acá se le pide el toque real sobre la pestaña, igual que con "Descuentos".
+  "volver-buscar",
   "buscador-input",
   // Agregar el producto va antes de elegir supers (a pedido) — al revés del orden del handoff
   // original, que abría la hoja de supers apenas se escribía, sin esperar a que el usuario
@@ -48,21 +58,29 @@ export const ORDEN_PASOS: PasoId[] = [
   "ver-carrito",
   "comparar-precios",
   "ahorro",
+  // Al final (a pedido, ver la nota más arriba): sin spotlight sobre ningún elemento (es un
+  // permiso del navegador, no un componente en pantalla) — ver el caso especial en
+  // TourOverlay.tsx. Al ser `ULTIMO_PASO`, el botón "Finalizar" aparece junto a "Activar
+  // notificaciones", dejándolo opcional.
+  "notificaciones",
 ];
 
 export const PASOS: Record<PasoId, { titulo: string; texto: string }> = {
   notificaciones: {
-    titulo: "Activá las notificaciones",
-    texto: "Te avisamos una vez por semana para que revises si hay mejores precios. Tocá el botón para activarlas.",
+    titulo: "Por último, ¿te avisamos?",
+    texto: "Una vez por semana te contamos si hay mejores precios. Es opcional: activalas o tocá Finalizar.",
   },
   "tab-descuentos": {
     titulo: "Cargá tus descuentos",
-    texto: "Tocá Descuentos para cargar tus tarjetas y promos.",
+    texto: "Presiona Descuentos para cargar tus tarjetas y promos.",
   },
   "mercado-pago": {
     titulo: "Activá Mercado Pago",
-    texto:
-      "Activá Mercado Pago: De esta forma te mostraremos las promociones que lo necesiten.",
+    texto: "Así activas tus tarjetas y promociones.",
+  },
+  "volver-buscar": {
+    titulo: "Volvé a Buscar",
+    texto: "Presiona Buscar para seguir armando tu carrito.",
   },
   "buscador-input": {
     titulo: "Buscá un producto",
@@ -70,15 +88,15 @@ export const PASOS: Record<PasoId, { titulo: string; texto: string }> = {
   },
   "primer-resultado": {
     titulo: "Agregá al carrito",
-    texto: "Tocá un producto para agregarlo al carrito.",
+    texto: "Presiona un producto para agregarlo al carrito.",
   },
   "selector-otros": {
     titulo: "Elegí los supermercados",
-    texto: "Tocá acá para elegir qué supermercados comparar.",
+    texto: "Presiona acá para elegir qué supermercados comparar.",
   },
   coto: {
     titulo: "Sumá o sacá un super",
-    texto: "Tocá Coto: así agregás o sacás a un super de la comparación.",
+    texto: "Presiona para agregar o sacar un supermercado de la comparación.",
   },
   "tope-elegido": {
     titulo: "Poné un máximo de supermercados",
@@ -86,15 +104,15 @@ export const PASOS: Record<PasoId, { titulo: string; texto: string }> = {
   },
   listo: {
     titulo: "Confirmá tu selección",
-    texto: "Tocá Listo para confirmar tu selección.",
+    texto: "Presiona Listo para confirmar tu selección.",
   },
   "ver-carrito": {
     titulo: "Mirá tu carrito",
-    texto: "Tocá para ver tu carrito.",
+    texto: "Presiona para ver tu carrito.",
   },
   "comparar-precios": {
     titulo: "Comparar precios",
-    texto: "Tocá para comparar precios y ver dónde conviene comprar.",
+    texto: "Presiona para comparar precios y ver dónde conviene comprar.",
   },
   ahorro: {
     titulo: "Así ahorrás",

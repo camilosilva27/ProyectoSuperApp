@@ -16,8 +16,7 @@ import {
 import type { Plan } from '../plan';
 import { espacio, pesosCorto, radio, texto } from '../theme';
 import { useTema } from '../useTema';
-
-const REGEX_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import { esEmailValido } from '../validacion';
 
 const NOMBRE_PLAN: Record<Plan['id'], string> = {
   mensual: 'Mensual', anual: 'Anual', permanente: 'Permanente',
@@ -51,7 +50,7 @@ export function MercadoPagoEmailSheet({
   }, [visible, mailInicial]);
 
   const emailLimpio = email.trim();
-  const formatoValido = REGEX_EMAIL.test(emailLimpio);
+  const formatoValido = esEmailValido(emailLimpio);
   const esDistintoDelApp = formatoValido && emailLimpio.toLowerCase() !== mailApp.trim().toLowerCase();
   const puedeConfirmar = formatoValido && !enviando;
 

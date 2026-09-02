@@ -19,7 +19,7 @@
  *    en la góndola) y queda libre de conflicto.
  */
 
-import { Platform, type TextStyle } from 'react-native';
+import { Platform, useWindowDimensions, type TextStyle } from 'react-native';
 
 export type Esquema = 'light' | 'dark';
 
@@ -169,6 +169,17 @@ export const texto = {
 } as const;
 
 export const espacio = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, pantalla: 20 } as const;
+
+/** Por debajo de este alto de viewport (iPhone SE y similares — OJO: es el alto de VIEWPORT,
+ *  que en un navegador con barras suele ser bastante menor que el alto físico del dispositivo)
+ *  el header negro (HeaderNegro.tsx) y los totales de Resultado se comprimen para no comerse
+ *  la mitad de la pantalla. Pantallas por encima de esto quedan exactamente iguales que hoy. */
+const ALTO_PANTALLA_BAJA = 700;
+
+export function usePantallaBaja(): boolean {
+  const { height } = useWindowDimensions();
+  return height < ALTO_PANTALLA_BAJA;
+}
 
 // `pantalla`/`tarjeta` son los radios explícitos del rediseño v2 (16 y 12 — ver SPEC § 1);
 // sm/md/lg quedan para lo que todavía no migró a ese lenguaje visual.
