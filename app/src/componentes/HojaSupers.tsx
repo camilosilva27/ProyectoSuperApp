@@ -465,19 +465,6 @@ function LineaCostoTope({
   // haber nada agregado todavía) — y `monto === null` también cubre "todavía no llegó la
   // respuesta"/"falló": en ningún caso hay un spinner, la línea directamente "aparece".
   if (carritoVacio || monto === null) return null;
-  if (monto === 0) {
-    return (
-      <Text style={[styles.lineaCosto, textoPretty]}>
-        Con {tope} supers ahorrás lo mismo que visitando los {n}.
-      </Text>
-    );
-  }
-  return (
-    <Text style={[styles.lineaCosto, textoPretty]}>
-      Con {tope} supers pagás <Text style={styles.montoLineaCosto}>{pesosCorto(monto)}</Text>
-      {' '}mas que visitando los {n}, pero hacés {tope} de {n} viajes.
-    </Text>
-  );
 }
 
 const styles = StyleSheet.create({

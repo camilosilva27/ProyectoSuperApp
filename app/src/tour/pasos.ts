@@ -10,9 +10,11 @@
  * propio overlay. Sin este split el usuario no podía salir de la hoja de supers.
  *
  * `ahorro` (a pedido, no estaba en el handoff original) resalta el bloque de precio/ahorro de
- * `/resultado`. Termina tocando el recuadro resaltado (el bloque mismo es un `Pressable`, ver
- * `refAhorro` en resultado.tsx) o tocando "Finalizar" en el cartel (visible en todo paso, ver
- * TourOverlay.tsx); ninguno de los dos avanza solo.
+ * `/resultado`. Avanza tocando el recuadro resaltado (el bloque mismo es un `Pressable`, ver
+ * `refAhorro` en resultado.tsx) o el botón "Siguiente" propio del cartel (ver TourOverlay.tsx,
+ * caso especial `pasoActivo === 'ahorro'`) — "Finalizar" (visible en todo paso) NO avanza, cierra
+ * el tour entero; antes de que `notificaciones` pasara a ser `ULTIMO_PASO` este paso heredaba el
+ * botón "Finalizar" de abajo y por eso servía también para avanzar, pero dejó de ser así.
  *
  * `notificaciones` va AL FINAL a propósito (a pedido) — no al principio como en el handoff
  * original: pedir un permiso del navegador antes de que el usuario vio una sola pantalla de la

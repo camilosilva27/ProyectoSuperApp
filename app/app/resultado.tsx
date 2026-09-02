@@ -553,7 +553,7 @@ function BloqueExportar({
         <Text style={[texto.cuerpoMedio, { color: paleta.superficie }]}>Exportar a {nombre}</Text>
       </Pressable>
       <Text style={[texto.dato, styles.leyendaExportar, { color: paleta.tintaSuave }]}>
-        {error ? `No se pudo abrir el carrito de ${nombre}` : 'abre el sitio del super · iniciá sesión y el carrito se carga solo'}
+        {error ? `No se pudo abrir el carrito de ${nombre}`: ""}
       </Text>
     </View>
   );
