@@ -39,7 +39,9 @@ import { PlacaLogoSuper } from '../../src/componentes/LogoSuper';
 import { HojaSupers } from '../../src/componentes/HojaSupers';
 import { useFiltrosSupers } from '../../src/filtrosSupers';
 import { espacio, pesos, radio, texto, usePantallaBaja } from '../../src/theme';
-import { tourReportarAltoTabBar, tourYaVisto, useTour, useTourPaso } from '../../src/tour/TourContext';
+import {
+  tourReportarAltoTabBar, tourRegistrarReinicio, tourYaVisto, useTour, useTourPaso,
+} from '../../src/tour/TourContext';
 import { useTema } from '../../src/useTema';
 
 /**
@@ -162,6 +164,17 @@ export default function PantallaBuscar() {
     tourReportarAltoTabBar(tabBarHeight);
   }, [tabBarHeight]);
 
+  // Al arrancar el tour de verdad (los 3 puntos de entrada pasan por acá), limpia estado "en
+  // progreso" que haya quedado de antes de abrir el tour: texto ya tipeado en el buscador (que
+  // dejaría 'buscador-input' ya cumplido de entrada) y la hoja de supers ya abierta (que
+  // taparía la pantalla sin que nada la cierre). Sin esto, arrancar el tour desde Ajustes
+  // después de haber buscado algo y dejado el selector abierto salteaba el paso de buscar y
+  // bloqueaba la pantalla con la hoja tapando todo.
+  useEffect(() => tourRegistrarReinicio(() => {
+    setConsulta('');
+    setMostrarHojaSupers(false);
+  }), []);
+
   // Auto-inicio del tour, una sola vez por cuenta (antes era por dispositivo) — el botón manual
   // (EstadoInicial, Ajustes) sigue andando igual después de esto. Espera a que resuelva la
   // sesión: si dispara con `cargandoSesion` todavía en `true`, siempre lee el storage local en
@@ -187,6 +200,12 @@ export default function PantallaBuscar() {
   }, []));
   useTourPaso('volver-buscar', volvioABuscar);
 
+  // Cierra la hoja de supers al perder foco de la pestaña: si el usuario la dejó abierta y
+  // cambió de tab (los tabs no desmontan al perder foco), quedaba abierta-y-oculta en background
+  // — origen del mismo bug de arriba y, además, de un target fantasma para el tour (ver
+  // `habilitado` en useTourPaso/HojaSupers).
+  useFocusEffect(useCallback(() => () => setMostrarHojaSupers(false), []));
+
   // No avanza apenas se llega a 3 caracteres (a pedido): eso corta al usuario a mitad de
   // palabra, apenas empieza a escribir. Avanza recién 3s después de la última tecla (terminó
   // de escribir) o al instante si aprieta Enter/buscar (confirmó explícitamente).
@@ -198,7 +217,13 @@ export default function PantallaBuscar() {
     return () => clearTimeout(t);
   }, [consulta]);
   const refBuscador = useTourPaso<TextInput>('buscador-input', avanzarBuscador);
-  const refCeldaOtros = useTourPaso('selector-otros', mostrarHojaSupers);
+  // NO mira `mostrarHojaSupers` directo: si la hoja ya había quedado abierta de una navegación
+  // previa (ej. el usuario la abrió, cambió de pestaña sin cerrarla — los tabs no desmontan al
+  // perder foco), esa condición ya sería verdadera de entrada y el paso se saltearía sin cartel
+  // — mismo bug que ya se corrigió para "marcá Coto"/"activá Mercado Pago". Este estado exige
+  // el toque real sobre la celda "+N otros" (ver `onAbrirHoja` más abajo).
+  const [tocoSelectorOtros, setTocoSelectorOtros] = useState(false);
+  const refCeldaOtros = useTourPaso('selector-otros', tocoSelectorOtros);
   // NO mira `carrito.items.length > 0`: el carrito persiste entre sesiones (igual que
   // `carrito.tarjetas`), así que si la cuenta ya tenía algo cargado de antes esa condición ya
   // estaría cumplida apenas arranca este paso — mismo bug que ya se corrigió para "marcá Coto"
@@ -329,7 +354,7 @@ export default function PantallaBuscar() {
             activos={supersActivos}
             usoPorSuper={usoPorSuper}
             onQuitar={toggleSuper}
-            onAbrirHoja={() => setMostrarHojaSupers(true)}
+            onAbrirHoja={() => { setMostrarHojaSupers(true); setTocoSelectorOtros(true); }}
             refCeldaOtros={refCeldaOtros}
           />
         ) : null}

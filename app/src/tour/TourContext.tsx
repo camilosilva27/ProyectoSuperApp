@@ -8,6 +8,12 @@
  * tour (ej. cada tecla tipeada en el buscador) no re-renderice todo el árbol que consume un
  * Context, solo lo que de verdad se suscribe acá (el propio overlay).
  *
+ * `habilitado` (4to arg de `useTourPaso`): para componentes que se montan más de una vez a la
+ * vez (ej. `HojaSupers` vive tanto en Buscar como en Carrito, con tabs que no desmontan al
+ * perder foco) — sin esto, la instancia oculta igual registra su ref en `targets` y puede
+ * "ganarle" a la visible, dejando al overlay midiendo un elemento que no está en pantalla
+ * (bug real: pantalla negra bloqueada, nunca encuentra qué medir).
+ *
  * `targets` es un registro module-level (no estado de React): cada `useTourPaso` activo se
  * anota ahí mientras SU paso está activo, y el overlay lo lee para saber qué medir. Vive fuera
  * de React a propósito — no hace falta re-renderizar nada para que un ref exista.
@@ -117,7 +123,22 @@ export async function tourYaVisto(userId: string | null): Promise<boolean> {
   return !!(await AsyncStorage.getItem(CLAVE_TOUR_VISTO));
 }
 
+/** Reset de estado de pantalla "en progreso" que las pantallas (Buscar, Carrito) registran acá
+ *  — texto ya escrito en el buscador, la hoja de supers ya abierta, etc. Sin esto, arrancar el
+ *  tour con ese estado dejado de una navegación previa deja el primer paso ya "cumplido" de
+ *  entrada (mismo bug de fondo que `useTourPaso` ya evita con el patrón de "toque real", pero
+ *  acá aplicado a estado que existe ANTES de que el tour arranque, no durante un paso activo) o
+ *  la hoja tapando la pantalla sin que nada la cierre. Corre en cada arranque real del tour
+ *  (los 3 puntos de entrada pasan por `iniciarTour`), nunca durante los pasos en sí. */
+const reiniciadoresDePantalla = new Set<() => void>();
+
+export function tourRegistrarReinicio(fn: () => void): () => void {
+  reiniciadoresDePantalla.add(fn);
+  return () => reiniciadoresDePantalla.delete(fn);
+}
+
 export function iniciarTour() {
+  reiniciadoresDePantalla.forEach(fn => fn());
   fijarEstado({ activo: true, pasoActivo: ORDEN_PASOS[0] });
 }
 
@@ -133,10 +154,12 @@ export function salirTour() {
  * antes de avanzar — para efectos que necesitan algo del propio componente (ej. `useRouter()`
  * en la pantalla de Descuentos para volver a Buscar).
  */
-export function useTourPaso<T = View>(id: PasoId, cumplido: boolean, alCompletar?: () => void): React.RefObject<T | null> {
+export function useTourPaso<T = View>(
+  id: PasoId, cumplido: boolean, alCompletar?: () => void, habilitado = true
+): React.RefObject<T | null> {
   const ref = useRef<T>(null);
   const { activo, pasoActivo } = useEstadoTour();
-  const esPasoActivo = activo && pasoActivo === id;
+  const esPasoActivo = activo && pasoActivo === id && habilitado;
 
   useEffect(() => {
     if (!esPasoActivo) return;

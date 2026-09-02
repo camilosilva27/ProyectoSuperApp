@@ -199,12 +199,16 @@ export function HojaSupers({
   const pedido = carrito.items.map(i => ({ ean: i.ean, cantidad: i.cantidad }));
   const montoTope = useCostoTope(pedido, carrito.tarjetas, borrador, topeBorrador, session?.access_token ?? null);
 
-  const refCoto = useTourPaso('coto', tocoCoto);
-  const refTope = useTourPaso('tope-elegido', topeBorrador !== topeInicialRef.current);
+  // `habilitado: visible` — esta pantalla puede tener más de una instancia de `HojaSupers`
+  // montada a la vez (Buscar y Carrito), y una no visible igual corre sus hooks (solo hace
+  // `return null` en el render). Sin esto, la instancia oculta puede registrar su target y
+  // "ganarle" a la visible (ver comentario en useTourPaso).
+  const refCoto = useTourPaso('coto', tocoCoto, undefined, visible);
+  const refTope = useTourPaso('tope-elegido', topeBorrador !== topeInicialRef.current, undefined, visible);
   // `cumplido` siempre en `false`: este paso se completa con `avanzarTour('listo')` imperativo
   // dentro de `cerrarYConfirmar` (arriba), no con una condición — para cuando se cumple, la
   // hoja ya se está desmontando. El hook igual sirve para registrar el target a medir.
-  const refListo = useTourPaso('listo', false);
+  const refListo = useTourPaso('listo', false, undefined, visible);
 
   // Coto puede no entrar en la primera pantalla de la lista (depende de cuántos supers y cuánto
   // ocupa BloqueTope arriba) — el overlay del tour bloquea todo menos la fila de Coto, así que
