@@ -18,7 +18,7 @@
 
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { StyleSheet, Text, View, type ColorValue } from 'react-native';
+import { Platform, StyleSheet, Text, View, type ColorValue } from 'react-native';
 import { useCarrito } from '../../src/carrito';
 import { fuentes, radio, texto } from '../../src/theme';
 import { useTema } from '../../src/useTema';
@@ -41,6 +41,17 @@ export default function LayoutPestanas() {
           // fijaba el orden de stacking entre ellas.
           zIndex: 10,
           elevation: 10,
+          // En nativo, React Navigation ya suma insets.bottom (home indicator/curvatura)
+          // a la altura y el padding de la tab bar. En web (react-native-web) ese cálculo
+          // no corre — ahí depende de env(safe-area-inset-bottom), que solo existe si el
+          // viewport tiene viewport-fit=cover (ver app/+html.tsx). Sin esto la tab bar
+          // queda pegada al borde curvo de los iPhone nuevos en Safari/PWA.
+          ...(Platform.OS === 'web'
+            ? {
+                height: 'calc(49px + env(safe-area-inset-bottom, 0px))' as unknown as number,
+                paddingBottom: 'env(safe-area-inset-bottom, 0px)' as unknown as number,
+              }
+            : null),
         },
         tabBarLabelStyle: texto.micro,
         sceneStyle: { backgroundColor: paleta.fondo },
