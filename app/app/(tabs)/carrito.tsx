@@ -33,7 +33,7 @@ import { HeaderNegro, SelectorSupers, TituloHeader } from '../../src/componentes
 import { HojaSupers } from '../../src/componentes/HojaSupers';
 import { useFiltrosSupers } from '../../src/filtrosSupers';
 import { espacio, fuentes, radio, texto, usePantallaBaja } from '../../src/theme';
-import { tourRegistrarReinicio, useTourPaso } from '../../src/tour/TourContext';
+import { useCerrarModalDeTour, useTourPaso } from '../../src/tour/TourContext';
 import { useTema } from '../../src/useTema';
 
 export default function PantallaCarrito() {
@@ -49,9 +49,14 @@ export default function PantallaCarrito() {
   // NO mira `pathname === '/resultado'` directo: si el usuario ya estaba en /resultado cuando
   // el paso 'comparar-precios' se activa, la condición ya sería verdadera de entrada y el paso
   // se saltearía sin cartel — mismo bug que ya se corrigió para "marcá Coto"/"activá Mercado
-  // Pago". Solo cuenta una transición real hacia /resultado, no el estado ya alcanzado.
+  // Pago". Solo cuenta una transición real hacia /resultado, no el estado ya alcanzado. Tampoco
+  // se resetea solo una vez en `true`: si el usuario ya había entrado a Resultado en algún
+  // momento anterior de la sesión, este paso se salteaba apenas se activaba (mismo bug real que
+  // en `navegoACarrito`, index.tsx — ver ese comentario para el detalle). Se resetea al GANAR
+  // foco de esta pantalla, no al perderlo, para no competir con el efecto de `pathname` de abajo.
   const pathnameAnteriorRef = useRef(pathname);
   const [navegoAResultado, setNavegoAResultado] = useState(false);
+  useFocusEffect(useCallback(() => setNavegoAResultado(false), []));
   useEffect(() => {
     if (pathname === '/resultado' && pathnameAnteriorRef.current !== '/resultado') setNavegoAResultado(true);
     pathnameAnteriorRef.current = pathname;
@@ -62,15 +67,9 @@ export default function PantallaCarrito() {
   const [toastNombre, setToastNombre] = useState<string | null>(null);
   const [mostrarConfirmarVaciar, setMostrarConfirmarVaciar] = useState(false);
   const [mostrarHojaSupers, setMostrarHojaSupers] = useState(false);
-  // Cierra la hoja al perder foco de la tab: si el usuario la dejó abierta y cambió de pestaña
-  // (los tabs no desmontan al perder foco), quedaba abierta-y-oculta en background — mismo bug
-  // que en Buscar (index.tsx), origen de un target fantasma para el tour (ver `habilitado` en
-  // useTourPaso/HojaSupers).
-  useFocusEffect(useCallback(() => () => setMostrarHojaSupers(false), []));
-  // Al arrancar el tour de verdad, cierra la hoja si había quedado abierta de antes (mismo caso
-  // que en Buscar, ver el comentario en index.tsx) — evita que tape la pantalla sin que nada la
-  // cierre para pasos que no son de esta pantalla.
-  useEffect(() => tourRegistrarReinicio(() => setMostrarHojaSupers(false)), []);
+  // Cierra la hoja sola si quedó abierta de una navegación anterior (blur de la tab o arranque
+  // del tour) — mismo mecanismo que en Buscar (index.tsx), centralizado en TourContext.tsx.
+  useCerrarModalDeTour(setMostrarHojaSupers);
   // Reserva real del scroll para no quedar tapado por "Comparar precios": antes era un 140
   // fijo a ojo, que sobraba y dejaba un espacio vacío entre el botón y el tab bar.
   const [altoBarraInferior, setAltoBarraInferior] = useState(0);
