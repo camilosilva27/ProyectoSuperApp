@@ -76,6 +76,22 @@ const DURACION_ENTRADA_BLOQUEO_MS = 300;
 // cartel se sienta atrasado.
 const DEMORA_CARTEL_MS = 60;
 
+/** El recorte agranda el `rect` medido en `PADDING_RECORTE` de cada lado — pero un target
+ *  pegado a un borde de la pantalla (ej. la pestaña Buscar, la primera de la tab bar) no tiene
+ *  ese margen para "crecer" hacia afuera: sin este clamp, `recorte.x` quedaba negativo y el
+ *  borde amarillo se salía por la izquierda (mismo bug de fondo que el de la tab bar pegada al
+ *  borde curvo por abajo, ya corregido — ahí sobraba espacio vertical, acá falta espacio
+ *  horizontal). Recorta ambos ejes contra el viewport en vez de solo el que causó el bug
+ *  puntual: cualquier target futuro pegado a la derecha o arriba tendría el mismo problema.
+ *  Achica el lado que se pasó en vez de solo mover `x`/`y` — así el otro borde no se corre. */
+function recortarEnPantalla(recorte: Rect, anchoVentana: number, altoVentana: number): Rect {
+  const x = Math.max(0, recorte.x);
+  const y = Math.max(0, recorte.y);
+  const right = Math.min(anchoVentana, recorte.x + recorte.width);
+  const bottom = Math.min(altoVentana, recorte.y + recorte.height);
+  return { x, y, width: Math.max(0, right - x), height: Math.max(0, bottom - y) };
+}
+
 function medirNodo(nodo: unknown): Promise<Rect | null> {
   return new Promise(resolve => {
     const medible = nodo as { measureInWindow?: (cb: (x: number, y: number, w: number, h: number) => void) => void } | null;
@@ -262,12 +278,12 @@ export function TourOverlay() {
 
   useEffect(() => {
     if (!rect || !pasoActivo) return;
-    const recorte = {
+    const recorte = recortarEnPantalla({
       x: rect.x - PADDING_RECORTE,
       y: rect.y - PADDING_RECORTE,
       width: rect.width + PADDING_RECORTE * 2,
       height: rect.height + PADDING_RECORTE * 2,
-    };
+    }, anchoVentana, altoVentana);
     const esNuevoPaso = pasoDelUltimoRectRef.current !== pasoActivo;
     if (!esNuevoPaso) {
       // Sigue siendo el mismo target del mismo paso (remedición — el `FlatList`/lista sigue
@@ -357,12 +373,12 @@ export function TourOverlay() {
     );
   }
 
-  const recorte = {
+  const recorte = recortarEnPantalla({
     x: rect.x - PADDING_RECORTE,
     y: rect.y - PADDING_RECORTE,
     width: rect.width + PADDING_RECORTE * 2,
     height: rect.height + PADDING_RECORTE * 2,
-  };
+  }, anchoVentana, altoVentana);
 
   // El cartel va del lado opuesto a donde cae el target: si el hueco está en la mitad de
   // abajo de la pantalla, el cartel va arriba, y viceversa — nunca lo tapa.

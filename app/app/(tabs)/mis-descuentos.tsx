@@ -27,7 +27,7 @@ import { useCarrito } from '../../src/carrito';
 import { NOMBRE_SUPER, ORDEN_SUPERS, Problema } from '../../src/componentes/comunes';
 import { HeaderNegro, TituloHeader } from '../../src/componentes/HeaderNegro';
 import { espacio, fuentes, pesos, radio, texto } from '../../src/theme';
-import { useTour, useTourPaso } from '../../src/tour/TourContext';
+import { useEstadoTour, useTour, useTourPaso } from '../../src/tour/TourContext';
 import { useTema } from '../../src/useTema';
 
 // Nombre exacto tal como lo devuelve el backend en `Descuento.nombre` — el paso del tour que
@@ -170,6 +170,34 @@ export default function PantallaMisDescuentos() {
   // ('volver-buscar', ver pasos.ts) le pide el toque real sobre la pestaña.
   const refMercadoPago = useTourPaso('mercado-pago', tocoMercadoPago);
 
+  // Si el usuario ya había scrolleado la lista (buscando otra tarjeta, revisando promos) antes
+  // de iniciar el tour, la fila de Mercado Pago puede quedar fuera del área visible cuando este
+  // paso se activa — el spotlight mide su posición real (aunque esté scrolleada afuera) y queda
+  // apuntando a un lugar que no se ve en pantalla. Mismo mecanismo que el paso "Coto" en
+  // HojaSupers.tsx: se trae la fila a la vista sola apenas arranca este paso, en vez de esperar
+  // que el usuario adivine que tiene que scrollear.
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollYRef = useRef(0);
+  const refContenedor = useRef<View>(null);
+  const { pasoActivo } = useEstadoTour();
+  useEffect(() => {
+    if (pasoActivo !== 'mercado-pago') return;
+    const id = setTimeout(() => {
+      const fila = refMercadoPago.current;
+      const contenedor = refContenedor.current;
+      if (!fila || !contenedor) return;
+      fila.measureInWindow((xF, yF, wF, hF) => {
+        if (!wF) return;
+        contenedor.measureInWindow((xC, yC, wC, hC) => {
+          if (yF >= yC && yF + hF <= yC + hC) return; // ya está a la vista
+          const delta = (yF + hF / 2) - (yC + hC / 2);
+          scrollRef.current?.scrollTo({ y: Math.max(0, scrollYRef.current + delta), animated: true });
+        });
+      });
+    }, 300);
+    return () => clearTimeout(id);
+  }, [pasoActivo]);
+
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['mis-descuentos'],
     queryFn: () => misDescuentos(accessToken as string),
@@ -199,55 +227,62 @@ export default function PantallaMisDescuentos() {
           />
         </View>
       ) : (
-        <ScrollView contentContainerStyle={[styles.contenido, { paddingBottom: insets.bottom + espacio.xl }]}>
-          <View style={styles.lista}>
-            {data.descuentos.map(d => {
-              const activa = carrito.tarjetas.includes(d.nombre);
-              return (
-                <ItemDescuento
-                  key={d.nombre}
-                  paleta={paleta}
-                  filaRef={d.nombre === NOMBRE_TARJETA_TOUR ? refMercadoPago : undefined}
-                  nombre={d.nombre}
-                  detalle={descripcionDe(d)}
-                  supersTexto={supersDe(d)}
-                  sinUsar={!activa}
-                  activa={activa}
-                  onCambiar={valor => {
-                    // Durante el tour, tocar la fila de Mercado Pago cuenta como el toque
-                    // que completa el paso pase lo que pase — pero si ya estaba activa (de
-                    // una sesión anterior), no la desactiva: el usuario no eligió activarla
-                    // ahora, solo tocó para seguir el tutorial, y apagarle una promo real
-                    // que ya tenía cargada sería un efecto secundario no pedido.
-                    //
-                    // El guard `tour.pasoActivo === 'mercado-pago'` es a propósito: sin él,
-                    // CUALQUIER toque a esta fila (incluso fuera del tour, o de un tour previo
-                    // en la misma sesión) dejaba `tocoMercadoPago` en `true` para siempre —la
-                    // pantalla no se desmonta al cambiar de tab— y el paso se salteaba la
-                    // próxima vez sin que el usuario tocara nada.
-                    if (d.nombre === NOMBRE_TARJETA_TOUR && tour.pasoActivo === 'mercado-pago') {
-                      setTocoMercadoPago(true);
-                      if (activa && !valor) return;
-                    }
-                    carrito.setTarjetas(
-                      valor
-                        ? [...carrito.tarjetas, d.nombre]
-                        : carrito.tarjetas.filter(t => t !== d.nombre)
-                    );
-                  }}
-                  accessibilityLabel={`${activa ? 'Tengo' : 'No tengo'} ${d.nombre}`}
-                />
-              );
-            })}
-          </View>
+        <View style={styles.contenedorLista} ref={refContenedor}>
+          <ScrollView
+            ref={scrollRef}
+            onScroll={e => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
+            scrollEventThrottle={32}
+            contentContainerStyle={[styles.contenido, { paddingBottom: insets.bottom + espacio.xl }]}
+          >
+            <View style={styles.lista}>
+              {data.descuentos.map(d => {
+                const activa = carrito.tarjetas.includes(d.nombre);
+                return (
+                  <ItemDescuento
+                    key={d.nombre}
+                    paleta={paleta}
+                    filaRef={d.nombre === NOMBRE_TARJETA_TOUR ? refMercadoPago : undefined}
+                    nombre={d.nombre}
+                    detalle={descripcionDe(d)}
+                    supersTexto={supersDe(d)}
+                    sinUsar={!activa}
+                    activa={activa}
+                    onCambiar={valor => {
+                      // Durante el tour, tocar la fila de Mercado Pago cuenta como el toque
+                      // que completa el paso pase lo que pase — pero si ya estaba activa (de
+                      // una sesión anterior), no la desactiva: el usuario no eligió activarla
+                      // ahora, solo tocó para seguir el tutorial, y apagarle una promo real
+                      // que ya tenía cargada sería un efecto secundario no pedido.
+                      //
+                      // El guard `tour.pasoActivo === 'mercado-pago'` es a propósito: sin él,
+                      // CUALQUIER toque a esta fila (incluso fuera del tour, o de un tour previo
+                      // en la misma sesión) dejaba `tocoMercadoPago` en `true` para siempre —la
+                      // pantalla no se desmonta al cambiar de tab— y el paso se salteaba la
+                      // próxima vez sin que el usuario tocara nada.
+                      if (d.nombre === NOMBRE_TARJETA_TOUR && tour.pasoActivo === 'mercado-pago') {
+                        setTocoMercadoPago(true);
+                        if (activa && !valor) return;
+                      }
+                      carrito.setTarjetas(
+                        valor
+                          ? [...carrito.tarjetas, d.nombre]
+                          : carrito.tarjetas.filter(t => t !== d.nombre)
+                      );
+                    }}
+                    accessibilityLabel={`${activa ? 'Tengo' : 'No tengo'} ${d.nombre}`}
+                  />
+                );
+              })}
+            </View>
 
-          <View style={[styles.bloqueInfo, { backgroundColor: paleta.superficieAlt }]}>
-            <Text style={[texto.cuerpo, { color: paleta.tintaSuave }]}>
-              Marcá solo las que tenés de verdad. Las promos de las demás igual se muestran al
-              comparar, avisando que no están contadas.
-            </Text>
-          </View>
-        </ScrollView>
+            <View style={[styles.bloqueInfo, { backgroundColor: paleta.superficieAlt }]}>
+              <Text style={[texto.cuerpo, { color: paleta.tintaSuave }]}>
+                Marcá solo las que tenés de verdad. Las promos de las demás igual se muestran al
+                comparar, avisando que no están contadas.
+              </Text>
+            </View>
+          </ScrollView>
+        </View>
       )}
     </View>
   );
@@ -256,6 +291,7 @@ export default function PantallaMisDescuentos() {
 const styles = StyleSheet.create({
   bajada: { color: '#FFFFFF', opacity: 0.7 },
   centrado: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: espacio.xl },
+  contenedorLista: { position: 'relative', flex: 1, minHeight: 0 },
   contenido: { padding: espacio.pantalla, gap: espacio.pantalla },
   lista: { gap: espacio.sm },
   fila: {

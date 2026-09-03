@@ -40,7 +40,7 @@ import { HojaSupers } from '../../src/componentes/HojaSupers';
 import { useFiltrosSupers } from '../../src/filtrosSupers';
 import { espacio, pesos, radio, texto, usePantallaBaja } from '../../src/theme';
 import {
-  tourReportarAltoTabBar, tourRegistrarReinicio, tourYaVisto, useTour, useTourPaso,
+  tourReportarAltoTabBar, tourRegistrarReinicio, tourYaVisto, useCerrarModalDeTour, useTour, useTourPaso,
 } from '../../src/tour/TourContext';
 import { useTema } from '../../src/useTema';
 
@@ -164,16 +164,11 @@ export default function PantallaBuscar() {
     tourReportarAltoTabBar(tabBarHeight);
   }, [tabBarHeight]);
 
-  // Al arrancar el tour de verdad (los 3 puntos de entrada pasan por acá), limpia estado "en
-  // progreso" que haya quedado de antes de abrir el tour: texto ya tipeado en el buscador (que
-  // dejaría 'buscador-input' ya cumplido de entrada) y la hoja de supers ya abierta (que
-  // taparía la pantalla sin que nada la cierre). Sin esto, arrancar el tour desde Ajustes
-  // después de haber buscado algo y dejado el selector abierto salteaba el paso de buscar y
-  // bloqueaba la pantalla con la hoja tapando todo.
-  useEffect(() => tourRegistrarReinicio(() => {
-    setConsulta('');
-    setMostrarHojaSupers(false);
-  }), []);
+  // Al arrancar el tour de verdad (los 3 puntos de entrada pasan por acá), limpia el texto ya
+  // tipeado en el buscador que haya quedado de antes de abrir el tour — sin esto dejaría
+  // 'buscador-input' ya cumplido de entrada, salteando ese paso. El cierre de la hoja de supers
+  // usa su propio mecanismo compartido (ver `useCerrarModalDeTour` más abajo).
+  useEffect(() => tourRegistrarReinicio(() => setConsulta('')), []);
 
   // Auto-inicio del tour, una sola vez por cuenta (antes era por dispositivo) — el botón manual
   // (EstadoInicial, Ajustes) sigue andando igual después de esto. Espera a que resuelva la
@@ -200,11 +195,9 @@ export default function PantallaBuscar() {
   }, []));
   useTourPaso('volver-buscar', volvioABuscar);
 
-  // Cierra la hoja de supers al perder foco de la pestaña: si el usuario la dejó abierta y
-  // cambió de tab (los tabs no desmontan al perder foco), quedaba abierta-y-oculta en background
-  // — origen del mismo bug de arriba y, además, de un target fantasma para el tour (ver
-  // `habilitado` en useTourPaso/HojaSupers).
-  useFocusEffect(useCallback(() => () => setMostrarHojaSupers(false), []));
+  // Cierra la hoja sola si quedó abierta de una navegación anterior (blur de la tab o arranque
+  // del tour) — mismo mecanismo que en Carrito (carrito.tsx), centralizado en TourContext.tsx.
+  useCerrarModalDeTour(setMostrarHojaSupers);
 
   // No avanza apenas se llega a 3 caracteres (a pedido): eso corta al usuario a mitad de
   // palabra, apenas empieza a escribir. Avanza recién 3s después de la última tecla (terminó
@@ -221,22 +214,39 @@ export default function PantallaBuscar() {
   // previa (ej. el usuario la abrió, cambió de pestaña sin cerrarla — los tabs no desmontan al
   // perder foco), esa condición ya sería verdadera de entrada y el paso se saltearía sin cartel
   // — mismo bug que ya se corrigió para "marcá Coto"/"activá Mercado Pago". Este estado exige
-  // el toque real sobre la celda "+N otros" (ver `onAbrirHoja` más abajo).
+  // el toque real sobre la celda "+N otros" (ver `onAbrirHoja` más abajo). Igual que
+  // `tocoMercadoPago` en mis-descuentos.tsx: se resetea al perder foco de esta pantalla — sin
+  // esto, un toque en la celda hecho ANTES de arrancar el tour (o en un tour anterior de la
+  // misma sesión) dejaba esto "gastado" en `true` para siempre, porque Buscar nunca se
+  // desmonta, y el paso se salteaba sin que el usuario tocara nada esta vez (bug real,
+  // reproducido: dejar la hoja de supers abierta y después iniciar el tour saltea este paso).
   const [tocoSelectorOtros, setTocoSelectorOtros] = useState(false);
+  useFocusEffect(useCallback(() => () => setTocoSelectorOtros(false), []));
   const refCeldaOtros = useTourPaso('selector-otros', tocoSelectorOtros);
   // NO mira `carrito.items.length > 0`: el carrito persiste entre sesiones (igual que
   // `carrito.tarjetas`), así que si la cuenta ya tenía algo cargado de antes esa condición ya
   // estaría cumplida apenas arranca este paso — mismo bug que ya se corrigió para "marcá Coto"
-  // y "activá Mercado Pago". Este estado exige el toque real sobre la primera fila.
+  // y "activá Mercado Pago". Este estado exige el toque real sobre la primera fila, y se
+  // resetea al perder foco por el mismo motivo que `tocoSelectorOtros` de arriba.
   const [tocoPrimerResultado, setTocoPrimerResultado] = useState(false);
+  useFocusEffect(useCallback(() => () => setTocoPrimerResultado(false), []));
   const refPrimerResultado = useTourPaso('primer-resultado', tocoPrimerResultado);
   // NO mira `pathname === '/carrito'` directo: si el usuario ya estaba en /carrito cuando el
   // paso 'ver-carrito' se activa (venía de ahí, o la navegación quedó en ese estado por otro
   // paso previo), la condición ya sería verdadera de entrada y el paso se saltearía sin cartel
   // — mismo bug que ya se corrigió para "marcá Coto"/"activá Mercado Pago". Solo cuenta una
-  // transición real hacia /carrito, no el estado ya alcanzado.
+  // transición real hacia /carrito, no el estado ya alcanzado. Pero una vez en `true` este
+  // estado tampoco se resetea solo — si el usuario ya había entrado a Carrito en algún momento
+  // ANTERIOR de la sesión (ej. para dejar su hoja de supers abierta, ver el bug de arriba),
+  // quedaba en `true` para siempre (Buscar nunca se desmonta) y este paso se salteaba apenas se
+  // activaba, sin que hiciera falta ni tocar "Ver carrito" (bug real, reproducido). Se resetea
+  // al GANAR foco (no al perderlo, como `tocoSelectorOtros`): reiniciar en el blur competiría
+  // con el efecto de `pathname` de arriba, que corre casi en el mismo instante en que el toque
+  // real en "Ver carrito" dispara la navegación — limpiar temprano, al re-enfocar Buscar, evita
+  // esa carrera por completo.
   const pathnameAnteriorRef = useRef(pathname);
   const [navegoACarrito, setNavegoACarrito] = useState(false);
+  useFocusEffect(useCallback(() => setNavegoACarrito(false), []));
   useEffect(() => {
     if (pathname === '/carrito' && pathnameAnteriorRef.current !== '/carrito') setNavegoACarrito(true);
     pathnameAnteriorRef.current = pathname;

@@ -20,6 +20,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import type { View } from 'react-native';
 import { useAuth } from '../auth';
@@ -135,6 +136,20 @@ const reiniciadoresDePantalla = new Set<() => void>();
 export function tourRegistrarReinicio(fn: () => void): () => void {
   reiniciadoresDePantalla.add(fn);
   return () => reiniciadoresDePantalla.delete(fn);
+}
+
+/** Para cualquier modal/hoja transitoria de una pantalla (ej. `HojaSupers`, montada tanto en
+ *  Buscar como en Carrito) que se tenga que cerrar sola si quedó abierta de una navegación
+ *  anterior: cierra al perder foco de la pestaña (los tabs no desmontan, así que quedaría
+ *  abierta-y-oculta en background) Y al arrancar el tour de verdad (segunda red, para cuando la
+ *  navegación no pasa por un blur normal). Antes cada pantalla escribía estos dos efectos a mano
+ *  (duplicados en index.tsx y carrito.tsx) — centralizado acá para que un modal nuevo no se quede
+ *  afuera de esta protección por olvido de copiar el patrón. */
+export function useCerrarModalDeTour(setVisible: (visible: boolean) => void) {
+  // `setVisible` es el setter de un `useState` (identidad estable entre renders) — las deps de
+  // abajo no disparan una nueva suscripción en cada render, solo al montar, igual que con `[]`.
+  useFocusEffect(useCallback(() => () => setVisible(false), [setVisible]));
+  useEffect(() => tourRegistrarReinicio(() => setVisible(false)), [setVisible]);
 }
 
 export function iniciarTour() {
