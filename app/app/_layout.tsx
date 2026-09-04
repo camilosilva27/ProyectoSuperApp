@@ -1,9 +1,11 @@
 /**
  * Raíz de la app: carga de fuentes, providers y navegación.
  *
- * Las fuentes se cargan en runtime con useFonts (expo-font). Hasta que estén listas se
- * muestra una pantalla del color de fondo del tema, no un spinner: evita el parpadeo de
- * texto con la fuente del sistema reemplazándose por la definitiva.
+ * Las fuentes se cargan en runtime con useFonts (expo-font). El splash nativo (logo + "Super
+ * App" sobre fondo blanco, configurado en app.json vía expo-splash-screen) se queda en
+ * pantalla hasta que las fuentes están listas, así se evita tanto la pantalla en blanco del
+ * arranque nativo como el parpadeo de texto con la fuente del sistema reemplazándose por la
+ * definitiva.
  */
 
 import {
@@ -19,6 +21,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import Head from 'expo-router/head';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
 import { Platform, View } from 'react-native';
@@ -33,6 +36,8 @@ import { ProveedorHistorialAhorro } from '../src/historialAhorro';
 import { texto } from '../src/theme';
 import { TourOverlay } from '../src/tour/TourOverlay';
 import { useTema } from '../src/useTema';
+
+SplashScreen.preventAutoHideAsync();
 
 const cliente = new QueryClient({
   defaultOptions: {
@@ -56,6 +61,12 @@ export default function LayoutRaiz() {
     BarlowCondensed_700Bold,
     IBMPlexMono_400Regular,
   });
+
+  React.useEffect(() => {
+    if (fuentesListas) {
+      SplashScreen.hideAsync();
+    }
+  }, [fuentesListas]);
 
   // <Head> va afuera del guard de fuentes: si solo estuviera en la rama ya cargada, el
   // export estático (que renderiza antes de que useFonts resuelva) horneaba un <title> vacío.
