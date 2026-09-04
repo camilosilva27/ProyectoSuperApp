@@ -30,7 +30,14 @@ function nombresDeDias(numerosDeDia) {
 
 /** Entre las promos vigentes de una tarjeta, la de mayor % — mismo criterio simple que usa
  *  la CLI para "mejor promo" (ver mejorPromoTicket), pero acá sin un subtotal: esta pantalla
- *  es informativa ("qué existe"), no un cálculo sobre el carrito actual. */
+ *  es informativa ("qué existe"), no un cálculo sobre el carrito actual.
+ *
+ *  Cuando no hay ninguna vigente (venció la ventana de fecha de la campaña, ej. MODO/Mercado
+ *  Pago que se renuevan mes a mes), no la tratamos como "no tiene nada": si esa tarjeta tiene
+ *  algún día definido (`dias.length`) en el cache actual, es una promo con periodicidad
+ *  conocida que probablemente vuelva, y mostramos ese patrón igual aunque `disponible` quede en
+ *  `false`. Solo queda vacío (sin texto en el frontend) cuando la tarjeta no tiene ninguna promo
+ *  con día definido en absoluto. */
 function calcularDescuentos(datosPorSuper) {
   const ahora = new Date();
   const advertencias = [];
@@ -40,29 +47,44 @@ function calcularDescuentos(datosPorSuper) {
   }
 
   const descuentos = TARJETAS_CONOCIDAS.map(nombre => {
+    const todas = [];
     const vigentes = [];
     for (const [superKey, resultado] of Object.entries(datosPorSuper)) {
       if (resultado.error) continue;
       for (const promo of resultado.promos) {
         if (!promo.canonicosPosibles.includes(nombre)) continue;
-        if (ahora < promo.vigenciaDesde || ahora > promo.vigenciaHasta) continue;
-        vigentes.push({ ...promo, superKey });
+        const conSuper = { ...promo, superKey };
+        todas.push(conSuper);
+        if (ahora >= promo.vigenciaDesde && ahora <= promo.vigenciaHasta) vigentes.push(conSuper);
       }
     }
 
-    if (!vigentes.length) {
-      return { nombre, disponible: false, descuentoPct: null, dias: [], tope: null, supers: [] };
+    if (vigentes.length) {
+      const mejor = vigentes.reduce((a, b) => (b.descuentoPct > a.descuentoPct ? b : a));
+      return {
+        nombre,
+        disponible: true,
+        descuentoPct: mejor.descuentoPct,
+        dias: nombresDeDias(vigentes.flatMap(p => p.dias)),
+        tope: mejor.tope,
+        supers: [...new Set(vigentes.map(p => p.superKey))],
+      };
     }
 
-    const mejor = vigentes.reduce((a, b) => (b.descuentoPct > a.descuentoPct ? b : a));
-    return {
-      nombre,
-      disponible: true,
-      descuentoPct: mejor.descuentoPct,
-      dias: nombresDeDias(vigentes.flatMap(p => p.dias)),
-      tope: mejor.tope,
-      supers: [...new Set(vigentes.map(p => p.superKey))],
-    };
+    const periodicas = todas.filter(p => p.dias.length);
+    if (periodicas.length) {
+      const mejor = periodicas.reduce((a, b) => (b.descuentoPct > a.descuentoPct ? b : a));
+      return {
+        nombre,
+        disponible: false,
+        descuentoPct: mejor.descuentoPct,
+        dias: nombresDeDias(periodicas.flatMap(p => p.dias)),
+        tope: mejor.tope,
+        supers: [...new Set(periodicas.map(p => p.superKey))],
+      };
+    }
+
+    return { nombre, disponible: false, descuentoPct: null, dias: [], tope: null, supers: [] };
   });
 
   return { descuentos, advertencias };

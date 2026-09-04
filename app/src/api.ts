@@ -287,8 +287,11 @@ export function salud() {
 }
 
 /** Una fila de la pantalla Mis descuentos (turno 5a): qué desbloquea una tarjeta/app/club,
- *  agregado en vivo de las promos bancarias de Vea, Carrefour y Chango Más. `disponible:
- *  false` significa que hoy no hay ninguna promo vigente para esa tarjeta (no que no exista). */
+ *  agregado en vivo de las promos bancarias de Vea, Carrefour y Chango Más. `disponible: false`
+ *  significa que ahora mismo no hay ninguna promo vigente para esa tarjeta — puede venir con
+ *  `descuentoPct`/`dias` igual si el backend encontró una promo con periodicidad conocida fuera
+ *  de la ventana de vigencia actual (ver misDescuentos.js); si no hay ni eso, todos los campos
+ *  quedan en `null`/vacío. */
 export type Descuento = {
   nombre: string;
   disponible: boolean;
