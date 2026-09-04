@@ -35,13 +35,10 @@ import { esEmailValido } from '../validacion';
 
 const CLAVE_YA_VISITO = 'superapp_ya_visito_landing_auth_v1';
 
-// El código de Google Sign-In (auth.tsx § iniciarSesionConGoogle) ya está armado y probado —
-// falta solo el paso manual pendiente en Supabase (Authentication > Providers > Google, ver
-// Plan_Usuarios_y_cobros.md § "Landing v2 + Google Sign-In"). Hasta que ese paso esté hecho,
-// el botón tira "provider is not enabled" para cualquiera que lo toque, así que se oculta acá
-// con un flag simple en vez de sacar el código — prender esto de vuelta es cambiar `false` por
-// `true`, ver el doc.
-const GOOGLE_SIGNIN_HABILITADO = false;
+// El código de Google Sign-In (auth.tsx § iniciarSesionConGoogle) ya está armado y probado.
+// Provider habilitado en Supabase (Authentication > Providers > Google) el 2026-09-04 — ver
+// Plan_Usuarios_y_cobros.md § "Landing v2 + Google Sign-In" para el detalle de esa config.
+const GOOGLE_SIGNIN_HABILITADO = true;
 
 /** "G" de Google a color, tal como pide su guía de marca para el botón de login social — no
  *  hay un asset .svg en assets/logos/ (esos son supermercados) así que va inline, mismo
