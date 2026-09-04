@@ -188,10 +188,14 @@ function interpretarPromoCarrefour(teaser) {
  * Promo por producto condicionada a tarjeta propia: el teaser "Tarjeta Carrefour X%" de
  * Carrefour, identificado por el campo estructurado RestrictionsBins (no por texto —
  * confirmado en vivo que el % real viene del campo `PercentualDiscount` de `<Effects>`,
- * no de parsear el nombre). Nunca
- * aparecieron bancos de terceros en este campo en la investigación — es siempre Mi Carrefour.
- * El caller decide si mostrar esta promo según si el usuario tiene "Mi Carrefour" en
- * mis-tarjetas.json; esta función solo interpreta el teaser, no filtra por tarjeta.
+ * no de parsear el nombre). Nunca aparecieron bancos de terceros en este campo en la
+ * investigación — es siempre una tarjeta propia de Carrefour, pero específicamente la de
+ * CRÉDITO Mi Carrefour (confirmado en vivo el 2026-09-04: el RestrictionsBins implica una
+ * tarjeta real con número, no el nivel Clásico de solo DNI), por eso el caller le pasa
+ * "Tarjeta Carrefour Crédito" como nombreTarjeta — ver core/fetchers.js y precioCache.js.
+ * El caller decide si mostrar esta promo según si el usuario tiene esa tarjeta marcada en
+ * mis-tarjetas.json/carrito.tarjetas; esta función solo interpreta el teaser, no filtra por
+ * tarjeta.
  */
 function interpretarTeaserTarjetaPropia(teaser, nombreTarjeta) {
   const params = teaser?.['<Effects>k__BackingField']?.['<Parameters>k__BackingField'] || [];

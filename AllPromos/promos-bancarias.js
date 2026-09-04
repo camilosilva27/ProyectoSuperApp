@@ -60,7 +60,36 @@ const ALIAS_TARJETAS = {
   'Cuenta DNI':      ['cuenta dni'],
   'Banco Provincia': ['banco provincia'],
   'Cencopay':        ['cencopay'],
-  'Mi Carrefour':    ['mi carrefour'],
+  // Carrefour tiene varios beneficios propios distintos entre sí, que se investigaron a
+  // fondo el 2026-09-04 (el usuario detectó en el super que el descuento real pagando solo
+  // con DNI era menor al que la app mostraba bajo "Mi Carrefour" — antes todo se trataba
+  // como una sola cosa). Confirmado en vivo (micarrefour.com.ar, carrefourbanco.com.ar y el
+  // feed GraphQL real de Carrefour):
+  // - 'Mi Carrefour': nivel Clásico, se identifica solo con el DNI en caja, sin tarjeta ni
+  //   cuenta. Confirmado en el feed de bancos (GetBanks, id 442cdb4d-...): el único
+  //   ticket-promo activo hoy bajo este id es "10% si sos parte de Mi Carrefour y
+  //   beneficiario de Anses o mayor de 60 años" — no es un descuento general para cualquiera.
+  // - 'Cuenta Digital Carrefour': billetera/cuenta digital de Carrefour Banco (Banco de
+  //   Servicios Financieros) — a diferencia de Mi Carrefour, requiere abrir cuenta de
+  //   verdad (no alcanza con el DNI). Es la que da los descuentos de súper que la página de
+  //   beneficios de la Tarjeta Prepaga anuncia (10% sáb/dom, 15% viernes, 10% Express a
+  //   diario): el texto legal de esa página dice "ABONANDO CON CUENTA DIGITAL", NO
+  //   "abonando con tarjeta prepaga" — son cosas distintas aunque Carrefour las publicite
+  //   juntas. Raw name confirmado en el feed: "Cuenta Digital" (GetBanks id ec75bbe7-...,
+  //   también existe como GetCards). La tarjeta Prepaga física en sí, aparte de la Cuenta
+  //   Digital, solo tiene un beneficio confirmado (5% en combustible AXION) y ninguno de
+  //   súper — por eso no se modela como tarjeta separada.
+  // - 'Tarjeta Carrefour Crédito': la tarjeta de crédito real emitida por Carrefour Banco.
+  //   Confirmado en vivo en el feed de tarjetas (GetCards, id 9217c372-..., raw name
+  //   "Tarjeta_Standard_Master_Carrefour") con varios ticket-promos activos hoy ("20% de
+  //   descuento en un pago con tarjeta de crédito de Carrefour Banco", etc.) que antes se
+  //   descartaban en silencio por no tener alias — se suman acá. También es la tarjeta que
+  //   exige el teaser de producto "Tarjeta Carrefour X%" (RestrictionsBins por BIN — ver
+  //   interpretarTeaserTarjetaPropia en promo-engine.js), que antes este archivo etiquetaba
+  //   mal como "Mi Carrefour".
+  'Mi Carrefour':               ['mi carrefour'],
+  'Cuenta Digital Carrefour':   ['cuenta digital'],
+  'Tarjeta Carrefour Crédito':  ['standard_master_carrefour', 'carrefour credito', 'mi carrefour credito'],
   'MasClub':         ['masclub'],
   'Galicia':         ['galicia'],
   'Galicia Modo':    ['galicia modo'],
@@ -99,6 +128,10 @@ const EXCLUSIONES_ALIAS = {
   // propio, no equivalente a tener cualquier tarjeta Patagonia — visto en el feed de Vea
   // como entidad separada de "Banco Patagonia" a secas.
   'Banco Patagonia': ['365'],
+  // Mismo patrón que Galicia/Galicia Modo: si algún día aparece un raw name que combine
+  // "mi carrefour" con "credito" (o "prepaga", aunque hoy no exista ese nivel como entidad
+  // propia en el feed — ver nota arriba), no tiene que contarse como el nivel Clásico.
+  'Mi Carrefour': ['prepaga', 'credito'],
 };
 
 const DIAS_SEMANA_KEYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];

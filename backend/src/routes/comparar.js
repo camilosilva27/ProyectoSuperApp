@@ -13,12 +13,12 @@
  *
  * Segunda diferencia, agregada después de la primera prueba real de la app: no hace falta
  * seleccionar tarjetas para comparar. Este endpoint siempre pide TAMBIÉN las promos de
- * tarjeta propia (Mi Carrefour por ahora — ver TARJETAS_QUE_AFECTAN_PRODUCTO abajo),
- * independientemente de qué tarjetas haya elegido el usuario; esas promos viajan igual en
- * `promo`, marcadas con `tarjetaActiva: false` cuando la tarjeta no está en `tarjetas` del
- * body. El *total* que se muestra como "el precio" (`opciones[].total`, `resumen.*`) nunca
- * las cuenta salvo que estén activas — sirven para avisar "hay un 15% con Mi Carrefour",
- * no para inflar el ahorro con una tarjeta que el usuario no tiene.
+ * tarjeta propia (Tarjeta Carrefour Crédito por ahora — ver TARJETAS_QUE_AFECTAN_PRODUCTO
+ * abajo), independientemente de qué tarjetas haya elegido el usuario; esas promos viajan
+ * igual en `promo`, marcadas con `tarjetaActiva: false` cuando la tarjeta no está en
+ * `tarjetas` del body. El *total* que se muestra como "el precio" (`opciones[].total`,
+ * `resumen.*`) nunca las cuenta salvo que estén activas — sirven para avisar "hay un 15% con
+ * Tarjeta Carrefour Crédito", no para inflar el ahorro con una tarjeta que el usuario no tiene.
  */
 
 const express = require('express');
@@ -33,8 +33,7 @@ const {
 const { calcularCosto } = require('../../../AllPromos/promo-engine');
 const { esEANvalido } = require('../../../AllPromos/core/catalogo');
 const {
-  filtrarPromosBancariasPorTarjetas, promosAplicablesHoy, reoptimizarAsignacion, mejorPromoTicket,
-  promoBancariaRequiereOnline,
+  filtrarPromosBancariasPorTarjetas, promosAplicablesHoy, reoptimizarAsignacion,
 } = require('../../../AllPromos/promos-bancarias');
 const catalogoUnificado = require('../catalogoUnificado');
 const precioCache = require('../precioCache');
@@ -71,7 +70,7 @@ function filtrarSupermercados(supers) {
 // ver interpretarTeaserTarjetaPropia en promo-engine.js). Cencopay (Vea) se investigó y se
 // descartó — ver "Cerrado, no implementar" en CONTEXTO_TECNICO.md: la fuente de datos está
 // abandonada por Vea (0 ofertas vigentes, la última hace 9 meses).
-const TARJETAS_QUE_AFECTAN_PRODUCTO = ['Mi Carrefour'];
+const TARJETAS_QUE_AFECTAN_PRODUCTO = ['Tarjeta Carrefour Crédito'];
 
 const MAX_ITEMS = 60;
 // Carrefour y Chango Más rate-limitean (429 en Carrefour, 429 y 502 intermitentes en Chango
@@ -164,7 +163,8 @@ function validarBody(body) {
  * Da forma pública a una opción de super: precios en vivo, sin estructuras internas.
  * @param {number} precioLista precio de lista SIN NINGUNA promo para este super — puede ser
  *   más alto que `o.mejor.precioBase` cuando hay promos apiladas (ej. Carrefour: 30% de
- *   descuento directo ya aplicado sobre `precioBase`, más 15% de Mi Carrefour encima de eso).
+ *   descuento directo ya aplicado sobre `precioBase`, más 15% de Tarjeta Carrefour Crédito
+ *   encima de eso).
  *   Ver cálculo en el caller (máximo precioBase entre todas las opciones del super).
  */
 function serializarOpcion(o, cantidad, tarjetasSeleccionadas, precioLista) {
@@ -207,8 +207,7 @@ function serializarOpcion(o, cantidad, tarjetasSeleccionadas, precioLista) {
 /**
  * Promos bancarias "por ticket" (Cencopay, Mi Carrefour, MasClub, bancos/billeteras) vigentes
  * HOY para las tarjetas que el usuario tiene marcadas — se calcula una sola vez por request y
- * se reusa tanto para enriquecer cada opción por producto (ver aplicarPromoBancariaAOpcion)
- * como para la reoptimización de todo el carrito (aplicarPromosBancarias), para no leer y
+ * se reusa para la reoptimización de todo el carrito (aplicarPromosBancarias), para no leer y
  * filtrar el cache de promos bancarias dos veces.
  *
  * Solo promos vigentes HOY (no el rango de 7 días que evalúa por default
@@ -233,63 +232,6 @@ function datosBancariosDeHoy(tarjetasSeleccionadas, advertencias) {
       resultado.error ? resultado : { ...resultado, promos: promosAplicablesHoy(resultado.promos, { fecha: hoy }) },
     ])
   );
-}
-
-/**
- * Suma a la opción de UN producto en UN super el descuento de una promo bancaria "por ticket"
- * vigente hoy y activa (tarjeta seleccionada) — tratando el precio de este ítem solo como si
- * fuera el ticket completo. Es la misma idea que ya existe para promos de producto (Mi
- * Carrefour): que la tarjeta de comparación no quede ciega a un descuento real por el que
- * ese super no gana "a primera vista".
- *
- * Aproximación deliberada, igual que el resto de este mecanismo (ver reoptimizarAsignacion en
- * promos-bancarias.js): no ve el resto del carrito, así que no sabe si ese super ya agotó el
- * tope del reintegro con otros productos, ni si hace falta un monto mínimo que este ítem solo
- * no alcanza — para eso está el plan real (`resumen.comprasPorSuper`/`resumen.bancario`, que sí
- * ve el carrito completo y puede terminar mandando este mismo producto a un super distinto del
- * que gana acá). El % se aplica sobre `o.total`, que ya tiene aplicada cualquier promo de
- * producto activa — así se apila igual que en el cálculo agregado, no en vez de ella. Muta `o`
- * en el lugar.
- */
-function aplicarPromoBancariaAOpcion(o, datosDeHoy) {
-  const datos = datosDeHoy?.[o.key];
-  if (!datos || datos.error) return;
-
-  const mejorTicket = mejorPromoTicket(datos.promos, o.total);
-  if (!mejorTicket || mejorTicket.descuento <= 0) return;
-
-  const { promo, descuento } = mejorTicket;
-  const pctTicket = Math.round(promo.descuentoPct * 100);
-  // Misma tarjeta puede dar promo de producto Y de ticket a la vez (ej. Carrefour: 15% directo
-  // + reintegro por ticket, las dos bajo "Mi Carrefour") — "por ticket" evita que se lea como
-  // el mismo descuento repetido dos veces.
-  const descripcionTicket = `${pctTicket}% con ${promo.bancoCanonico} por ticket`;
-  // Si esta promo bancaria exige compra online (ej. algunas de MasClub/Chango Más), el badge
-  // "ONLINE" tiene que reflejarlo aunque la promo de producto (si la había) no lo exigiera.
-  const ticketRequiereOnline = promoBancariaRequiereOnline(promo);
-
-  o.total = redondear(o.total - descuento);
-  // Si ya había una promo de producto activa (ej. Mi Carrefour), se apilan las dos en la
-  // descripción — el total ya las tiene aplicadas a ambas en cascada. Si no, esta promo de
-  // ticket pasa a ser la única que se muestra (se pierde el aviso de una promo de producto
-  // inactiva de OTRA tarjeta para este mismo super, si la había: caso hoy inexistente en los
-  // datos reales, no vale la pena la complejidad de preservarlo).
-  o.promo = o.promo && o.promo.tarjetaActiva
-    ? {
-        ...o.promo,
-        descripcion: `${o.promo.descripcion} + ${descripcionTicket}`,
-        esOnline: o.promo.esOnline || ticketRequiereOnline,
-      }
-    : {
-        tipo: 'pct_ticket',
-        descripcion: descripcionTicket,
-        cantidadMinima: 1,
-        esOnline: ticketRequiereOnline,
-        requiereTarjeta: promo.bancoCanonico,
-        activa: true,
-        tarjetaActiva: true,
-      };
-  o.totalConTarjeta = null;
 }
 
 function aplicarPromosBancarias(resumen, supermercados, tarjetasSeleccionadas, datosDeHoy, advertencias) {
@@ -337,6 +279,90 @@ function aplicarPromosBancarias(resumen, supermercados, tarjetasSeleccionadas, d
   };
 }
 
+/**
+ * Reparte el descuento bancario "por ticket" de cada super (ya calculado por
+ * aplicarPromosBancarias sobre el subtotal real de la asignación final, considerando el
+ * carrito completo y el tope) entre las filas de producto de ese super, proporcional al
+ * precio de cada una.
+ *
+ * Antes esto se aproximaba producto por producto (una promo de ticket se restaba del total
+ * de cada ítem por separado, tratándolo como si fuera el ticket completo, ANTES de saber la
+ * asignación final) — eso hacía que la suma de las filas de un super no coincidiera con el
+ * total de la cabecera de ese mismo super, calculado por un camino distinto
+ * (`aplicarPromosBancarias`/`reoptimizarAsignacion`, que sí ve el carrito completo). Repartir
+ * acá, una sola vez, sobre la asignación ya fija, hace que ambos números salgan de la misma
+ * fuente por construcción. Muta `item.opciones` en el lugar; el último ítem de cada super se
+ * ajusta con el resto para no perder centavos por redondeo en el camino.
+ *
+ * Al final vuelve a ordenar `item.opciones` de cada ítem tocado y recalcula `item.mejor` —
+ * `calcularOpciones` (`core/comparador.js`) entrega `opciones` ya ordenadas ascendente por
+ * `total`, y bajar el total de la opción asignada acá puede dejarla más barata que otra que
+ * estaba antes en el array, rompiendo ese orden. `item.mejor`/`item.opciones[0]` es una
+ * invariante de la que dependen otras partes de la UI (ej. `BarraDiferencia.tsx`, que usa
+ * `opciones[0]` como "la más barata" sin volver a ordenar) — sin este paso, un producto
+ * reasignado a un super más caro EN LISTA pero más barato con el descuento de ticket quedaba
+ * mostrado como "más barato en Vea" en un lugar y "asignado a Carrefour" en otro, con el
+ * mismo array `opciones` de por medio.
+ */
+function repartirDescuentoBancarioEntreFilas(items, resumen, bancario, supermercados) {
+  if (!bancario) return;
+  const itemPorEan = new Map(items.map(it => [it.ean, it]));
+  const itemsTocados = new Set();
+
+  for (const s of supermercados) {
+    const ahorro = bancario.porSuper[s.key];
+    if (!ahorro || ahorro.descuento <= 0) continue;
+
+    const entradas = (resumen.comprasPorSuper[s.key] || [])
+      .map(c => ({ ean: c.ean, opcion: itemPorEan.get(c.ean)?.opciones.find(o => o.key === s.key) }))
+      .filter(e => e.opcion);
+    // Suma de las filas de este super ANTES del descuento de ticket — es la misma base que
+    // usó aplicarPromosBancarias para calcular `ahorro.descuento`, así que reparte exacto.
+    const subtotalBase = resumen.subtotalAsignadoPorSuper[s.key];
+    if (!(subtotalBase > 0)) continue;
+
+    const pctEfectivo = Math.round((ahorro.descuento / subtotalBase) * 100);
+    const descripcionTicket = `${pctEfectivo}% con ${ahorro.tarjeta} por ticket`;
+
+    let repartido = 0;
+    entradas.forEach(({ ean, opcion }, i) => {
+      itemsTocados.add(ean);
+      const esUltimo = i === entradas.length - 1;
+      const parte = esUltimo
+        ? redondear(ahorro.descuento - repartido)
+        : redondear(ahorro.descuento * (opcion.total / subtotalBase));
+      repartido = redondear(repartido + parte);
+
+      opcion.total = redondear(opcion.total - parte);
+      opcion.promo = opcion.promo && opcion.promo.tarjetaActiva
+        ? { ...opcion.promo, descripcion: `${opcion.promo.descripcion} + ${descripcionTicket}` }
+        : {
+            tipo: 'pct_ticket',
+            descripcion: descripcionTicket,
+            cantidadMinima: 1,
+            esOnline: !!resumen.requiereOnlinePorSuper[s.key],
+            requiereTarjeta: ahorro.tarjeta,
+            activa: true,
+            tarjetaActiva: true,
+          };
+      opcion.totalConTarjeta = null;
+    });
+
+    // Mismo valor que ya tenía calculado aplicarPromosBancarias — se reasigna acá para
+    // dejar explícito que, de ahora en más, es exactamente la suma de las filas de arriba.
+    resumen.subtotalAsignadoPorSuper[s.key] = ahorro.subtotalFinal;
+  }
+
+  // Segundo paso, sobre ítems (no supers): un producto puede haber sido tocado por el reparto
+  // de un solo super (el suyo), así que alcanza con reordenar una vez por ítem al final, en vez
+  // de hacerlo a medio camino dentro del loop de arriba.
+  for (const ean of itemsTocados) {
+    const item = itemPorEan.get(ean);
+    item.opciones.sort((a, b) => a.total - b.total);
+    item.mejor = item.opciones[0] ?? null;
+  }
+}
+
 router.post('/comparar', requiereSesion, requierePlanActivo, async (req, res) => {
   const error = validarBody(req.body);
   if (error) return res.status(400).json({ error });
@@ -351,8 +377,7 @@ router.post('/comparar', requiereSesion, requierePlanActivo, async (req, res) =>
   }));
 
   const advertencias = [];
-  // Una sola lectura/filtro del cache de promos bancarias por request — se reusa tanto para
-  // enriquecer cada opción por producto (ver aplicarPromoBancariaAOpcion) como para la
+  // Una sola lectura/filtro del cache de promos bancarias por request — se reusa para la
   // reoptimización de todo el carrito (aplicarPromosBancarias) más abajo.
   const datosDeHoy = datosBancariosDeHoy(tarjetasSeleccionadas, advertencias);
 
@@ -389,16 +414,12 @@ router.post('/comparar', requiereSesion, requierePlanActivo, async (req, res) =>
         supermercados.map(s => [s.key, Math.max(0, ...(grupo[s.key] || []).map(e => e.precioBase))])
       );
 
+      // No se aplica acá ninguna promo bancaria "por ticket" (Cencopay, MODO, etc.): a
+      // diferencia de la promo de producto (Tarjeta Carrefour Crédito), la de ticket depende del carrito
+      // completo y de la asignación final (tope, qué otros productos ya pasaron por ese
+      // super) — se calcula una sola vez más abajo, después de fijar esa asignación, y se
+      // reparte entre las filas (ver repartirDescuentoBancarioEntreFilas).
       const opcionesPublicas = opciones.map(o => serializarOpcion(o, cantidad, tarjetasSeleccionadas, precioListaPorKey[o.key]));
-      // Igual que ya pasa con Mi Carrefour (promo de producto): si una promo bancaria "por
-      // ticket" (Cencopay, MODO, etc.) está activa, se refleja acá para que la tarjeta de
-      // comparación por producto no siga mostrando un precio de lista más caro que el real —
-      // ver aplicarPromoBancariaAOpcion. Puede cambiar cuál opción es la más barata, por eso
-      // se reordena antes de fijar `mejor`.
-      if (datosDeHoy) {
-        for (const o of opcionesPublicas) aplicarPromoBancariaAOpcion(o, datosDeHoy);
-        opcionesPublicas.sort((a, b) => a.total - b.total);
-      }
 
       return {
         ean,
@@ -472,11 +493,30 @@ router.post('/comparar', requiereSesion, requierePlanActivo, async (req, res) =>
     };
   });
 
-  // Mismo plan óptimo (mismo producto en el mismo super que totalOptimo) pero sin aplicar
-  // ninguna promo — para mostrar "esto es lo que te ahorran las promos" en el total general.
-  const totalSinPromo = Math.round(
-    items.reduce((acc, it) => acc + (it.mejor?.totalSinPromo ?? 0), 0) * 100
-  ) / 100;
+  // Reparte el descuento bancario "por ticket" de cada super (ya fijado arriba en `resumen`
+  // por aplicarPromosBancarias) entre las filas de producto de ese super — tiene que ir
+  // después de recortar `items` por el tope, para repartir sobre los mismos supers que
+  // terminan viéndose. Deja `resumen.subtotalAsignadoPorSuper` como la suma exacta de las
+  // filas resultantes (ver cabecera de la función).
+  repartirDescuentoBancarioEntreFilas(items, resumen, bancario, supermercadosUsados);
+
+  // Mismo plan óptimo (mismo producto en el mismo super que efectivamente quedó asignado)
+  // pero sin aplicar ninguna promo — para mostrar "esto es lo que te ahorran las promos" en
+  // el total general. Usa la asignación FINAL real (resumen.comprasPorSuper), no
+  // `item.mejor` (la opción globalmente más barata por producto): si una promo bancaria
+  // movió un producto a otro super, el precio de lista de la opción más barata global puede
+  // no coincidir con el del super donde el producto realmente terminó — eso desalineaba este
+  // total contra la suma de los "sin descuento" tachados que se muestran en cada bloque de
+  // super (bug real, corregido acá).
+  const itemPorEan = new Map(items.map(it => [it.ean, it]));
+  let totalSinPromoAcumulado = 0;
+  for (const s of supermercadosUsados) {
+    for (const compra of resumen.comprasPorSuper[s.key] || []) {
+      const opcion = itemPorEan.get(compra.ean)?.opciones.find(o => o.key === s.key);
+      if (opcion) totalSinPromoAcumulado += opcion.totalSinPromo;
+    }
+  }
+  const totalSinPromo = redondear(totalSinPromoAcumulado);
 
   // Link de "agregar al carrito" en el sitio real de cada super (null si no es VTEX, ej.
   // Coto, o si no tiene nada asignado, o si quedó afuera del plan capado) — ver

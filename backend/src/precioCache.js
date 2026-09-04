@@ -43,7 +43,10 @@ const FUENTES = [
 
 // Único teaser de "tarjeta propia" que interpreta hoy el fetch en vivo (ver
 // TARJETAS_QUE_AFECTAN_PRODUCTO en comparar.js) — se busca por nombre en promosBancarias
-// igual que fetchers.js lo busca por nombre en los Teasers crudos de VTEX.
+// igual que fetchers.js lo busca por nombre en los Teasers crudos de VTEX. El teaser en sí
+// sigue llamándose "Tarjeta Carrefour X%" en el catálogo crudo; la tarjeta que efectivamente
+// requiere es la de CRÉDITO Mi Carrefour, no el nivel Clásico de solo DNI (ver el detalle en
+// promos-bancarias.js § ALIAS_TARJETAS, confirmado en vivo el 2026-09-04).
 const NOMBRE_TARJETA_PROPIA = 'tarjeta carrefour';
 
 /**
@@ -100,7 +103,7 @@ function entradasVtexConTeasers(sku, superNombre, { conTarjetaPropia = false } =
             { '<Name>k__BackingField': 'PercentualDiscount', '<Value>k__BackingField': teaserTarjeta.descuentoPct },
           ],
         },
-      }, 'Mi Carrefour');
+      }, 'Tarjeta Carrefour Crédito');
       if (promo) resultados.push({ ...base, precioBase: sku.precioActual, promo });
     }
   }
