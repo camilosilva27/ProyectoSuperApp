@@ -47,14 +47,13 @@ const NOMBRE_TARJETA_TOUR = 'Mercado Pago';
  * con check, pero la semántica de accesibilidad sigue siendo checkbox, no radio.
  */
 function ItemDescuento({
-  paleta, filaRef, nombre, detalle, supersTexto, sinUsar, activa, onCambiar, accessibilityLabel,
+  paleta, filaRef, nombre, detalle, supersTexto, activa, onCambiar, accessibilityLabel,
 }: {
   paleta: ReturnType<typeof useTema>['paleta'];
   filaRef?: React.Ref<View>;
   nombre: string;
   detalle: string;
   supersTexto: string | null;
-  sinUsar: boolean;
   activa: boolean;
   onCambiar: (valor: boolean) => void;
   accessibilityLabel: string;
@@ -87,15 +86,10 @@ function ItemDescuento({
       <Animated.View style={[styles.fila, { backgroundColor: fondo, borderColor: borde }]}>
         <Animated.View style={[styles.barraAcento, { backgroundColor: acento }]} />
         <View style={styles.filaTexto}>
-          <View style={styles.filaNombreTag}>
-            <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>{nombre}</Text>
-            {sinUsar ? (
-              <View style={[styles.tagSinUsar, { borderColor: paleta.tinta }]}>
-                <Text style={[styles.tagSinUsarTexto, { color: paleta.tinta }]}>SIN USAR</Text>
-              </View>
-            ) : null}
-          </View>
-          <Text style={[texto.etiqueta, { color: paleta.tintaSuave }]}>{detalle}</Text>
+          <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>{nombre}</Text>
+          {detalle ? (
+            <Text style={[texto.etiqueta, { color: paleta.tintaSuave }]}>{detalle}</Text>
+          ) : null}
           {supersTexto ? (
             <Text style={[texto.etiqueta, { color: paleta.tintaSuave }]}>{supersTexto}</Text>
           ) : null}
@@ -108,8 +102,14 @@ function ItemDescuento({
   );
 }
 
+// `disponible: false` con `descuentoPct` presente significa que el backend encontró una promo
+// con día definido para esta tarjeta pero fuera de la ventana de vigencia de la campaña actual
+// (ver misDescuentos.js) — es una promo con periodicidad conocida (ej. Mercado Pago, que se
+// renueva mes a mes), no "no tiene nada". Se muestra igual, sin decir que está vigente ahora.
+// Cuando no hay ni eso, se devuelve vacío en vez de un texto fijo tipo "Sin promo vigente
+// ahora": ese texto en TODAS las tarjetas sin datos se leía como que algo estaba roto.
 function descripcionDe(d: Descuento): string {
-  if (!d.disponible || d.descuentoPct == null) return 'Sin promo vigente ahora';
+  if (d.descuentoPct == null) return '';
   const pct = `${Math.round(d.descuentoPct * 100)}%`;
   const dias = d.dias.length ? ` los ${d.dias.join(', ')}` : '';
   const tope = d.tope != null ? ` · tope ${pesos(d.tope)}` : '';
@@ -128,7 +128,7 @@ const NOMBRES_CARREFOUR_PROPIO = ['Mi Carrefour', 'Cuenta Digital Carrefour', 'T
  * datos, no por el nombre.
  */
 function supersDe(d: Descuento): string | null {
-  if (!d.disponible || !d.supers.length) return null;
+  if (!d.supers.length) return null;
   if (NOMBRES_CARREFOUR_PROPIO.includes(d.nombre) && d.supers.every(s => s === 'carr')) return null;
   const ordenados = ORDEN_SUPERS.filter(k => d.supers.includes(k));
   return `Aplica en ${ordenados.map(k => NOMBRE_SUPER[k]).join(', ')}`;
@@ -259,7 +259,6 @@ export default function PantallaMisDescuentos() {
                     nombre={d.nombre}
                     detalle={descripcionDe(d)}
                     supersTexto={supersDe(d)}
-                    sinUsar={!activa}
                     activa={activa}
                     onCambiar={valor => {
                       // Durante el tour, tocar la fila de Mercado Pago cuenta como el toque
@@ -315,9 +314,6 @@ const styles = StyleSheet.create({
   barraAcento: { width: 8, height: 36, borderRadius: radio.pill },
   filaTexto: { flex: 1, gap: 2 },
   bloqueInfo: { borderRadius: radio.tarjeta, padding: espacio.md },
-  filaNombreTag: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  tagSinUsar: { borderWidth: 1, borderRadius: 4, paddingHorizontal: 6 },
-  tagSinUsarTexto: { fontFamily: fuentes.semi, fontSize: 10, lineHeight: 14, letterSpacing: 0.6 },
   radio: { width: 26, height: 26, borderRadius: radio.pill, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   radioCheck: { fontFamily: fuentes.semi, fontSize: 13, lineHeight: 13 },
 });
