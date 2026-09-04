@@ -94,6 +94,28 @@ heineken 473, 4
 
 ---
 
+## Splash screen nativo (arranque de la app, 2026-09-04)
+
+Antes no había ninguna config de splash: `app.json` no tenía la clave `"splash"` ni el plugin `expo-splash-screen`, así que el arranque nativo (iOS/Android) mostraba una pantalla en blanco por defecto de Expo, y encima `app/_layout.tsx` tapaba eso con un `<View>` vacío del color del tema mientras `useFonts` resolvía — dos pantallas en blanco en fila antes de ver algo.
+
+Se agregó el paquete `expo-splash-screen` (instalado con `npx expo install`, que ya wireó el plugin en `app.json plugins`) configurado así:
+- `image`: `app/assets/splash-icon.png` — **no** es el `icon.png` de siempre; es una composición nueva (logo redondeado + texto "Super App" en `Archivo_800ExtraBold`, la misma familia tipográfica que ya usa la app) generada con Pillow (`python3` + `PIL`, instalado ad-hoc, no es dependencia del proyecto) a partir de `icon.png`. El plugin de `expo-splash-screen` espera una imagen chica del contenido a centrar, no una composición ya del tamaño de la pantalla — pasarle algo grande y fijar `imageWidth` chico la aplasta entera.
+- `backgroundColor: "#ffffff"`, `resizeMode: "contain"`, `imageWidth: 220`.
+
+En `app/_layout.tsx`: `SplashScreen.preventAutoHideAsync()` a nivel de módulo, y `SplashScreen.hideAsync()` en un `useEffect` que dispara recién cuando `fuentesListas` es `true`. Así el splash nativo (que ya tiene el logo + texto quemados en la imagen) se queda en pantalla tapando el `<View>` vacío de placeholder de fuentes, en vez de que el usuario vea blanco→blanco→app. `expo-splash-screen` tiene un build separado para web (`SplashScreen.js` vs `SplashScreen.native.js` en el paquete) que no rompe ahí, no hace falta guardarlo con `Platform.OS`.
+
+**Esto NO cubre el caso real que usa el usuario hoy: el acceso directo de "Agregar a inicio" en iOS Safari.** Como todavía no hay build en App Store/Play Store, la "app" que circula es ese acceso directo (`manifest.json` con `"display": "standalone"`, por eso abre sin barra de Safari, como una app instalada de verdad — es intencional, no un bug). Ese modo tiene su **propio mecanismo de splash, separado del de `expo-splash-screen` y del de Android**:
+- **Android/Chrome**: si genera el splash automáticamente desde `manifest.json` (`background_color` + ícono ≥512px) — no hace falta nada más ahí, ya está bien servido (`public/manifest.json` ya tiene `background_color: "#FFFFFF"` e `icon-512.png`).
+- **iOS/Safari NO usa el manifest para esto** (se verificó con fuentes externas: Safari ignora `background_color`/`theme_color`/`icons` del manifest para el splash del acceso directo — eso es solo comportamiento de Chrome/Android). La única forma de que iOS muestre algo distinto de blanco es declarar imágenes de pantalla completa a mano con `<link rel="apple-touch-startup-image" media="...">` por cada combinación exacta de `device-width`/`device-height`/`-webkit-device-pixel-ratio` (no hay wildcard ni tamaño único que sirva para todos los modelos).
+
+Implementado en `app/app/+html.tsx`: 8 `<link rel="apple-touch-startup-image">` (cubre iPhone SE/8 hasta los Pro Max más nuevos, solo portrait — la app está fijada a esa orientación) apuntando a `public/splash/apple-splash-<ancho>-<alto>.png`, imágenes generadas con Pillow (logo redondeado + "Super App" en `Archivo_800ExtraBold`, mismo criterio visual que `assets/splash-icon.png` del build nativo pero a pantalla completa en vez de recortado, porque acá no hay un "contenedor" que centre una imagen chica — cada PNG ES la pantalla entera).
+
+**Gotcha importante para probar cambios de este mecanismo**: iOS cachea el splash en el momento en que se agrega el acceso directo a la pantalla de inicio. Cambiar el HTML/las imágenes después no actualiza un acceso directo ya agregado — hay que borrarlo y volver a agregarlo para ver la versión nueva.
+
+Pendiente: falta probar en Android real (el pedido original era sobre iOS), y confirmar visualmente en un iPhone real o en el Simulador de iOS (requiere `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` en esta Mac, hoy apunta a "CommandLineTools" en vez de a Xcode.app, así que `simctl`/el simulador no arrancan todavía).
+
+---
+
 ## Interactividad
 
 `buscar-promos.js` usa `readline/promises` (nativo de Node, sin dependencias) para preguntar por consola en dos situaciones. Aplica tanto en modo individual como en `--lista` (en `--lista`, uno por uno — se pausa en el ítem que lo necesita y sigue con el siguiente después de responder):
