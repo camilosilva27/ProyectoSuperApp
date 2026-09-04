@@ -108,13 +108,17 @@ function parsearProductosCarrefour(products, { tarjetas = [] } = {}) {
 
       // Promo por producto condicionada a tarjeta propia (tipo 1, Fase 3): el teaser
       // "Tarjeta Carrefour X%" existe en casi todos los productos (confirmado en vivo,
-      // ~mismo BIN/% en decenas de categorías). Solo se agrega como candidato si el
-      // usuario tiene "Mi Carrefour" entre sus tarjetas — si no, ni se calcula (4.1).
-      if (tarjetas.includes('Mi Carrefour')) {
+      // ~mismo BIN/% en decenas de categorías). Restringido por RestrictionsBins (BINs de
+      // tarjeta real) — confirmado en vivo el 2026-09-04 que corresponde a la tarjeta de
+      // CRÉDITO Mi Carrefour, no al nivel Clásico (solo DNI, sin tarjeta): antes este código
+      // lo etiquetaba mal como "Mi Carrefour" a secas, lo cual sobreestimaba el descuento
+      // para quien solo tiene el nivel Clásico. Solo se agrega como candidato si el usuario
+      // tiene "Tarjeta Carrefour Crédito" entre sus tarjetas — si no, ni se calcula (4.1).
+      if (tarjetas.includes('Tarjeta Carrefour Crédito')) {
         const teaserTarjetaPropia = (offer.Teasers || []).find(t =>
           (t['<Name>k__BackingField'] || '').toLowerCase().includes('tarjeta carrefour')
         );
-        const promo = teaserTarjetaPropia && interpretarTeaserTarjetaPropia(teaserTarjetaPropia, 'Mi Carrefour');
+        const promo = teaserTarjetaPropia && interpretarTeaserTarjetaPropia(teaserTarjetaPropia, 'Tarjeta Carrefour Crédito');
         if (promo) {
           resultados.push({
             super: 'Carrefour',

@@ -116,14 +116,20 @@ function descripcionDe(d: Descuento): string {
   return `${pct}${dias}${tope}`;
 }
 
+// Los 3 beneficios propios de Carrefour (Mi Carrefour DNI / Cuenta Digital / tarjeta de
+// Crédito) — ver ALIAS_TARJETAS en AllPromos/promos-bancarias.js para el detalle de qué
+// distingue a cada uno.
+const NOMBRES_CARREFOUR_PROPIO = ['Mi Carrefour', 'Cuenta Digital Carrefour', 'Tarjeta Carrefour Crédito'];
+
 /**
- * En qué super(s) aplica. Se omite para Mi Carrefour cuando el único super es Carrefour:
- * decirlo ahí es redundante, el nombre ya lo dice. Si algún día tuviera otros supers además
- * de Carrefour, se muestra igual — la redundancia se decide por los datos, no por el nombre.
+ * En qué super(s) aplica. Se omite para los niveles propios de Carrefour cuando el único
+ * super es Carrefour: decirlo ahí es redundante, el nombre ya lo dice. Si algún día tuviera
+ * otros supers además de Carrefour, se muestra igual — la redundancia se decide por los
+ * datos, no por el nombre.
  */
 function supersDe(d: Descuento): string | null {
   if (!d.disponible || !d.supers.length) return null;
-  if (d.nombre === 'Mi Carrefour' && d.supers.every(s => s === 'carr')) return null;
+  if (NOMBRES_CARREFOUR_PROPIO.includes(d.nombre) && d.supers.every(s => s === 'carr')) return null;
   const ordenados = ORDEN_SUPERS.filter(k => d.supers.includes(k));
   return `Aplica en ${ordenados.map(k => NOMBRE_SUPER[k]).join(', ')}`;
 }
@@ -170,18 +176,33 @@ export default function PantallaMisDescuentos() {
   // ('volver-buscar', ver pasos.ts) le pide el toque real sobre la pestaña.
   const refMercadoPago = useTourPaso('mercado-pago', tocoMercadoPago);
 
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['mis-descuentos'],
+    queryFn: () => misDescuentos(accessToken as string),
+    enabled: !!accessToken,
+    staleTime: 10 * 60 * 1000,
+  });
+
   // Si el usuario ya había scrolleado la lista (buscando otra tarjeta, revisando promos) antes
   // de iniciar el tour, la fila de Mercado Pago puede quedar fuera del área visible cuando este
   // paso se activa — el spotlight mide su posición real (aunque esté scrolleada afuera) y queda
   // apuntando a un lugar que no se ve en pantalla. Mismo mecanismo que el paso "Coto" en
   // HojaSupers.tsx: se trae la fila a la vista sola apenas arranca este paso, en vez de esperar
   // que el usuario adivine que tiene que scrollear.
+  //
+  // Depende de `isLoading` a propósito (bug real, corregido acá): el paso 'mercado-pago' se
+  // activa apenas el usuario toca la pestaña (con el foco, no con datos), pero la fila recién
+  // existe en el árbol cuando `misDescuentos()` resuelve — con latencia de red real (a
+  // diferencia de una query ya en cache) eso tarda más que el timeout fijo de abajo, así que el
+  // efecto corría una sola vez con `refMercadoPago.current` todavía `null`, sin reintentar
+  // nunca: el spotlight terminaba midiendo la posición real de la fila (fuera de la pantalla,
+  // sin scrollear) y el recorte quedaba con alto 0 — pantalla oscurecida sin nada tocable.
   const scrollRef = useRef<ScrollView>(null);
   const scrollYRef = useRef(0);
   const refContenedor = useRef<View>(null);
   const { pasoActivo } = useEstadoTour();
   useEffect(() => {
-    if (pasoActivo !== 'mercado-pago') return;
+    if (pasoActivo !== 'mercado-pago' || isLoading) return;
     const id = setTimeout(() => {
       const fila = refMercadoPago.current;
       const contenedor = refContenedor.current;
@@ -196,14 +217,7 @@ export default function PantallaMisDescuentos() {
       });
     }, 300);
     return () => clearTimeout(id);
-  }, [pasoActivo]);
-
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['mis-descuentos'],
-    queryFn: () => misDescuentos(accessToken as string),
-    enabled: !!accessToken,
-    staleTime: 10 * 60 * 1000,
-  });
+  }, [pasoActivo, isLoading]);
 
   return (
     <View style={{ flex: 1, backgroundColor: paleta.fondo }}>

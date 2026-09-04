@@ -150,7 +150,19 @@ export type EstadoSalud = {
   problemas: string[];
 };
 
-const URL_BASE = (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/$/, '');
+/** Lista de URLs candidatas del backend, en orden de preferencia: la principal (ej. la IP de
+ *  casa) primero, después el fallback (ej. la IP de la facultad). Sirve para no tener que
+ *  editar el .env cada vez que se cambia de red — ver EXPO_PUBLIC_API_URL_FALLBACK. */
+const URLS_BASE = [process.env.EXPO_PUBLIC_API_URL, process.env.EXPO_PUBLIC_API_URL_FALLBACK]
+  .filter((url): url is string => !!url)
+  .map((url) => url.replace(/\/$/, ''));
+if (URLS_BASE.length === 0) URLS_BASE.push('http://localhost:3000');
+
+/** Cuál de `URLS_BASE` respondió último: se prueba primero en el siguiente pedido, para no
+ *  perder tiempo re-probando una IP caída en cada request. */
+let indiceUrlActiva = 0;
+
+const TIMEOUT_MS = 4000;
 
 export class ErrorApi extends Error {
   constructor(message: string, readonly status?: number) {
@@ -159,18 +171,38 @@ export class ErrorApi extends Error {
   }
 }
 
-async function pedir<T>(ruta: string, init?: RequestInit): Promise<T> {
-  let respuesta: Response;
+async function pedirA(urlBase: string, ruta: string, init?: RequestInit): Promise<Response> {
+  const controlador = new AbortController();
+  const timeout = setTimeout(() => controlador.abort(), TIMEOUT_MS);
   try {
-    respuesta = await fetch(`${URL_BASE}${ruta}`, {
+    return await fetch(`${urlBase}${ruta}`, {
       ...init,
+      signal: controlador.signal,
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
         ...(init?.headers ?? {}),
       },
     });
-  } catch {
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function pedir<T>(ruta: string, init?: RequestInit): Promise<T> {
+  let respuesta: Response | undefined;
+  const orden = [indiceUrlActiva, ...URLS_BASE.map((_, i) => i).filter((i) => i !== indiceUrlActiva)];
+  for (const i of orden) {
+    try {
+      respuesta = await pedirA(URLS_BASE[i], ruta, init);
+      indiceUrlActiva = i;
+      break;
+    } catch {
+      // Se prueba la siguiente URL candidata; si era la última, se cae al catch de abajo.
+    }
+  }
+
+  if (!respuesta) {
     // Distinguir "no hay red / backend caído" de "el backend contestó un error" importa:
     // el primero se arregla prendiendo el server, el segundo mirando la respuesta.
     throw new ErrorApi('No se pudo conectar con el servidor de AllPromos');
@@ -273,9 +305,10 @@ export function misDescuentos(accessToken: string) {
   );
 }
 
-/** `producto.imagen` es una ruta relativa (ej. "/imagenes/779...jpg") — esto la completa. */
+/** `producto.imagen` es una ruta relativa (ej. "/imagenes/779...jpg") — esto la completa con la
+ *  URL activa (la última que respondió), no siempre la principal. */
 export function urlImagen(ruta: string | null): string | null {
-  return ruta ? `${URL_BASE}${ruta}` : null;
+  return ruta ? `${URLS_BASE[indiceUrlActiva]}${ruta}` : null;
 }
 
 /** Arranca la suscripción premium (Plan_Usuarios_y_cobros.md, Fase 2; `tipoPlan` sumado en
@@ -326,4 +359,4 @@ export function precioSuscripcion() {
   }>('/api/pagos/precio');
 }
 
-export const configApi = { urlBase: URL_BASE };
+export const configApi = { get urlBase() { return URLS_BASE[indiceUrlActiva]; } };

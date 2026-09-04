@@ -37,9 +37,13 @@ type Accion =
   | { tipo: 'reemplazarItems'; items: ItemCarrito[] }
   | { tipo: 'tarjetas'; tarjetas: string[] };
 
-/** Las mismas que soporta promos-bancarias.js; el usuario marca las que tiene. */
+/** Las mismas que soporta promos-bancarias.js; el usuario marca las que tiene. Los 3
+ *  beneficios propios de Carrefour van juntos y en este orden (Mi Carrefour DNI / Cuenta
+ *  Digital / tarjeta de Crédito) — confirmado en vivo el 2026-09-04 que son cosas distintas,
+ *  no la misma cosa con otro nombre (la Tarjeta Prepaga en sí no da descuento de súper, solo
+ *  la Cuenta Digital que Carrefour Banco publicita junto con ella). */
 export const TARJETAS_DISPONIBLES = [
-  'Mi Carrefour', 'MasClub', 'Cencopay',
+  'Mi Carrefour', 'Cuenta Digital Carrefour', 'Tarjeta Carrefour Crédito', 'MasClub', 'Cencopay',
   'Santander', 'MODO', 'Mercado Pago', 'Cuenta DNI', 'Banco Provincia',
   'Galicia', 'Galicia Modo', 'Banco Macro', 'HSBC', 'BBVA', 'ICBC',
   'Comafi', 'Naranja X', 'Credicoop', 'Banco Ciudad', 'Supervielle',
