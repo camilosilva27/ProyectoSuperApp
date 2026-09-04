@@ -11,12 +11,17 @@
  */
 
 import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../auth';
-import { espacio, texto } from '../theme';
+import { espacio } from '../theme';
 import { useTema } from '../useTema';
 import { FormularioAuth } from './FormularioAuth';
+
+// Ancho de referencia del mock (design_handoff_allpromos_v2/14b-landing-cuenta.md): 390px,
+// pensado para iPhone. Acá es un tope, no un ancho fijo — en pantallas angostas la tarjeta
+// ocupa todo el ancho disponible (menos el padding), en pantallas anchas (web) queda centrada.
+const ANCHO_MAXIMO_TARJETA = 420;
 
 export function GateSesion({ children }: { children: React.ReactNode }) {
   const { paleta } = useTema();
@@ -30,20 +35,17 @@ export function GateSesion({ children }: { children: React.ReactNode }) {
   }
 
   if (!session) {
+    // La tarjeta de FormularioAuth ya trae su propio hero/copy (pantalla 1 del mock) — acá no
+    // hace falta un título genérico repitiendo lo mismo por encima.
     return (
       <ScrollView
         style={{ flex: 1, backgroundColor: paleta.fondo }}
         contentContainerStyle={[styles.cuerpo, { paddingTop: insets.top + espacio.xl }]}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={{ gap: espacio.xs }}>
-          <Text style={[texto.titulo, { color: paleta.tinta }]}>Super App</Text>
-          <Text style={[texto.cuerpo, { color: paleta.tintaSuave }]}>
-            Creá una cuenta o iniciá sesión para seguir — así tu carrito, tarjetas y listas
-            guardadas se sincronizan entre tus dispositivos.
-          </Text>
+        <View style={{ width: '100%', maxWidth: ANCHO_MAXIMO_TARJETA }}>
+          <FormularioAuth />
         </View>
-        <FormularioAuth />
       </ScrollView>
     );
   }
@@ -52,5 +54,7 @@ export function GateSesion({ children }: { children: React.ReactNode }) {
 }
 
 const styles = StyleSheet.create({
-  cuerpo: { padding: espacio.pantalla, gap: espacio.lg, flexGrow: 1 },
+  cuerpo: {
+    padding: espacio.pantalla, paddingBottom: espacio.xl, flexGrow: 1, alignItems: 'center',
+  },
 });

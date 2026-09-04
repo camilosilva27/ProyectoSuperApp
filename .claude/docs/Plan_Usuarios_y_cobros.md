@@ -93,6 +93,22 @@ Fase 1 implementada y verificada de punta a punta, con una cuenta real (no solo 
 
 Pendiente, no bloqueante (ver arriba): agregar dominio propio a Brevo, y actualizar Site URL a la URL de producción cuando se lance.
 
+## Landing v2 + Google Sign-In (2026-09-04)
+
+`FormularioAuth.tsx` (usado por `GateSesion.tsx`) se restyleó siguiendo `design_handoff_allpromos_v2/design_handoff_allpromos_v2/14b-landing-cuenta.md`, y se sumaron tres cosas nuevas:
+
+- **Modo inicial por dispositivo**: quien entra por primera vez ve "Registrate" (con el hero amarillo); quien ya vio esta pantalla antes en ese dispositivo ve "Iniciar sesión" por defecto (con un header oscuro propio, no el amarillo — reservado a la landing de registro). Flag simple en AsyncStorage (`superapp_ya_visito_landing_auth_v1`), no en `perfil_usuario` — es una preferencia de UI local, no un dato que deba sincronizar entre dispositivos.
+- **Fix: registrarse con un mail ya registrado y confirmado mostraba "te mandamos un mail" sin haber mandado nada.** Supabase oculta a propósito si un mail existe (protección contra fuerza bruta) así que `signUp` no tira error — pero si el mail ya tiene una cuenta CONFIRMADA, `data.user.identities` viene vacío (`[]`), a diferencia de un registro nuevo o de un mail sin confirmar todavía (ahí sí trae la identidad y Supabase reenvía la confirmación). `auth.tsx § registrarse` ahora chequea esto y muestra "Ya existe una cuenta con este mail" en vez de la pantalla de confirmación falsa.
+- **Google Sign-In, código implementado, falta habilitarlo en los dashboards (no es código):**
+  - Alcance decidido: **solo web/PWA** — no hay build nativo (App Store/Play Store) todavía, así que no se armó el flujo con deep link (`expo-auth-session` + scheme `allpromos://`); queda para cuando exista ese build.
+  - `app/src/auth.tsx § iniciarSesionConGoogle` llama a `supabase.auth.signInWithOAuth({ provider: 'google' })`, que redirige el navegador a Google y vuelve con `?code=...`.
+  - `app/src/supabase.ts`: `detectSessionInUrl` pasó a `true` en web (antes `false` a propósito, ver el comentario ahí) — es lo que hace que el cliente detecte solo ese `?code=...` al volver y lo canjee por sesión.
+  - **Verificado en código, no en flujo real**: probado en el navegador que el botón "Continuar con Google" redirige correctamente a `https://<proyecto>.supabase.co/auth/v1/authorize?provider=google&redirect_to=...` — falla con `"provider is not enabled"` porque el paso de dashboard de abajo todavía no se hizo. Confirma que el código está bien armado.
+  - **Pendiente, dos pasos manuales fuera del repo (ninguno es código)**:
+    1. **Google Cloud Console**: crear una pantalla de consentimiento OAuth y un "OAuth Client ID" de tipo *Web application*. El "Authorized redirect URI" que pide Google **no es la URL de la app** — es la URL fija de callback de Supabase: `https://<project-ref>.supabase.co/auth/v1/callback` (se ve en el paso siguiente, en el dashboard de Supabase, al habilitar el provider).
+    2. **Supabase dashboard** (Authentication → Providers → Google): activar el provider y pegar el Client ID/Secret que dio Google Cloud Console en el paso anterior.
+  - Una vez hecho eso, no hace falta ningún cambio de código adicional para que funcione en producción — el mismo `redirectTo: window.location.origin` ya apunta a donde esté corriendo la app (local o `https://mi-superapp.vercel.app`).
+
 ---
 
 # Fase 2: cuenta obligatoria + trial + cobro (Mercado Pago)
