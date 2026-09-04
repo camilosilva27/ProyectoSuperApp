@@ -38,8 +38,13 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     ...(Platform.OS === 'web' ? {} : { storage: AsyncStorage }),
     autoRefreshToken: true,
     persistSession: true,
-    // Sin flujo de redirect por URL (magic link por deep link, OAuth) todavía — cuando se
-    // agregue login social hay que revisar esto.
-    detectSessionInUrl: false,
+    // Login con Google (web, ver auth.tsx § iniciarSesionConGoogle): Supabase redirige de
+    // vuelta con `?code=...` en la URL (PKCE), y esto es lo que hace que el cliente lo
+    // detecte solo y lo canjee por sesión al cargar la página, sin código manual. Solo en
+    // web: en nativo no hay flujo OAuth armado todavía (ver la nota de alcance en
+    // FormularioAuth.tsx), así que se deja en false para no interferir con nada ahí. No pisa
+    // el manejo manual del link de confirmación de mail (`token_hash`+`type=email`, en
+    // auth.tsx): son parámetros de URL distintos a `code`.
+    detectSessionInUrl: Platform.OS === 'web',
   },
 });

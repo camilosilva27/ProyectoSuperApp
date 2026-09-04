@@ -14,12 +14,23 @@
  * vez de `{{ .ConfirmationURL }}` tal cual — así no depende de tocar el Site URL global (que
  * tiene que seguir siendo el del sitio real), y de paso deja logueado directo en vez de
  * "confirmado pero hay que volver a loguearse a mano".
+ *
+ * Google (2026-09-04, solo web): `iniciarSesionConGoogle` redirige a Google vía
+ * `signInWithOAuth` — necesita el provider Google habilitado en Supabase (Authentication >
+ * Providers, con un OAuth Client ID/Secret de Google Cloud Console) y `detectSessionInUrl`
+ * en `true` en web (ver supabase.ts) para que el `?code=...` con el que Google/Supabase
+ * redirigen de vuelta se canjee solo por una sesión.
  */
 
 import type { Session } from '@supabase/supabase-js';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import { supabase } from './supabase';
+
+/** Mismo texto en los dos lugares donde puede aparecer: el error real que manda Supabase
+ *  cuando SÍ lo dice (mensajeError) y la detección por `identities` de más abajo (registrarse,
+ *  para el caso — mucho más común en la práctica — en que Supabase no lo dice explícito). */
+const MENSAJE_MAIL_YA_EXISTE = 'Ya existe una cuenta con este mail — probá iniciar sesión en vez de registrarte.';
 
 /** Mapea los errores más comunes de Supabase Auth a un mensaje en español, entendible sin
  *  jerga. Supabase oculta a propósito si un mail ya existe (para no revelar cuentas por fuerza
@@ -32,7 +43,7 @@ function mensajeError(error: unknown): string {
     return 'Se mandaron demasiados mails en poco tiempo — esperá unos minutos y probá de nuevo.';
   }
   if (codigo === 'user_already_exists' || /already registered/i.test(bruto)) {
-    return 'Ya existe una cuenta con este mail — probá iniciar sesión en vez de registrarte.';
+    return MENSAJE_MAIL_YA_EXISTE;
   }
   if (codigo === 'invalid_credentials' || /invalid login credentials/i.test(bruto)) {
     return 'Mail o contraseña incorrectos.';
@@ -57,6 +68,13 @@ type Contexto = {
   ) => Promise<{ error: string | null; necesitaConfirmarMail: boolean }>;
   iniciarSesion: (email: string, password: string) => Promise<{ error: string | null }>;
   cerrarSesion: () => Promise<void>;
+  /** Reenvía el mail de confirmación (pantalla "confirmá tu mail" del registro, botón
+   *  "Reenviar el mail" — ver design_handoff_allpromos_v2/14b-landing-cuenta.md). */
+  reenviarConfirmacion: (email: string) => Promise<{ error: string | null }>;
+  /** Login con Google (solo web por ahora, ver FormularioAuth.tsx). Redirige el navegador —
+   *  no hay nada que hacer con el resultado más que mostrar el error si Google/Supabase no
+   *  llegan a redirigir (provider mal configurado, sin red, etc). */
+  iniciarSesionConGoogle: () => Promise<{ error: string | null }>;
 };
 
 const AuthContext = createContext<Contexto | null>(null);
@@ -106,6 +124,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email, password, options: { data: { nombre } },
       });
       if (error) return { error: mensajeError(error), necesitaConfirmarMail: false };
+      // Bug real (2026-09-04): registrarse con un mail que YA tiene una cuenta CONFIRMADA no
+      // tira error (Supabase lo oculta a propósito, ver mensajeError) y devolvía
+      // `necesitaConfirmarMail: true` igual, así que la pantalla "te mandamos un mail" se
+      // mostraba sin que se haya mandado nada — mentira por omisión, no solo un mensaje
+      // ambiguo. La forma documentada de distinguir este caso sin romper la protección contra
+      // fuerza bruta: `data.user.identities` viene vacío (`[]`) solo cuando el mail ya tenía
+      // una cuenta confirmada de antes; en un registro nuevo o en un mail ya registrado pero
+      // TODAVÍA sin confirmar (ahí Supabase sí reenvía la confirmación), trae la identidad.
+      if (data.user && data.user.identities && data.user.identities.length === 0) {
+        return { error: MENSAJE_MAIL_YA_EXISTE, necesitaConfirmarMail: false };
+      }
       return { error: null, necesitaConfirmarMail: !data.session };
     },
     iniciarSesion: async (email, password) => {
@@ -114,6 +143,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
     cerrarSesion: async () => {
       await supabase.auth.signOut();
+    },
+    reenviarConfirmacion: async (email) => {
+      const { error } = await supabase.auth.resend({ type: 'signup', email });
+      return { error: error ? mensajeError(error) : null };
+    },
+    iniciarSesionConGoogle: async () => {
+      const redirectTo = Platform.OS === 'web' && typeof window !== 'undefined'
+        ? window.location.origin
+        : undefined;
+      const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
+      return { error: error ? mensajeError(error) : null };
     },
   };
 
