@@ -36,6 +36,16 @@ import { espacio, fuentes, pesos, pesosCorto, radio, texto, usePantallaBaja } fr
 import { useTourPaso } from '../src/tour/TourContext';
 import { useTema } from '../src/useTema';
 
+/** `/api/comparar` resuelve el nombre de cada item buscando el EAN en el catálogo unificado del
+ *  backend en el momento de la request — puede volver `null` si ese catálogo se está
+ *  reconstruyendo (cron `unificarCatalogo`) justo entre que el carrito agregó el producto (con
+ *  su nombre real, ver carrito.tsx) y que se pidió la comparación. Antes de caer al EAN crudo
+ *  (ilegible, ej. "7891000368626"), se prueba con el nombre que el carrito ya tiene guardado
+ *  para ese mismo EAN. */
+function nombreDe(item: { ean: string; nombre: string | null }, itemsCarrito: { ean: string; nombre: string }[]) {
+  return item.nombre ?? itemsCarrito.find(i => i.ean === item.ean)?.nombre ?? item.ean;
+}
+
 /** Color de identidad de un super, con el borde de contraste de Día si corresponde (ver theme.ts). */
 function colorIdentidad(paleta: ReturnType<typeof useTema>['paleta'], key: SuperKey) {
   const borde = (paleta.supersBorde as Partial<Record<SuperKey, string>>)[key];
@@ -68,7 +78,7 @@ type PromoSinAplicar = {
   descripcion: string;
 } & ({ tipo: 'tarjeta'; tarjeta: string } | { tipo: 'cantidad'; cantidadSugerida: number });
 
-function promosSinAplicarDe(items: ItemComparado[]): PromoSinAplicar[] {
+function promosSinAplicarDe(items: ItemComparado[], itemsCarrito: { ean: string; nombre: string }[]): PromoSinAplicar[] {
   const promos: PromoSinAplicar[] = [];
   for (const item of items) {
     const mejor = item.mejor;
@@ -76,7 +86,7 @@ function promosSinAplicarDe(items: ItemComparado[]): PromoSinAplicar[] {
       promos.push({
         tipo: 'tarjeta',
         ean: item.ean,
-        producto: item.nombre ?? item.ean,
+        producto: nombreDe(item, itemsCarrito),
         super: mejor.super,
         ahorro: mejor.total - mejor.totalConTarjeta,
         quedaEn: mejor.totalConTarjeta,
@@ -101,7 +111,7 @@ function promosSinAplicarDe(items: ItemComparado[]): PromoSinAplicar[] {
         promos.push({
           tipo: 'cantidad',
           ean: item.ean,
-          producto: item.nombre ?? item.ean,
+          producto: nombreDe(item, itemsCarrito),
           super: mejorCandidata.nombre,
           // Mismo super, misma cantidad candidata: lista vs. con promo. Comparar contra el
           // precio de hoy (otra cantidad, a veces otro super) daba "ahorrás $0" cuando el
@@ -171,7 +181,7 @@ export default function PantallaResultado() {
     );
   }
 
-  const promos = promosSinAplicarDe(data.items);
+  const promos = promosSinAplicarDe(data.items, carrito.items);
   const montoPromos = promos.reduce((n, p) => n + p.ahorro, 0);
 
   return (
@@ -493,7 +503,7 @@ function PlanDeCompra({ data }: { data: RespuestaComparar }) {
                   >
                     <View style={styles.nombreItemSuper}>
                       <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>
-                        {item.nombre ?? item.ean}
+                        {nombreDe(item, carrito.items)}
                       </Text>
                       <Text style={[texto.etiqueta, { color: paleta.tintaSuave, letterSpacing: 0.2 }]}>
                         {item.cantidad} un · {pesos(opcion.total / item.cantidad)} c/u
@@ -661,9 +671,9 @@ function TarjetaItem({ item, indice }: { item: ItemComparado; indice: number }) 
   return (
     <View style={[styles.tarjetaItem, { backgroundColor: paleta.superficie, borderColor: paleta.borde }, sombra]}>
       <View style={styles.itemEncabezado}>
-        <FotoProducto nombre={item.nombre ?? item.ean} imagen={item.imagen} tamano={36} />
+        <FotoProducto nombre={nombreDe(item, carrito.items)} imagen={item.imagen} tamano={36} />
         <Text style={[texto.cuerpoMedio, { color: paleta.tinta, flex: 1 }]} numberOfLines={2}>
-          {item.nombre ?? item.ean}
+          {nombreDe(item, carrito.items)}
         </Text>
         <Text style={[texto.etiqueta, { color: paleta.tintaSuave }]}>×{item.cantidad}</Text>
       </View>
