@@ -351,6 +351,21 @@ Cada resultado de `interpretarPromo*()` incluye `esOnline: bool` que luego se us
 
 Antes el código trataba las 3 como una sola cosa ("Mi Carrefour"), lo cual sobreestimaba el descuento de quien solo tiene el nivel Clásico (caso real: usuario pagó con DNI en caja y el descuento fue menor al que mostraba la app). Se separaron en `ALIAS_TARJETAS`/`TARJETAS_CONOCIDAS` (`promos-bancarias.js`), `TARJETAS_DISPONIBLES` (`app/src/carrito.tsx`) y `mis-tarjetas.json` como 3 tarjetas independientes: `Mi Carrefour`, `Cuenta Digital Carrefour`, `Tarjeta Carrefour Crédito`.
 
+**Sacado 2026-09-07 — la app ya NO avisa "activá esta tarjeta" para la promo de Tarjeta Carrefour
+Crédito sin activar.** El backend sigue calculando `promo.requiereTarjeta`/`tarjetaActiva: false`/
+`totalConTarjeta` igual que antes (`comparar.js`, `serializarOpcion`) — eso no cambió, sigue siendo
+necesario para cuando el usuario SÍ tiene la tarjeta seleccionada. Lo que se sacó es el aviso
+"Con Tarjeta Carrefour Crédito: $X · tocá para activarla" que `BarraDiferencia.tsx` mostraba en el
+desglose "Producto por Producto" (y la entrada equivalente en "PROMOS SIN APLICAR" de
+`resultado.tsx`, `promosSinAplicarDe`) para cualquier producto con esa promo, activada o no. Motivo:
+esa promo es la ÚNICA "tarjeta de producto" implementada hoy (`TARJETAS_QUE_AFECTAN_PRODUCTO` es
+un array de un solo elemento) — mostrar su precio hipotético pero no el de ninguna otra tarjeta
+(Cencopay, MODO, Mi Carrefour, bancos) era una asimetría accidental, no una decisión de producto:
+esas otras son "por ticket" (dependen del carrito completo/tope, se calculan una sola vez para las
+tarjetas ya seleccionadas, ver `aplicarPromosBancarias`) y hacerles el mismo tratamiento sería mucho
+más caro de calcular. Si en el futuro se quiere retomar la idea de "avisar promos no activadas", hay
+que decidir hacerlo para todas las tarjetas por igual, no solo para la que resulta barata de calcular.
+
 El teaser de producto "Tarjeta Carrefour X%" (`RestrictionsBins`, ver arriba) confirmado en vivo que corresponde a la tarjeta de **Crédito** (el BIN implica una tarjeta real con número, no el nivel Clásico) — de ahí que `TARJETAS_QUE_AFECTAN_PRODUCTO` en `comparar.js` sea `['Tarjeta Carrefour Crédito']`. Para las promos "por ticket" (`promos-bancarias.js`), se confirmó en vivo el raw name real de cada nivel en el feed GraphQL de Carrefour (`GetBanks`/`GetCards`/`GetPromotions`, host `carrefour.com.ar`):
 - `GetBanks` id `442cdb4d-...`, name `"Mi Carrefour"` → nivel Clásico. Única promo activa vista: "10% si sos parte de Mi Carrefour y beneficiario de Anses o mayor de 60 años" (no es un descuento general).
 - `GetCards` id `bbf9150c-...`, name `"Mi Carrefour"` (mismo nombre, id de tarjeta distinto — no se vio ninguna promo activa referenciándolo).
@@ -459,6 +474,29 @@ body. Cuando restringe algo (`tope < supers.length`), el handler:
 3. Calcula también `resumen.totalOptimoSinTope` (mismo carrito, sin el tope, con la MISMA
    reoptimización bancaria aplicada para que ambos números estén en pie de igualdad si hay
    tarjetas seleccionadas) — es la base para que la app muestre cuánto "cuesta" el tope.
+
+**Ojo con `RespuestaComparar.supermercados` vs. `supersActivos` del contexto**: `data.supermercados`
+(`app/src/api.ts`) es `supermercadosUsados`, es decir los supers efectivamente consultados en ESA
+comparación (ya con el tope aplicado) — no un eco de `supersActivos`.
+
+**`ItemComparado.opcionesFueraDeTope`** (`app/src/api.ts`, poblado en `backend/src/routes/comparar.js`
+dentro del `.map()` que arma `items`, ~línea 485): los supers activos que SÍ tienen el producto pero
+quedaron afuera del plan por el tope de supers. Antes de esto directamente desaparecían de
+`item.opciones` sin dejar rastro; ahora se mandan aparte con su precio real (`calcularOpciones` ya
+los había calculado — hace falta el precio de TODOS los supers activos para poder elegir el
+subconjunto ganador, ver más abajo). **Ojo**: ese precio NO incluye el descuento bancario "por
+ticket" (Cencopay/MODO) — `repartirDescuentoBancarioEntreFilas` solo lo reparte sobre
+`supermercadosUsados`, porque esa promo depende de mandar el carrito completo a ese super, cosa que
+nunca se evaluó para uno excluido del tope. Sí incluye las promos de producto (tarjeta propia tipo
+Carrefour), esas se calculan antes de saber el tope.
+
+`TarjetaItem` en `app/app/resultado.tsx` es quien arma el desglose completo por producto usando
+`useFiltrosSupers().supersActivos` (el universo completo, NO `data.supermercados`) contra
+`item.opciones ∪ item.opcionesFueraDeTope`: lo que sobra es la fila "No Disponible" en
+`BarraDiferencia`. Usar `data.supermercados` en vez de `supersActivos` para este cálculo específico
+sería un bug: un super topeado-y-sin-el-producto no está en `data.supermercados` (porque el tope lo
+descartó) pero tampoco en `opcionesFueraDeTope` (porque nunca tuvo el producto) — solo aparece
+"No Disponible" si el universo de referencia es `supersActivos` completo.
 
 **En la app**, `topeSupers` vive en el mismo contexto que `supersActivos`
 (`ProveedorFiltrosSupers` en `app/src/filtrosSupers.tsx`), sincronizado en el mismo blob de
