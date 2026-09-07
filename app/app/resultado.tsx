@@ -571,13 +571,13 @@ function BloqueExportar({
       <Pressable
         onPress={onPress}
         accessibilityRole="button"
-        accessibilityLabel={`Exportar a ${nombre}`}
+        accessibilityLabel={`Ver carrito en ${nombre}`}
         style={({ pressed }) => [
           styles.botonExportar,
           { backgroundColor: paleta.tinta, opacity: pressed ? 0.9 : 1 },
         ]}
       >
-        <Text style={[texto.cuerpoMedio, { color: paleta.superficie }]}>Exportar a {nombre}</Text>
+        <Text style={[texto.cuerpoMedio, { color: paleta.superficie }]}>Ver carrito en {nombre}</Text>
       </Pressable>
       <Text style={[texto.etiqueta, styles.leyendaExportar, { color: paleta.tintaSuave, letterSpacing: 0.2 }]}>
         {error ? `No se pudo abrir el carrito de ${nombre}`: ""}
