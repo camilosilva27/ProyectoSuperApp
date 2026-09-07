@@ -483,12 +483,18 @@ router.post('/comparar', requiereSesion, requierePlanActivo, async (req, res) =>
   // poder elegir el subconjunto). Si el tope restringió algo, hay que recortarlos acá: sin
   // esto, `item.mejor` podría señalar un super fuera del plan capado.
   const items = procesados.map(({ _mejores, opciones, mejor, sugerenciaCantidad, ...publico }) => {
-    if (!capado) return { ...publico, opciones, mejor, sugerenciaCantidad };
+    if (!capado) return { ...publico, opciones, mejor, opcionesFueraDeTope: [], sugerenciaCantidad };
     const { opciones: opcionesCapadas, mejor: mejorCapado } = filtrarOpcionesPorSupers(opciones, supermercadosUsados);
+    // Los supers que el tope dejó afuera pero que sí tienen el producto: se muestran en el
+    // desglose "Producto por Producto" con su precio real (sin la promo bancaria "por ticket",
+    // que nunca se evaluó para ellos — ver comentario en el tipo `ItemComparado` del frontend),
+    // en vez de desaparecer de la lista solo porque no entraron en el plan capado.
+    const keysUsados = new Set(supermercadosUsados.map(s => s.key));
     return {
       ...publico,
       opciones: opcionesCapadas,
       mejor: mejorCapado,
+      opcionesFueraDeTope: opciones.filter(o => !keysUsados.has(o.key)),
       sugerenciaCantidad: filtrarSugerenciaPorSupers(sugerenciaCantidad, supermercadosUsados),
     };
   });

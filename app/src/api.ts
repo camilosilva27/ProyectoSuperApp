@@ -68,6 +68,12 @@ export type ItemComparado = {
   cantidad: number;
   enCatalogoLocal: boolean;
   opciones: OpcionSuper[];
+  /** Supers activos con el producto pero excluidos del plan por el tope de supers (ver
+   *  CONTEXTO_TECNICO.md § "tope de supers") — precio real, pero SIN el descuento bancario
+   *  "por ticket" (Cencopay/MODO): esa promo solo se evalúa para el subconjunto que ganó el
+   *  tope, porque depende de mandar el carrito completo a ese super. Vacío cuando no hay tope
+   *  o no restringió nada. */
+  opcionesFueraDeTope: OpcionSuper[];
   mejor: OpcionSuper | null;
   sugerenciaCantidad: {
     cantidadesCandidatas: number[];

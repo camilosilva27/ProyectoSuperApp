@@ -27,16 +27,10 @@
  *    que la segunda SIEMPRE ocupe el 100% del ancho, sin importar si está $50 o $5.000 más
  *    cara. Ahora el ancho es "cuánto % más caro que la mejor opción", con un techo en 100%:
  *    es comparable entre productos y no depende de cuántas alternativas haya.
- *
- * También vive acá el aviso de "hay una promo de tarjeta sin activar" (`promo.tarjetaActiva
- * === false`): no hace falta elegir tarjetas antes de comparar — cualquier promo de tarjeta
- * propia que exista se muestra igual, con el precio que tendría, y tocándola se activa esa
- * tarjeta para el usuario y se recalcula. El total que se ve arriba nunca la cuenta hasta
- * que se activa.
  */
 
 import React, { useEffect, useRef } from 'react';
-import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import type { OpcionSuper } from '../api';
 import { espacio, pesos, radio, texto } from '../theme';
 import { useTema } from '../useTema';
@@ -53,19 +47,30 @@ function estiloIdentidadDe(paleta: ReturnType<typeof useTema>['paleta'], key: Op
 type Props = {
   /** Ya ordenadas de más barata a más cara (así las devuelve el backend). */
   opciones: OpcionSuper[];
+  /** Supers activos con el producto pero excluidos del plan por el tope de supers — se
+   *  muestran igual, con su precio real, al final de `opciones` (ver ItemComparado en
+   *  api.ts). */
+  fueraDeTope?: OpcionSuper[];
+  /** Supers consultados en esta comparación que no tienen el producto — se muestran al
+   *  final de la lista con "No Disponible" en vez de desaparecer sin aviso. */
+  faltantes?: { key: OpcionSuper['key']; nombre: string }[];
   /** Se anima solo la primera vez que aparece; en re-render no vuelve a medirse. */
   animar?: boolean;
   demoraMs?: number;
-  /** Se llama cuando el usuario toca el aviso de "activar esta tarjeta". */
-  onActivarTarjeta?: (tarjeta: string) => void;
 };
 
-export function BarraDiferencia({ opciones, animar = true, demoraMs = 0, onActivarTarjeta }: Props) {
+export function BarraDiferencia({
+  opciones, fueraDeTope, faltantes, animar = true, demoraMs = 0,
+}: Props) {
   const { paleta } = useTema();
+  const fuera = fueraDeTope ?? [];
 
-  if (!opciones.length) return null;
+  if (!opciones.length && !fuera.length && !(faltantes ?? []).length) return null;
 
-  const mejor = opciones[0];
+  // Si el tope dejó a este producto sin ninguna opción "en plan", la más barata de las
+  // excluidas pasa a hacer de referencia para el delta (y se muestra como "MÁS BARATO": es la
+  // más barata disponible de verdad, aunque haya quedado fuera del plan capado).
+  const mejor = opciones[0] ?? fuera[0] ?? null;
 
   return (
     <View style={styles.contenedor}>
@@ -73,21 +78,57 @@ export function BarraDiferencia({ opciones, animar = true, demoraMs = 0, onActiv
         <FilaSuper
           key={opcion.key}
           opcion={opcion}
-          delta={opcion.total - mejor.total}
-          totalMejor={mejor.total}
+          delta={opcion.total - mejor!.total}
+          totalMejor={mejor!.total}
           esMejor={i === 0}
           estiloIdentidad={estiloIdentidadDe(paleta, opcion.key)}
           animar={animar}
           demoraMs={demoraMs + i * 70}
-          onActivarTarjeta={onActivarTarjeta}
         />
+      ))}
+      {fuera.map((opcion, i) => (
+        <FilaSuper
+          key={opcion.key}
+          opcion={opcion}
+          delta={mejor ? opcion.total - mejor.total : 0}
+          totalMejor={mejor ? mejor.total : opcion.total}
+          esMejor={opciones.length === 0 && i === 0}
+          estiloIdentidad={estiloIdentidadDe(paleta, opcion.key)}
+          animar={animar}
+          demoraMs={demoraMs + (opciones.length + i) * 70}
+        />
+      ))}
+      {(faltantes ?? []).map(f => (
+        <FilaNoDisponible key={f.key} nombre={f.nombre} estiloIdentidad={estiloIdentidadDe(paleta, f.key)} />
       ))}
     </View>
   );
 }
 
+function FilaNoDisponible({
+  nombre, estiloIdentidad,
+}: {
+  nombre: string;
+  estiloIdentidad: { backgroundColor: string; borderWidth?: number; borderColor?: string };
+}) {
+  const { paleta } = useTema();
+  return (
+    <View style={styles.fila}>
+      <View style={styles.encabezado}>
+        <View style={styles.identidad}>
+          <View style={[styles.punto, estiloIdentidad]} />
+          <Text style={[texto.etiqueta, { color: paleta.tinta }]} numberOfLines={1}>{nombre}</Text>
+        </View>
+        <View style={styles.numeros}>
+          <Text style={[texto.precio, { color: paleta.tintaSuave }]}>No Disponible</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 function FilaSuper({
-  opcion, delta, totalMejor, esMejor, estiloIdentidad, animar, demoraMs, onActivarTarjeta,
+  opcion, delta, totalMejor, esMejor, estiloIdentidad, animar, demoraMs,
 }: {
   opcion: OpcionSuper;
   delta: number;
@@ -96,7 +137,6 @@ function FilaSuper({
   estiloIdentidad: { backgroundColor: string; borderWidth?: number; borderColor?: string };
   animar: boolean;
   demoraMs: number;
-  onActivarTarjeta?: (tarjeta: string) => void;
 }) {
   const { paleta } = useTema();
   const progreso = useRef(new Animated.Value(animar ? 0 : 1)).current;
@@ -170,28 +210,6 @@ function FilaSuper({
           {opcion.promo.activa ? '' : ` · necesitás ${opcion.promo.cantidadMinima}`}
         </Text>
       ) : null}
-
-      {opcion.promo && !opcion.promo.tarjetaActiva && opcion.promo.requiereTarjeta ? (
-        <Pressable
-          onPress={() => onActivarTarjeta?.(opcion.promo!.requiereTarjeta!)}
-          accessibilityRole="button"
-          accessibilityLabel={`Activar ${opcion.promo.requiereTarjeta} para pagar ${pesos(opcion.totalConTarjeta)} en ${opcion.super}`}
-          style={({ pressed }) => [
-            styles.avisoTarjeta,
-            { backgroundColor: paleta.ofertaSuave, borderColor: paleta.oferta, opacity: pressed ? 0.7 : 1 },
-          ]}
-        >
-          <View style={styles.avisoTarjetaTexto}>
-            <Text style={[texto.etiqueta, { color: paleta.tinta }]} numberOfLines={1}>
-              Con {opcion.promo.requiereTarjeta}: {pesos(opcion.totalConTarjeta)}
-            </Text>
-            <Text style={[texto.etiqueta, { color: paleta.tintaSuave, letterSpacing: 0.2 }]} numberOfLines={1}>
-              {opcion.promo.descripcion} · tocá para activarla
-            </Text>
-          </View>
-          <Text style={[texto.subtitulo, { color: paleta.tinta }]}>›</Text>
-        </Pressable>
-      ) : null}
     </View>
   );
 }
@@ -217,9 +235,4 @@ const styles = StyleSheet.create({
   barra: { height: 6, borderRadius: radio.pill },
   insigniaMejor: { alignSelf: 'flex-start', paddingHorizontal: 7, paddingVertical: 3, borderRadius: radio.sm },
   marca: { paddingHorizontal: 5, paddingVertical: 1, borderRadius: radio.sm, borderWidth: 1 },
-  avisoTarjeta: {
-    flexDirection: 'row', alignItems: 'center', gap: espacio.sm,
-    borderWidth: 1, borderRadius: radio.sm, padding: espacio.sm,
-  },
-  avisoTarjetaTexto: { flex: 1, gap: 1 },
 });

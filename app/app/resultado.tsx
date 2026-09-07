@@ -27,7 +27,7 @@ import {
 import { useAuth } from '../src/auth';
 import { useCarrito } from '../src/carrito';
 import { BarraDiferencia } from '../src/componentes/BarraDiferencia';
-import { Problema, Vacio } from '../src/componentes/comunes';
+import { NOMBRE_SUPER, Problema, Vacio } from '../src/componentes/comunes';
 import { FotoProducto } from '../src/componentes/FotoProducto';
 import { HeaderNegro } from '../src/componentes/HeaderNegro';
 import { useFiltrosSupers } from '../src/filtrosSupers';
@@ -66,9 +66,9 @@ const VERDE_APLICADA = '#12874A';
  *  el número al usuario como si fuera un límite que puede llegar a tocar. */
 const TOPE_PRACTICO_MAXIMO = 1_000_000;
 
-/** Una promo sin aplicar, en el super donde el producto ya quedó asignado (o donde convendría
- *  reasignarlo) — de tarjeta (activarla es una declaración, "tengo la tarjeta") o de cantidad
- *  mínima (activarla es llevar más unidades). Mismo bloque visual, acción distinta. */
+/** Una promo de cantidad mínima sin aplicar (ej. Coto "2da unidad al 70%"), en el super donde
+ *  el producto ya quedó asignado (o donde convendría reasignarlo) — activarla es llevar más
+ *  unidades. */
 type PromoSinAplicar = {
   ean: string;
   producto: string;
@@ -76,24 +76,13 @@ type PromoSinAplicar = {
   ahorro: number;
   quedaEn: number;
   descripcion: string;
-} & ({ tipo: 'tarjeta'; tarjeta: string } | { tipo: 'cantidad'; cantidadSugerida: number });
+  cantidadSugerida: number;
+};
 
 function promosSinAplicarDe(items: ItemComparado[], itemsCarrito: { ean: string; nombre: string }[]): PromoSinAplicar[] {
   const promos: PromoSinAplicar[] = [];
   for (const item of items) {
     const mejor = item.mejor;
-    if (mejor?.promo && !mejor.promo.tarjetaActiva && mejor.promo.requiereTarjeta && mejor.totalConTarjeta != null) {
-      promos.push({
-        tipo: 'tarjeta',
-        ean: item.ean,
-        producto: nombreDe(item, itemsCarrito),
-        super: mejor.super,
-        ahorro: mejor.total - mejor.totalConTarjeta,
-        quedaEn: mejor.totalConTarjeta,
-        descripcion: mejor.promo.descripcion,
-        tarjeta: mejor.promo.requiereTarjeta,
-      });
-    }
 
     // Promo de cantidad mínima (ej. Coto "2da unidad al 70%"): ya viene filtrada por
     // calcularSugerenciaCantidad para que valga la pena (ver comentario en comparador.js).
@@ -109,7 +98,6 @@ function promosSinAplicarDe(items: ItemComparado[], itemsCarrito: { ean: string;
       );
       if (mejorCandidata) {
         promos.push({
-          tipo: 'cantidad',
           ean: item.ean,
           producto: nombreDe(item, itemsCarrito),
           super: mejorCandidata.nombre,
@@ -211,17 +199,9 @@ export default function PantallaResultado() {
             <Text style={[styles.tituloDeSeccion, { color: paleta.tinta }]}>Promos sin Aplicar · {promos.length}</Text>
             {promos.map(promo => (
               <BloquePromo
-                key={`${promo.ean}-${promo.tipo}`}
+                key={promo.ean}
                 promo={promo}
-                onAplicar={() => {
-                  if (promo.tipo === 'tarjeta') {
-                    if (!carrito.tarjetas.includes(promo.tarjeta)) {
-                      carrito.setTarjetas([...carrito.tarjetas, promo.tarjeta]);
-                    }
-                  } else {
-                    carrito.cambiarCantidad(promo.ean, promo.cantidadSugerida);
-                  }
-                }}
+                onAplicar={() => carrito.cambiarCantidad(promo.ean, promo.cantidadSugerida)}
               />
             ))}
           </View>
@@ -587,11 +567,8 @@ function BloqueExportar({
 }
 
 /**
- * Bloques amarillos agrupados (SPEC § 3.5 y § 4.6.2): solo promos de tarjeta sin activar en
- * el super donde el producto ya quedó asignado. Las sugerencias por cantidad (3x2, etc.)
- * siguen en "Producto por producto" con su propia vista previa por cantidad — juntarlas acá
- * exigiría inventar un "ahorro por unidad" que el backend no devuelve tal cual, y ya hay un
- * componente (AvisoCantidad, en DetalleProductoPorProducto) que las muestra bien.
+ * Bloques amarillos agrupados (SPEC § 3.5 y § 4.6.2): promos de cantidad mínima sin aplicar
+ * (3x2, etc.), en el super donde el producto ya quedó asignado.
  */
 function BloquePromo({ promo, onAplicar }: { promo: PromoSinAplicar; onAplicar: () => void }) {
   const { paleta } = useTema();
@@ -617,24 +594,12 @@ function BloquePromo({ promo, onAplicar }: { promo: PromoSinAplicar; onAplicar: 
         <Pressable
           onPress={onAplicar}
           accessibilityRole="button"
-          accessibilityLabel={
-            promo.tipo === 'tarjeta'
-              ? `Marcar que tenés ${promo.tarjeta}, para ${promo.producto}`
-              : `Cambiar a ${promo.cantidadSugerida} unidades de ${promo.producto}`
-          }
+          accessibilityLabel={`Cambiar a ${promo.cantidadSugerida} unidades de ${promo.producto}`}
           style={[styles.botonAplicar, { backgroundColor: paleta.tinta }]}
         >
-          {promo.tipo === 'tarjeta' ? (
-            // "Tengo {nombre}", no "Activar": es una declaración del usuario, no una acción
-            // técnica — ver SPEC § 4.7.
-            <Text style={[texto.cuerpoMedio, { color: paleta.superficie }]} numberOfLines={1}>
-              Tengo {promo.tarjeta}
-            </Text>
-          ) : (
-            <Text style={[texto.cuerpoMedio, { color: paleta.superficie }]} numberOfLines={1}>
-              Llevar {promo.cantidadSugerida}
-            </Text>
-          )}
+          <Text style={[texto.cuerpoMedio, { color: paleta.superficie }]} numberOfLines={1}>
+            Llevar {promo.cantidadSugerida}
+          </Text>
         </Pressable>
       </View>
     </View>
@@ -664,9 +629,27 @@ function DetalleProductoPorProducto({ data, isFetching }: { data: RespuestaCompa
   );
 }
 
-function TarjetaItem({ item, indice }: { item: ItemComparado; indice: number }) {
+function TarjetaItem({
+  item, indice,
+}: {
+  item: ItemComparado; indice: number;
+}) {
   const { paleta, sombra } = useTema();
   const carrito = useCarrito();
+  const { supersActivos } = useFiltrosSupers();
+
+  // Universo completo de supers que el usuario tiene activos — no solo los que el tope dejó
+  // en el plan (`item.opciones`/RespuestaComparar.supermercados): un super puede tener el
+  // producto pero haber quedado afuera por el tope (`item.opcionesFueraDeTope`, precio real
+  // sin la promo bancaria "por ticket" porque esa nunca se evaluó para ese super) o directamente
+  // no tenerlo (`faltantes`, "No Disponible"). Usar `supersActivos` acá y no `supermercados`
+  // (que ya viene recortado por tope) es lo que evita que un super activo-pero-topeado-y-sin-
+  // el-producto desaparezca sin aviso.
+  const sinTope = new Set(item.opciones.map(o => o.key));
+  const conTope = new Set(item.opcionesFueraDeTope.map(o => o.key));
+  const faltantes = supersActivos
+    .filter(key => !sinTope.has(key) && !conTope.has(key))
+    .map(key => ({ key, nombre: NOMBRE_SUPER[key] }));
 
   return (
     <View style={[styles.tarjetaItem, { backgroundColor: paleta.superficie, borderColor: paleta.borde }, sombra]}>
@@ -680,17 +663,16 @@ function TarjetaItem({ item, indice }: { item: ItemComparado; indice: number }) 
 
       {item.error ? (
         <Text style={[texto.etiqueta, { color: paleta.alerta }]}>{item.error}</Text>
-      ) : item.opciones.length === 0 ? (
+      ) : item.opciones.length === 0 && item.opcionesFueraDeTope.length === 0 ? (
         <Text style={[texto.etiqueta, { color: paleta.tintaSuave }]}>
           No está disponible en ninguno de los supers activos.
         </Text>
       ) : (
         <BarraDiferencia
           opciones={item.opciones}
+          fueraDeTope={item.opcionesFueraDeTope}
+          faltantes={faltantes}
           demoraMs={indice * 60}
-          onActivarTarjeta={tarjeta => {
-            if (!carrito.tarjetas.includes(tarjeta)) carrito.setTarjetas([...carrito.tarjetas, tarjeta]);
-          }}
         />
       )}
 
