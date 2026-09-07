@@ -11,7 +11,7 @@
  */
 
 import React from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../auth';
 import { espacio } from '../theme';
@@ -19,14 +19,27 @@ import { useTema } from '../useTema';
 import { FormularioAuth } from './FormularioAuth';
 
 // Ancho de referencia del mock (design_handoff_allpromos_v2/14b-landing-cuenta.md): 390px,
-// pensado para iPhone. Acá es un tope, no un ancho fijo — en pantallas angostas la tarjeta
-// ocupa todo el ancho disponible (menos el padding), en pantallas anchas (web) queda centrada.
-const ANCHO_MAXIMO_TARJETA = 420;
+// pensado para iPhone. Por debajo de este ancho de viewport la tarjeta deja de ser una tarjeta
+// y pasa a ocupar toda la pantalla (sin margen ni bordes) — con margen alrededor quedaba
+// flotando como un widget chico rodeado de aire en vez de leerse como la pantalla en sí.
+const ANCHO_QUIEBRE_PANTALLA_COMPLETA = 420;
+
+// Por encima del quiebre (web/desktop) la tarjeta sigue siendo una tarjeta centrada, pero con
+// más aire que en mobile — un ancho igual al de mobile se veía chico y angosto en una pantalla
+// de escritorio real.
+const ANCHO_MAXIMO_TARJETA_ESCRITORIO = 520;
 
 export function GateSesion({ children }: { children: React.ReactNode }) {
   const { paleta } = useTema();
   const insets = useSafeAreaInsets();
   const { session, cargando } = useAuth();
+  const { width } = useWindowDimensions();
+  const pantallaCompleta = width < ANCHO_QUIEBRE_PANTALLA_COMPLETA;
+  // Ancho real que le queda a la tarjeta — se lo pasamos a FormularioAuth como prop en vez de
+  // que lo mida con `onLayout`: en react-native-web ese `onLayout` no estaba disparando de
+  // nuevo cuando el ancho real terminaba de resolverse, y la tarjeta se quedaba calculando los
+  // tamaños del hero con el valor de antes de montar (mucho más chico que el real).
+  const anchoTarjeta = pantallaCompleta ? width : Math.min(width - espacio.pantalla * 2, ANCHO_MAXIMO_TARJETA_ESCRITORIO);
 
   // Mismo criterio que _layout.tsx con las fuentes: pantalla lisa del color de fondo mientras
   // se resuelve si hay sesión guardada, no un spinner ni (peor) un parpadeo mostrando el gate.
@@ -40,11 +53,16 @@ export function GateSesion({ children }: { children: React.ReactNode }) {
     return (
       <ScrollView
         style={{ flex: 1, backgroundColor: paleta.fondo }}
-        contentContainerStyle={[styles.cuerpo, { paddingTop: insets.top + espacio.xl }]}
+        contentContainerStyle={[
+          styles.cuerpo,
+          pantallaCompleta
+            ? { padding: 0, paddingTop: insets.top, paddingBottom: insets.bottom }
+            : { paddingTop: insets.top + espacio.xl, paddingBottom: insets.bottom + espacio.xl },
+        ]}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={{ width: '100%', maxWidth: ANCHO_MAXIMO_TARJETA }}>
-          <FormularioAuth />
+        <View style={{ flex: 1, width: '100%', maxWidth: pantallaCompleta ? undefined : ANCHO_MAXIMO_TARJETA_ESCRITORIO }}>
+          <FormularioAuth pantallaCompleta={pantallaCompleta} anchoTarjeta={anchoTarjeta} />
         </View>
       </ScrollView>
     );
@@ -55,6 +73,7 @@ export function GateSesion({ children }: { children: React.ReactNode }) {
 
 const styles = StyleSheet.create({
   cuerpo: {
-    padding: espacio.pantalla, paddingBottom: espacio.xl, flexGrow: 1, alignItems: 'center',
+    padding: espacio.pantalla, flexGrow: 1,
+    alignItems: 'center', justifyContent: 'center',
   },
 });
