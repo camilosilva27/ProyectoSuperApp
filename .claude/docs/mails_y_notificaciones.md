@@ -1,0 +1,42 @@
+# Mails y notificaciones — inventario
+
+Punto de partida (2026-09-08): pensado como base para diseñar notificaciones push equivalentes más adelante (columna "Push equivalente" en cada tipo).
+
+**Corrección (2026-09-08): la app SÍ tiene push notifications implementadas** — se había pasado por alto al armar la primera versión de este doc. Ver CONTEXTO_TECNICO.md § "Notificaciones push web (recordatorio semanal)" para el detalle completo: Web Push API (no `expo-notifications`, no hay build nativo), VAPID keys, tabla `push_suscripcion` (por `usuario_id`), y ya hay un cron real en producción (`backend/src/cron/recordatorioSemanal.js`, cargado en la VM desde 2026-09-01) mandando un mensaje semanal genérico sin personalizar. Esto es importante para lo que sigue: el "cron runner que recorre usuarios y decide a quién mandarle qué" que este doc pedía como pendiente **ya existe como patrón** (mismo esqueleto que `pingSupabase.js`) — lo que falta para mail es el cliente de envío (Brevo), no el patrón de cron en sí.
+
+## Infraestructura de mail actual
+
+Ver `Plan_Usuarios_y_cobros.md` § "Proveedor de mail (SMTP) para Auth" para el detalle completo. Resumen:
+
+- SMTP de **Brevo** cargado en Supabase Auth (Authentication → Settings → SMTP Settings), remitente `camilosilva28@gmail.com` (mail personal verificado, sin dominio propio detrás — dominio propio `mi-superapp.com.ar` ya existe pero no está cargado ahí, ver `dominio-propio-mi-superapp-com-ar` en memoria).
+- **Hoy solo cubre los mails transaccionales de Supabase Auth** (confirmación de registro, magic link, reset de contraseña) — Supabase los dispara solo, usando las plantillas editables en Authentication → Email Templates.
+- **No existe todavía un mecanismo para mandar mails disparados por lógica de negocio propia** (ej. "el usuario ahorró $X esta semana", "tu trial vence en 3 días"). Estos van a necesitar que el backend (Express en la VM) llame directo a la API de Brevo (o su SMTP) desde un cron o desde el código de negocio correspondiente — no hay nada armado todavía, es la primera pieza a construir cuando se ataque cualquiera de los tipos "nuevo" de la tabla de abajo.
+
+## Inventario
+
+| # | Tipo | Estado | Disparador | Push equivalente (a futuro) | Notas |
+|---|---|---|---|---|---|
+| 1 | Confirmación de registro | ✅ Existe (Supabase Auth) | Automático al hacer `signUp` | No aplica (el usuario no tiene la app instalada con permisos todavía en este punto) | Plantilla en Supabase, ver `Plan_Usuarios_y_cobros.md` § "Landing v2 + Google Sign-In" para el flujo de link de confirmación. |
+| 2 | Recibo de pago (mail propio de Super App) | 🆕 A implementar | Webhook de Mercado Pago (`preapproval` con estado `authorized`) | "Tu pago de $X se procesó, seguís con Premium hasta [fecha]" | MP ya manda su propio comprobante genérico al pagador — este es adicional, con marca propia y contexto (plan, próxima fecha de cobro, CTA a la app). Enganchar en `backend/src/routes/webhookMercadoPago.js`, mismo lugar donde ya se actualiza `plan`/`suscripcion_estado`. |
+| 3 | Resumen mensual de ahorro | 🆕 A implementar | Cron mensual, por usuario, usando `ahorro_registro` (Fase B, ya existe la tabla) | "Este mes ahorraste $X con Super App" | Sin condición: se manda siempre, aunque el ahorro del mes haya sido bajo o cero — a diferencia del semanal. Definir si se manda a todos los usuarios o solo a premium/trial activo. |
+| 4 | Resumen semanal de ahorro | 🆕 A implementar, condicional | Cron semanal, por usuario, mismo dato que el mensual pero ventana de 7 días | "Ahorraste $X esta semana" | **Solo si el ahorro de esa semana fue > $0** — si no ahorró nada, no se manda (decidido para no generar ruido/spam a usuarios que no compararon esa semana). |
+| 5 | Aviso de trial/plan por vencer | 🆕 A implementar | Cron diario chequeando `trial_termina_en` (o próxima fecha de cobro de la suscripción), disparar a N días antes (a definir, ej. 3 días) | "Tu prueba termina en 3 días" / "Tu suscripción se renueva en 3 días" | Dos variantes distintas según sea fin de trial sin pagar (urgencia: "andá a suscribirte") vs. renovación de una suscripción activa (informativo). Ver `PaywallFinTrial.tsx` para la lógica de vencimiento ya existente que se puede reusar para calcular la fecha. |
+| 6 | Mail de inactividad (re-engagement) | 🆕 A implementar | Cron que detecta usuarios sin actividad (sin comparaciones nuevas en `ahorro_registro`, o sin login) en N días | "Hace rato no comparás precios — esta semana hay descuentos en [super]" | Falta definir: qué cuenta como "actividad" (¿login? ¿una comparación?), el umbral de días, y si el contenido es genérico o personalizado (ej. traer una promo real de alguno de sus supers activos). |
+
+## Pendiente de diseño antes de implementar cualquiera de los tipos 2-6
+
+- **Mecanismo de envío desde el backend propio**: no hay cliente de Brevo (API o SMTP) instanciado fuera de Supabase Auth. Primer paso técnico común a todos, independiente de cuál se implemente primero. **En progreso (2026-09-08)**, ver más abajo.
+- **Cron runner**: ✅ el patrón ya existe (`backend/src/cron/pingSupabase.js`, `recordatorioSemanal.js`) — mismo esqueleto (reporte a `logs/`, `require.main === module`, `clienteSupabaseAdmin()`), solo hay que instanciar un cron nuevo por tipo de mail, no diseñar el patrón de cero.
+- **Preferencias de usuario**: no existe hoy ninguna opción de "no quiero recibir estos mails" (tampoco para push — el toggle de Ajustes es solo suscribir/desuscribir push en general, no por tipo de contenido). Evaluar si hace falta antes de lanzar los de re-engagement/resumen.
+
+## Infraestructura de envío de mail propio — implementada (2026-09-08)
+
+`backend/src/clienteBrevo.js` — `enviarMail({ destinatarioEmail, destinatarioNombre, asunto, html })`, vía la API HTTP de Brevo (`POST /v3/smtp/email`, con `fetch` nativo de Node, sin sumar el SDK oficial como dependencia). Deliberadamente separado del SMTP que ya usa Supabase Auth (ese sigue intacto, sin tocar) — usa su propia `BREVO_API_KEY` (Brevo > Settings > SMTP & API > API Keys), no la del SMTP.
+
+- Mismo criterio lazy que `clienteSupabaseAdmin.js`: si falta `BREVO_API_KEY`, devuelve `{ ok: false, error }` en vez de tirar el proceso — el caller (cron o ruta) decide qué hacer con eso, mismo patrón que ya usan `pingSupabase.js`/`recordatorioSemanal.js` con sus propios `errores[]`.
+- Remitente configurable por env (`BREVO_REMITENTE_EMAIL`/`BREVO_REMITENTE_NOMBRE`), default al mismo mail personal verificado que ya usa el SMTP de Auth.
+- Variables nuevas documentadas en `backend/.env.example`.
+- ✅ **API key generada y cargada en `backend/.env` local (2026-09-08)** — es una API key propia de Brevo (Settings → SMTP & API → API Keys), distinta de las credenciales SMTP que usa Supabase Auth (eso quedó confirmado en la conversación: no son la misma credencial pese a ser la misma cuenta de Brevo).
+- **Gotcha real encontrado y corregido (2026-09-08): el remitente por defecto no funcionaba.** `camilosilva28@gmail.com` (el mismo mail que usa el SMTP de Auth) rebotó de inmediato en la API con `"Sending has been rejected because the sender you used camilosilva28@gmail.com is not valid. Validate your sender or authenticate your domain"`. Confirmado contra `GET /v3/senders` (con la API key): el único remitente validado para la API en esta cuenta de Brevo es **`no-reply@mi-superapp.com.ar`** (el dominio propio, ya autenticado — es el mismo que usan los mails de confirmación de registro). La verificación de remitente para SMTP (usada por Supabase Auth) y la lista de remitentes válidos para la API HTTP **son cosas separadas dentro de Brevo**, aunque sea la misma cuenta — no alcanza con que uno esté verificado para asumir que el otro también. `BREVO_REMITENTE_EMAIL` (default en `config.js` y en `.env.example`) se corrigió a `no-reply@mi-superapp.com.ar`.
+- ✅ **Probado en vivo end-to-end con el remitente correcto**: mail de prueba recibido en la bandeja real (revisado con el log de eventos de Brevo, `GET /v3/smtp/statistics/events`, útil para diagnosticar sin especular — mostró el rebote del intento 1 al instante, pero los envíos válidos tardaron unos minutos en reflejarse ahí aunque ya habían llegado a destino).
+- **Pendiente, no bloqueante**: cargar `BREVO_API_KEY`/`BREVO_REMITENTE_EMAIL`/`BREVO_REMITENTE_NOMBRE` también en el `.env` de la VM (hoy solo está en local) — necesario antes de que cualquier cron en producción pueda mandar estos mails.

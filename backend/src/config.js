@@ -62,4 +62,12 @@ module.exports = {
   vapidPublicKey: process.env.VAPID_PUBLIC_KEY,
   vapidPrivateKey: process.env.VAPID_PRIVATE_KEY,
   vapidSubject: process.env.VAPID_SUBJECT || 'mailto:camilosilva28@gmail.com',
+
+  // Mails propios (recibo de pago, resúmenes de ahorro, avisos de trial, re-engagement — ver
+  // clienteBrevo.js y .claude/docs/mails_y_notificaciones.md). Misma cuenta de Brevo que el SMTP
+  // de Supabase Auth, pero vía su API HTTP con una API key propia (Brevo > Settings > SMTP & API
+  // > API Keys), no el SMTP key que ya tiene Supabase.
+  brevoApiKey: process.env.BREVO_API_KEY,
+  brevoRemitenteEmail: process.env.BREVO_REMITENTE_EMAIL || 'no-reply@mi-superapp.com.ar',
+  brevoRemitenteNombre: process.env.BREVO_REMITENTE_NOMBRE || 'Super App',
 };

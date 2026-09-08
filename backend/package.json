@@ -12,7 +12,10 @@
     "refrescar": "node src/cron/refrescarCatalogos.js",
     "descubrir": "node src/cron/descubrirCandidatosExtras.js",
     "ping-supabase": "node src/cron/pingSupabase.js",
-    "recordatorio-semanal": "node src/cron/recordatorioSemanal.js"
+    "recordatorio-semanal": "node src/cron/recordatorioSemanal.js",
+    "resumen-mensual-ahorro": "node src/cron/resumenMensualAhorro.js",
+    "aviso-fin-trial": "node src/cron/avisoFinTrial.js",
+    "aviso-inactividad": "node src/cron/avisoInactividad.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

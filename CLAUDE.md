@@ -14,6 +14,7 @@ Este repo es la app "Super App" (motor interno de comparación de precios: AllPr
 | `PLAN_SACAR_LAANONIMA.md` | Histórico: por qué y cómo se sacó La Anónima de la app (ya ejecutado). |
 | `completador_catalogos.md` | Completadores de catálogo por EAN (los 6 supers VTEX completando datos de Coto y viceversa), crons asociados. |
 | `ComoCorrerlo.md` | Cómo levantar el proyecto localmente. |
+| `mails_y_notificaciones.md` | Inventario de mails (existentes + planeados) y su futura notificación push equivalente. Abrir antes de agregar cualquier mail nuevo o de arrancar con push notifications. |
 
 ## Contexto por subcarpeta (mismo criterio: abrir solo si se trabaja ahí)
 
