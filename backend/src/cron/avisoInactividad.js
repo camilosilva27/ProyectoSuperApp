@@ -21,6 +21,7 @@ const { rutaLogs } = require('../config');
 const { clienteSupabaseAdmin } = require('../clienteSupabaseAdmin');
 const { listarTodosLosUsuarios } = require('../usuariosAuth');
 const { enviarMail } = require('../clienteBrevo');
+const { armarMailBase, URL_APP } = require('../plantillaMail');
 
 const DIAS_DE_INACTIVIDAD = 14;
 
@@ -37,12 +38,18 @@ function esElegible(usuario, ahora) {
 
 function armarHtml({ nombre }) {
   const saludo = nombre ? `Hola ${nombre},` : 'Hola,';
-  return `
-    <p>${saludo}</p>
-    <p>Hace un tiempo que no comparás precios con Super App.</p>
-    <p>Los precios en los supermercados cambian todo el tiempo — puede que esta semana haya
+  const cuerpo = `
+    <p style="margin:0 0 16px 0;">${saludo}</p>
+    <p style="margin:0 0 16px 0;">Hace un tiempo que no comparás precios con Super App.</p>
+    <p style="margin:0;">Los precios en los supermercados cambian todo el tiempo. Puede que esta semana haya
     alguna promo que te convenga. Date una vuelta cuando quieras.</p>
   `;
+  return armarMailBase({
+    preheader: 'Hace un tiempo que no comparás precios con Super App.',
+    titulo: 'Te extrañamos',
+    cuerpoHtml: cuerpo,
+    cta: { texto: 'Abrir Super App', url: URL_APP },
+  });
 }
 
 async function avisoInactividad() {
@@ -123,4 +130,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { avisoInactividad, esElegible };
+module.exports = { avisoInactividad, esElegible, armarHtml };
