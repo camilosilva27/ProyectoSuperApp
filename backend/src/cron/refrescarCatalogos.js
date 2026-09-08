@@ -32,6 +32,7 @@ const path = require('path');
 const { execFile } = require('child_process');
 const { rutaLogs } = require('../config');
 const { unificar } = require('./unificarCatalogo');
+const { leerJSON, diffProductos, diffPromosSuper, registrarDiff } = require('./diffCatalogos');
 
 const DIR_ALLPROMOS = path.join(__dirname, '..', '..', '..', 'AllPromos');
 
@@ -40,14 +41,17 @@ const DIR_ALLPROMOS = path.join(__dirname, '..', '..', '..', 'AllPromos');
 // necesita leer los catalogo-*.json de los otros 6 supers YA actualizados en esta misma corrida
 // (arma la lista de EAN a consultar en Coto a partir de esos archivos) — si corriera antes,
 // leería catálogos de la corrida anterior, no de esta.
+// `clave` es el identificador estable que se guarda en scraper_diffs.super (sin tildes, para
+// no depender de encoding al consultar); `archivoCatalogo` es el catalogo-*.json que ese
+// scraper pisa, usado para el snapshot "antes" del diff (ver diffCatalogos.js).
 const SCRAPERS = [
-  { nombre: 'Vea',        archivo: 'scraper-promos-vea.js',        timeoutMs: 15 * 60 * 1000 },
-  { nombre: 'Carrefour',  archivo: 'scraper-promos-carrefour.js',  timeoutMs: 25 * 60 * 1000 },
-  { nombre: 'Chango Más', archivo: 'scraper-promos-changomas.js',  timeoutMs: 15 * 60 * 1000 },
-  { nombre: 'Día',        archivo: 'scraper-promos-dia.js',        timeoutMs: 15 * 60 * 1000 },
-  { nombre: 'Jumbo',      archivo: 'scraper-promos-jumbo.js',      timeoutMs: 15 * 60 * 1000 },
-  { nombre: 'Disco',      archivo: 'scraper-promos-disco.js',      timeoutMs: 15 * 60 * 1000 },
-  { nombre: 'Coto',       archivo: 'scraper-coto-por-ean.js',      timeoutMs: 25 * 60 * 1000 },
+  { nombre: 'Vea',        clave: 'vea',        archivo: 'scraper-promos-vea.js',        archivoCatalogo: 'catalogo-vea.json',        timeoutMs: 15 * 60 * 1000 },
+  { nombre: 'Carrefour',  clave: 'carrefour',  archivo: 'scraper-promos-carrefour.js',  archivoCatalogo: 'catalogo-carrefour.json',  timeoutMs: 25 * 60 * 1000 },
+  { nombre: 'Chango Más', clave: 'changomas',  archivo: 'scraper-promos-changomas.js',  archivoCatalogo: 'catalogo-changomas.json',  timeoutMs: 15 * 60 * 1000 },
+  { nombre: 'Día',        clave: 'dia',        archivo: 'scraper-promos-dia.js',        archivoCatalogo: 'catalogo-dia.json',        timeoutMs: 15 * 60 * 1000 },
+  { nombre: 'Jumbo',      clave: 'jumbo',      archivo: 'scraper-promos-jumbo.js',      archivoCatalogo: 'catalogo-jumbo.json',      timeoutMs: 15 * 60 * 1000 },
+  { nombre: 'Disco',      clave: 'disco',      archivo: 'scraper-promos-disco.js',      archivoCatalogo: 'catalogo-disco.json',      timeoutMs: 15 * 60 * 1000 },
+  { nombre: 'Coto',       clave: 'coto',       archivo: 'scraper-coto-por-ean.js',      archivoCatalogo: 'catalogo-coto.json',       timeoutMs: 25 * 60 * 1000 },
 ];
 
 // Refresca precio+promo de lo que YA está en catalogo-X-extras.json (lo que encontró
@@ -133,11 +137,25 @@ async function refrescar() {
 
   const resultados = [];
   for (const scraper of SCRAPERS) {
+    const rutaCatalogo = path.join(DIR_ALLPROMOS, scraper.archivoCatalogo);
+    const catalogoAntes = leerJSON(rutaCatalogo);
+
     console.log(`   ▶ ${scraper.nombre}...`);
     const resultado = await correrScraper(scraper);
     console.log(`   ${resultado.ok ? '✅' : '❌'} ${scraper.nombre} (${resultado.duracionSeg}s)`);
     if (!resultado.ok) console.error(`      ${resultado.error}`);
     resultados.push(resultado);
+
+    // Si el scraper falló, el catálogo no se pisó — no hay diff real que registrar.
+    if (resultado.ok) {
+      const catalogoDespues = leerJSON(rutaCatalogo);
+      await registrarDiff({
+        super: scraper.clave,
+        tipo: 'productos',
+        corrida_en: inicio.toISOString(),
+        ...diffProductos(catalogoAntes, catalogoDespues),
+      });
+    }
   }
 
   const resultadosExtras = [];
@@ -169,9 +187,21 @@ async function refrescar() {
   }
 
   console.log(`   ▶ Promos bancarias...`);
+  const rutaPromosBancarias = path.join(rutaLogs, 'promos-bancarias.json');
+  const promosBancariasAntes = leerJSON(rutaPromosBancarias)?.datosPorSuper ?? {};
   const sonda = await refrescarPromosBancarias();
   errores.push(...sonda.errores);
   console.log(`   ${sonda.ok ? '✅' : '⚠️ '} promos bancarias: ${sonda.ok ? 'OK' : sonda.errores.join(' | ')}`);
+
+  const promosBancariasDespues = leerJSON(rutaPromosBancarias)?.datosPorSuper ?? {};
+  for (const clave of new Set([...Object.keys(promosBancariasAntes), ...Object.keys(promosBancariasDespues)])) {
+    await registrarDiff({
+      super: clave,
+      tipo: 'promos_bancarias',
+      corrida_en: inicio.toISOString(),
+      ...diffPromosSuper(promosBancariasAntes[clave]?.promos, promosBancariasDespues[clave]?.promos),
+    });
+  }
 
   const reporte = {
     inicio: inicio.toISOString(),
