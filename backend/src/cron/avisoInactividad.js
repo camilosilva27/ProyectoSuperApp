@@ -4,10 +4,11 @@
  * diseño: "actividad" = login, tomado de `auth.users.last_sign_in_at` vía la Admin API — no hay
  * columna propia para esto, ver usuariosAuth.js).
  *
- * Idempotente vía `aviso_inactividad_enviado_en` (migración 0013, timestamp en vez de boolean
- * a propósito): si el usuario volvió a loguearse después del último aviso, es elegible para
- * recibir uno nuevo la próxima vez que vuelva a estar inactivo — comparar contra el boolean no
- * alcanzaría para distinguir "todavía no volvió" de "volvió y se fue de nuevo".
+ * RECURRENTE mientras dure la inactividad (decidido el 2026-09-08, cambio respecto de la
+ * versión original: antes mandaba un solo aviso hasta que el usuario volviera a loguearse).
+ * Ahora se re-arma cada `DIAS_DE_INACTIVIDAD` tomando como referencia el más reciente entre el
+ * último login y el último aviso mandado — si el usuario nunca vuelve, le sigue llegando un
+ * mail cada 14 días; si vuelve a loguearse, el reloj arranca de nuevo desde ese login.
  *
  * Uso: node src/cron/avisoInactividad.js   (o npm run aviso-inactividad)
  * Crontab sugerido en la VM (diario, 14:00 UTC = 11:00 Argentina):
@@ -28,12 +29,13 @@ const DIAS_DE_INACTIVIDAD = 14;
 // Separado para poder testear la elegibilidad sin pegarle a la red.
 function esElegible(usuario, ahora) {
   if (!usuario.ultimoLogin) return false; // nunca hizo login real (no debería pasar, pero no hay de qué avisar)
-  const diasSinLogin = (ahora - new Date(usuario.ultimoLogin).getTime()) / (24 * 60 * 60 * 1000);
-  if (diasSinLogin < DIAS_DE_INACTIVIDAD) return false;
-  if (!usuario.avisoInactividadEnviadoEn) return true;
-  // Ya se avisó, pero si el aviso es anterior al último login, el usuario volvió y se fue de
-  // nuevo — corresponde un aviso nuevo.
-  return new Date(usuario.avisoInactividadEnviadoEn).getTime() < new Date(usuario.ultimoLogin).getTime();
+  const ultimoLoginMs = new Date(usuario.ultimoLogin).getTime();
+  const ultimoAvisoMs = usuario.avisoInactividadEnviadoEn ? new Date(usuario.avisoInactividadEnviadoEn).getTime() : null;
+  // Referencia = lo más reciente entre "volvió a loguearse" y "ya le mandamos un aviso" — así
+  // el aviso se re-arma solo cada DIAS_DE_INACTIVIDAD mientras el usuario siga sin volver.
+  const referenciaMs = ultimoAvisoMs && ultimoAvisoMs > ultimoLoginMs ? ultimoAvisoMs : ultimoLoginMs;
+  const diasDesdeReferencia = (ahora - referenciaMs) / (24 * 60 * 60 * 1000);
+  return diasDesdeReferencia >= DIAS_DE_INACTIVIDAD;
 }
 
 function armarHtml({ nombre }) {
