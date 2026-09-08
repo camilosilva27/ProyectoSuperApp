@@ -19,6 +19,7 @@ const {
 const { clienteSupabaseAdmin } = require('../clienteSupabaseAdmin');
 const { mercadopagoAccessToken, mercadopagoWebhookSecret } = require('../config');
 const { planSegunEstado } = require('../planSegunEstadoSuscripcion');
+const { enviarRecibo } = require('../reciboPago');
 
 const router = express.Router();
 
@@ -35,6 +36,16 @@ async function manejarPago(dataId, client, supabaseAdmin) {
 
   if (pago.status !== 'approved' || !pago.external_reference) return;
 
+  // Se lee el estado ANTES de actualizar para poder distinguir "primera vez que se aprueba
+  // este pago" de "MP reintentó/reenvió el mismo webhook" — sin esto, un reenvío mandaría el
+  // recibo de nuevo (el pago único solo se aprueba una vez en la vida del usuario).
+  const { data: filaAnterior } = await supabaseAdmin
+    .from('perfil_usuario')
+    .select('nombre, pagado_en')
+    .eq('id', pago.external_reference)
+    .eq('premium_manual', false)
+    .maybeSingle();
+
   // premium_manual nunca se pisa desde acá, mismo criterio que la rama de suscripciones.
   const { error } = await supabaseAdmin
     .from('perfil_usuario')
@@ -42,6 +53,16 @@ async function manejarPago(dataId, client, supabaseAdmin) {
     .eq('id', pago.external_reference)
     .eq('premium_manual', false);
   if (error) throw error;
+
+  if (filaAnterior && !filaAnterior.pagado_en) {
+    const resultado = await enviarRecibo(pago.external_reference, {
+      tipoPlan: 'permanente',
+      monto: pago.transaction_amount,
+      siguienteCobroEn: null,
+      nombre: filaAnterior.nombre,
+    });
+    if (!resultado.ok) console.error('No se pudo mandar el recibo de pago (permanente):', resultado.error);
+  }
 }
 
 async function manejarSuscripcion(dataId, client, supabaseAdmin) {
@@ -63,6 +84,18 @@ async function manejarSuscripcion(dataId, client, supabaseAdmin) {
     }
   }
 
+  // Se lee ANTES de actualizar para poder comparar `siguiente_cobro_en` viejo vs. nuevo: MP
+  // llama este mismo webhook en cada renovación (no solo al autorizar por primera vez), y la
+  // única señal de "hubo un cobro nuevo de verdad" es que esa fecha avanzó — sin esto, un
+  // reenvío del mismo evento (o cualquier otro cambio de estado que no sea un cobro) mandaría
+  // el recibo de nuevo.
+  const { data: filaAnterior } = await supabaseAdmin
+    .from('perfil_usuario')
+    .select('id, nombre, tipo_plan, siguiente_cobro_en')
+    .eq('pasarela_suscripcion_id', dataId)
+    .eq('premium_manual', false)
+    .maybeSingle();
+
   // premium_manual nunca se pisa desde acá: un cambio de estado en MP no debe sacarle el
   // premium otorgado a mano a un usuario, sea cual sea el id de suscripción involucrado.
   const { error } = await supabaseAdmin
@@ -71,6 +104,17 @@ async function manejarSuscripcion(dataId, client, supabaseAdmin) {
     .eq('pasarela_suscripcion_id', dataId)
     .eq('premium_manual', false);
   if (error) throw error;
+
+  const huboCobroNuevo = nuevoPlan === 'premium' && cambios.siguiente_cobro_en !== (filaAnterior?.siguiente_cobro_en ?? null);
+  if (filaAnterior && huboCobroNuevo) {
+    const resultado = await enviarRecibo(filaAnterior.id, {
+      tipoPlan: filaAnterior.tipo_plan || 'mensual',
+      monto: suscripcion.auto_recurring?.transaction_amount,
+      siguienteCobroEn: cambios.siguiente_cobro_en,
+      nombre: filaAnterior.nombre,
+    });
+    if (!resultado.ok) console.error('No se pudo mandar el recibo de pago (suscripción):', resultado.error);
+  }
 }
 
 router.post('/webhooks/mercadopago', async (req, res) => {
