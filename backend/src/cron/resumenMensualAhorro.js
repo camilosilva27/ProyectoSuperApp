@@ -24,7 +24,7 @@ const { rutaLogs } = require('../config');
 const { clienteSupabaseAdmin } = require('../clienteSupabaseAdmin');
 const { listarTodosLosUsuarios } = require('../usuariosAuth');
 const { enviarMail } = require('../clienteBrevo');
-const { armarMailBase, COLOR_ACENTO, COLOR_TEXTO, URL_APP } = require('../plantillaMail');
+const { armarMailBase, COLOR_ACENTO, COLOR_ACENTO_SUAVE, COLOR_TEXTO, URL_APP } = require('../plantillaMail');
 
 const TREINTA_DIAS_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -45,7 +45,7 @@ function armarHtml({ nombre, nombreMes, monto, cantidad }) {
     <p style="margin:0 0 16px 0;">${saludo}</p>
     <p style="margin:0 0 16px 0;">Esto ahorraste en <strong>${nombreMes}</strong> con Super App:</p>
     <p style="margin:0 0 16px 0; text-align:center;">
-      <span style="display:inline-block; background:${COLOR_ACENTO}; color:${COLOR_TEXTO}; padding:8px 18px; border-radius:8px; font-size:1.5em; font-weight:700;">${formatoArs(monto)}</span>
+      <span style="display:inline-block; background:${COLOR_ACENTO_SUAVE}; border:2px solid ${COLOR_ACENTO}; color:${COLOR_TEXTO}; padding:6px 16px; border-radius:8px; font-size:1.5em; font-weight:700;">${formatoArs(monto)}</span>
     </p>
     <p style="margin:0 0 16px 0;">ahorrados en ${cantidad} comparaci${cantidad === 1 ? 'ón' : 'ones'} de precios.</p>
     <p style="margin:0;">Seguí usando Super App para seguir ahorrando!</p>
