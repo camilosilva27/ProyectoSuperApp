@@ -21,18 +21,25 @@ const { rutaLogs } = require('../config');
 const { clienteSupabaseAdmin } = require('../clienteSupabaseAdmin');
 const { listarTodosLosUsuarios } = require('../usuariosAuth');
 const { enviarMail } = require('../clienteBrevo');
+const { armarMailBase, URL_APP } = require('../plantillaMail');
 
 const DIAS_DE_AVISO = 3;
 
 function armarHtml({ nombre, diasRestantes }) {
   const saludo = nombre ? `Hola ${nombre},` : 'Hola,';
   const cuando = diasRestantes <= 0 ? 'hoy' : `en ${diasRestantes} día${diasRestantes === 1 ? '' : 's'}`;
-  return `
-    <p>${saludo}</p>
-    <p>Tu prueba gratis de Super App termina <strong>${cuando}</strong>.</p>
-    <p>Si querés seguir comparando precios y viendo cuánto ahorrás, suscribite antes de que
-    termine — podés hacerlo desde Ajustes en la app.</p>
+  const cuerpo = `
+    <p style="margin:0 0 16px 0;">${saludo}</p>
+    <p style="margin:0 0 16px 0;">Tu prueba gratis de Super App termina <strong>${cuando}</strong>.</p>
+    <p style="margin:0;">Si querés seguir comparando precios y viendo cuánto ahorrás, suscribite antes de que
+    termine. Podés hacerlo desde Ajustes en la app.</p>
   `;
+  return armarMailBase({
+    preheader: `Tu prueba gratis termina ${cuando}.`,
+    titulo: 'Tu prueba está por terminar',
+    cuerpoHtml: cuerpo,
+    cta: { texto: 'Suscribirme', url: `${URL_APP}/ajustes` },
+  });
 }
 
 async function avisoFinTrial() {
@@ -115,4 +122,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { avisoFinTrial };
+module.exports = { avisoFinTrial, armarHtml };

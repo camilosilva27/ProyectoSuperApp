@@ -24,6 +24,7 @@ const { rutaLogs } = require('../config');
 const { clienteSupabaseAdmin } = require('../clienteSupabaseAdmin');
 const { listarTodosLosUsuarios } = require('../usuariosAuth');
 const { enviarMail } = require('../clienteBrevo');
+const { armarMailBase, COLOR_ACENTO, COLOR_TEXTO, URL_APP } = require('../plantillaMail');
 
 const TREINTA_DIAS_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -38,21 +39,23 @@ function formatoArs(monto) {
   return monto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
 }
 
-// Color "oferta" real de la app (theme.ts) — el mismo amarillo de cartel de oferta que usa
-// para marcar ahorro en la UI, no un color inventado para el mail.
-const AMARILLO_OFERTA = '#FFD400';
-
 function armarHtml({ nombre, nombreMes, monto, cantidad }) {
   const saludo = nombre ? `Hola ${nombre},` : 'Hola,';
-  return `
-    <p>${saludo}</p>
-    <p>Esto ahorraste en <strong>${nombreMes}</strong> con Super App:</p>
-    <p>
-      <span style="display: inline-block; background: ${AMARILLO_OFERTA}; color: #1B2420; padding: 6px 14px; border-radius: 6px; font-size: 1.4em; font-weight: bold;">${formatoArs(monto)}</span>
+  const cuerpo = `
+    <p style="margin:0 0 16px 0;">${saludo}</p>
+    <p style="margin:0 0 16px 0;">Esto ahorraste en <strong>${nombreMes}</strong> con Super App:</p>
+    <p style="margin:0 0 16px 0; text-align:center;">
+      <span style="display:inline-block; background:${COLOR_ACENTO}; color:${COLOR_TEXTO}; padding:8px 18px; border-radius:8px; font-size:1.5em; font-weight:700;">${formatoArs(monto)}</span>
     </p>
-    <p>ahorrados en ${cantidad} comparaci${cantidad === 1 ? 'ón' : 'ones'} de precios.</p>
-    <p>Seguí usando Super App para seguir ahorrando!</p>
+    <p style="margin:0 0 16px 0;">ahorrados en ${cantidad} comparaci${cantidad === 1 ? 'ón' : 'ones'} de precios.</p>
+    <p style="margin:0;">Seguí usando Super App para seguir ahorrando!</p>
   `;
+  return armarMailBase({
+    preheader: `Esto ahorraste en ${nombreMes} con Super App.`,
+    titulo: 'Tu resumen del mes',
+    cuerpoHtml: cuerpo,
+    cta: { texto: 'Ver mi historial de ahorro', url: `${URL_APP}/ahorros` },
+  });
 }
 
 async function resumenMensualAhorro() {
@@ -142,4 +145,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { resumenMensualAhorro, esElegible };
+module.exports = { resumenMensualAhorro, esElegible, armarHtml };
