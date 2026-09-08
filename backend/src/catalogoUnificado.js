@@ -2,9 +2,11 @@
  * Acceso en memoria al catálogo unificado, con búsqueda por texto y por categoría.
  *
  * El archivo se carga una vez y se revalida por mtime, así el cron puede regenerarlo sin
- * reiniciar el server. La búsqueda reusa matchesBusqueda/palabrasDeBusqueda de
- * AllPromos/core/catalogo.js a propósito: así "357g" matchea "357 Gr" igual que en el CLI
- * y el usuario no encuentra resultados distintos según por dónde entre.
+ * reiniciar el server. El match exacto por palabra (matchesPalabra, AllPromos/core/catalogo.js)
+ * se prueba primero — así "357g" matchea "357 Gr" igual que en el CLI. Si esa palabra no
+ * matchea, recién ahí se prueba fuzzy (busquedaFuzzy.js: stem singular/plural + distancia de
+ * edición acotada) — a propósito solo acá y no en la CLI, que pregunta ante 0 matches en vez
+ * de autocorregir (ver AllPromos/CLAUDE.md).
  *
  * A este volumen (~5-7k productos) un filtro lineal en memoria sobra; no hace falta un
  * motor de búsqueda ni un índice invertido.
@@ -12,8 +14,9 @@
 
 const fs = require('fs');
 const {
-  normalize, matchesBusqueda, palabrasDeBusqueda,
+  normalize, matchesPalabra, palabrasDeBusqueda,
 } = require('../../AllPromos/core/catalogo');
+const { stem, matchesPalabraFuzzy } = require('./busquedaFuzzy');
 const { rutaCatalogoUnificado, limiteBusquedaDefault, limiteBusquedaMaximo } = require('./config');
 
 let cache = null; // { mtimeMs, catalogo, indice }
@@ -30,13 +33,19 @@ function cargar() {
   if (cache && cache.mtimeMs === stat.mtimeMs) return cache;
 
   const catalogo = JSON.parse(fs.readFileSync(rutaCatalogoUnificado, 'utf8'));
-  // Se precalcula el texto normalizado de búsqueda una vez por carga, no por request.
-  const indice = catalogo.productos.map(p => ({
-    producto: p,
-    haystackNombre: p.nombre,
-    haystackVariante: p.variante || '',
-    categoriaNorm: p.categoria ? normalize(p.categoria) : '',
-  }));
+  // Se precalcula el texto normalizado de búsqueda una vez por carga, no por request —
+  // incluidas las palabras y sus stems, que solo se usan si falla el match exacto.
+  const indice = catalogo.productos.map(p => {
+    const haystackNorm = normalize(`${p.nombre} ${p.variante || ''}`);
+    const haystackWords = haystackNorm.split(/\s+/).filter(Boolean);
+    return {
+      producto: p,
+      haystackNorm,
+      haystackWords,
+      haystackStems: haystackWords.map(stem),
+      categoriaNorm: p.categoria ? normalize(p.categoria) : '',
+    };
+  });
 
   cache = { mtimeMs: stat.mtimeMs, catalogo, indice };
   return cache;
@@ -77,7 +86,8 @@ function buscar({
   for (const entrada of c.indice) {
     if (categoriaNorm && !entrada.categoriaNorm.startsWith(categoriaNorm)) continue;
     if (supersFiltro && !entrada.producto.disponibleEn.some(k => supersFiltro.has(k))) continue;
-    if (palabras.length && !matchesBusqueda(entrada.haystackNombre, entrada.haystackVariante, palabras)) continue;
+    if (palabras.length && !palabras.every(p => matchesPalabra(entrada.haystackNorm, p)
+      || matchesPalabraFuzzy(p, entrada.haystackWords, entrada.haystackStems))) continue;
     coincidencias.push(entrada.producto);
   }
 

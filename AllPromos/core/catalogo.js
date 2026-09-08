@@ -36,13 +36,16 @@ function normalize(str) {
 // Solo aplica si el número tiene 2+ dígitos para evitar ambigüedad ("1" solo es muy genérico)
 const UNIDADES_RE = /^(\d{2,}\.?\d*)(g|gr|grs|kg|ml|cc|l|lt|lts|un|u|unid)$/i;
 
+/** Chequeo de UNA palabra contra un haystack ya normalizado (ver matchesBusqueda). */
+function matchesPalabra(haystack, palabra) {
+  if (haystack.includes(palabra)) return true;
+  const m = palabra.match(UNIDADES_RE);
+  return m ? haystack.includes(m[1]) : false;
+}
+
 function matchesBusqueda(productName, skuName, palabras) {
   const haystack = normalize((productName || '') + ' ' + (skuName || ''));
-  return palabras.every(p => {
-    if (haystack.includes(p)) return true;
-    const m = p.match(UNIDADES_RE);
-    return m ? haystack.includes(m[1]) : false;
-  });
+  return palabras.every(p => matchesPalabra(haystack, p));
 }
 
 function esEANvalido(str) {
@@ -201,6 +204,7 @@ module.exports = {
   DIR_DATOS,
   normalize,
   UNIDADES_RE,
+  matchesPalabra,
   matchesBusqueda,
   esEANvalido,
   palabrasDeBusqueda,
