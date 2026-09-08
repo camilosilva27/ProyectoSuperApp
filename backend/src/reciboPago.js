@@ -10,6 +10,7 @@
 const { clienteSupabaseAdmin } = require('./clienteSupabaseAdmin');
 const { enviarMail } = require('./clienteBrevo');
 const { armarMailBase, COLOR_ACENTO, COLOR_ACENTO_SUAVE, COLOR_TEXTO, URL_APP } = require('./plantillaMail');
+const { obtenerSuscripcionesDeUsuario, enviarPush } = require('./clientePush');
 
 function formatoArs(monto) {
   return Number(monto).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
@@ -58,12 +59,22 @@ async function enviarRecibo(usuarioId, detalles) {
     return { ok: false, error: `No se pudo resolver el mail del usuario ${usuarioId}: ${error?.message || 'sin mail'}` };
   }
 
-  return enviarMail({
+  const resultadoMail = await enviarMail({
     destinatarioEmail: data.user.email,
     destinatarioNombre: detalles.nombre,
     asunto: 'Tu pago en Super App se acreditó',
     html: armarHtml(detalles),
   });
+
+  const nombrePlan = NOMBRE_PLAN[detalles.tipoPlan] || detalles.tipoPlan;
+  const suscripciones = await obtenerSuscripcionesDeUsuario(cliente, usuarioId).catch(() => []);
+  await enviarPush(cliente, suscripciones, {
+    title: 'Super App',
+    body: `Tu pago del plan ${nombrePlan} se acreditó: ${formatoArs(detalles.monto)}`,
+    url: `${URL_APP}/ajustes`,
+  });
+
+  return resultadoMail;
 }
 
 module.exports = { armarHtml, enviarRecibo };

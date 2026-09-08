@@ -3,7 +3,7 @@
 // servible en /sw.js sin configuración adicional (mismo mecanismo que manifest.json).
 
 self.addEventListener('push', event => {
-  let datos = { title: 'Super App', body: '' };
+  let datos = { title: 'Super App', body: '', url: '/' };
   try {
     if (event.data) datos = { ...datos, ...event.data.json() };
   } catch {
@@ -15,11 +15,12 @@ self.addEventListener('push', event => {
       body: datos.body,
       icon: '/icon-192.png',
       badge: '/icon-192.png',
+      data: { url: datos.url },
     })
   );
 });
 
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  event.waitUntil(self.clients.openWindow('/'));
+  event.waitUntil(self.clients.openWindow(event.notification.data?.url || '/'));
 });

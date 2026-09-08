@@ -22,6 +22,7 @@ const { clienteSupabaseAdmin } = require('../clienteSupabaseAdmin');
 const { listarTodosLosUsuarios } = require('../usuariosAuth');
 const { enviarMail } = require('../clienteBrevo');
 const { armarMailBase, URL_APP } = require('../plantillaMail');
+const { obtenerSuscripcionesPorUsuario, enviarPush } = require('../clientePush');
 
 const DIAS_DE_AVISO = 3;
 
@@ -48,6 +49,7 @@ async function avisoFinTrial() {
 
   const errores = [];
   let enviados = 0;
+  let enviadosPush = 0;
 
   const cliente = clienteSupabaseAdmin();
   if (!cliente) {
@@ -56,7 +58,7 @@ async function avisoFinTrial() {
   } else {
     const limiteAviso = new Date(inicio.getTime() + DIAS_DE_AVISO * 24 * 60 * 60 * 1000);
 
-    const [{ data: candidatos, error }, usuarios] = await Promise.all([
+    const [{ data: candidatos, error }, usuarios, suscripcionesPush] = await Promise.all([
       cliente
         .from('perfil_usuario')
         .select('id, nombre, trial_termina_en')
@@ -66,6 +68,10 @@ async function avisoFinTrial() {
       listarTodosLosUsuarios(cliente).catch(err => {
         errores.push(`No se pudo listar usuarios: ${err.message}`);
         return [];
+      }),
+      obtenerSuscripcionesPorUsuario(cliente).catch(err => {
+        errores.push(`No se pudo leer push_suscripcion: ${err.message}`);
+        return new Map();
       }),
     ]);
 
@@ -99,16 +105,24 @@ async function avisoFinTrial() {
         } else {
           errores.push(`Falló el mail a ${email}: ${resultado.error}`);
         }
+
+        const resultadoPush = await enviarPush(cliente, suscripcionesPush.get(perfil.id) ?? [], {
+          title: 'Super App',
+          body: `Tu prueba gratis termina ${diasRestantes <= 0 ? 'hoy' : `en ${diasRestantes} día${diasRestantes === 1 ? '' : 's'}`}. Suscribite desde Ajustes.`,
+          url: `${URL_APP}/ajustes`,
+        });
+        enviadosPush += resultadoPush.enviados;
+        errores.push(...resultadoPush.errores);
       }
     }
   }
 
-  const reporte = { inicio: inicio.toISOString(), fin: new Date().toISOString(), enviados, errores };
+  const reporte = { inicio: inicio.toISOString(), fin: new Date().toISOString(), enviados, enviadosPush, errores };
 
   fs.mkdirSync(rutaLogs, { recursive: true });
   fs.writeFileSync(path.join(rutaLogs, 'ultimo-aviso-fin-trial.json'), JSON.stringify(reporte, null, 2));
 
-  console.log(`   ✅ ${enviados} enviados, ${errores.length} con error`);
+  console.log(`   ✅ ${enviados} mails, ${enviadosPush} push, ${errores.length} con error`);
 
   return reporte;
 }

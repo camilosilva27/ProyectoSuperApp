@@ -741,6 +741,56 @@ automatización por no tener backend de push configurado (limitación del entorn
 falta una verificación final con un navegador real de usuario antes de dar la feature por 100%
 probada end-to-end.
 
+### Restricción de instalación en Android — investigado 2026-09-08: NO es igual a iOS
+
+Se investigó si Android tiene una restricción parecida a la de iOS (necesita "agregar a inicio"
+desde Safari para poder recibir push). **No es el mismo tipo de restricción**, pero hay dos
+problemas reales distintos a tener en cuenta:
+
+1. **Huawei sin Google Play Services (fabricado desde 2019 en adelante): push no puede llegar,
+   sin excepción.** El Push API de Chrome depende de Firebase Cloud Messaging (FCM) por debajo;
+   sin GMS no hay FCM. Huawei tiene su propio HMS Core para push nativas, pero no ayuda a una PWA
+   como esta — no hay workaround posible sin integrar HMS Core aparte (no evaluado, esfuerzo no
+   justificado hoy). Comparable en severidad al caso de iOS, pero sin salida del lado del usuario.
+2. **Samsung, Xiaomi (MIUI/HyperOS el peor caso), Oppo, Vivo, OnePlus: no es un bloqueo, es "puede
+   llegar tarde o no llegar".** Gestión agresiva de batería/RAM que puede matar el proceso que
+   entrega la notificación. Se soluciona por dispositivo (ej. Xiaomi: sacar de restricciones de
+   batería + activar "Autostart"; Samsung: agregar a "Never sleeping apps") — no hay nada que la
+   app pueda forzar de por sí.
+
+**Dato a favor, no obvio de entrada**: si el usuario instala la PWA a la pantalla de inicio desde
+Chrome con GMS o desde Samsung Internet, Android genera un **WebAPK** — una app real y separada
+de "Chrome" en Ajustes del sistema — que el usuario puede buscar y exceptuar de la optimización de
+batería individualmente, igual que haría con una app nativa. Sin esa instalación (solo un acceso
+directo de navegador, ej. en Firefox/Edge o Chrome sin GMS), la entrega de push queda atada a los
+permisos del navegador en general, mucho menos controlable. **Pendiente, no implementado**: pedir
+"agregar a inicio" también en Android (hoy el paso del tour de notificaciones no distingue
+plataforma) — mejoraría la confiabilidad de entrega en Xiaomi/Samsung aunque no sea obligatorio
+como en iOS.
+
+### Push personalizado por usuario — implementado 2026-09-08
+
+`recordatorioSemanal.js` (arriba) manda el mismo mensaje a TODAS las suscripciones — no alcanza
+para los mails nuevos (resumen de ahorro, aviso de trial, inactividad, recibo de pago), que
+necesitan contenido propio por usuario. `backend/src/clientePush.js` (nuevo) generaliza el
+circuito ya probado:
+
+- `obtenerSuscripcionesPorUsuario(clienteAdmin)` — trae `push_suscripcion` completa una sola vez
+  y la agrupa por `usuario_id` (evita N queries en un cron que ya recorre N usuarios).
+- `obtenerSuscripcionesDeUsuario(clienteAdmin, usuarioId)` — variante de un solo usuario, para el
+  caso evento-a-evento (`reciboPago.js`, disparado por el webhook de MP, no por un cron).
+- `enviarPush(clienteAdmin, lista, payload)` — mismo manejo de 404/410 (borra la suscripción
+  vencida) que ya tenía `recordatorioSemanal.js`, pero reusable desde cualquier caller.
+- `payload` ahora acepta `url` (antes solo `title`/`body`) — `app/public/sw.js` actualizado para
+  guardarla en `notification.data` y abrirla en el click, en vez de siempre abrir `/`. Mismo
+  criterio que ya usan los CTA de los mails (deep link a `/ahorros`, `/ajustes`, etc.).
+
+Integrado en `resumenMensualAhorro.js`, `resumenSemanalAhorro.js`, `avisoFinTrial.js`,
+`avisoInactividad.js` (push + mail en el mismo loop, sin duplicar el fetch de suscripciones) y en
+`reciboPago.js`. **Verificado en vivo (2026-09-08)**: push de prueba mandado a las 3 suscripciones
+reales de una cuenta (Safari/iOS vía `web.push.apple.com` + 2 Chrome/Android vía FCM), las 3
+entregadas sin error.
+
 ---
 
 ## Búsqueda por nombre — matchesBusqueda
