@@ -71,10 +71,21 @@ async function resumenMensualAhorro() {
     errores.push('Falta SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY — no se pudo correr el resumen');
     console.error(`   ❌ ${errores[0]}`);
   } else {
-    const inicioMesActual = new Date(Date.UTC(inicio.getUTCFullYear(), inicio.getUTCMonth(), 1));
-    const inicioMesAnterior = new Date(Date.UTC(inicio.getUTCFullYear(), inicio.getUTCMonth() - 1, 1));
+    // "El mes" tiene que cortar en el mismo lugar que la pantalla Ahorros (historialAhorro.tsx,
+    // calcularResumenAhorro), que agrupa con new Date(evento.fecha).getMonth() en el reloj del
+    // DISPOSITIVO (Argentina) — no en UTC. Bug real encontrado el 2026-09-08: con límites en UTC
+    // puro, el corte de mes queda corrido hasta 3hs respecto de lo que el usuario ve en la app.
+    // Argentina no tiene horario de verano, así que un offset fijo de -3 es seguro (no hace
+    // falta una librería de timezones para esto).
+    const OFFSET_ARGENTINA_HORAS = 3;
+    const ahoraEnArgentina = new Date(inicio.getTime() - OFFSET_ARGENTINA_HORAS * 60 * 60 * 1000);
+    const inicioDeMesArgentina = (anio, mesIdx) =>
+      new Date(Date.UTC(anio, mesIdx, 1, OFFSET_ARGENTINA_HORAS, 0, 0));
+
+    const inicioMesActual = inicioDeMesArgentina(ahoraEnArgentina.getUTCFullYear(), ahoraEnArgentina.getUTCMonth());
+    const inicioMesAnterior = inicioDeMesArgentina(ahoraEnArgentina.getUTCFullYear(), ahoraEnArgentina.getUTCMonth() - 1);
     // "agosto 2026", sin el "de" que agrega el formato largo de Intl por default.
-    const nombreMes = `${inicioMesAnterior.toLocaleString('es-AR', { month: 'long', timeZone: 'UTC' })} ${inicioMesAnterior.getUTCFullYear()}`;
+    const nombreMes = `${inicioMesAnterior.toLocaleString('es-AR', { month: 'long', timeZone: 'America/Argentina/Buenos_Aires' })} ${inicioMesAnterior.getUTCFullYear()}`;
 
     const [{ data: perfiles, error: errorPerfiles }, { data: eventos, error: errorEventos }, usuarios] =
       await Promise.all([
