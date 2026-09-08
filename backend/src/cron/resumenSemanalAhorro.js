@@ -25,6 +25,7 @@ const { listarTodosLosUsuarios } = require('../usuariosAuth');
 const { enviarMail } = require('../clienteBrevo');
 const { armarMailBase, COLOR_ACENTO, COLOR_ACENTO_SUAVE, COLOR_TEXTO, URL_APP } = require('../plantillaMail');
 const { esElegible } = require('./resumenMensualAhorro');
+const { obtenerSuscripcionesPorUsuario, enviarPush } = require('../clientePush');
 
 const SIETE_DIAS_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -57,6 +58,7 @@ async function resumenSemanalAhorro() {
 
   const errores = [];
   let enviados = 0;
+  let enviadosPush = 0;
   let omitidosSinAhorro = 0;
   let omitidosPlan = 0;
 
@@ -67,13 +69,17 @@ async function resumenSemanalAhorro() {
   } else {
     const haceUnaSemana = new Date(inicio.getTime() - SIETE_DIAS_MS);
 
-    const [{ data: perfiles, error: errorPerfiles }, { data: eventos, error: errorEventos }, usuarios] =
+    const [{ data: perfiles, error: errorPerfiles }, { data: eventos, error: errorEventos }, usuarios, suscripcionesPush] =
       await Promise.all([
         cliente.from('perfil_usuario').select('id, nombre, plan, plan_bajado_a_gratis_en'),
         cliente.from('ahorro_registro').select('usuario_id, monto').gte('fecha', haceUnaSemana.toISOString()),
         listarTodosLosUsuarios(cliente).catch(err => {
           errores.push(`No se pudo listar usuarios: ${err.message}`);
           return [];
+        }),
+        obtenerSuscripcionesPorUsuario(cliente).catch(err => {
+          errores.push(`No se pudo leer push_suscripcion: ${err.message}`);
+          return new Map();
         }),
       ]);
 
@@ -113,16 +119,24 @@ async function resumenSemanalAhorro() {
         });
         if (resultado.ok) enviados++;
         else errores.push(`Falló el mail a ${email}: ${resultado.error}`);
+
+        const resultadoPush = await enviarPush(cliente, suscripcionesPush.get(perfil.id) ?? [], {
+          title: 'Super App',
+          body: `Esto ahorraste esta semana: ${formatoArs(monto)}`,
+          url: `${URL_APP}/ahorros`,
+        });
+        enviadosPush += resultadoPush.enviados;
+        errores.push(...resultadoPush.errores);
       }
     }
   }
 
-  const reporte = { inicio: inicio.toISOString(), fin: new Date().toISOString(), enviados, omitidosSinAhorro, omitidosPlan, errores };
+  const reporte = { inicio: inicio.toISOString(), fin: new Date().toISOString(), enviados, enviadosPush, omitidosSinAhorro, omitidosPlan, errores };
 
   fs.mkdirSync(rutaLogs, { recursive: true });
   fs.writeFileSync(path.join(rutaLogs, 'ultimo-resumen-semanal-ahorro.json'), JSON.stringify(reporte, null, 2));
 
-  console.log(`   ✅ ${enviados} enviados, ${omitidosSinAhorro} omitidos (sin ahorro), ${omitidosPlan} omitidos (plan gratis hace +30 días), ${errores.length} con error`);
+  console.log(`   ✅ ${enviados} mails, ${enviadosPush} push, ${omitidosSinAhorro} omitidos (sin ahorro), ${omitidosPlan} omitidos (plan gratis hace +30 días), ${errores.length} con error`);
 
   return reporte;
 }

@@ -23,6 +23,7 @@ const { clienteSupabaseAdmin } = require('../clienteSupabaseAdmin');
 const { listarTodosLosUsuarios } = require('../usuariosAuth');
 const { enviarMail } = require('../clienteBrevo');
 const { armarMailBase, URL_APP } = require('../plantillaMail');
+const { obtenerSuscripcionesPorUsuario, enviarPush } = require('../clientePush');
 
 const DIAS_DE_INACTIVIDAD = 14;
 
@@ -60,18 +61,23 @@ async function avisoInactividad() {
 
   const errores = [];
   let enviados = 0;
+  let enviadosPush = 0;
 
   const cliente = clienteSupabaseAdmin();
   if (!cliente) {
     errores.push('Falta SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY — no se pudo correr el aviso');
     console.error(`   ❌ ${errores[0]}`);
   } else {
-    const [usuarios, { data: perfiles, error: errorPerfiles }] = await Promise.all([
+    const [usuarios, { data: perfiles, error: errorPerfiles }, suscripcionesPush] = await Promise.all([
       listarTodosLosUsuarios(cliente).catch(err => {
         errores.push(`No se pudo listar usuarios: ${err.message}`);
         return [];
       }),
       cliente.from('perfil_usuario').select('id, nombre, aviso_inactividad_enviado_en'),
+      obtenerSuscripcionesPorUsuario(cliente).catch(err => {
+        errores.push(`No se pudo leer push_suscripcion: ${err.message}`);
+        return new Map();
+      }),
     ]);
 
     if (errorPerfiles) {
@@ -109,16 +115,24 @@ async function avisoInactividad() {
         } else {
           errores.push(`Falló el mail a ${usuario.email}: ${resultado.error}`);
         }
+
+        const resultadoPush = await enviarPush(cliente, suscripcionesPush.get(usuario.id) ?? [], {
+          title: 'Super App',
+          body: 'Hace un tiempo que no comparás precios. Puede que esta semana haya alguna promo que te convenga.',
+          url: URL_APP,
+        });
+        enviadosPush += resultadoPush.enviados;
+        errores.push(...resultadoPush.errores);
       }
     }
   }
 
-  const reporte = { inicio: inicio.toISOString(), fin: new Date().toISOString(), enviados, errores };
+  const reporte = { inicio: inicio.toISOString(), fin: new Date().toISOString(), enviados, enviadosPush, errores };
 
   fs.mkdirSync(rutaLogs, { recursive: true });
   fs.writeFileSync(path.join(rutaLogs, 'ultimo-aviso-inactividad.json'), JSON.stringify(reporte, null, 2));
 
-  console.log(`   ✅ ${enviados} enviados, ${errores.length} con error`);
+  console.log(`   ✅ ${enviados} mails, ${enviadosPush} push, ${errores.length} con error`);
 
   return reporte;
 }
