@@ -14,6 +14,7 @@
     "ping-supabase": "node src/cron/pingSupabase.js",
     "recordatorio-semanal": "node src/cron/recordatorioSemanal.js",
     "resumen-mensual-ahorro": "node src/cron/resumenMensualAhorro.js",
+    "resumen-semanal-ahorro": "node src/cron/resumenSemanalAhorro.js",
     "aviso-fin-trial": "node src/cron/avisoFinTrial.js",
     "aviso-inactividad": "node src/cron/avisoInactividad.js"
   },

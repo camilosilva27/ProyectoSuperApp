@@ -3,9 +3,8 @@
  * primer día de cada mes, cuánto ahorró cada usuario durante el mes anterior según
  * `ahorro_registro` (Fase B, historial de ahorro).
  *
- * A diferencia del resumen semanal (todavía sin implementar), este se manda SIEMPRE que el
- * usuario sea elegible, aunque el ahorro del mes haya sido $0 o no haya comparado nada — es un
- * resumen periódico, no una alerta de logro.
+ * Igual que el resumen semanal: solo se manda si el ahorro del mes fue > $0 (decidido el
+ * 2026-09-08, cambio respecto de la versión original de este cron, que lo mandaba siempre).
  *
  * Elegibilidad: se excluye a quien está en plan 'gratis' desde hace más de 30 días (decisión
  * tomada en la conversación de diseño: alguien que cayó del trial hace 2 días todavía tiene
@@ -119,12 +118,16 @@ async function resumenMensualAhorro() {
           omitidos++;
           continue;
         }
+        const { monto, cantidad } = agregadoPorUsuario.get(perfil.id) ?? { monto: 0, cantidad: 0 };
+        if (monto <= 0) {
+          omitidos++;
+          continue;
+        }
         const email = emailPorId.get(perfil.id);
         if (!email) {
           errores.push(`Usuario ${perfil.id} sin mail en auth.users — omitido`);
           continue;
         }
-        const { monto, cantidad } = agregadoPorUsuario.get(perfil.id) ?? { monto: 0, cantidad: 0 };
         const resultado = await enviarMail({
           destinatarioEmail: email,
           destinatarioNombre: perfil.nombre,
@@ -142,7 +145,7 @@ async function resumenMensualAhorro() {
   fs.mkdirSync(rutaLogs, { recursive: true });
   fs.writeFileSync(path.join(rutaLogs, 'ultimo-resumen-mensual-ahorro.json'), JSON.stringify(reporte, null, 2));
 
-  console.log(`   ✅ ${enviados} enviados, ${omitidos} omitidos (plan gratis hace +30 días), ${errores.length} con error`);
+  console.log(`   ✅ ${enviados} enviados, ${omitidos} omitidos (plan gratis hace +30 días o sin ahorro), ${errores.length} con error`);
 
   return reporte;
 }
