@@ -10,7 +10,7 @@ import React from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import type { SuperKey } from '../api';
-import { espacio, radio, texto } from '../theme';
+import { espacio, radio, texto, usePantallaBaja } from '../theme';
 import { useTema } from '../useTema';
 
 export const ORDEN_SUPERS: SuperKey[] = ['vea', 'carr', 'changomas', 'dia', 'coto', 'jumbo', 'disco'];
@@ -136,40 +136,51 @@ export function Stepper({
   );
 }
 
-// Carrito de supermercado en el mismo trazo que IconoDescuentos (_layout.tsx): un solo Path de
-// contorno (canasta + mango) más dos Circle rellenos para las ruedas, en vez de sumar una
-// librería de iconos.
-function IconoCarritoCompra({ color }: { color: string }) {
+// Paths tal como quedaron definidos en Claude Design (turno 19/19a "Íconos de balanza y
+// carrito"): trazo de 2px sobre grilla de 24px en el tamaño normal; el tamaño chico (18px, para
+// `usePantallaBaja` — pantallas bajas tipo iPhone SE) sube el trazo a 2.4 para que no se vea
+// débil al achicarse, mismo criterio que el resto de los íconos a mano de este archivo/
+// _layout.tsx en vez de sumar una librería.
+function tamanoIcono(chico: boolean) {
+  return { lado: chico ? 18 : 24, grosor: chico ? 2.4 : 2 };
+}
+
+function IconoCarritoCompra({ color, chico = false }: { color: string; chico?: boolean }) {
+  const { lado, grosor } = tamanoIcono(chico);
   return (
-    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+    <Svg width={lado} height={lado} viewBox="0 0 24 24" fill="none">
       <Path
-        d="M2 3h2l2.4 12.2a2 2 0 0 0 2 1.6h8.6a2 2 0 0 0 2-1.6L21 8H6"
+        d="M2 3.5h2.2l2.5 10.9a1.7 1.7 0 0 0 1.66 1.32h8.03a1.7 1.7 0 0 0 1.66-1.3L19.8 8H5.6"
         stroke={color}
-        strokeWidth={2}
+        strokeWidth={grosor}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <Circle cx={9} cy={20} r={1.5} fill={color} />
-      <Circle cx={17} cy={20} r={1.5} fill={color} />
+      <Circle cx={9.5} cy={20} r={1.4} fill={color} />
+      <Circle cx={16.5} cy={20} r={1.4} fill={color} />
     </Svg>
   );
 }
 
-/** Balanza de dos platillos — distingue "Comparar precios" (carrito.tsx) de "Ver carrito"
- *  (mismo trazo que el resto de los íconos a mano de este archivo/_layout.tsx). Mástil +
- *  travesaño horizontal, una cadena a cada punta y un platillo colgando (arco abierto hacia
- *  abajo, no un círculo entero: así se lee como que "cuelga" del travesaño) más la base. */
-export function IconoBalanza({ color }: { color: string }) {
+/** Balanza de dos platillos — distingue "Comparar precios" (carrito.tsx) de "Ver carrito".
+ *  Mástil + travesaño horizontal, dos cadenas por platillo y un arco (no un círculo entero:
+ *  así se lee como que "cuelga" del travesaño) por cada uno, más la base. */
+export function IconoBalanza({ color, chico = false }: { color: string; chico?: boolean }) {
+  const { lado, grosor } = tamanoIcono(chico);
   return (
-    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M12 4v16M5 7h14M5 7l-3 6M19 7l3 6M2 13a3 3 0 0 0 6 0M16 13a3 3 0 0 0 6 0M8 20h8"
-        stroke={color}
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <Circle cx={12} cy={4} r={1} fill={color} />
+    <Svg
+      width={lado} height={lado} viewBox="0 0 24 24" fill="none"
+      stroke={color} strokeWidth={grosor} strokeLinecap="round" strokeLinejoin="round"
+    >
+      <Path d="M12 4.5V20" />
+      <Path d="M8 20h8" />
+      <Path d="M4 7h16" />
+      <Path d="M4 7l-2.5 5" />
+      <Path d="M4 7l2.5 5" />
+      <Path d="M1.5 12a2.5 2.5 0 0 0 5 0" />
+      <Path d="M20 7l-2.5 5" />
+      <Path d="M20 7l2.5 5" />
+      <Path d="M17.5 12a2.5 2.5 0 0 0 5 0" />
     </Svg>
   );
 }
@@ -186,6 +197,7 @@ export function BotonPrincipal({
   iconoCarrito?: boolean;
 }) {
   const { paleta } = useTema();
+  const pantallaBaja = usePantallaBaja();
   const inactivo = deshabilitado || cargando;
   const colorTexto = inactivo ? paleta.tintaTenue : paleta.superficie;
 
@@ -209,7 +221,7 @@ export function BotonPrincipal({
       ) : (
         <View style={styles.botonContenido}>
           <View style={styles.filaTituloBoton}>
-            {iconoCarrito ? <IconoCarritoCompra color={colorTexto} /> : null}
+            {iconoCarrito ? <IconoCarritoCompra color={colorTexto} chico={pantallaBaja} /> : null}
             <Text style={[texto.subtitulo, { color: colorTexto }]}>{children}</Text>
           </View>
           {subtitulo ? (
