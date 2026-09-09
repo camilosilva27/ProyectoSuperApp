@@ -20,7 +20,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, usePathname } from 'expo-router';
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import type { View } from 'react-native';
 import { useAuth } from '../auth';
@@ -211,6 +211,10 @@ export function useTour() {
   const { setSupersYTope } = useFiltrosSupers();
   const { session } = useAuth();
   const userId = session?.user.id ?? null;
+  // Los dos últimos pasos del tour ('ahorro'/'notificaciones') ocurren sobre /resultado, sin
+  // navegar a ningún lado — `usePathname` es global (no depende de qué instancia de este hook
+  // lo llame, ver el comentario de `carritoAntesDelTourRef` más abajo).
+  const pathname = usePathname();
 
   useEffect(() => {
     tourReportarUsuario(userId);
@@ -240,16 +244,35 @@ export function useTour() {
 
   // Restaura el carrito apenas el tour deja de estar activo (`activo` pasa de `true` a
   // `false`) — cubre tanto llegar al último paso como cortar con "Finalizar" en cualquier
-  // punto, las dos formas de "terminar el tutorial".
+  // punto, las dos formas de "terminar el tutorial". EXCEPTO si en ese momento la pantalla
+  // visible es /resultado (los pasos 'ahorro' y 'notificaciones' viven ahí, sin navegar a
+  // ningún lado): `resultado.tsx` arma su `useQuery` con `carrito.items` en la `queryKey`, así
+  // que reemplazar el carrito ahí mismo disparaba al instante un refetch que reemplazaba la
+  // comparación de la demo por la del carrito real, delante del usuario, todavía en esa
+  // pantalla (bug real). En ese caso queda pendiente (`restauracionPendienteRef`) y se dispara
+  // recién en el efecto de abajo, cuando el usuario de verdad navega afuera de /resultado.
   const activoAnteriorRef = useRef(activo);
+  const restauracionPendienteRef = useRef(false);
   useEffect(() => {
     if (activoAnteriorRef.current && !activo && carritoAntesDelTourRef.current) {
-      carrito.reemplazarItems(carritoAntesDelTourRef.current);
-      carritoAntesDelTourRef.current = null;
+      if (pathname === '/resultado') {
+        restauracionPendienteRef.current = true;
+      } else {
+        carrito.reemplazarItems(carritoAntesDelTourRef.current);
+        carritoAntesDelTourRef.current = null;
+      }
     }
     activoAnteriorRef.current = activo;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `carrito` es estable por render
-  }, [activo]);
+  }, [activo, pathname]);
+
+  useEffect(() => {
+    if (!restauracionPendienteRef.current || pathname === '/resultado' || !carritoAntesDelTourRef.current) return;
+    carrito.reemplazarItems(carritoAntesDelTourRef.current);
+    carritoAntesDelTourRef.current = null;
+    restauracionPendienteRef.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `carrito` es estable por render
+  }, [pathname]);
 
   return { activo, pasoActivo, iniciar, salir: salirTour };
 }

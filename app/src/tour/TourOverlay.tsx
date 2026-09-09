@@ -298,10 +298,26 @@ export function TourOverlay() {
     }
     pasoDelUltimoRectRef.current = pasoActivo;
 
+    if (pasoActivo === 'notificaciones') {
+      // Último paso, sin target real (ver calcularCandidato: recorte fuera de pantalla) —
+      // mismo trato que el primer spotlight del tour más abajo (corte instantáneo, sin
+      // transición) en vez de la rama "crece desde un punto": esa rama fuerza
+      // DURACION_CRECIMIENTO_MS y cambia la posición real del recuadro (border + boxShadow)
+      // desde donde había quedado 'ahorro' hasta acá — como al usuario SÍ se le nota la
+      // posición/tamaño de marcoRecorte (no solo su opacidad), esa transición se veía como el
+      // borde amarillo viajando y encogiéndose hacia la esquina superior izquierda en vez de
+      // simplemente desaparecer (bug real, reportado por el usuario).
+      setDuracionPosicionMs(0);
+      setPosicion({ left: recorte.x, top: recorte.y, width: recorte.width, height: recorte.height });
+      setCartelListo(false);
+      requestAnimationFrame(() => setCartelListo(true));
+      return;
+    }
+
     if (!huboRectPrevioRef.current) {
-      // Primer spotlight del tour ('notificaciones'): sin target real en pantalla (recorte
-      // fuera de pantalla, ver calcularCandidato), así que el recuadro no tiene nada que
-      // animar — pero el cartel sí entra con fade, igual que en cualquier transición dura.
+      // Primer spotlight del tour (el primer paso con target real medible) — no hay ningún
+      // recuadro previo del que partir, así que arranca ya en su posición final sin animar la
+      // posición; el cartel sí entra con fade, igual que en cualquier transición dura.
       huboRectPrevioRef.current = true;
       setDuracionPosicionMs(0);
       setPosicion({ left: recorte.x, top: recorte.y, width: recorte.width, height: recorte.height });
