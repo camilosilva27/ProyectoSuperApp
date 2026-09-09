@@ -155,6 +155,25 @@ function IconoCarritoCompra({ color }: { color: string }) {
   );
 }
 
+/** Balanza de dos platillos — distingue "Comparar precios" (carrito.tsx) de "Ver carrito"
+ *  (mismo trazo que el resto de los íconos a mano de este archivo/_layout.tsx). Mástil +
+ *  travesaño horizontal, una cadena a cada punta y un platillo colgando (arco abierto hacia
+ *  abajo, no un círculo entero: así se lee como que "cuelga" del travesaño) más la base. */
+export function IconoBalanza({ color }: { color: string }) {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M12 4v16M5 7h14M5 7l-3 6M19 7l3 6M2 13a3 3 0 0 0 6 0M16 13a3 3 0 0 0 6 0M8 20h8"
+        stroke={color}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Circle cx={12} cy={4} r={1} fill={color} />
+    </Svg>
+  );
+}
+
 export function BotonPrincipal({
   children, onPress, cargando = false, deshabilitado = false, subtitulo, iconoCarrito = false,
 }: {
