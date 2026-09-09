@@ -29,7 +29,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { precioSuscripcion } from '../../src/api';
 import { useAuth } from '../../src/auth';
-import { ConfirmacionModal } from '../../src/componentes/Confirmacion';
+import { ConfirmacionModal, IconoSalir } from '../../src/componentes/Confirmacion';
 import { HeaderNegro, TituloHeader } from '../../src/componentes/HeaderNegro';
 import { desuscribir, pedirPermisoYSuscribir, soportaPush, yaSuscripto } from '../../src/push/push';
 import { diasRestantesTrial, usePlanUsuario } from '../../src/plan';
@@ -194,7 +194,7 @@ export default function PantallaAjustes() {
               accessibilityRole="button"
               style={styles.fila}
             >
-              <Text style={[texto.cuerpoMedio, { color: paleta.alerta }]}>Cerrar sesión</Text>
+              <Text style={[texto.cuerpoMedio, { color: paleta.peligro }]}>Cerrar sesión</Text>
             </Pressable>
           </View>
         </View>
@@ -272,8 +272,9 @@ export default function PantallaAjustes() {
       <ConfirmacionModal
         visible={mostrarConfirmarSalir}
         titulo="Cerrar sesión"
-        mensaje="Vas a tener que volver a iniciar sesión para seguir usando la app — la cuenta es obligatoria."
+        mensaje="¿Estás seguro de que querés cerrar sesión?"
         textoConfirmar="Cerrar sesión"
+        icono={IconoSalir}
         onCancelar={() => setMostrarConfirmarSalir(false)}
         onConfirmar={() => { setMostrarConfirmarSalir(false); cerrarSesion(); }}
       />

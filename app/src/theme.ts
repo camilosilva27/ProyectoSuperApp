@@ -83,6 +83,12 @@ const paletas = {
     errorFondo: '#FDECEA',
     errorBorde: '#F0C2BC',
     errorTexto: '#8C1D18',
+    // Rojo de acción destructiva (ConfirmacionModal: cerrar sesión, vaciar carrito, cancelar
+    // suscripción) — separado de `alerta` (que significa "requiere comprar online", no
+    // "esto no se puede deshacer") y de `errorTexto` (que es error de validación de formulario,
+    // no una acción). Comparte familia visual con `error*` pero es su propio token porque
+    // significa algo distinto.
+    peligro: '#C23B2E',
     sombra: '#000000',
     supers: superColores.light,
     supersBorde: superBordes.light,
@@ -114,6 +120,9 @@ const paletas = {
     errorFondo: '#3A1613',
     errorBorde: '#5C2622',
     errorTexto: '#F0576A',
+    // Ver comentario en la paleta clara — mismo criterio, tono más claro para legibilidad
+    // sobre el fondo oscuro.
+    peligro: '#E14B3D',
     sombra: '#000000',
     supers: superColores.dark,
     supersBorde: superBordes.dark,
