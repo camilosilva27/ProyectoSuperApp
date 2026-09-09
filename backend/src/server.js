@@ -23,6 +23,7 @@ const misDescuentosRouter = require('./routes/misDescuentos');
 const promosBancariasGrillaRouter = require('./routes/promosBancariasGrilla');
 const pagosRouter = require('./routes/pagos');
 const webhookMercadoPagoRouter = require('./routes/webhookMercadoPago');
+const webhookAuthUsuariosRouter = require('./routes/webhookAuthUsuarios');
 const sondaEnVivo = require('./sondaEnVivo');
 
 const app = express();
@@ -64,10 +65,11 @@ app.use('/api', rateLimit({
 app.use('/api', healthRouter);
 
 // /api/pagos/suscripcion requiere sesión (ver requiereSesion.js dentro de pagos.js).
-// /api/webhooks/mercadopago es pública pero la llama Mercado Pago, no un usuario — ver la
-// verificación de firma dentro de webhookMercadoPago.js. Ninguna de las dos dispara
-// consultas a los 5 supers, así que el rate limit global de acá abajo (120/min) alcanza.
-app.use('/api', pagosRouter, webhookMercadoPagoRouter);
+// /api/webhooks/mercadopago y /api/webhooks/auth-usuarios son públicas pero las llama
+// Mercado Pago y Supabase respectivamente, no un usuario — ver la verificación de firma/secreto
+// dentro de cada archivo. Ninguna dispara consultas a los 5 supers, así que el rate limit
+// global de acá abajo (120/min) alcanza.
+app.use('/api', pagosRouter, webhookMercadoPagoRouter, webhookAuthUsuariosRouter);
 
 // Sin token: en una app web no hay dónde guardar un secreto (queda en el JS que descarga
 // cualquiera — ver la discusión en PLAN_FEATURES_APP.md). La única defensa real hoy es este

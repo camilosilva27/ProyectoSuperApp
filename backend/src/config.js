@@ -41,6 +41,10 @@ module.exports = {
   // Firma secreta configurada en el panel de esa misma app (Tus integraciones > Webhooks) —
   // se usa para validar que una notificación de webhook realmente viene de Mercado Pago.
   mercadopagoWebhookSecret: process.env.MERCADOPAGO_WEBHOOK_SECRET,
+  // Secreto compartido para /api/webhooks/auth-usuarios (mail de bienvenida) — se configura
+  // como header custom en el Database Webhook de Supabase (Database > Webhooks), no hay
+  // firma HMAC de por medio como en Mercado Pago.
+  authWebhookSecret: process.env.AUTH_WEBHOOK_SECRET,
   // Precios en ARS de cada plan (Fase 3, opciones_planes.md) — sin default: si falta la
   // variable de un plan puntual, ese plan responde 503 en vez de inventar un número, pero no
   // bloquea a los otros dos.
