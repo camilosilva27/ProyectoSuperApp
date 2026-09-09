@@ -23,7 +23,7 @@ import { useQuery } from '@tanstack/react-query';
 import React, { useEffect, useRef } from 'react';
 import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { type CeldaGrilla, type FilaGrilla, promosBancariasGrilla } from '../api';
-import { espacio, fuentes, radio, texto } from '../theme';
+import { espacio, fuentes, radio, texto, usePantallaBaja } from '../theme';
 import { useTema } from '../useTema';
 import { NOMBRE_SUPER, ORDEN_SUPERS } from './comunes';
 import { LogoBanco } from './LogoBanco';
@@ -51,29 +51,47 @@ function fechasDeLaSemana(): Date[] {
   });
 }
 
-const ALTO_HEADER = 48;
-const ANCHO_SUPER = 56;
-const ANCHO_DIA = 92;
-// 3 promos apiladas: (logo 18 + gap 1 + chip % con paddingVertical 1×2 + lineHeight 12) × 3 +
-// 2 gaps entre filas (4 c/u) + padding vertical de la celda (4+4) = 115 — 122 deja un colchón
-// para no repetir el bug de contenido más alto que la celda (se solapaba con la fila de arriba,
-// sin overflow:hidden).
-const ALTO_FILA = 122;
-const ANCHO_LOGO = 72;
-const ALTO_LOGO = 18;
+// Igual que HeaderNegro/resultado (ver usePantallaBaja en theme.ts): por debajo de 700px de alto
+// de viewport (iPhone SE y similares) la grilla completa (7 filas × header) no entra sin scrollear
+// mucho, así que se achica — celdas, logos y tipografía más chicos, mismo layout. Por encima del
+// umbral queda exactamente igual que antes.
+const DIMENSIONES = {
+  normal: {
+    altoHeader: 48, anchoSuper: 56, anchoDia: 92,
+    // 3 promos apiladas: (logo 18 + gap 1 + chip % con paddingVertical 1×2 + lineHeight 12) × 3 +
+    // 2 gaps entre filas (4 c/u) + padding vertical de la celda (4+4) = 115 — 122 deja un colchón
+    // para no repetir el bug de contenido más alto que la celda (se solapaba con la fila de
+    // arriba, sin overflow:hidden).
+    altoFila: 122, anchoLogo: 72, altoLogo: 18,
+    fontAbrev: 9.5, numeroDia: 24, fontNumero: 15, fontPct: 10, lineHeightPct: 12,
+  },
+  compacta: {
+    altoHeader: 38, anchoSuper: 44, anchoDia: 72,
+    altoFila: 92, anchoLogo: 56, altoLogo: 14,
+    fontAbrev: 8, numeroDia: 19, fontNumero: 12, fontPct: 9, lineHeightPct: 11,
+  },
+} as const;
 
 function etiquetaCelda(celda: CeldaGrilla): string {
   if (!celda.promos.length) return 'sin promo';
   return celda.promos.map(p => `${p.banco} ${Math.round(p.pct * 100)}%`).join(', ');
 }
 
-function CeldaPromo({ celda, esHoy }: { celda: CeldaGrilla; esHoy: boolean }) {
+type Dimensiones = (typeof DIMENSIONES)[keyof typeof DIMENSIONES];
+
+function CeldaPromo({
+  celda, esHoy, dim,
+}: {
+  celda: CeldaGrilla;
+  esHoy: boolean;
+  dim: Dimensiones;
+}) {
   const { paleta } = useTema();
   return (
     <View
       style={[
         styles.celda,
-        { borderColor: paleta.bordeSuave },
+        { width: dim.anchoDia, height: dim.altoFila, borderColor: paleta.bordeSuave },
         esHoy ? { backgroundColor: paleta.superficieAlt } : null,
       ]}
       accessibilityLabel={etiquetaCelda(celda)}
@@ -81,9 +99,14 @@ function CeldaPromo({ celda, esHoy }: { celda: CeldaGrilla; esHoy: boolean }) {
       {celda.tiene ? (
         celda.promos.map(p => (
           <View key={p.banco} style={styles.filaPromo}>
-            <LogoBanco banco={p.banco} ancho={ANCHO_LOGO} alto={ALTO_LOGO} />
+            <LogoBanco banco={p.banco} ancho={dim.anchoLogo} alto={dim.altoLogo} />
             <View style={[styles.chipPct, { backgroundColor: paleta.oferta }]}>
-              <Text style={[texto.microSuper, styles.pct, { color: paleta.ofertaTinta }]}>
+              <Text
+                style={[
+                  texto.microSuper, styles.pct,
+                  { fontSize: dim.fontPct, lineHeight: dim.lineHeightPct, color: paleta.ofertaTinta },
+                ]}
+              >
                 {Math.round(p.pct * 100)}%
               </Text>
             </View>
@@ -105,6 +128,8 @@ export function GrillaPromosBancarias({
   tarjetas: string[];
 }) {
   const { paleta } = useTema();
+  const pantallaBaja = usePantallaBaja();
+  const dim = pantallaBaja ? DIMENSIONES.compacta : DIMENSIONES.normal;
   const hoy = indiceDiaDeHoy();
   const fechas = fechasDeLaSemana();
   const refScroll = useRef<ScrollView>(null);
@@ -130,8 +155,8 @@ export function GrillaPromosBancarias({
   // este punto.
   useEffect(() => {
     if (!filasOrdenadas.length) return;
-    refScroll.current?.scrollTo({ x: hoy * ANCHO_DIA, y: 0, animated: false });
-  }, [hoy, filasOrdenadas.length]);
+    refScroll.current?.scrollTo({ x: hoy * dim.anchoDia, y: 0, animated: false });
+  }, [hoy, filasOrdenadas.length, dim.anchoDia]);
 
   if (isLoading) {
     return (
@@ -145,11 +170,19 @@ export function GrillaPromosBancarias({
 
   return (
     <View style={styles.fila}>
-      <View style={[styles.columnaSupers, { borderColor: paleta.bordeSuave }]}>
-        <View style={[styles.esquina, { borderColor: paleta.bordeSuave }]} />
+      <View
+        style={[styles.columnaSupers, { width: dim.anchoSuper, borderColor: paleta.bordeSuave }]}
+      >
+        <View style={[styles.esquina, { height: dim.altoHeader, borderColor: paleta.bordeSuave }]} />
         {filasOrdenadas.map(f => (
-          <View key={f.superKey} style={[styles.celdaSuper, { borderColor: paleta.bordeSuave }]}>
-            <PlacaLogoSuper superKey={f.superKey} ancho="100%" alto={34} padding={3} radio={radio.sm} />
+          <View
+            key={f.superKey}
+            style={[styles.celdaSuper, { height: dim.altoFila, borderColor: paleta.bordeSuave }]}
+          >
+            <PlacaLogoSuper
+              superKey={f.superKey} ancho="100%" alto={pantallaBaja ? 26 : 34}
+              padding={3} radio={radio.sm}
+            />
           </View>
         ))}
       </View>
@@ -176,7 +209,7 @@ export function GrillaPromosBancarias({
                 key={i}
                 style={[
                   styles.celdaHeader,
-                  { borderColor: paleta.bordeSuave },
+                  { width: dim.anchoDia, height: dim.altoHeader, borderColor: paleta.bordeSuave },
                   i === hoy ? { backgroundColor: paleta.superficieAlt } : null,
                 ]}
                 accessibilityLabel={NOMBRES_DIA[i]}
@@ -184,15 +217,21 @@ export function GrillaPromosBancarias({
                 <Text
                   style={[
                     styles.abrevDia,
-                    { color: i === hoy ? paleta.tinta : paleta.tintaSuave },
+                    { fontSize: dim.fontAbrev, color: i === hoy ? paleta.tinta : paleta.tintaSuave },
                   ]}
                 >
                   {ABREV_DIA[i]}
                 </Text>
-                <View style={[styles.numeroDia, i === hoy ? { backgroundColor: paleta.tinta } : null]}>
+                <View
+                  style={[
+                    styles.numeroDia,
+                    { width: dim.numeroDia, height: dim.numeroDia },
+                    i === hoy ? { backgroundColor: paleta.tinta } : null,
+                  ]}
+                >
                   <Text
                     style={{
-                      fontFamily: fuentes.precioMedio, fontSize: 15, lineHeight: 15,
+                      fontFamily: fuentes.precioMedio, fontSize: dim.fontNumero, lineHeight: dim.fontNumero,
                       color: i === hoy ? paleta.fondo : paleta.tintaProsa,
                     }}
                   >
@@ -205,7 +244,7 @@ export function GrillaPromosBancarias({
           {filasOrdenadas.map(f => (
             <View key={f.superKey} style={styles.filaCeldas} accessibilityLabel={NOMBRE_SUPER[f.superKey]}>
               {f.celdas.map((celda, i) => (
-                <CeldaPromo key={i} celda={celda} esHoy={i === hoy} />
+                <CeldaPromo key={i} celda={celda} esHoy={i === hoy} dim={dim} />
               ))}
             </View>
           ))}
@@ -217,26 +256,28 @@ export function GrillaPromosBancarias({
 
 const styles = StyleSheet.create({
   fila: { flexDirection: 'row' },
-  columnaSupers: { width: ANCHO_SUPER, borderRightWidth: StyleSheet.hairlineWidth },
-  esquina: { height: ALTO_HEADER, borderBottomWidth: StyleSheet.hairlineWidth },
+  // width/height de columnaSupers, esquina, celdaSuper, celdaHeader, celda y numeroDia vienen
+  // de `dim` (DIMENSIONES.normal/compacta según usePantallaBaja) en vez de fijos acá.
+  columnaSupers: { borderRightWidth: StyleSheet.hairlineWidth },
+  esquina: { borderBottomWidth: StyleSheet.hairlineWidth },
   celdaSuper: {
-    height: ALTO_FILA, alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
     // Menos padding que espacio.xs (4) a propósito: logo de super más grande sin agrandar la
-    // celda (ANCHO_SUPER/ALTO_FILA quedan igual, se le saca aire al margen interno).
+    // celda (se le saca aire al margen interno, no al ancho/alto de la celda).
     paddingHorizontal: 2, borderBottomWidth: StyleSheet.hairlineWidth,
   },
   filaHeader: { flexDirection: 'row' },
   celdaHeader: {
-    width: ANCHO_DIA, height: ALTO_HEADER, alignItems: 'center', justifyContent: 'center', gap: 3,
+    alignItems: 'center', justifyContent: 'center', gap: 3,
     borderBottomWidth: StyleSheet.hairlineWidth, borderRightWidth: StyleSheet.hairlineWidth,
   },
   // Abreviatura de 3 letras (LUN, MAR...) arriba del número real del día del mes — turno 17 en
   // Claude Design (t17/17a): antes era solo una letra genérica (L M M J V S D).
-  abrevDia: { fontFamily: fuentes.semi, fontSize: 9.5, lineHeight: 11, letterSpacing: 1.1 },
-  numeroDia: { width: 24, height: 24, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  abrevDia: { fontFamily: fuentes.semi, lineHeight: 11, letterSpacing: 1.1 },
+  numeroDia: { borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   filaCeldas: { flexDirection: 'row' },
   celda: {
-    width: ANCHO_DIA, height: ALTO_FILA, alignItems: 'center', justifyContent: 'center', gap: 4,
+    alignItems: 'center', justifyContent: 'center', gap: 4,
     paddingVertical: 4, overflow: 'hidden',
     borderBottomWidth: StyleSheet.hairlineWidth, borderRightWidth: StyleSheet.hairlineWidth,
   },
@@ -244,7 +285,7 @@ const styles = StyleSheet.create({
   // los 11 de la versión en fila, donde el logo competía por ancho con el texto del %).
   filaPromo: { alignItems: 'center', gap: 1, width: '100%' },
   chipPct: { borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
-  pct: { fontSize: 10, lineHeight: 12 },
+  pct: {}, // fontSize/lineHeight vienen de `dim`, ver CeldaPromo
   guion: { width: 10, height: 2, borderRadius: 1 },
   centrado: { paddingVertical: espacio.lg, alignItems: 'center' },
 });
