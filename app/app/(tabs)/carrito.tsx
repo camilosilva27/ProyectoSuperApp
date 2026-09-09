@@ -26,7 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TARJETAS_DISPONIBLES, useCarrito } from '../../src/carrito';
 import { useCarritosGuardados, type CarritoGuardado } from '../../src/carritosGuardados';
 import { ConfirmacionModal, IconoTacho } from '../../src/componentes/Confirmacion';
-import { Stepper, Vacio } from '../../src/componentes/comunes';
+import { IconoBalanza, Stepper, Vacio } from '../../src/componentes/comunes';
 import { FotoProducto } from '../../src/componentes/FotoProducto';
 import { GuardarCarritoHoja, ToastGuardado } from '../../src/componentes/GuardarCarritoHoja';
 import { HeaderNegro, SelectorSupers, TituloHeader } from '../../src/componentes/HeaderNegro';
@@ -269,6 +269,7 @@ export default function PantallaCarrito() {
               { backgroundColor: paleta.tinta, opacity: pressed ? 0.9 : 1 },
             ]}
           >
+            <IconoBalanza color="#FFFFFF" />
             <Text style={[texto.tituloHeader, styles.textoComparar]}>Comparar precios</Text>
             <View style={[styles.puntoAmarillo, { backgroundColor: paleta.oferta }]} />
           </Pressable>
