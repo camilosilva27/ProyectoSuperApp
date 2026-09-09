@@ -16,7 +16,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { cancelarSuscripcion, ErrorApi, precioSuscripcion } from '../src/api';
 import { useAuth } from '../src/auth';
-import { ConfirmacionModal } from '../src/componentes/Confirmacion';
+import { ConfirmacionModal, IconoTarjetaCancelar } from '../src/componentes/Confirmacion';
 import { MercadoPagoEmailSheet } from '../src/componentes/MercadoPagoEmailSheet';
 import { PlanSelect, type PreciosPlanes } from '../src/componentes/PlanSelect';
 import { Problema } from '../src/componentes/comunes';
@@ -141,6 +141,7 @@ export default function PantallaPlanYPago() {
         titulo="Cancelar suscripción"
         mensaje="Vas a perder el acceso a la app hasta que vuelvas a suscribirte."
         textoConfirmar="Cancelar suscripción"
+        icono={IconoTarjetaCancelar}
         onCancelar={() => setMostrarConfirmarCancelar(false)}
         onConfirmar={confirmarCancelarSuscripcion}
       />

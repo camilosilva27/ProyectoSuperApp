@@ -25,7 +25,7 @@ import { useBottomTabBarHeight } from 'expo-router/build/react-navigation/bottom
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TARJETAS_DISPONIBLES, useCarrito } from '../../src/carrito';
 import { useCarritosGuardados, type CarritoGuardado } from '../../src/carritosGuardados';
-import { ConfirmacionModal } from '../../src/componentes/Confirmacion';
+import { ConfirmacionModal, IconoTacho } from '../../src/componentes/Confirmacion';
 import { Stepper, Vacio } from '../../src/componentes/comunes';
 import { FotoProducto } from '../../src/componentes/FotoProducto';
 import { GuardarCarritoHoja, ToastGuardado } from '../../src/componentes/GuardarCarritoHoja';
@@ -289,6 +289,7 @@ export default function PantallaCarrito() {
         titulo="Vaciar carrito"
         mensaje={`Se van a borrar los ${carrito.items.length} productos que agregaste.`}
         textoConfirmar="Vaciar"
+        icono={IconoTacho}
         onCancelar={() => setMostrarConfirmarVaciar(false)}
         onConfirmar={vaciarConfirmado}
       />
