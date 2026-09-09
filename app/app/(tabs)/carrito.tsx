@@ -269,9 +269,10 @@ export default function PantallaCarrito() {
               { backgroundColor: paleta.tinta, opacity: pressed ? 0.9 : 1 },
             ]}
           >
-            <IconoBalanza color="#FFFFFF" />
+            {/* El ícono reemplaza al punto amarillo que estaba antes acá (turno 19/19b de
+                Claude Design: "En Comparar precios el ícono reemplaza al punto amarillo"). */}
+            <IconoBalanza color={paleta.oferta} chico={pantallaBaja} />
             <Text style={[texto.tituloHeader, styles.textoComparar]}>Comparar precios</Text>
-            <View style={[styles.puntoAmarillo, { backgroundColor: paleta.oferta }]} />
           </Pressable>
           <ToastGuardado nombre={toastNombre} onFin={() => setToastNombre(null)} />
         </View>
@@ -384,5 +385,4 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: espacio.sm,
   },
   textoComparar: { fontSize: 24, lineHeight: 26, textTransform: 'uppercase', color: '#FFFFFF' },
-  puntoAmarillo: { width: 8, height: 8, borderRadius: radio.pill },
 });
