@@ -24,7 +24,9 @@ function armarHtml({ nombre }) {
   const cuerpo = `
     <p style="margin:0 0 16px 0;">${saludo}</p>
     <p style="margin:0 0 16px 0;">¡Confirmaste tu cuenta! Ya podés usar Super App para comparar precios entre supermercados y armar tu carrito con el más barato de cada producto.</p>
-    <p style="margin:0;">Ante cualquier duda, consulta o sugerencia, por favor escribinos a contacto@mi-superapp.com.ar</p>
+    <p style="margin:0 0 16px 0;">Soy Camilo, el creador de Super App. Soy un desarrollador independiente empezando con este proyecto. Próximamente vas a poder encontrar Super App en Play Store y App Store.</p>
+    <p style="margin:0 0 16px 0;">No dudes en escribirme a contacto@mi-superapp.com.ar ante cualquier duda, consulta o sugerencia.</p>
+    <p style="margin:0;">¡Muchas gracias por usar Super App!</p>
   `;
 
   return armarMailBase({
