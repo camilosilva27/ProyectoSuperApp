@@ -66,9 +66,9 @@ const DIMENSIONES = {
     fontAbrev: 9.5, numeroDia: 24, fontNumero: 15, fontPct: 10, lineHeightPct: 12,
   },
   compacta: {
-    altoHeader: 38, anchoSuper: 44, anchoDia: 72,
-    altoFila: 92, anchoLogo: 56, altoLogo: 14,
-    fontAbrev: 8, numeroDia: 19, fontNumero: 12, fontPct: 9, lineHeightPct: 11,
+    altoHeader: 42, anchoSuper: 50, anchoDia: 80,
+    altoFila: 104, anchoLogo: 64, altoLogo: 16,
+    fontAbrev: 8.5, numeroDia: 21, fontNumero: 13, fontPct: 9.5, lineHeightPct: 11.5,
   },
 } as const;
 
