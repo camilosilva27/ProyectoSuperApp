@@ -34,6 +34,7 @@ import {
   BandaDisponibilidad, BotonPrincipal, Problema, Stepper, Vacio,
 } from '../../src/componentes/comunes';
 import { FotoProducto } from '../../src/componentes/FotoProducto';
+import { GrillaPromosBancarias } from '../../src/componentes/GrillaPromosBancarias';
 import { HeaderNegro, SelectorSupers, TituloHeader } from '../../src/componentes/HeaderNegro';
 import { HojaSupers } from '../../src/componentes/HojaSupers';
 import { useFiltrosSupers } from '../../src/filtrosSupers';
@@ -328,7 +329,7 @@ export default function PantallaBuscar() {
     <View style={[styles.pantalla, { backgroundColor: paleta.fondo }]}>
       <Head><title>Buscar productos - Super App</title></Head>
       <HeaderNegro paddingTop={insets.top + (pantallaBaja ? espacio.md : espacio.xl)}>
-        <TituloHeader>Qué vas a comprar</TituloHeader>
+        <TituloHeader>¿Qué vas a comprar?</TituloHeader>
         <View style={[styles.buscador, pantallaBaja && styles.buscadorCompacto]}>
           <TextInput
             ref={refBuscador}
@@ -373,6 +374,8 @@ export default function PantallaBuscar() {
         <EstadoInicial
           onAbrirTour={tour.iniciar}
           reservaInferior={reservaInferior}
+          accessToken={accessToken}
+          tarjetas={carrito.tarjetas}
         />
       ) : (
         <FlatList
@@ -478,10 +481,15 @@ export default function PantallaBuscar() {
 function EstadoInicial({
   onAbrirTour,
   reservaInferior,
+  accessToken,
+  tarjetas,
 }: {
   onAbrirTour: () => void;
   /** Alto real de la barra "Ver carrito" (0 si no está flotando) — ver PantallaBuscar. */
   reservaInferior: number;
+  accessToken: string | null;
+  /** Tarjetas propias del usuario (carrito.tarjetas) — priorizan qué promos mostrar en la grilla. */
+  tarjetas: string[];
 }) {
   const { paleta } = useTema();
 
@@ -494,12 +502,14 @@ function EstadoInicial({
       keyboardShouldPersistTaps="handled"
     >
       <View style={{ gap: espacio.sm }}>
-        <Text style={[texto.titulo, { color: paleta.tinta }]}>Un carrito, siete supermercados</Text>
+        <Text style={[texto.titulo, { color: paleta.tinta }]}>Promos de la semana</Text>
         <Text style={[texto.cuerpo, { color: paleta.tintaSuave }]}>
-          Armá tu carrito y al final Super App calcula, con promos y tarjetas
-          incluidas, qué conviene comprar en cada lugar.
+          Las siguientes promociones están vigentes esta semana. Recordá seleccionar las que
+          tengas vos en "Mis descuentos".
         </Text>
       </View>
+
+      <GrillaPromosBancarias accessToken={accessToken} tarjetas={tarjetas} />
 
       <View style={[styles.filaOnboarding, { borderTopColor: paleta.borde }]}>
         <Text style={[texto.cuerpo, { color: paleta.tintaSuave, flex: 1 }]}>Primera vez acá?</Text>

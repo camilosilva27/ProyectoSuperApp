@@ -435,38 +435,79 @@ A diferencia de `promo-engine.js` (promos atadas a un producto), esto cubre el o
 
 **Conclusión:** este mecanismo de Cencopay por producto parece discontinuado por Vea, no simplemente "vacío por ahora". No vale la pena construir el fetcher/cron/cache para una fuente que lleva 9 meses sin una oferta real — si en el futuro se quiere retomar, primero hay que confirmar que Vea volvió a usarlo (mismo chequeo: consultar la categoría "Solo por hoy - Cencopay" del bloque `menu-ofertas` y ver si tiene ofertas con `expiredDate` futuro que no sean financiación).
 
-### Grilla de promos bancarias por día (turno 17) — implementada y luego PARKEADA, 2026-09-08
+### Grilla de promos bancarias por día (turno 17) — implementada, parkeada, y reactivada (2026-09-09)
 
-Se implementó de punta a punta (backend + frontend) reemplazando el bloque "CADA SUPER TIENE SU
-COLOR" del estado inicial de Buscar por una grilla de 7 supers × 7 días con logo del banco y % en
-cada celda (mockup `AllPromos v2.dc.html` § `t17`, variante 17b elegida: chip amarillo, no celda
-pintada). Mismo día se **parkeó** — no quedó nada wireado en la app, el espacio vuelve a estar
-vacío (sin el bloque de la grilla ni el bloque viejo de colores).
+Reemplaza el bloque "CADA SUPER TIENE SU COLOR" del estado inicial de Buscar por una grilla de 7
+supers × 7 días (mockup `AllPromos v2.dc.html` § `t17`, variante 17b: chip amarillo con el %, no
+celda pintada). `GET /api/promos-bancarias/grilla` (`backend/src/routes/promosBancariasGrilla.js`,
+montado en `server.js`) + `GrillaPromosBancarias.tsx`/`LogoBanco.tsx`
+(`app/src/componentes/`), wireada en `EstadoInicial` (`app/app/(tabs)/index.tsx`).
 
-**Motivo del parking, confirmado con datos reales del cache:** un super puede tener hasta ~18
-promos bancarias vigentes el mismo día (ej. Vea, lunes: Santander, Comafi, Banco Macro, Mercado
-Pago, Cuenta DNI, Banco Nación, Supervielle, ICBC, Cencopay... todas vigentes a la vez). La
-implementación elegía UNA sola (la de mayor `descuentoPct`) para mostrar en la celda — al usuario
-le pareció confuso y potencialmente engañoso presentar "la" promo del día cuando hay muchas más
-igual de vigentes. No es un bug de la implementación: es una decisión de UX/producto sin cerrar
-(¿mostrar una lista dentro de la celda?, ¿un indicador "+N más"?, ¿elegir por otro criterio que no
-sea el % más alto, ej. mayor tope?, ¿permitir filtrar por las tarjetas del usuario, como ya hace
-`/api/comparar`, en vez de mostrar todos los bancos posibles?).
+**Historia:** implementada el 2026-09-08, parkeada el mismo día porque un super puede tener hasta
+~18 promos bancarias vigentes el mismo día (ej. Vea, lunes: Santander, Comafi, Banco Macro,
+Mercado Pago, Cuenta DNI, Banco Nación, Supervielle, ICBC, Cencopay...) y la primera versión
+elegía UNA sola (la de mayor `descuentoPct`) — al usuario le pareció confuso y potencialmente
+engañoso. Se confirmó con el cache real (2026-09-09) la distribución sobre 49 celdas
+(7 supers × 7 días): mínimo 0, máximo 13, promedio 2.27, mediana 2 — 8 celdas vacías (16%), 30
+con 1-3 promos, 10 con 4-8, y solo 1 con 9+.
 
-**Código parkeado, no borrado, para no repetir el research si se retoma:**
-- `backend/src/routes/_parked/promosBancariasGrilla.js` — el endpoint completo
-  (`GET /api/promos-bancarias/grilla`), sin montar en `server.js`.
-- `app/src/componentes/_parked/GrillaPromosBancarias.tsx` y `LogoBanco.tsx` — el componente de
-  grilla (columna de supers fija + fila de días sticky por construcción, sin `position: sticky`
-  que RN nativo no soporta) y el mapeo de 7 logos de banco (`app/assets/logos-bancos/`, quedan
-  ahí) con fallback de iniciales para el resto.
-- Cada archivo parkeado tiene un comentario "PARKEADO 2026-09-08" al principio con este mismo
-  motivo — no hace falta releer esta sección para entender por qué existen pero no corren.
+**Decisión tomada (2026-09-09):** cada celda muestra hasta **3 promos** (una por banco). Criterio
+de qué 3 mostrar cuando hay más: primero las de las **tarjetas propias del usuario**
+(`carrito.tarjetas`, enviadas como query param `?tarjetas=Banco1,Banco2`), completando con las de
+mayor `descuentoPct` hasta llegar a 3. Si el usuario no tiene ninguna tarjeta marcada (o tiene
+menos de 3), se completa igual con las de mayor descuento — nunca se muestra un hueco vacío
+habiendo más promos disponibles ese día. Implementado en `elegirPromosDelDia()`: agrupa por banco
+(`mejorPorBanco`, la de mayor % si un banco tiene más de una promo vigente ese día), ordena por
+`(esPropia, descuentoPct)` descendente, corta a 3. Mismo criterio de vigencia que
+`calcularDescuentos()` en `misDescuentos.js` (vigentes hoy; si ninguna, cae a las que tengan
+`dias` definido — patrón con periodicidad conocida que probablemente vuelva).
 
-**Antes de reactivar esto:** resolver la decisión de UX de arriba, y si se decide filtrar por
-tarjetas del usuario en vez de "todas las posibles", probablemente convenga reusar
-`filtrarPromosBancariasPorTarjetas()` (ya existe, ver la sección de arriba) en vez de
-`elegirPromoDelDia()` tal como está.
+El componente muestra cada promo de la celda como logo arriba + % abajo, apiladas verticalmente
+hasta 3 por celda (`ANCHO_DIA` 92, `ALTO_FILA` 122, logo en una caja fija de 72×18, chip amarillo
+detrás del %). Arranca scrolleado en el día de hoy (no en lunes): `contentOffset` no está
+implementado en react-native-web (se ignora en silencio), así que es un `ref` + `scrollTo` en un
+`useEffect` — el guard `if (!filasOrdenadas.length) return` adentro del efecto, no antes del hook,
+porque hay dos early returns (`isLoading`, `error`) después en el componente y los hooks no pueden
+ser condicionales.
+
+**Header de días (2026-09-09, tomado de Claude Design t17/17a):** ya no es una letra genérica
+("L M M J V S D") — es la abreviatura de 3 letras (LUN, MAR, MIÉ...) arriba y el número real del
+día del mes abajo, calculado con `fechasDeLaSemana()` (lunes a domingo de la semana actual, según
+`new Date()`). El día de hoy se marca con un círculo relleno negro alrededor del número (mismo
+criterio que el mockup); el resto de los días solo cambia el color del texto, sin círculo.
+`ALTO_HEADER` subió de 32 a 48 para las dos líneas.
+
+**Logo de MODO más chico:** su PNG viene con muy poco margen propio, así que a igual caja se veía
+notablemente más grande que los isotipos de banco (más compactos) — `ESCALAS` en `LogoBanco.tsx`
+lo renderiza al 75% de su caja en vez del 100%, mismo patrón para si aparece otro logo desbalanceado.
+
+**`LogoBanco.tsx` — logos reales de banco/tarjeta (2026-09-09):** 23 de los 25 canónicos de
+`TARJETAS_CONOCIDAS` tienen logo real (21 SVG + MODO/Cuenta DNI en PNG vía `expo-image`, mismo
+patrón `LOGOS_RASTER` que `LogoSuper.tsx` — ningún sitio oficial ofrece esos dos en vectorial).
+Los 2 que faltan (`Galicia Modo` y `Tarjeta Carrefour Crédito`/`Cuenta Digital Carrefour` en
+realidad SÍ tienen logo, reusan el de Galicia/Carrefour) caen en fallback de iniciales si alguno
+nuevo se suma a `TARJETAS_CONOCIDAS` sin logo todavío.
+
+Bugs reales encontrados y corregidos al verificar en navegador (no al implementar):
+- **Contenedor de logo sin ancho fijo real**: la primera versión pasaba `width="100%"` al SVG
+  dentro de un contenedor sin `overflow:hidden` — con wordmarks apaisados (Cencopay, Carrefour)
+  el riesgo de que algo se saliera de la celda era real aunque en la práctica el `viewBox`
+  contenía bien el contenido. Ahora `LogoBanco` recibe una caja `ancho`×`alto` fija con
+  `overflow:'hidden'` como garantía dura, sea cual sea el `viewBox` del SVG.
+- **Alto de celda insuficiente para 3 promos** (bug real, visible como texto superpuesto/
+  fantasma): con logos de 18px el contenido de 3 filas apiladas superaba el alto fijo de la
+  celda (100px) sin que nada lo recortara, y la última fila se solapaba visualmente con la de
+  arriba. Subido a 116px (cálculo en comentario del código) + `overflow:'hidden'` en la celda
+  como red de seguridad.
+- **Logo con partes blancas invisibles sobre fondo blanco** (MasClub: el texto "Más" del isologo
+  es blanco, pensado para un fondo de color): se le dio el mismo chip de fondo gris suave que ya
+  tenía el fallback de iniciales a **todos** los logos, no solo a los que fallan — soluciona esto
+  de raíz para cualquier logo futuro con el mismo problema.
+- **Asset equivocado para Carrefour**: el primer logo bajado para `Mi Carrefour`/`Cuenta Digital
+  Carrefour`/`Tarjeta Carrefour Crédito` era el de "Carrefour Mobile" (operador de telefonía
+  celular francés que perteneció a Carrefour, confirmado por `id="logoCRFMobile"` dentro del
+  SVG bajado de Wikimedia Commons) — visualmente parecido a un logo del súper pero no lo es.
+  Reemplazado por `Carrefour_Groupe.svg` (el isologo real, flecha roja/azul) de Wikipedia.
 
 ---
 
@@ -687,12 +728,17 @@ archivo, ajustables sin tocar la lógica. Expuesto en `GET /api/catalogo/tour-su
 resto de `/api/catalogo/*`), que resuelve los EANs a la forma pública de `ProductoCatalogo` vía
 `catalogoUnificado.porEAN`.
 
-**Nota de calidad de datos**: en la corrida de verificación, `diferenciaPct` salió tan alto como
-~213% para algún candidato — no se investigó si es una diferencia real de precio o un problema
-de matching/empaquetado entre el EAN de Coto y el de los otros supers (ver
-`fix-empaquetado-ean-compartido` en memoria). Si algún producto precargado se ve sospechoso en
-la demo (precio absurdamente distinto), revisar ese EAN puntual antes de asumir que el criterio
-de selección está mal.
+**Nota de calidad de datos (investigado 2026-09-09, cerrado):** en la corrida de verificación del
+31/08, `diferenciaPct` salió tan alto como ~213% para el candidato EAN `7791476059007` ("Porotos
+de Soja Egran 500g"). **No es un problema de matching de EAN** — mismo producto, mismo tamaño,
+mismo nombre en Vea/Coto/Carrefour. Dos factores reales lo explican: (1) el precio de lista de
+Coto para ese producto ya es más alto que en el resto de los supers ($2509 vs. $1490-2329); (2)
+Coto tiene un 2x1 con `cantidadMinima: 2`, pero `elegirProductosTour` llama a `calcularOpciones`
+con cantidad=1, así que esa promo no aplica y queda el precio de lista completo, mientras que la
+promo de Vea (50% directo, sin mínimo) sí se aplica a qty=1 — comparando "mejor caso posible"
+contra "sin promo aplicable" en vez de precio base contra precio base. Mejora futura no aplicada:
+comparar también `precioBase` puro entre supers, o usar cantidad=2 en el cálculo del tour, para
+no elegir candidatos donde el gap es un artefacto de un mínimo no alcanzado.
 
 **Frontend — bloqueo en la hoja de supers**: `HojaSupers.tsx` acepta una prop `bloqueados:
 SuperKey[]` (default `[]`) que hace no-op a `toggle()` y grisa la fila — `index.tsx` la pasa

@@ -19,6 +19,7 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
 import { Platform, StyleSheet, Text, View, type ColorValue } from 'react-native';
+import Svg, { Circle, Path } from 'react-native-svg';
 import { useCarrito } from '../../src/carrito';
 import { fuentes, radio, texto } from '../../src/theme';
 import { useTema } from '../../src/useTema';
@@ -140,15 +141,23 @@ function IconoLista({ color, cantidad }: { color: ColorValue; cantidad: number }
   );
 }
 
-// Tag de descuento: un rombo con un "agujero" cerca de una punta, como el de una etiqueta de
-// precio perforada. El agujero es hijo del rombo (no un hermano posicionado aparte) para que
-// herede su rotación sin tener que recalcular la posición ya rotada a mano.
+// Etiqueta de precio (a pedido del usuario, parecida al ícono "tag" de Lucide): a diferencia
+// del resto de los íconos de esta pantalla (Views con bordes/transforms), esta forma con una
+// punta real no se puede armar con esos trucos — SVG con un path, ya es dependencia del proyecto
+// (ver LogoBanco.tsx/LogoSuper.tsx).
 function IconoDescuentos({ color }: { color: ColorValue }) {
   return (
     <View style={styles.icono}>
-      <View style={[styles.tagCuerpo, { borderColor: color }]}>
-        <View style={[styles.tagAgujero, { backgroundColor: color }]} />
-      </View>
+      <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+        <Path
+          d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"
+          stroke={color}
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Circle cx={7.5} cy={7.5} r={1.25} fill={color} />
+      </Svg>
     </View>
   );
 }
@@ -198,11 +207,6 @@ const styles = StyleSheet.create({
   },
   lineas: { gap: 3 },
   linea: { height: 2, borderRadius: 1 },
-  tagCuerpo: {
-    width: 15, height: 15, borderWidth: 2, borderRadius: 3,
-    transform: [{ rotate: '45deg' }],
-  },
-  tagAgujero: { position: 'absolute', width: 3, height: 3, borderRadius: 1.5, top: 2, left: 2 },
   barrasAhorro: { flexDirection: 'row', alignItems: 'flex-end', gap: 3 },
   barraAhorro: { width: 4, borderRadius: 1 },
   diente: {

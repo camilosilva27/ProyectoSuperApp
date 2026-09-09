@@ -39,6 +39,20 @@ import { useTema } from '../src/useTema';
 
 SplashScreen.preventAutoHideAsync();
 
+// "Cannot find single active touch." es un console.error interno de react-native-web (bookkeeping
+// de touches al soltar un gesto de pinch en la grilla de promos, ResponderTouchHistoryStore.js),
+// envuelto en `if (__DEV__)` en la librería misma — no existe en producción, no rompe nada, es
+// solo un log de diagnóstico. En dev, Metro intercepta cualquier console.error y lo muestra como
+// pantalla roja de error, así que sin este filtro un pinch inofensivo se ve como un crash. Filtra
+// SOLO este mensaje puntual, cualquier otro error sigue mostrándose normal.
+if (Platform.OS === 'web') {
+  const consoleErrorOriginal = console.error;
+  console.error = (...args) => {
+    if (typeof args[0] === 'string' && args[0].includes('Cannot find single active touch')) return;
+    consoleErrorOriginal(...args);
+  };
+}
+
 const cliente = new QueryClient({
   defaultOptions: {
     queries: {
