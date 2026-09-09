@@ -20,6 +20,7 @@ const healthRouter = require('./routes/health');
 const catalogoRouter = require('./routes/catalogo');
 const compararRouter = require('./routes/comparar');
 const misDescuentosRouter = require('./routes/misDescuentos');
+const promosBancariasGrillaRouter = require('./routes/promosBancariasGrilla');
 const pagosRouter = require('./routes/pagos');
 const webhookMercadoPagoRouter = require('./routes/webhookMercadoPago');
 const sondaEnVivo = require('./sondaEnVivo');
@@ -81,7 +82,7 @@ app.use('/api', rateLimit({
   message: { error: 'Demasiadas comparaciones seguidas, esperá un momento' },
   skip: req => !req.path.startsWith('/comparar') && !req.path.startsWith('/precios')
     && !req.path.startsWith('/mis-descuentos'),
-}), catalogoRouter, compararRouter, misDescuentosRouter);
+}), catalogoRouter, compararRouter, misDescuentosRouter, promosBancariasGrillaRouter);
 
 app.use((req, res) => res.status(404).json({ error: 'Ruta no encontrada' }));
 

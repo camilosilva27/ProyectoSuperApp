@@ -314,6 +314,20 @@ export function misDescuentos(accessToken: string) {
   );
 }
 
+/** Una celda de la grilla de promos por super×día (turno 17): hasta 3 promos, una por banco —
+ *  primero las de las tarjetas propias del usuario, completando con las de mayor % hasta 3
+ *  (ver backend/src/routes/promosBancariasGrilla.js). `tiene: false` es "sin promo ese día". */
+export type CeldaGrilla = { tiene: boolean; promos: { banco: string; pct: number }[] };
+export type FilaGrilla = { superKey: SuperKey; celdas: CeldaGrilla[] };
+
+export function promosBancariasGrilla(tarjetas: string[], accessToken: string) {
+  const params = tarjetas.length ? `?tarjetas=${encodeURIComponent(tarjetas.join(','))}` : '';
+  return pedir<{ filas: FilaGrilla[]; generadoEl: string | null }>(
+    `/api/promos-bancarias/grilla${params}`,
+    { headers: conSesion(accessToken) }
+  );
+}
+
 /** `producto.imagen` es una ruta relativa (ej. "/imagenes/779...jpg") — esto la completa con la
  *  URL activa (la última que respondió), no siempre la principal. */
 export function urlImagen(ruta: string | null): string | null {

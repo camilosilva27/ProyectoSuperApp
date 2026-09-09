@@ -348,15 +348,36 @@ export function FormularioAuth({
           </View>
         </View>
       ) : (
-        // El login no tiene su propio diseño en el spec (solo la landing de registro) — en vez
-        // de repetir el amarillo (que el spec reserva a propósito para la landing de registro,
-        // "acá no hay precios con los que competir") se reusa el lenguaje del header negro que
-        // ya tiene el resto de la app (HeaderNegro.tsx: fondo tinta + Barlow Condensed blanco).
-        <View style={[styles.hero, !pantallaCompleta && styles.heroEscritorio, { backgroundColor: paleta.tinta }, insetSuperior ? { paddingTop: espacio.lg + insetSuperior } : null]}>
-          <Text style={[styles.tituloHero, { color: paleta.superficie }]}>QUÉ BUENO{'\n'}VERTE DE NUEVO</Text>
-          <Text style={[texto.cuerpoMedio, { color: paleta.superficie, marginTop: espacio.xs, opacity: 0.8 }]}>
-            Iniciá sesión para ver tu carrito y tus tarjetas.
-          </Text>
+        // El login no tiene su propio diseño en el spec (solo la landing de registro) — por
+        // pedido del usuario (2026-09-09) reusa el mismo hero amarillo del registro en vez del
+        // header negro que tenía antes, para que ambos modos se vean consistentes.
+        <View style={[styles.hero, !pantallaCompleta && styles.heroEscritorio, { backgroundColor: paleta.oferta }, insetSuperior ? { paddingTop: espacio.lg + insetSuperior } : null]}>
+          <View style={styles.heroFila}>
+            <View style={{ width: anchoColumnaTexto }}>
+              <Text style={[styles.tituloHero, { color: paleta.ofertaTinta, fontSize: tamanoTituloHero, lineHeight: tamanoTituloHero * 0.94 }]}>
+                QUÉ BUENO{'\n'}VERTE DE NUEVO
+              </Text>
+              <Text
+                numberOfLines={3}
+                style={[
+                  texto.cuerpoMedio,
+                  {
+                    color: paleta.ofertaTinta, marginTop: espacio.xs,
+                    maxWidth: tamanoSubtituloHero * ANCHO_POR_PUNTO_SUBTITULO_HERO,
+                    fontSize: tamanoSubtituloHero, lineHeight: tamanoSubtituloHero * 1.4,
+                  },
+                ]}
+              >
+                Iniciá sesión para ver tu carrito y tus tarjetas.
+              </Text>
+            </View>
+            <Image
+              source={require('../../assets/ilustraciones/carrito-supers.jpg')}
+              style={{ width: tamanoImagenHero, height: tamanoImagenHero * PROPORCION_IMAGEN_HERO }}
+              resizeMode="contain"
+              accessibilityLabel="Carrito con productos y logos de los supers comparados"
+            />
+          </View>
         </View>
       )}
 
