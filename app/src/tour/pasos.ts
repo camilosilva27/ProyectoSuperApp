@@ -68,7 +68,8 @@ export const ORDEN_PASOS: PasoId[] = [
 export const PASOS: Record<PasoId, { titulo: string; texto: string }> = {
   notificaciones: {
     titulo: "Por último, ¿te avisamos?",
-    texto: "Una vez por semana te contamos si hay mejores precios. Es opcional: activalas o tocá Finalizar.",
+    texto:
+      "Una vez por semana te contamos si hay mejores precios. Es opcional: activalas o tocá Finalizar.",
   },
   "tab-descuentos": {
     titulo: "Cargá tus descuentos",
@@ -80,7 +81,7 @@ export const PASOS: Record<PasoId, { titulo: string; texto: string }> = {
   },
   "volver-buscar": {
     titulo: "Volvé a Buscar",
-    texto: "Presiona Buscar para seguir armando tu carrito.",
+    texto: "Presiona Buscar para buscar los productos para tu carrito.",
   },
   "buscador-input": {
     titulo: "Buscá un producto",
