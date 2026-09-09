@@ -8,6 +8,7 @@
 
 import React from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import Svg, { Circle, Path } from 'react-native-svg';
 import type { SuperKey } from '../api';
 import { espacio, radio, texto } from '../theme';
 import { useTema } from '../useTema';
@@ -135,17 +136,39 @@ export function Stepper({
   );
 }
 
+// Carrito de supermercado en el mismo trazo que IconoDescuentos (_layout.tsx): un solo Path de
+// contorno (canasta + mango) más dos Circle rellenos para las ruedas, en vez de sumar una
+// librería de iconos.
+function IconoCarritoCompra({ color }: { color: string }) {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M2 3h2l2.4 12.2a2 2 0 0 0 2 1.6h8.6a2 2 0 0 0 2-1.6L21 8H6"
+        stroke={color}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Circle cx={9} cy={20} r={1.5} fill={color} />
+      <Circle cx={17} cy={20} r={1.5} fill={color} />
+    </Svg>
+  );
+}
+
 export function BotonPrincipal({
-  children, onPress, cargando = false, deshabilitado = false, subtitulo,
+  children, onPress, cargando = false, deshabilitado = false, subtitulo, iconoCarrito = false,
 }: {
   children: string;
   onPress: () => void;
   cargando?: boolean;
   deshabilitado?: boolean;
   subtitulo?: string;
+  /** Ícono de carrito de supermercado antes del texto — solo lo usa "Ver carrito" (index.tsx). */
+  iconoCarrito?: boolean;
 }) {
   const { paleta } = useTema();
   const inactivo = deshabilitado || cargando;
+  const colorTexto = inactivo ? paleta.tintaTenue : paleta.superficie;
 
   return (
     <Pressable
@@ -166,9 +189,10 @@ export function BotonPrincipal({
         <ActivityIndicator color={paleta.tintaSuave} />
       ) : (
         <View style={styles.botonContenido}>
-          <Text style={[texto.subtitulo, { color: inactivo ? paleta.tintaTenue : paleta.superficie }]}>
-            {children}
-          </Text>
+          <View style={styles.filaTituloBoton}>
+            {iconoCarrito ? <IconoCarritoCompra color={colorTexto} /> : null}
+            <Text style={[texto.subtitulo, { color: colorTexto }]}>{children}</Text>
+          </View>
           {subtitulo ? (
             <Text style={[texto.micro, { color: inactivo ? paleta.tintaTenue : paleta.superficie, opacity: 0.75 }]}>
               {subtitulo}
@@ -233,6 +257,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', minHeight: 52,
   },
   botonContenido: { alignItems: 'center', gap: 2 },
+  filaTituloBoton: { flexDirection: 'row', alignItems: 'center', gap: espacio.xs },
   vacio: { padding: espacio.xl, gap: espacio.sm, alignItems: 'center' },
   problema: {
     borderWidth: 1, borderRadius: radio.md, padding: espacio.md, gap: espacio.sm,
