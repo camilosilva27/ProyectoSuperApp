@@ -16,9 +16,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { useFocusEffect } from 'expo-router';
 import Head from 'expo-router/head';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ErrorApi, misDescuentos, type Descuento } from '../../src/api';
@@ -134,6 +134,13 @@ function supersDe(d: Descuento): string | null {
   return `Aplica en ${ordenados.map(k => NOMBRE_SUPER[k]).join(', ')}`;
 }
 
+// Sin acentos ni mayúsculas: la lista es corta (~25 tarjetas) y los nombres no tienen errores
+// de tipeo del backend, así que alcanza con esto — no hace falta el fuzzy match (fallback stem +
+// Levenshtein) que usa la búsqueda de productos.
+function normalizar(texto: string): string {
+  return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
 export default function PantallaMisDescuentos() {
   const { paleta } = useTema();
   const insets = useSafeAreaInsets();
@@ -183,6 +190,14 @@ export default function PantallaMisDescuentos() {
     staleTime: 10 * 60 * 1000,
   });
 
+  const [consulta, setConsulta] = useState('');
+  const descuentosFiltrados = useMemo(() => {
+    if (!data) return [];
+    const q = normalizar(consulta.trim());
+    if (!q) return data.descuentos;
+    return data.descuentos.filter(d => normalizar(d.nombre).includes(q));
+  }, [data, consulta]);
+
   // Si el usuario ya había scrolleado la lista (buscando otra tarjeta, revisando promos) antes
   // de iniciar el tour, la fila de Mercado Pago puede quedar fuera del área visible cuando este
   // paso se activa — el spotlight mide su posición real (aunque esté scrolleada afuera) y queda
@@ -227,6 +242,30 @@ export default function PantallaMisDescuentos() {
         <Text style={[texto.cuerpo, styles.bajada]}>
           Tarjetas, apps y clubes que tenés. Sus promos se suman al comparar.
         </Text>
+        <View style={styles.buscador}>
+          <TextInput
+            value={consulta}
+            onChangeText={setConsulta}
+            placeholder="Buscar por nombre…"
+            placeholderTextColor={paleta.tintaTenue}
+            style={[texto.cuerpo, styles.input, { color: paleta.tinta }]}
+            autoCorrect={false}
+            autoCapitalize="none"
+            returnKeyType="search"
+            accessibilityLabel="Buscar entre mis descuentos"
+          />
+          {consulta.length > 0 ? (
+            <Pressable
+              onPress={() => setConsulta('')}
+              accessibilityRole="button"
+              accessibilityLabel="Borrar búsqueda"
+              hitSlop={12}
+              style={[styles.botonLimpiar, { backgroundColor: paleta.superficieAlt }]}
+            >
+              <Text style={[texto.etiqueta, { color: paleta.tintaTenue }]}>✕</Text>
+            </Pressable>
+          ) : null}
+        </View>
       </HeaderNegro>
 
       {isLoading ? (
@@ -248,8 +287,13 @@ export default function PantallaMisDescuentos() {
             scrollEventThrottle={32}
             contentContainerStyle={[styles.contenido, { paddingBottom: insets.bottom + espacio.xl }]}
           >
+            {descuentosFiltrados.length === 0 ? (
+              <Text style={[texto.cuerpo, { color: paleta.tintaSuave }]}>
+                No encontramos ninguna que coincida con "{consulta.trim()}".
+              </Text>
+            ) : (
             <View style={styles.lista}>
-              {data.descuentos.map(d => {
+              {descuentosFiltrados.map(d => {
                 const activa = carrito.tarjetas.includes(d.nombre);
                 return (
                   <ItemDescuento
@@ -287,6 +331,7 @@ export default function PantallaMisDescuentos() {
                 );
               })}
             </View>
+            )}
 
             <View style={[styles.bloqueInfo, { backgroundColor: paleta.superficieAlt }]}>
               <Text style={[texto.cuerpo, { color: paleta.tintaSuave }]}>
@@ -303,6 +348,14 @@ export default function PantallaMisDescuentos() {
 
 const styles = StyleSheet.create({
   bajada: { color: '#FFFFFF', opacity: 0.7 },
+  buscador: {
+    flexDirection: 'row', alignItems: 'center', gap: espacio.sm,
+    backgroundColor: '#FFFFFF', borderRadius: radio.md, paddingHorizontal: espacio.md, height: 44,
+  },
+  input: { flex: 1, outlineWidth: 0, outlineStyle: 'none' },
+  botonLimpiar: {
+    width: 20, height: 20, borderRadius: radio.pill, alignItems: 'center', justifyContent: 'center',
+  },
   centrado: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: espacio.xl },
   contenedorLista: { position: 'relative', flex: 1, minHeight: 0 },
   contenido: { padding: espacio.pantalla, gap: espacio.pantalla },
