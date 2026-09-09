@@ -21,12 +21,12 @@ import {
   ActivityIndicator, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ErrorApi, misDescuentos, type Descuento } from '../../src/api';
+import { ErrorApi, misDescuentos } from '../../src/api';
 import { useAuth } from '../../src/auth';
 import { useCarrito } from '../../src/carrito';
-import { NOMBRE_SUPER, ORDEN_SUPERS, Problema } from '../../src/componentes/comunes';
+import { Problema } from '../../src/componentes/comunes';
 import { HeaderNegro, TituloHeader } from '../../src/componentes/HeaderNegro';
-import { espacio, fuentes, pesos, radio, texto } from '../../src/theme';
+import { espacio, fuentes, radio, texto } from '../../src/theme';
 import { useEstadoTour, useTour, useTourPaso } from '../../src/tour/TourContext';
 import { useTema } from '../../src/useTema';
 
@@ -47,13 +47,11 @@ const NOMBRE_TARJETA_TOUR = 'Mercado Pago';
  * con check, pero la semántica de accesibilidad sigue siendo checkbox, no radio.
  */
 function ItemDescuento({
-  paleta, filaRef, nombre, detalle, supersTexto, activa, onCambiar, accessibilityLabel,
+  paleta, filaRef, nombre, activa, onCambiar, accessibilityLabel,
 }: {
   paleta: ReturnType<typeof useTema>['paleta'];
   filaRef?: React.Ref<View>;
   nombre: string;
-  detalle: string;
-  supersTexto: string | null;
   activa: boolean;
   onCambiar: (valor: boolean) => void;
   accessibilityLabel: string;
@@ -87,12 +85,6 @@ function ItemDescuento({
         <Animated.View style={[styles.barraAcento, { backgroundColor: acento }]} />
         <View style={styles.filaTexto}>
           <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>{nombre}</Text>
-          {detalle ? (
-            <Text style={[texto.etiqueta, { color: paleta.tintaSuave }]}>{detalle}</Text>
-          ) : null}
-          {supersTexto ? (
-            <Text style={[texto.etiqueta, { color: paleta.tintaSuave }]}>{supersTexto}</Text>
-          ) : null}
         </View>
         <Animated.View style={[styles.radio, { backgroundColor: radioFondo, borderColor: radioBorde }]}>
           <Animated.Text style={[styles.radioCheck, { color: paleta.oferta, opacity: progreso }]}>✓</Animated.Text>
@@ -102,37 +94,9 @@ function ItemDescuento({
   );
 }
 
-// `disponible: false` con `descuentoPct` presente significa que el backend encontró una promo
-// con día definido para esta tarjeta pero fuera de la ventana de vigencia de la campaña actual
-// (ver misDescuentos.js) — es una promo con periodicidad conocida (ej. Mercado Pago, que se
-// renueva mes a mes), no "no tiene nada". Se muestra igual, sin decir que está vigente ahora.
-// Cuando no hay ni eso, se devuelve vacío en vez de un texto fijo tipo "Sin promo vigente
-// ahora": ese texto en TODAS las tarjetas sin datos se leía como que algo estaba roto.
-function descripcionDe(d: Descuento): string {
-  if (d.descuentoPct == null) return '';
-  const pct = `${Math.round(d.descuentoPct * 100)}%`;
-  const dias = d.dias.length ? ` los ${d.dias.join(', ')}` : '';
-  const tope = d.tope != null ? ` · tope ${pesos(d.tope)}` : '';
-  return `${pct}${dias}${tope}`;
-}
-
-// Los 3 beneficios propios de Carrefour (Mi Carrefour DNI / Cuenta Digital / tarjeta de
-// Crédito) — ver ALIAS_TARJETAS en AllPromos/promos-bancarias.js para el detalle de qué
-// distingue a cada uno.
-const NOMBRES_CARREFOUR_PROPIO = ['Mi Carrefour', 'Cuenta Digital Carrefour', 'Tarjeta Carrefour Crédito'];
-
-/**
- * En qué super(s) aplica. Se omite para los niveles propios de Carrefour cuando el único
- * super es Carrefour: decirlo ahí es redundante, el nombre ya lo dice. Si algún día tuviera
- * otros supers además de Carrefour, se muestra igual — la redundancia se decide por los
- * datos, no por el nombre.
- */
-function supersDe(d: Descuento): string | null {
-  if (!d.supers.length) return null;
-  if (NOMBRES_CARREFOUR_PROPIO.includes(d.nombre) && d.supers.every(s => s === 'carr')) return null;
-  const ordenados = ORDEN_SUPERS.filter(k => d.supers.includes(k));
-  return `Aplica en ${ordenados.map(k => NOMBRE_SUPER[k]).join(', ')}`;
-}
+// % / días / tope y "aplica en" ya no se muestran acá (redundante con la grilla de promos
+// bancarias por día en el estado inicial de Buscar, GrillaPromosBancarias.tsx) — esta pantalla
+// es solo para marcar qué tarjetas/apps/clubes tenés de verdad.
 
 // Sin acentos ni mayúsculas: la lista es corta (~25 tarjetas) y los nombres no tienen errores
 // de tipeo del backend, así que alcanza con esto — no hace falta el fuzzy match (fallback stem +
@@ -301,8 +265,6 @@ export default function PantallaMisDescuentos() {
                     paleta={paleta}
                     filaRef={d.nombre === NOMBRE_TARJETA_TOUR ? refMercadoPago : undefined}
                     nombre={d.nombre}
-                    detalle={descripcionDe(d)}
-                    supersTexto={supersDe(d)}
                     activa={activa}
                     onCambiar={valor => {
                       // Durante el tour, tocar la fila de Mercado Pago cuenta como el toque
