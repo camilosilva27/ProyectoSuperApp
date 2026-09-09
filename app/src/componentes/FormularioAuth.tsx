@@ -112,8 +112,8 @@ function IconoCandado({ tamano, color }: { tamano: number; color: string }) {
 }
 
 export function FormularioAuth({
-  onExito, pantallaCompleta, anchoTarjeta = 390,
-}: { onExito?: () => void; pantallaCompleta?: boolean; anchoTarjeta?: number }) {
+  onExito, pantallaCompleta, anchoTarjeta = 390, insetSuperior = 0,
+}: { onExito?: () => void; pantallaCompleta?: boolean; anchoTarjeta?: number; insetSuperior?: number }) {
   const { paleta } = useTema();
   const { registrarse, iniciarSesion, reenviarConfirmacion, iniciarSesionConGoogle } = useAuth();
   const [modo, setModo] = useState<'registro' | 'login'>('registro');
@@ -319,7 +319,7 @@ export function FormularioAuth({
         // (no un corte fijo mobile/desktop): así se adaptan solos a cualquier ancho de tarjeta y
         // ambos quedan siempre visibles, en vez de que la imagen aparezca o desaparezca de
         // golpe en un punto de quiebre.
-        <View style={[styles.hero, !pantallaCompleta && styles.heroEscritorio, { backgroundColor: paleta.oferta }]}>
+        <View style={[styles.hero, !pantallaCompleta && styles.heroEscritorio, { backgroundColor: paleta.oferta }, insetSuperior ? { paddingTop: espacio.lg + insetSuperior } : null]}>
           <View style={styles.heroFila}>
             <View style={{ width: anchoColumnaTexto }}>
               <Text style={[styles.tituloHero, { color: paleta.ofertaTinta, fontSize: tamanoTituloHero, lineHeight: tamanoTituloHero * 0.94 }]}>
@@ -352,7 +352,7 @@ export function FormularioAuth({
         // de repetir el amarillo (que el spec reserva a propósito para la landing de registro,
         // "acá no hay precios con los que competir") se reusa el lenguaje del header negro que
         // ya tiene el resto de la app (HeaderNegro.tsx: fondo tinta + Barlow Condensed blanco).
-        <View style={[styles.hero, !pantallaCompleta && styles.heroEscritorio, { backgroundColor: paleta.tinta }]}>
+        <View style={[styles.hero, !pantallaCompleta && styles.heroEscritorio, { backgroundColor: paleta.tinta }, insetSuperior ? { paddingTop: espacio.lg + insetSuperior } : null]}>
           <Text style={[styles.tituloHero, { color: paleta.superficie }]}>QUÉ BUENO{'\n'}VERTE DE NUEVO</Text>
           <Text style={[texto.cuerpoMedio, { color: paleta.superficie, marginTop: espacio.xs, opacity: 0.8 }]}>
             Iniciá sesión para ver tu carrito y tus tarjetas.

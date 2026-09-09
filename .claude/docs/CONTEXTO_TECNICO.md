@@ -435,43 +435,38 @@ A diferencia de `promo-engine.js` (promos atadas a un producto), esto cubre el o
 
 **Conclusión:** este mecanismo de Cencopay por producto parece discontinuado por Vea, no simplemente "vacío por ahora". No vale la pena construir el fetcher/cron/cache para una fuente que lleva 9 meses sin una oferta real — si en el futuro se quiere retomar, primero hay que confirmar que Vea volvió a usarlo (mismo chequeo: consultar la categoría "Solo por hoy - Cencopay" del bloque `menu-ofertas` y ver si tiene ofertas con `expiredDate` futuro que no sean financiación).
 
-### Grilla de promos bancarias por día (turno 17, 2026-09-08)
+### Grilla de promos bancarias por día (turno 17) — implementada y luego PARKEADA, 2026-09-08
 
-Nueva sección del estado inicial de Buscar (`3a` del rediseño v2): reemplaza el bloque "CADA
-SUPER TIENE SU COLOR" por una grilla de 7 supers (filas) × 7 días (columnas, 1=lunes...7=domingo)
-mostrando, en cada celda con promo, el logo del banco y el %. Mockup de referencia: `AllPromos
-v2.dc.html` § `t17` (variantes `17a`/`17b`) — **17b elegida** (celda blanca + chip amarillo con
-el %, no la celda entera pintada), y se decidió resaltar la columna del día de hoy (ninguna de
-las dos decisiones estaba cerrada en el mockup).
+Se implementó de punta a punta (backend + frontend) reemplazando el bloque "CADA SUPER TIENE SU
+COLOR" del estado inicial de Buscar por una grilla de 7 supers × 7 días con logo del banco y % en
+cada celda (mockup `AllPromos v2.dc.html` § `t17`, variante 17b elegida: chip amarillo, no celda
+pintada). Mismo día se **parkeó** — no quedó nada wireado en la app, el espacio vuelve a estar
+vacío (sin el bloque de la grilla ni el bloque viejo de colores).
 
-**Backend — `GET /api/promos-bancarias/grilla`** (`backend/src/routes/promosBancariasGrilla.js`,
-`requiereSesion`+`requierePlanActivo`, mismo patrón que `misDescuentos.js`). Agrupa al revés que
-`/api/mis-descuentos` (por super → 7 celdas, en vez de por tarjeta → supers), leyendo el mismo
-`leerPromosBancariasCache()` (nunca pega en vivo a los supers). `elegirPromoDelDia()` por celda
-usa el mismo criterio que `calcularDescuentos()` de `misDescuentos.js`: la de mayor `descuentoPct`
-entre las vigentes hoy para ese día; si ninguna está vigente pero hay alguna con `dias` definido,
-esa igual (patrón con periodicidad conocida). Respuesta: `{ filas: [{ superKey, celdas: [{
-tiene, banco, pct }] }], generadoEl }` — tipos `CeldaGrilla`/`FilaGrilla` en `app/src/api.ts`,
-junto a la función `promosBancariasGrilla(accessToken)`. Sin rate limit estricto (no está en el
-`skip` de la lista de 20/min de `server.js`): solo lee cache, igual que `/mis-descuentos` que si
-está en esa whitelist por otro motivo (histórico, no por costo).
+**Motivo del parking, confirmado con datos reales del cache:** un super puede tener hasta ~18
+promos bancarias vigentes el mismo día (ej. Vea, lunes: Santander, Comafi, Banco Macro, Mercado
+Pago, Cuenta DNI, Banco Nación, Supervielle, ICBC, Cencopay... todas vigentes a la vez). La
+implementación elegía UNA sola (la de mayor `descuentoPct`) para mostrar en la celda — al usuario
+le pareció confuso y potencialmente engañoso presentar "la" promo del día cuando hay muchas más
+igual de vigentes. No es un bug de la implementación: es una decisión de UX/producto sin cerrar
+(¿mostrar una lista dentro de la celda?, ¿un indicador "+N más"?, ¿elegir por otro criterio que no
+sea el % más alto, ej. mayor tope?, ¿permitir filtrar por las tarjetas del usuario, como ya hace
+`/api/comparar`, en vez de mostrar todos los bancos posibles?).
 
-**Frontend — `GrillaPromosBancarias.tsx`** (`app/src/componentes/`). La columna de supers (fija,
-izquierda) y la fila de días (L M M J V S D, `M` repetida para miércoles igual que el mockup)
-quedan "sticky" por construcción: la columna de supers vive FUERA del `ScrollView horizontal` que
-contiene la fila de días + las celdas, así que nunca participa del scroll horizontal — no usa
-`position: sticky` (RN nativo no lo soporta). El scroll vertical, si las 7 filas no entran, lo
-maneja el `ScrollView` de toda la pantalla (`EstadoInicial`), no uno anidado — con exactamente 7
-supers fijos esto alcanza, no hace falta sincronizar dos scrolls. `LogoBanco.tsx` (mismo patrón
-que `LogoSuper.tsx`) mapea 7 canónicos de `ALIAS_TARJETAS` a SVG en `app/assets/logos-bancos/`
-(Galicia, BBVA, Banco Macro, Banco Nación, Santander, HSBC, Banco Ciudad); cualquier otro canónico
-(~18 restantes) cae en un fallback de iniciales (chip con 2 letras) — no bloqueante, se van
-agregando de a poco (ver apéndice de `PROMPT-claude-code-turno-17-grilla-promos.md` para el
-proceso de bajar un logo nuevo de Wikimedia Commons).
+**Código parkeado, no borrado, para no repetir el research si se retoma:**
+- `backend/src/routes/_parked/promosBancariasGrilla.js` — el endpoint completo
+  (`GET /api/promos-bancarias/grilla`), sin montar en `server.js`.
+- `app/src/componentes/_parked/GrillaPromosBancarias.tsx` y `LogoBanco.tsx` — el componente de
+  grilla (columna de supers fija + fila de días sticky por construcción, sin `position: sticky`
+  que RN nativo no soporta) y el mapeo de 7 logos de banco (`app/assets/logos-bancos/`, quedan
+  ahí) con fallback de iniciales para el resto.
+- Cada archivo parkeado tiene un comentario "PARKEADO 2026-09-08" al principio con este mismo
+  motivo — no hace falta releer esta sección para entender por qué existen pero no corren.
 
-Fetch único al entrar a Buscar (`useQuery`, sin refetch por keystroke — solo se muestra en el
-estado sin texto buscado). Si falla o el cache todavía no generó el archivo, el bloque
-simplemente no se renderiza (es decorativo, no bloquea el resto de `EstadoInicial`).
+**Antes de reactivar esto:** resolver la decisión de UX de arriba, y si se decide filtrar por
+tarjetas del usuario en vez de "todas las posibles", probablemente convenga reusar
+`filtrarPromosBancariasPorTarjetas()` (ya existe, ver la sección de arriba) en vez de
+`elegirPromoDelDia()` tal como está.
 
 ---
 

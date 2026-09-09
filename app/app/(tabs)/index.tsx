@@ -31,11 +31,10 @@ import {
 import { useAuth } from '../../src/auth';
 import { useCarrito } from '../../src/carrito';
 import {
-  BandaDisponibilidad, BotonPrincipal, NOMBRE_SUPER, ORDEN_SUPERS, Problema, Stepper, Vacio,
+  BandaDisponibilidad, BotonPrincipal, Problema, Stepper, Vacio,
 } from '../../src/componentes/comunes';
 import { FotoProducto } from '../../src/componentes/FotoProducto';
 import { HeaderNegro, SelectorSupers, TituloHeader } from '../../src/componentes/HeaderNegro';
-import { PlacaLogoSuper } from '../../src/componentes/LogoSuper';
 import { HojaSupers } from '../../src/componentes/HojaSupers';
 import { useFiltrosSupers } from '../../src/filtrosSupers';
 import { espacio, pesos, radio, texto, usePantallaBaja } from '../../src/theme';
@@ -474,12 +473,6 @@ export default function PantallaBuscar() {
   );
 }
 
-function filasDe<T>(items: T[], porFila: number): T[][] {
-  const filas: T[][] = [];
-  for (let i = 0; i < items.length; i += porFila) filas.push(items.slice(i, i + porFila));
-  return filas;
-}
-
 /** Estado inicial de Buscar (SPEC § 4.1): lo que se ve antes de escribir nada. Es donde el
  *  usuario entiende qué es esto — nunca se vio antes en la app. */
 function EstadoInicial({
@@ -505,44 +498,6 @@ function EstadoInicial({
         <Text style={[texto.cuerpo, { color: paleta.tintaSuave }]}>
           Armá tu carrito y al final Super App calcula, con promos y tarjetas
           incluidas, qué conviene comprar en cada lugar.
-        </Text>
-      </View>
-
-      <View style={{ gap: espacio.md }}>
-        <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>CADA SUPER TIENE SU COLOR</Text>
-        <View style={{ gap: espacio.sm }}>
-          {filasDe(ORDEN_SUPERS, 4).map((fila, i) => (
-            <View key={i} style={styles.filaGridSupers}>
-              {fila.map(key => {
-                const bordeIdentidad = (paleta.supersBorde as Partial<Record<SuperKey, string>>)[key];
-                return (
-                  <View key={key} style={styles.celdaGridSuper}>
-                    <View
-                      style={[
-                        styles.barraLeyendaSuper,
-                        {
-                          backgroundColor: paleta.supers[key],
-                          ...(bordeIdentidad ? { borderWidth: 1, borderColor: bordeIdentidad } : null),
-                        },
-                      ]}
-                    />
-                    <PlacaLogoSuper superKey={key} ancho="100%" alto={34} padding={4} radio={radio.sm} />
-                    <Text style={[texto.microSuper, { color: paleta.tintaSuave, textAlign: 'center' }]}>
-                      {NOMBRE_SUPER[key]}
-                    </Text>
-                  </View>
-                );
-              })}
-              {/* Rellena la última fila (7 supers = 1 fila de 4 + 1 de 3) para que las celdas
-                  sigan alineadas en 4 columnas parejas en vez de estirarse. */}
-              {Array.from({ length: 4 - fila.length }).map((_, j) => (
-                <View key={`vacio-${j}`} style={styles.celdaGridSuper} />
-              ))}
-            </View>
-          ))}
-        </View>
-        <Text style={[texto.prosa, { color: paleta.tintaProsa }]}>
-          El color siempre dice de qué super es un precio. El amarillo, en cambio, siempre dice ahorro.
         </Text>
       </View>
 
@@ -722,9 +677,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: espacio.pantalla, paddingTop: espacio.md,
   },
   estadoInicial: { padding: espacio.pantalla, gap: espacio.xl },
-  filaGridSupers: { flexDirection: 'row', gap: espacio.sm },
-  celdaGridSuper: { flex: 1, gap: espacio.xs },
-  barraLeyendaSuper: { width: '100%', height: 6, borderRadius: radio.pill },
   filaOnboarding: {
     borderTopWidth: StyleSheet.hairlineWidth, paddingTop: espacio.lg,
     flexDirection: 'row', alignItems: 'center', gap: espacio.md,

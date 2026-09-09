@@ -56,13 +56,20 @@ export function GateSesion({ children }: { children: React.ReactNode }) {
         contentContainerStyle={[
           styles.cuerpo,
           pantallaCompleta
-            ? { padding: 0, paddingTop: insets.top, paddingBottom: insets.bottom }
+            ? { padding: 0, paddingBottom: insets.bottom }
             : { paddingTop: insets.top + espacio.xl, paddingBottom: insets.bottom + espacio.xl },
         ]}
         keyboardShouldPersistTaps="handled"
       >
         <View style={{ flex: 1, width: '100%', maxWidth: pantallaCompleta ? undefined : ANCHO_MAXIMO_TARJETA_ESCRITORIO }}>
-          <FormularioAuth pantallaCompleta={pantallaCompleta} anchoTarjeta={anchoTarjeta} />
+          {/* En pantalla completa no hay margen blanco arriba: el inset del status bar se lo
+              comemos dentro del hero (FormularioAuth) para que su color de fondo llegue hasta
+              arriba, en vez de dejar una franja blanca del alto del status bar por encima. */}
+          <FormularioAuth
+            pantallaCompleta={pantallaCompleta}
+            anchoTarjeta={anchoTarjeta}
+            insetSuperior={pantallaCompleta ? insets.top : 0}
+          />
         </View>
       </ScrollView>
     );
