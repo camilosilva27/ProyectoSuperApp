@@ -467,6 +467,7 @@ export default function PantallaBuscar() {
           <BotonPrincipal
             onPress={() => router.push('/carrito')}
             subtitulo={`${carrito.items.length} producto${carrito.items.length === 1 ? '' : 's'} · ${carrito.totalUnidades} unidad${carrito.totalUnidades === 1 ? '' : 'es'}`}
+            iconoCarrito
           >
             Ver carrito
           </BotonPrincipal>
