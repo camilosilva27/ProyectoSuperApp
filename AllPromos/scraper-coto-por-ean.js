@@ -77,7 +77,22 @@ const MAX_PAGINAS_OFERTAS = 25; // 25 × 200 = 5.000 — ver rationale del tope 
 // Medido en vivo: límite real de 201 requests por ventana de ~3s (ver nota arriba). 12/s deja
 // ~3x de margen contra ese número documentado — no es una estimación a ciegas como el scraper
 // de categorías (que nunca tuvo un límite publicado y terminó en 502 sostenidos).
-const PACE_MS = 85; // ~12 req/s
+const PACE_MS = 30; // ver CONCURRENCY_EAN abajo — el margen real lo da la combinación de ambos
+
+// Agregado 2026-09-10: en la VM de producción (us-east1, EE.UU.) cada pedido a la API de Coto
+// (Argentina) tarda ~200-270ms de ida y vuelta (medido en vivo desde la VM), contra latencia
+// casi nula corriendo desde una red en Argentina — que es como se midieron y confirmaron los
+// ~9 min originales de esta fase (ver comentario de arriba, 2026-08-25). Con el loop secuencial
+// original (un pedido a la vez + sleep), esa latencia se suma entera por cada uno de los ~7.000+
+// EAN, empujando el tiempo total a ~35-40 min en la VM — por encima del timeoutMs de 25 min de
+// `refrescarCatalogos.js`, y confirmado en los logs de cron reales fallando así desde el 9/9.
+// Se paraleliza con un pool de `CONCURRENCY_EAN` requests en simultáneo en vez de subir el
+// PACE_MS (que no ataca la causa real, la latencia de ida y vuelta) o el timeout (que solo
+// escondería el síntoma). 8 en simultáneo, con ~230ms de latencia típica + 30ms de pace,
+// da un rendimiento agregado de ~8/0.26s ≈ 30 req/s — bien por debajo del límite real de
+// ~67 req/s (201 cada 3s) documentado arriba, con margen de sobra para el backoff de 429 que
+// ya existía. Con este cambio la fase de EAN pasa de ~35-40 min a unos pocos minutos en la VM.
+const CONCURRENCY_EAN = 8;
 
 const FUENTES_NO_COTO = [
   'catalogo-vea.json',
@@ -211,6 +226,23 @@ async function buscarPorEAN(ean, retries = 3) {
   return productos.find(p => String(p.data?.product_main_ean) === String(ean)) || null;
 }
 
+// Pool de concurrencia simple, sin dependencias — N "carriles" que van tomando el próximo ítem
+// de la cola apenas terminan el anterior (no lotes fijos, así un EAN lento en un carril no
+// bloquea a los demás). `onItem(resultado, item, i)` corre por cada ítem terminado, en el orden
+// en que van completando (no el orden original) — se usa para acumular progreso a medida que
+// entra, no al final.
+async function pool(items, concurrency, fn, onItem) {
+  let siguiente = 0;
+  async function carril() {
+    while (siguiente < items.length) {
+      const i = siguiente++;
+      const resultado = await fn(items[i], i);
+      onItem(resultado, items[i], i);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, carril));
+}
+
 // ─── Ofertas exclusivas — paginado, mismo patrón que scrapearCategoria del scraper viejo ────
 
 async function getOfertasPage(page, retries = 3) {
@@ -296,9 +328,9 @@ async function main() {
   const encontrados = [];
   let sinResultado = 0;
   let sinDisponibilidad = 0;
+  let consultados = 0;
 
-  for (let i = 0; i < eans.length; i++) {
-    const ean = eans[i];
+  await pool(eans, CONCURRENCY_EAN, async (ean) => {
     let item;
     try {
       item = await buscarPorEAN(ean);
@@ -306,7 +338,9 @@ async function main() {
       console.log(`\n  EAN ${ean}: error (${err.message}), se saltea`);
       item = null;
     }
-
+    await sleep(PACE_MS);
+    return item;
+  }, (item) => {
     if (item) {
       const disponible = (item.data.store_availability || []).length > 0;
       if (disponible) {
@@ -318,11 +352,11 @@ async function main() {
       sinResultado++;
     }
 
-    if ((i + 1) % 100 === 0 || i === eans.length - 1) {
-      process.stdout.write(`\r  ${i + 1}/${eans.length} consultados — ${encontrados.length} encontrados en Coto, ${sinDisponibilidad} sin stock, ${sinResultado} no están`);
+    consultados++;
+    if (consultados % 100 === 0 || consultados === eans.length) {
+      process.stdout.write(`\r  ${consultados}/${eans.length} consultados — ${encontrados.length} encontrados en Coto, ${sinDisponibilidad} sin stock, ${sinResultado} no están`);
     }
-    await sleep(PACE_MS);
-  }
+  });
 
   console.log(`\n\n✅ Total encontrados en Coto por EAN (con stock real): ${encontrados.length}`);
   console.log(`   Sin disponibilidad (descartados, SKU fantasma): ${sinDisponibilidad}`);
