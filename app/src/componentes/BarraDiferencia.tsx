@@ -163,9 +163,16 @@ function FilaSuper({
   // de alternativas, a diferencia de normalizar contra la diferencia máxima (ver comentario
   // de arriba). Techo en 100% para que un caso extremo no rompa el layout.
   const porcentaje = totalMejor > 0 ? Math.min(100, (delta / totalMejor) * 100) : 0;
+  // Raíz cuadrada, no lineal: en la práctica casi todas las diferencias reales caen entre 2%
+  // y 15% (un segundo viaje rara vez duplica el precio), así que una escala lineal dejaba casi
+  // todas las barras apiladas cerca del piso — se notaba la diferencia en el número ("+$90" vs
+  // "+$970") pero no en el ancho de la barra, que es justamente lo que este componente existe
+  // para resolver. La raíz cuadrada expande esa zona chica (4% → 20% de ancho, 15% → ~39%) sin
+  // dejar de comprimir los extremos (100% sigue en 100%).
+  const escalado = Math.sqrt(porcentaje / 100) * 100;
   const ancho = progreso.interpolate({
     inputRange: [0, 1],
-    outputRange: ['0%', `${Math.max(porcentaje, delta > 0 ? 4 : 0)}%`],
+    outputRange: ['0%', `${Math.max(escalado, delta > 0 ? 8 : 0)}%`],
   });
 
   return (

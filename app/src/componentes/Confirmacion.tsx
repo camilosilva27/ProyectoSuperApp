@@ -16,6 +16,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Line, Path, Polyline, Rect } from 'react-native-svg';
 import { espacio, radio, texto } from '../theme';
 import { useTema } from '../useTema';
+import { BotonPrincipal } from './comunes';
 
 /** Íconos para los 3 usos de ConfirmacionModal — mismo mecanismo (react-native-svg, estilo
  *  Feather) que IconoPersona/IconoMail/IconoCandado en FormularioAuth.tsx. */
@@ -66,7 +67,7 @@ export function ConfirmacionModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancelar}>
-      <View style={styles.fondo}>
+      <View style={[styles.fondo, { backgroundColor: paleta.overlay }]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onCancelar} accessibilityLabel="Cerrar" />
         <View style={[styles.hoja, { backgroundColor: paleta.superficie }]}>
           {Icono ? (
@@ -79,20 +80,12 @@ export function ConfirmacionModal({
             <Text style={[texto.cuerpo, { color: paleta.tintaSuave }]}>{mensaje}</Text>
           </View>
           <View style={styles.filaBotones}>
-            <Pressable
-              onPress={onCancelar}
-              accessibilityRole="button"
-              style={[styles.botonCancelar, { borderColor: paleta.borde }]}
-            >
-              <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>Cancelar</Text>
-            </Pressable>
-            <Pressable
-              onPress={onConfirmar}
-              accessibilityRole="button"
-              style={[styles.botonConfirmar, { backgroundColor: paleta.peligro }]}
-            >
-              <Text style={[texto.cuerpoMedio, { color: '#FFFFFF' }]}>{textoConfirmar}</Text>
-            </Pressable>
+            <BotonPrincipal variante="secundario" estilo={styles.botonPar} onPress={onCancelar}>
+              Cancelar
+            </BotonPrincipal>
+            <BotonPrincipal variante="peligro" estilo={styles.botonPar} onPress={onConfirmar}>
+              {textoConfirmar}
+            </BotonPrincipal>
           </View>
         </View>
       </View>
@@ -101,7 +94,7 @@ export function ConfirmacionModal({
 }
 
 const styles = StyleSheet.create({
-  fondo: { flex: 1, backgroundColor: 'rgba(15,17,20,.65)', justifyContent: 'flex-end' },
+  fondo: { flex: 1, justifyContent: 'flex-end' },
   hoja: {
     borderTopLeftRadius: radio.pantalla, borderTopRightRadius: radio.pantalla,
     padding: espacio.pantalla, gap: espacio.lg,
@@ -111,11 +104,5 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   filaBotones: { flexDirection: 'row', gap: espacio.sm },
-  botonCancelar: {
-    flex: 1, height: 50, borderWidth: 1, borderRadius: radio.sm,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  botonConfirmar: {
-    flex: 1, height: 50, borderRadius: radio.sm, alignItems: 'center', justifyContent: 'center',
-  },
+  botonPar: { flex: 1 },
 });

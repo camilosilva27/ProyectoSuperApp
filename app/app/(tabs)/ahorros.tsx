@@ -18,7 +18,7 @@ import { HeaderNegro, TituloHeader } from '../../src/componentes/HeaderNegro';
 import {
   calcularResumenAhorro, useHistorialAhorro, type ResumenAhorro, type ResumenMes,
 } from '../../src/historialAhorro';
-import { espacio, fuentes, pesosCorto, radio, texto, type Paleta } from '../../src/theme';
+import { espacio, fuentes, pesosCorto, radio, texto, usePantallaBaja, type Paleta } from '../../src/theme';
 import { useTema } from '../../src/useTema';
 
 const NOMBRES_MES = [
@@ -39,6 +39,7 @@ function textoComparaciones(conteo: number): string {
 
 export default function PantallaAhorros() {
   const { paleta } = useTema();
+  const pantallaBaja = usePantallaBaja();
   const insets = useSafeAreaInsets();
   const { eventos } = useHistorialAhorro();
   const resumen = useMemo(() => calcularResumenAhorro(eventos), [eventos]);
@@ -51,7 +52,10 @@ export default function PantallaAhorros() {
   return (
     <View style={{ flex: 1, backgroundColor: paleta.fondo }}>
       <Head><title>Mis ahorros - Super App</title></Head>
-      <HeaderNegro paddingTop={insets.top + 32} estilo={{ paddingBottom: 22, gap: 14 }}>
+      <HeaderNegro
+        paddingTop={insets.top + (pantallaBaja ? espacio.md : espacio.xxl)}
+        estilo={{ paddingBottom: espacio.xl, gap: espacio.md }}
+      >
         <TituloHeader>MIS AHORROS</TituloHeader>
         <View
           style={{ gap: 6 }}
@@ -195,7 +199,7 @@ const styles = StyleSheet.create({
   montoTotal: { fontFamily: fuentes.precio, fontSize: 60, lineHeight: 54 },
   labelSeccion: { letterSpacing: 1.2 },
   filaMeses: { flexDirection: 'row', gap: 10 },
-  tarjetaMes: { flex: 1, borderRadius: radio.tarjeta, padding: 14, gap: 8 },
+  tarjetaMes: { flex: 1, borderRadius: radio.tarjeta, padding: espacio.md, gap: espacio.sm },
   montoMes: { fontFamily: fuentes.precio, fontSize: 34, lineHeight: 32 },
   conteoMes: { fontFamily: fuentes.medio, fontSize: 14, lineHeight: 19 },
   filaMesAMes: { flexDirection: 'row', alignItems: 'center', gap: 12 },

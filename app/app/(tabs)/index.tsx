@@ -31,7 +31,7 @@ import {
 import { useAuth } from '../../src/auth';
 import { useCarrito } from '../../src/carrito';
 import {
-  BandaDisponibilidad, BotonPrincipal, Problema, Stepper, Vacio,
+  BandaDisponibilidad, BotonPrincipal, Cargando, Problema, Stepper, Vacio,
 } from '../../src/componentes/comunes';
 import { FotoProducto } from '../../src/componentes/FotoProducto';
 import { GrillaPromosBancarias } from '../../src/componentes/GrillaPromosBancarias';
@@ -421,7 +421,7 @@ export default function PantallaBuscar() {
                 onReintentar={refetch}
               />
             ) : cargandoOrdenPrecio ? (
-              <ActivityIndicator style={styles.cargandoOrden} color={paleta.tintaTenue} />
+              <Cargando />
             ) : !isFetching ? (
               <Vacio
                 titulo="Nada con ese nombre"
@@ -665,7 +665,6 @@ const styles = StyleSheet.create({
     height: 44, paddingHorizontal: espacio.sm, marginRight: -espacio.sm, marginVertical: -espacio.md,
   },
   subrayado: { textDecorationLine: 'underline' },
-  cargandoOrden: { paddingVertical: espacio.xl },
   fila: {
     flexDirection: 'row', borderWidth: 1, borderRadius: radio.tarjeta, overflow: 'hidden',
   },
