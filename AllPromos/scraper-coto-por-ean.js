@@ -30,6 +30,35 @@
  *
  * Salida: MISMO formato que el scraper viejo — catalogo-coto.json + promos-coto.json — así
  * unificarCatalogo.js/precioCache.js no necesitan ningún cambio.
+ *
+ * SEGUNDA FASE — ofertas exclusivas de Coto (agregada 2026-09-10): la búsqueda por EAN de
+ * arriba, por construcción, nunca trae un producto que solo vende Coto (no hay EAN de otro
+ * super con el cual buscarlo) — así que cualquier promo sobre un producto así quedaba invisible
+ * para la app. Coto expone un endpoint separado del catálogo completo con solo los productos en
+ * oferta: `GET .../products/offers/{slug}?key=...&num_results_per_page=N&page=N`, mismo shape
+ * de respuesta que el endpoint de categorías del scraper viejo (`response.results[]`, reusa
+ * `parsearProducto` sin cambios). El slug `todas-las-ofertas` (minúsculas, espacios → guiones,
+ * sin `%`/`!!`/paréntesis — derivado a mano de los `navigationState` que devuelve
+ * `GET coto.com.ar/rest/.../constructorCategories`) junta TODAS las subcategorías de ofertas
+ * (2x1, 3x2, descuento directo, etc.) en una sola consulta paginada, confirmado en vivo.
+ *
+ * Igual que el catálogo de categorías viejo, `total_num_results` corta en un tope duro de
+ * 10.000 (no es el tamaño real — el `token_match.count` sin paginar dio 25.533 — es un límite
+ * del plan de Constructor.io). Se recorta a propósito a ~5.000 (`MAX_PAGINAS_OFERTAS`), mismo
+ * orden de magnitud que ya se probó seguro para la RAM de la VM (decisión del usuario,
+ * 2026-09-10): el catálogo unificado llegó a 11.586 productos con Coto capado a ~5.000 y no
+ * hubo riesgo de out-of-memory con margen de sobra (ver CONTEXTO_TECNICO.md § "Alcance y
+ * limitaciones"). Sin tope, esta fase sola podría sumar hasta 10.000 productos nuevos (a
+ * diferencia de la búsqueda por EAN, acá no hay nada para comparar del lado de los otros 6
+ * supers, así que ninguno se dedupea "gratis" por EAN compartido) — se prefirió no arriesgar
+ * volver cerca de la zona que causó el crash del 19-08 (57.789 productos) a cambio de cobertura
+ * completa.
+ *
+ * Los productos de esta fase que ya entraron por EAN (porque además los vende otro super) se
+ * dedupean por EAN contra `encontrados` — ver `vistosEan` en `main()`. Los que quedan después
+ * de dedupear son 100% exclusivos de Coto: se guardan igual en `catalogo-coto.json`/
+ * `promos-coto.json`, pero sin nada para comparar del lado de los otros supers (decisión del
+ * usuario, 2026-09-10: se muestran igual que cualquier otro producto, sin sección aparte).
  */
 
 const fs = require('fs');
@@ -39,6 +68,11 @@ const { leerCatalogo } = require('./core/catalogo');
 const KEY = 'key_r6xzz4IAoTWcipni';
 const AUTOCOMPLETE_URL = 'https://ac.cnstrc.com/autocomplete';
 const CLIENT = 'cio-ui-autocomplete-1.29.3';
+
+// ─── Ofertas exclusivas (ver comentario de arriba) ──────────────────────────────
+const OFERTAS_URL = 'https://api.coto.com.ar/api/v1/ms-digital-sitio-bff-web/api/v1/products/offers/todas-las-ofertas';
+const OFERTAS_PAGE_SIZE = 200;
+const MAX_PAGINAS_OFERTAS = 25; // 25 × 200 = 5.000 — ver rationale del tope arriba
 
 // Medido en vivo: límite real de 201 requests por ventana de ~3s (ver nota arriba). 12/s deja
 // ~3x de margen contra ese número documentado — no es una estimación a ciegas como el scraper
@@ -177,6 +211,57 @@ async function buscarPorEAN(ean, retries = 3) {
   return productos.find(p => String(p.data?.product_main_ean) === String(ean)) || null;
 }
 
+// ─── Ofertas exclusivas — paginado, mismo patrón que scrapearCategoria del scraper viejo ────
+
+async function getOfertasPage(page, retries = 3) {
+  const url = `${OFERTAS_URL}?key=${KEY}&num_results_per_page=${OFERTAS_PAGE_SIZE}&page=${page}`;
+  const res = await fetch(url, { headers: HEADERS });
+  if ((res.status === 429 || res.status === 500 || res.status === 502 || res.status === 503) && retries > 0) {
+    process.stdout.write(` [${res.status}, esperando 10s]`);
+    await sleep(10000);
+    return getOfertasPage(page, retries - 1);
+  }
+  if (!res.ok) throw new Error(`Ofertas página ${page} falló: ${res.status} ${res.statusText}`);
+
+  const data = await res.json();
+  return data.response?.results || [];
+}
+
+async function scrapearOfertas() {
+  const encontrados = [];
+  let sinDisponibilidad = 0;
+  const vistosId = new Set();
+
+  for (let page = 1; page <= MAX_PAGINAS_OFERTAS; page++) {
+    let resultados;
+    try {
+      resultados = await getOfertasPage(page);
+    } catch (err) {
+      console.log(`\n  Ofertas: fin en página ${page} (${err.message})`);
+      break;
+    }
+    if (!resultados.length) break;
+
+    for (const item of resultados) {
+      const idProducto = item.data.id;
+      if (!idProducto || vistosId.has(idProducto)) continue;
+      vistosId.add(idProducto);
+      if (!(item.data.store_availability || []).length) {
+        sinDisponibilidad++; // SKU fantasma — mismo criterio que el resto del scraper
+        continue;
+      }
+      encontrados.push(parsearProducto(item));
+    }
+
+    process.stdout.write(`\r  Ofertas: página ${page}/${MAX_PAGINAS_OFERTAS}, ${encontrados.length} SKUs acumulados...`);
+    if (resultados.length < OFERTAS_PAGE_SIZE) break;
+    await sleep(400);
+  }
+
+  console.log(`\n  Ofertas: ${encontrados.length} SKUs con stock real, ${sinDisponibilidad} sin disponibilidad (descartados)`);
+  return encontrados;
+}
+
 function unionDeEANsNoConto() {
   const vistos = new Map(); // ean -> { nombre, fuentes: [] } (solo para el resumen final)
   for (const archivo of FUENTES_NO_COTO) {
@@ -239,9 +324,21 @@ async function main() {
     await sleep(PACE_MS);
   }
 
-  console.log(`\n\n✅ Total encontrados en Coto (con stock real): ${encontrados.length}`);
+  console.log(`\n\n✅ Total encontrados en Coto por EAN (con stock real): ${encontrados.length}`);
   console.log(`   Sin disponibilidad (descartados, SKU fantasma): ${sinDisponibilidad}`);
   console.log(`   No existen en Coto: ${sinResultado}`);
+
+  console.log('\n📦 Buscando ofertas exclusivas de Coto (productos sin EAN de otro super)...');
+  const vistosEan = new Set(encontrados.filter(s => s.ean).map(s => s.ean));
+  const ofertas = await scrapearOfertas();
+  let exclusivosAgregados = 0;
+  for (const producto of ofertas) {
+    if (producto.ean && vistosEan.has(producto.ean)) continue; // ya entró por EAN, no duplicar
+    if (producto.ean) vistosEan.add(producto.ean);
+    encontrados.push(producto);
+    exclusivosAgregados++;
+  }
+  console.log(`   Exclusivos de Coto agregados: ${exclusivosAgregados} (${ofertas.length - exclusivosAgregados} ya estaban por EAN)`);
 
   const conPromo = encontrados.filter(s => s.descuentoDirecto || s.promosInternas);
   conPromo.sort((a, b) => {

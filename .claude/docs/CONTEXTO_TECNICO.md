@@ -922,7 +922,7 @@ node scraper-promos-changomas.js     # ~2 min  → catalogo-changomas.json (tope
 node scraper-promos-dia.js           # ~2 min  → catalogo-dia.json (tope de ~2550 SKUs, catálogo real más chico)
 node scraper-promos-jumbo.js         # → catalogo-jumbo.json (misma cuenta VTEX que Vea)
 node scraper-promos-disco.js         # → catalogo-disco.json (misma cuenta VTEX que Vea)
-node scraper-coto-por-ean.js         # ~9 min  → catalogo-coto.json (busca por EAN los productos de los otros 6 supers, correr último — ver "Coto: de recorte por categoría a búsqueda por EAN")
+node scraper-coto-por-ean.js         # ~9 min  → catalogo-coto.json (busca por EAN los productos de los otros 6 supers + ofertas exclusivas de Coto, correr último — ver "Coto: de recorte por categoría a búsqueda por EAN")
 ```
 
 El scraper de Vea: pagina el catálogo, consulta `/_v/search-promotions` en batches de 10, guarda todo en `catalogo-vea.json` con campo `fecha`.
@@ -950,6 +950,30 @@ Cómo funciona: `backend/src/cron/diffCatalogos.js` compara, en memoria, el cat�
 - Si un scraper falla esa corrida, no se registra diff (el catálogo no se pisó, sería puro ruido).
 
 No hay endpoint propio para leerlo todavía — se consulta directo en Supabase (SQL editor o `select ... from scraper_diffs`), por ejemplo agrupando por `super`, `extract(dow from corrida_en)` y `extract(hour from corrida_en)` para ver en qué día/hora se concentran los cambios reales de cada super. Hace falta acumular varios días de corridas (cron cada 2hs) antes de que el patrón sea significativo.
+
+---
+
+## Aviso de "promo nueva" en productos seguidos (backend, 2026-09-10 — falta UI)
+
+Objetivo del usuario: elegir productos puntuales (por ahora, no categorías — ver más abajo por qué) y recibir mail + push apenas les aparece una promoción, sin tener que abrir la app a revisar. Reusa toda la infraestructura de mail/push que ya existía para los tipos 2-7 de `mails_y_notificaciones.md` (Brevo, Web Push, patrón de cron) — lo único nuevo es la detección de "esto se acaba de prender" y la tabla de qué sigue cada usuario.
+
+**Por qué producto puntual y no categoría, en esta primera fase:** cada catálogo local (`AllPromos/catalogo-*.json`) sí trae un campo `categoria` (texto tipo árbol, ej. `"Almacén > Aceites y Vinagres > Aceites Comunes"`), y `backend/src/catalogoUnificado.js` (`categorias()`, `buscar({categoria})`) ya sabe agrupar/filtrar por él. Pero el árbol **no es el mismo** entre los 7 supers — mismo estilo de texto, pero distinta granularidad y nombres (confirmado comparando Vea/Jumbo vs. Coto) — así que "seguir la categoría Lácteos" necesitaría primero resolver un mapeo entre esos árboles no uniformes, que no está hecho. Producto puntual por EAN no tiene ese problema: el EAN ya es el identificador exacto que usa todo el resto de la app para comparar entre supers.
+
+**Detección — `productosConPromoNueva()` en `backend/src/cron/diffCatalogos.js`:** compara, por EAN, el catálogo de ANTES de que el scraper lo pise (mismo snapshot en memoria que ya usa `diffProductos()` para `scraper_diffs`) contra el de DESPUÉS, y devuelve los productos que pasaron de **sin** promo de producto a **con** promo de producto en esa corrida puntual. Deliberadamente **no** cuenta `promosBancarias` como "promo nueva" — es una promo de tarjeta/banco, no del producto en sí, y ya tiene su propio mecanismo de aviso (ver `aviso-promo-sin-aplicar-solo-si-gana` en la memoria del proyecto). Si `antes` es `null` (primera corrida de ese scraper, sin catálogo previo en disco) devuelve vacío a propósito — si no, todo lo que ya tuviera promo se marcaría como "nueva" la primera vez que corre esto.
+
+**Sin tabla de idempotencia propia:** la detección ya es de borde (edge-triggered) porque compara la corrida actual contra la anterior, no un estado absoluto — un producto que ya tenía promo no vuelve a disparar aviso hasta que la promo se apague en una corrida y se vuelva a prender en otra futura.
+
+**`refrescarCatalogos.js`** acumula los productos con promo nueva de los 7 scrapers de esa corrida (un mismo EAN puede prenderse en más de un super a la vez) y, al final, llama a `backend/src/avisoProductosSeguidos.js` una sola vez con la lista completa — no por super, para no mandarle 7 mails sueltos a un usuario si su producto seguido se prendió en varios supers el mismo ciclo.
+
+**`avisoProductosSeguidos.js`:** cruza esos EAN contra `producto_seguido` (tabla nueva, ver abajo) con `clienteSupabaseAdmin` (service role — el cron no tiene sesión de un usuario particular), agrupa por `usuario_id`, y para cada uno arma un mail (mismo `armarMailBase` de `plantillaMail.js`) y un push (`clientePush.js`, `obtenerSuscripcionesPorUsuario` para no hacer una query por usuario) listando los productos y en qué super(s) se prendieron.
+
+**Tabla `producto_seguido`** (migración `0016_producto_seguido.sql`, **falta correr en el proyecto real** — mismo pendiente histórico que `0014_scraper_diffs.sql` y las que quedaron pendientes de antes): `usuario_id` + `ean` + `nombre` (desnormalizado, para que la futura pantalla de "mis notificaciones" no necesite una consulta extra al catálogo). Sigue el mismo patrón de `push_suscripcion` (`0012_push_suscripciones.sql`): la app escribe/borra su propia fila **directo contra Supabase vía RLS**, sin pasar por un endpoint Express — así es como ya funciona `carrito_guardado`, `ahorro_registro` y `perfil_usuario` desde la app. A diferencia de `push_suscripcion` (que no tiene policy de `select` porque es invisible para el usuario), acá sí hay policy de `select`: el usuario necesita ver y editar la lista de lo que sigue.
+
+**Pendiente para que esto llegue a producción:**
+1. Correr la migración `0016_producto_seguido.sql` en el proyecto real de Supabase (`supabase db push --linked`).
+2. Confirmar que `BREVO_*`/`VAPID_*` estén cargadas en el `.env` de la VM (ya deberían estarlo desde los tipos 2-7, ver `mails_y_notificaciones.md`).
+3. Diseñar y construir la pantalla de "mis notificaciones" en la app (en Claude Design al momento de escribir esto) — reemplaza el lugar de "Ahorros" en la nav bar (5 opciones); "Ahorros" pasa a vivir como un ítem dentro de Ajustes. Esa pantalla es la que escribe/borra filas de `producto_seguido` vía `supabase-js`, reusando el mismo buscador de productos que ya existe en `app/app/(tabs)/index.tsx`.
+4. Fase futura, no bloqueante: seguir por categoría en vez de (o adicional a) producto puntual — requiere primero resolver el mapeo entre los árboles de categoría de los 7 supers.
 
 ---
 
@@ -992,6 +1016,16 @@ No hay endpoint propio para leerlo todavía — se consulta directo en Supabase 
   **Resultado medido en producción local (25-08), con los 4 catálogos VTEX disponibles (Jumbo/Disco se suman solos cuando corre en la VM, donde sí existen sus catálogos):** 6.506 EAN consultados, **3.298 encontrados en Coto con stock real** (vs. 2.889 del recorte por categoría — más cobertura, mejor dirigida), 430 descartados por SKU fantasma, 2.778 que Coto no vende. Cero 502 en las 6.506 consultas, a un ritmo de 12 req/s (~9 minutos) — bien por debajo del rate limit documentado. `refrescarCatalogos.js` mueve a Coto al final de la lista de scrapers porque necesita leer los catálogos de los otros 6 ya frescos de esa misma corrida.
 
   Efecto colateral bueno: al ser 100% productos que también existen en otro super, cada SKU nuevo de Coto participa en la comparación de precios desde el primer momento — no hay categoría "solo Coto, sin nada con qué comparar" en este catálogo, por construcción.
+
+  **Actualización (2026-09-10) — ya no es 100% productos comparables: se sumaron las ofertas exclusivas de Coto.** Disparador: el usuario notó que entrando a coto.com.ar veía promos que la app no mostraba — resultó que eran promos sobre productos que Coto vende y ningún otro super vende, así que nunca entraban a `catalogo-coto.json` por construcción (la búsqueda por EAN de arriba nunca los busca, porque no hay EAN de otro super con el cual encontrarlos). No es un bug de scraping, es una consecuencia directa del diseño del 25-08.
+
+  Coto expone un endpoint separado del catálogo completo, con solo los productos en oferta: `GET https://api.coto.com.ar/api/v1/ms-digital-sitio-bff-web/api/v1/products/offers/{slug}?key=key_r6xzz4IAoTWcipni&num_results_per_page=N&page=N` — mismo shape de respuesta que el endpoint de categorías del scraper viejo, reusa `parsearProducto` sin cambios. Los slugs de subcategoría salen de `GET coto.com.ar/rest/model/atg/actors/cBackOfficeActor/constructorCategories` (categoría top-level `"Ofertas"`, con subcategorías tipo "2X1", "Exclusivas", "Hasta 50% DTO!!", etc. — `navigationState` en minúsculas/guiones da el slug). El slug `todas-las-ofertas` junta TODAS las subcategorías en una sola consulta paginada (confirmado en vivo).
+
+  **Mismo tope duro de Constructor.io que ya se vio en el scraper de categorías viejo:** `total_num_results` corta en 10.000 (no es el tamaño real — `token_match.count` sin paginar dio 25.533). Se decidió (2026-09-10, decisión del usuario) recortar a propósito a **~5.000** (`MAX_PAGINAS_OFERTAS = 25` en `scraper-coto-por-ean.js`), mismo orden de magnitud ya probado seguro para la RAM de la VM — no arriesgar volver cerca de los 57.789 SKUs que causaron el crash del 19-08, a cambio de cobertura completa. `scraper-coto-por-ean.js` corre esta fase después de la búsqueda por EAN, dedupeando por EAN contra lo ya encontrado (los productos que además vende otro super no se duplican).
+
+  **Resultado medido en producción (10-09):** 3.677 encontrados por EAN + 3.931 exclusivos nuevos de la fase de ofertas (995 del total de ofertas ya estaban por EAN, descartados como duplicados) = **7.608 SKUs totales en Coto**. `catalogo-unificado.json` subió a **11.310 productos** — mismo orden que los 11.586 ya probados seguros el 19-08, sin acercarse a la zona de riesgo. Decisión del usuario sobre cómo mostrarlos: igual que cualquier otro producto, sin sección aparte ni marca especial — aunque no tengan nada para comparar del lado de los otros supers.
+
+  **La frase "efecto colateral bueno" de arriba queda parcialmente desactualizada:** ya no es cierto que el 100% del catálogo de Coto tenga con qué comparar — los ~3.931 exclusivos de la fase de ofertas no tienen equivalente en ningún otro super, por diseño (son justamente los que la búsqueda por EAN no puede alcanzar).
 
   **Investigado a fondo el 2026-08-19 (replanteado: no es "migrar de API", ver "Pendientes" abajo):**
   1. **La API "Intelligent Search" de VTEX (candidata para reemplazar el endpoint legacy) tiene su propio techo, más generoso pero igual de duro**: confirmado en vivo contra Día — `page` no puede superar 50, `count` (tamaño de página) no puede superar 100 → **máximo 5.000 ítems por consulta** (`{"data":"Page should not exceed 50 pages."}` / `{"data":"Count should not exceed 100 products."}`, mensajes de error reales de la API). Casi el doble del ~2.550 legacy, pero lejos de alcanzar para Vea (378.449 reales), Carrefour (104.272) o Chango Más (59.826) en una sola consulta sin filtrar.
