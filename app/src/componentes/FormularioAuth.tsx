@@ -25,7 +25,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Animated, Image, Linking, Platform, Pressable, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Animated, Easing, Image, Linking, Platform, Pressable, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { useAuth } from '../auth';
@@ -163,18 +163,22 @@ export function FormularioAuth({
 
   // El campo Nombre aparece/desaparece según el modo (solo hace falta al registrarse) — sin
   // esto el cambio se sentía como un salto brusco, no una transición. Fade simple, no algo
-  // sofisticado: solo hay que suavizar el corte, no animar cada campo por separado.
+  // sofisticado: solo hay que suavizar el corte, no animar cada campo por separado. Misma
+  // duración/easing de ida y vuelta — igual que el resto de los fades de la app (toggles de
+  // Ajustes/Mis descuentos, 180ms ease-out) en vez de una asimetría propia de este componente.
   //
   // `useNativeDriver: false` a propósito: en web no existe el native driver, y con `true`
-  // react-native-web cae a un fallback silencioso (con warning) — más simple no pedirlo. La
-  // salida es cortita (lo justo para no sentirse instantánea) y la entrada más larga, que es
-  // la parte que en verdad se percibe como "aparece".
+  // react-native-web cae a un fallback silencioso (con warning) — más simple no pedirlo.
   const cambiarModo = () => {
-    Animated.timing(opacidad, { toValue: 0, duration: 100, useNativeDriver: false }).start(() => {
+    Animated.timing(opacidad, {
+      toValue: 0, duration: 180, easing: Easing.out(Easing.ease), useNativeDriver: false,
+    }).start(() => {
       setModo(m => (m === 'registro' ? 'login' : 'registro'));
       setError(null);
       setConfirmarPassword('');
-      Animated.timing(opacidad, { toValue: 1, duration: 250, useNativeDriver: false }).start();
+      Animated.timing(opacidad, {
+        toValue: 1, duration: 180, easing: Easing.out(Easing.ease), useNativeDriver: false,
+      }).start();
     });
   };
 

@@ -26,7 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TARJETAS_DISPONIBLES, useCarrito } from '../../src/carrito';
 import { useCarritosGuardados, type CarritoGuardado } from '../../src/carritosGuardados';
 import { ConfirmacionModal, IconoTacho } from '../../src/componentes/Confirmacion';
-import { IconoBalanza, Stepper, Vacio } from '../../src/componentes/comunes';
+import { BotonPrincipal, Stepper, Vacio } from '../../src/componentes/comunes';
 import { FotoProducto } from '../../src/componentes/FotoProducto';
 import { GuardarCarritoHoja, ToastGuardado } from '../../src/componentes/GuardarCarritoHoja';
 import { HeaderNegro, SelectorSupers, TituloHeader } from '../../src/componentes/HeaderNegro';
@@ -174,7 +174,7 @@ export default function PantallaCarrito() {
               {carrito.items.map(item => (
                 <View
                   key={item.ean}
-                  style={[styles.filaProducto, { backgroundColor: paleta.superficieAlt }]}
+                  style={[styles.filaProducto, { backgroundColor: paleta.superficieAlt, borderColor: paleta.borde }]}
                 >
                   <FotoProducto nombre={item.nombre} imagen={item.imagen} tamano={44} />
                   <Text style={[texto.cuerpoMedio, styles.filaNombre, { color: paleta.tinta }]} numberOfLines={2}>
@@ -260,20 +260,9 @@ export default function PantallaCarrito() {
             },
           ]}
         >
-          <Pressable
-            ref={refComparar}
-            onPress={() => router.push('/resultado')}
-            accessibilityRole="button"
-            style={({ pressed }) => [
-              styles.botonComparar,
-              { backgroundColor: paleta.tinta, opacity: pressed ? 0.9 : 1 },
-            ]}
-          >
-            {/* El ícono reemplaza al punto amarillo que estaba antes acá (turno 19/19b de
-                Claude Design: "En Comparar precios el ícono reemplaza al punto amarillo"). */}
-            <IconoBalanza color={paleta.oferta} chico={pantallaBaja} />
-            <Text style={[texto.tituloHeader, styles.textoComparar]}>Comparar precios</Text>
-          </Pressable>
+          <BotonPrincipal botonRef={refComparar} onPress={() => router.push('/resultado')} iconoBalanza>
+            Comparar precios
+          </BotonPrincipal>
           <ToastGuardado nombre={toastNombre} onFin={() => setToastNombre(null)} />
         </View>
       ) : null}
@@ -351,7 +340,7 @@ const styles = StyleSheet.create({
   },
   filaCarritosGuardados: { marginTop: espacio.xs },
   tarjetaGuardado: {
-    width: 180, borderRadius: radio.md, padding: espacio.md, gap: espacio.xs,
+    width: 180, borderRadius: radio.tarjeta, padding: espacio.md, gap: espacio.xs,
     marginRight: espacio.sm,
   },
   nombreGuardado: { fontSize: 19, lineHeight: 20, letterSpacing: 0.4 },
@@ -360,8 +349,8 @@ const styles = StyleSheet.create({
     marginTop: -espacio.xs, marginBottom: -espacio.sm,
   },
   filaProducto: {
-    flexDirection: 'row', alignItems: 'center', gap: espacio.md,
-    borderRadius: radio.md, padding: espacio.md, marginTop: espacio.sm,
+    flexDirection: 'row', alignItems: 'center', gap: espacio.md, borderWidth: 1,
+    borderRadius: radio.tarjeta, padding: espacio.md, marginTop: espacio.sm,
   },
   filaNombre: { flex: 1 },
   tarjetaDescuentos: { borderWidth: 1, borderRadius: radio.tarjeta, overflow: 'hidden' },
@@ -380,9 +369,4 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: espacio.pantalla, paddingTop: espacio.md,
   },
-  botonComparar: {
-    borderRadius: radio.md, minHeight: 56,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: espacio.sm,
-  },
-  textoComparar: { fontSize: 24, lineHeight: 26, textTransform: 'uppercase', color: '#FFFFFF' },
 });

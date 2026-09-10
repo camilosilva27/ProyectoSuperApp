@@ -90,6 +90,11 @@ const paletas = {
     // significa algo distinto.
     peligro: '#C23B2E',
     sombra: '#000000',
+    // Scrim de las hojas modales (HojaSupers, Confirmacion, GuardarCarritoHoja,
+    // MercadoPagoEmailSheet): antes cada una tenía su propio rgba a mano (tres valores
+    // distintos para el mismo rol). Mismo valor en las dos paletas — el overlay no necesita
+    // variar con el tema, siempre es un fondo oscuro semitransparente.
+    overlay: 'rgba(15,17,20,.65)',
     supers: superColores.light,
     supersBorde: superBordes.light,
   },
@@ -124,6 +129,7 @@ const paletas = {
     // sobre el fondo oscuro.
     peligro: '#E14B3D',
     sombra: '#000000',
+    overlay: 'rgba(15,17,20,.65)',
     supers: superColores.dark,
     supersBorde: superBordes.dark,
   },
@@ -196,8 +202,10 @@ export function usePantallaBaja(): boolean {
 }
 
 // `pantalla`/`tarjeta` son los radios explícitos del rediseño v2 (16 y 12 — ver SPEC § 1);
-// sm/md/lg quedan para lo que todavía no migró a ese lenguaje visual.
-export const radio = { sm: 6, md: 10, lg: 14, pill: 999, pantalla: 16, tarjeta: 12 } as const;
+// sm/md/lg quedan para lo que todavía no migró a ese lenguaje visual. `chip` es el radio de
+// las celdas chicas del selector de supers del header (HeaderNegro.tsx) y de los botones de
+// tope (HojaSupers.tsx) — antes 8 hardcodeado en los dos lugares, mismo valor sin ser un token.
+export const radio = { sm: 6, md: 10, lg: 14, pill: 999, pantalla: 16, tarjeta: 12, chip: 8 } as const;
 
 export function sombra(esquema: Esquema) {
   if (esquema === 'dark') return {};

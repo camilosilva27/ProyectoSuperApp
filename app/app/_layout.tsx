@@ -19,6 +19,7 @@ import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
+import { Image } from 'expo-image';
 import { Stack } from 'expo-router';
 import Head from 'expo-router/head';
 import * as SplashScreen from 'expo-splash-screen';
@@ -84,11 +85,22 @@ export default function LayoutRaiz() {
 
   // <Head> va afuera del guard de fuentes: si solo estuviera en la rama ya cargada, el
   // export estático (que renderiza antes de que useFonts resuelva) horneaba un <title> vacío.
+  // Mismo logo e imageWidth que el splash nativo (app.json § expo-splash-screen): en una
+  // pestaña de navegador normal (sin agregar la app a la pantalla de inicio) el sistema
+  // operativo no dibuja ningún splash — antes esta rama se quedaba en blanco liso mientras
+  // cargaban las fuentes, ahora los tres casos (nativo, acceso directo iOS, pestaña normal)
+  // muestran lo mismo.
   if (!fuentesListas) {
     return (
       <>
         <Head><title>Super App</title></Head>
-        <View style={{ flex: 1, backgroundColor: paleta.fondo }} />
+        <View style={{ flex: 1, backgroundColor: paleta.fondo, alignItems: 'center', justifyContent: 'center' }}>
+          <Image
+            source={require('../assets/splash-icon.png')}
+            style={{ width: 220, aspectRatio: 990 / 834 }}
+            contentFit="contain"
+          />
+        </View>
       </>
     );
   }

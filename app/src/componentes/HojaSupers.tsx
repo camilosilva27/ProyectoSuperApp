@@ -4,25 +4,29 @@
  *
  * Sube sobre la pantalla actual, no navega a otra — así no se pierde el carrito ni la búsqueda
  * en curso. Los cambios se acumulan en un borrador local y solo se aplican (recalculando el
- * resultado) al cerrar, sea con "Listo", tocando el scrim o arrastrando hacia abajo — las tres
- * vías cierran Y confirman, no hay "cancelar" separado de "cerrar".
+ * resultado) al cerrar, sea con "Listo" o tocando el scrim — las dos vías cierran Y confirman,
+ * no hay "cancelar" separado de "cerrar".
  *
- * El arrastre usa `PanResponder` + `Animated` (ambos del core de RN), no gesture-handler:
- * gesture-handler necesita `GestureHandlerRootView` en la raíz de la app, y dentro de un
- * `Modal` de RN (que monta su propio árbol nativo) es una fuente conocida de gestos que no
- * responden — no vale la pena para un solo gesto de arrastre.
+ * Antes tenía arrastre para cerrar (`PanResponder` + `Animated`, sin gesture-handler): se sacó
+ * porque dejó de responder en el build web (probablemente drift de versión de RN Web desde que
+ * se implementó, ver panresponder-modal-gotchas-rn-web) y el usuario prefirió alinearla al mismo
+ * patrón simple que las otras 3 hojas (`Modal` + fade, tocar el fondo cierra) antes que
+ * reinvertir en diagnosticar el gesto.
  */
 
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Animated, Dimensions, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { comparar, type SuperKey } from '../api';
 import { useAuth } from '../auth';
 import { useCarrito } from '../carrito';
-import { espacio, fuentes, paletaDe, pesosCorto, radio, texto, textoPretty } from '../theme';
+import {
+  espacio, fuentes, pesosCorto, radio, texto, textoPretty, type Paleta,
+} from '../theme';
 import { avanzarTour, useEstadoTour, useTourPaso } from '../tour/TourContext';
-import { NOMBRE_SUPER, ORDEN_SUPERS } from './comunes';
+import { useTema } from '../useTema';
+import { BotonPrincipal, NOMBRE_SUPER, ORDEN_SUPERS } from './comunes';
 import { PlacaLogoSuper } from './LogoSuper';
 
 /** `0` = sin tope explícito ("Los N") — no se guarda el N literal porque queda obsoleto en
@@ -88,9 +92,6 @@ function useCostoTope(
 // de hoy, esto nunca se muestra; queda listo para cuando la lista crezca).
 const UMBRAL_BUSQUEDA = 10;
 
-const ALTURA_OFFSCREEN = Dimensions.get('window').height;
-const UMBRAL_CIERRE_ARRASTRE = 120;
-
 export function HojaSupers({
   visible, activos, tope, onCerrar, onAplicar, bloqueados = [],
 }: {
@@ -103,11 +104,10 @@ export function HojaSupers({
    *  activo, para que sumar Coto sea la única acción posible en ese paso). */
   bloqueados?: SuperKey[];
 }) {
+  const { paleta } = useTema();
   const [borrador, setBorrador] = useState<SuperKey[]>(activos);
   const [topeBorrador, setTopeBorrador] = useState(tope);
   const [busqueda, setBusqueda] = useState('');
-  const [arrastrando, setArrastrando] = useState(false);
-  const translateY = useRef(new Animated.Value(ALTURA_OFFSCREEN)).current;
   const carrito = useCarrito();
   const { session } = useAuth();
   // Snapshot del tope con el que se abrió la hoja — el paso del tour "elegí un tope" (ver
@@ -126,31 +126,16 @@ export function HojaSupers({
     topeInicialRef.current = normalizarTope(tope, activos.length);
     setTocoCoto(false);
     setBusqueda('');
-    translateY.setValue(ALTURA_OFFSCREEN);
-    Animated.spring(translateY, { toValue: 0, useNativeDriver: true, bounciness: 4 }).start();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al abrir, no en cada cambio de `activos`/`tope`
   }, [visible]);
 
   const cerrarYConfirmar = () => {
-    Animated.timing(translateY, {
-      toValue: ALTURA_OFFSCREEN, duration: 220, useNativeDriver: true,
-    }).start(() => {
-      onAplicar(borrador, topeBorrador);
-      onCerrar();
-      setArrastrando(false);
-      // Imperativo, no vía `useTourPaso`: para cuando esto corre, la hoja ya se está por
-      // desmontar (onCerrar) — no hay forma de que un booleano "cumplido" lo detecte a tiempo.
-      avanzarTour('listo');
-    });
+    onAplicar(borrador, topeBorrador);
+    onCerrar();
+    // Imperativo, no vía `useTourPaso`: para cuando esto corre, la hoja ya se está por
+    // desmontar (onCerrar) — no hay forma de que un booleano "cumplido" lo detecte a tiempo.
+    avanzarTour('listo');
   };
-  // El `PanResponder` de más abajo se crea una sola vez (`useRef`) para no perder el gesto en
-  // curso si el componente vuelve a renderizar a mitad de un arrastre — pero eso significa que
-  // sus callbacks quedan con el closure de ESE primer render para siempre. Sin este ref,
-  // `onPanResponderRelease` llamaría a una versión vieja de `cerrarYConfirmar`, que cierra
-  // sobre un `borrador` viejo (el de cuando se abrió la hoja por primera vez) — un arrastre
-  // deshacía cualquier toggle hecho después de esa primera apertura.
-  const cerrarYConfirmarRef = useRef(cerrarYConfirmar);
-  cerrarYConfirmarRef.current = cerrarYConfirmar;
 
   // No usa la forma de updater (prev => ...): tiene que ajustar `topeBorrador` como efecto del
   // mismo toggle ("si destildás y el tope queda >= la cantidad elegida, pasa a Los N"), y
@@ -165,31 +150,6 @@ export function HojaSupers({
     setBorrador(siguiente);
     setTopeBorrador(t => normalizarTope(t, siguiente.length));
   };
-
-  // `arrastrando` tapa la lista con una capa transparente mientras se arrastra (ver el
-  // overlay más abajo, después del ScrollView): sin esto, un arrastre que pasa por encima de
-  // una fila puede soltar el touch justo sobre su checkbox y el `Pressable` de esa fila lo
-  // toma como un tap suelto — el sistema de responders de RN Web y el de `Pressable` no
-  // negocian entre sí de forma confiable. Se apaga recién cuando termina la animación (de
-  // cierre o de rebote), no en el release, para seguir tapando la fila en el instante exacto
-  // en que se suelta el dedo/mouse.
-  const panResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, g) => g.dy > 6 && Math.abs(g.dy) > Math.abs(g.dx),
-      onPanResponderGrant: () => setArrastrando(true),
-      onPanResponderMove: (_, g) => {
-        if (g.dy > 0) translateY.setValue(g.dy);
-      },
-      onPanResponderRelease: (_, g) => {
-        if (g.dy > UMBRAL_CIERRE_ARRASTRE || g.vy > 1.2) {
-          cerrarYConfirmarRef.current();
-        } else {
-          Animated.spring(translateY, { toValue: 0, useNativeDriver: true, bounciness: 4 })
-            .start(() => setArrastrando(false));
-        }
-      },
-    })
-  ).current;
 
   const filtro = busqueda.trim().toLowerCase();
   const visiblesPorFiltro = ORDEN_SUPERS.filter(key => NOMBRE_SUPER[key].toLowerCase().includes(filtro));
@@ -239,31 +199,22 @@ export function HojaSupers({
     return () => clearTimeout(id);
   }, [pasoActivo]);
 
-  if (!visible) return null;
-
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      <Pressable
-        style={StyleSheet.absoluteFill}
-        onPress={cerrarYConfirmar}
-        accessibilityLabel="Cerrar"
-        accessibilityRole="button"
-      >
-        <Animated.View
-          style={[styles.scrim, { opacity: translateY.interpolate({
-            inputRange: [0, ALTURA_OFFSCREEN],
-            outputRange: [1, 0],
-            extrapolate: 'clamp',
-          }) }]}
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={cerrarYConfirmar}>
+      <View style={[styles.fondo, { backgroundColor: paleta.overlay }]}>
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={cerrarYConfirmar}
+          accessibilityLabel="Cerrar"
+          accessibilityRole="button"
         />
-      </Pressable>
 
-      <Animated.View style={[styles.hoja, { transform: [{ translateY }] }]}>
-        <View {...panResponder.panHandlers} style={styles.zonaArrastre}>
-          <View style={styles.barraArrastre} />
+        <View style={[styles.hoja, { backgroundColor: paleta.superficie }]}>
           <View style={styles.encabezado}>
-            <Text style={[styles.titulo, styles.sinSeleccionTexto]}>Qué supers comparar</Text>
-            <Text style={[styles.bajada, textoPretty, styles.sinSeleccionTexto]}>
+            {/* Mismo patrón de título que GuardarCarritoHoja/MercadoPagoEmailSheet: `texto.subtitulo`
+                con fontSize 22 — las 4 hojas modales comparten esta tipografía de encabezado. */}
+            <Text style={[texto.subtitulo, { color: paleta.tinta, fontSize: 22 }]}>Qué supers comparar</Text>
+            <Text style={[texto.cuerpo, { color: paleta.tintaSuave }, textoPretty]}>
               Los que dejes afuera no aparecen en resultados ni en el plan de compra.
             </Text>
           </View>
@@ -272,89 +223,93 @@ export function HojaSupers({
               value={busqueda}
               onChangeText={setBusqueda}
               placeholder="Buscar supermercado"
-              placeholderTextColor="#565E67"
-              style={styles.inputBusqueda}
+              placeholderTextColor={paleta.tintaSuave}
+              style={[
+                styles.inputBusqueda,
+                { color: paleta.tinta, boxShadow: `inset 0 0 0 1px ${paleta.bordeFuerte}` },
+              ]}
               autoCorrect={false}
               autoCapitalize="none"
               accessibilityLabel="Buscar supermercado"
             />
           ) : null}
-        </View>
 
-        {ORDEN_SUPERS.length > 1 ? (
-          <View ref={refTope}>
-            <BloqueTope
-              n={borrador.length}
-              total={ORDEN_SUPERS.length}
-              topeBorrador={topeBorrador}
-              onCambiarTope={setTopeBorrador}
-              monto={montoTope}
-              carritoVacio={pedido.length === 0}
-            />
+          {ORDEN_SUPERS.length > 1 ? (
+            <View ref={refTope}>
+              <BloqueTope
+                paleta={paleta}
+                n={borrador.length}
+                total={ORDEN_SUPERS.length}
+                topeBorrador={topeBorrador}
+                onCambiarTope={setTopeBorrador}
+                monto={montoTope}
+                carritoVacio={pedido.length === 0}
+              />
+            </View>
+          ) : null}
+
+          <View style={styles.contenedorLista} ref={refContenedorLista}>
+            <ScrollView
+              ref={scrollRef}
+              onScroll={e => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
+              scrollEventThrottle={32}
+              style={styles.lista}
+              contentContainerStyle={styles.listaContenido}
+              // Con el tour activo en 'coto' el spotlight resalta la fila de Coto dentro de esta
+              // misma lista scrolleable: si el usuario scrollea, la fila se desplaza por debajo
+              // del recorte fijo del overlay (mismo bug que en la lista de resultados, ver index.tsx).
+              scrollEnabled={pasoActivo !== 'coto'}
+            >
+              {comparando.length > 0 ? (
+                <View style={styles.grupo}>
+                  <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>COMPARANDO</Text>
+                  {comparando.map((key, i) => (
+                    <React.Fragment key={key}>
+                      {i > 0 ? <View style={[styles.separador, { backgroundColor: paleta.borde }]} /> : null}
+                      <FilaSuper
+                        paleta={paleta}
+                        superKey={key}
+                        activo
+                        bloqueado={bloqueados.includes(key)}
+                        onPress={() => toggle(key)}
+                        tourRef={key === 'coto' ? refCoto : undefined}
+                      />
+                    </React.Fragment>
+                  ))}
+                </View>
+              ) : null}
+
+              {afuera.length > 0 ? (
+                <View style={styles.grupo}>
+                  <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>AFUERA</Text>
+                  {afuera.map((key, i) => (
+                    <React.Fragment key={key}>
+                      {i > 0 ? <View style={[styles.separador, { backgroundColor: paleta.borde }]} /> : null}
+                      <FilaSuper
+                        paleta={paleta}
+                        superKey={key}
+                        activo={false}
+                        onPress={() => toggle(key)}
+                        tourRef={key === 'coto' ? refCoto : undefined}
+                      />
+                    </React.Fragment>
+                  ))}
+                </View>
+              ) : null}
+            </ScrollView>
           </View>
-        ) : null}
 
-        <View style={styles.contenedorLista} ref={refContenedorLista}>
-          <ScrollView
-            ref={scrollRef}
-            onScroll={e => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
-            scrollEventThrottle={32}
-            style={styles.lista}
-            contentContainerStyle={styles.listaContenido}
-            // Con el tour activo en 'coto' el spotlight resalta la fila de Coto dentro de esta
-            // misma lista scrolleable: si el usuario scrollea, la fila se desplaza por debajo
-            // del recorte fijo del overlay (mismo bug que en la lista de resultados, ver index.tsx).
-            scrollEnabled={pasoActivo !== 'coto'}
-          >
-            {comparando.length > 0 ? (
-              <View style={styles.grupo}>
-                <Text style={styles.labelGrupo}>COMPARANDO</Text>
-                {comparando.map((key, i) => (
-                  <React.Fragment key={key}>
-                    {i > 0 ? <View style={styles.separador} /> : null}
-                    <FilaSuper
-                      superKey={key}
-                      activo
-                      bloqueado={bloqueados.includes(key)}
-                      onPress={() => toggle(key)}
-                      tourRef={key === 'coto' ? refCoto : undefined}
-                    />
-                  </React.Fragment>
-                ))}
-              </View>
-            ) : null}
-
-            {afuera.length > 0 ? (
-              <View style={styles.grupo}>
-                <Text style={styles.labelGrupo}>AFUERA</Text>
-                {afuera.map((key, i) => (
-                  <React.Fragment key={key}>
-                    {i > 0 ? <View style={styles.separador} /> : null}
-                    <FilaSuper
-                      superKey={key}
-                      activo={false}
-                      onPress={() => toggle(key)}
-                      tourRef={key === 'coto' ? refCoto : undefined}
-                    />
-                  </React.Fragment>
-                ))}
-              </View>
-            ) : null}
-          </ScrollView>
-          {arrastrando ? <View style={StyleSheet.absoluteFill} /> : null}
+          <BotonPrincipal botonRef={refListo} onPress={cerrarYConfirmar}>Listo</BotonPrincipal>
         </View>
-
-        <Pressable ref={refListo} onPress={cerrarYConfirmar} accessibilityRole="button" style={styles.botonListo}>
-          <Text style={styles.textoBotonListo}>Listo</Text>
-        </Pressable>
-      </Animated.View>
-    </View>
+      </View>
+    </Modal>
   );
 }
 
 function FilaSuper({
-  superKey, activo, onPress, tourRef, bloqueado = false,
+  paleta, superKey, activo, onPress, tourRef, bloqueado = false,
 }: {
+  paleta: Paleta;
   superKey: SuperKey;
   activo: boolean;
   onPress: () => void;
@@ -373,12 +328,23 @@ function FilaSuper({
       accessibilityLabel={`${NOMBRE_SUPER[superKey]}, ${activo ? 'comparando' : 'afuera'}${bloqueado ? ', fijo durante el tour' : ''}`}
       style={[styles.fila, bloqueado && styles.filaBloqueada]}
     >
-      <View style={[styles.checkbox, activo ? styles.checkboxTildado : styles.checkboxVacio, bloqueado && styles.checkboxBloqueado]}>
-        {activo ? <Text style={styles.check}>✓</Text> : null}
+      <View
+        style={[
+          styles.checkbox,
+          activo
+            ? { backgroundColor: paleta.tinta }
+            : { backgroundColor: 'transparent', boxShadow: `inset 0 0 0 1.5px ${paleta.tinta}` },
+          bloqueado && { backgroundColor: paleta.bordeFuerte },
+        ]}
+      >
+        {activo ? <Text style={[styles.check, { color: paleta.superficie }]}>✓</Text> : null}
       </View>
-      <View style={[styles.barraColorFila, { backgroundColor: paletaDe('light').supers[superKey] }]} />
+      <View style={[styles.barraColorFila, { backgroundColor: paleta.supers[superKey] }]} />
       <PlacaLogoSuper superKey={superKey} ancho={54} alto={22} padding={2} radio={5} />
-      <Text style={[texto.cuerpoMedio, styles.nombreFila, bloqueado && styles.nombreFilaBloqueada]} numberOfLines={1}>
+      <Text
+        style={[texto.cuerpoMedio, styles.nombreFila, { color: bloqueado ? paleta.tintaSuave : paleta.tinta }]}
+        numberOfLines={1}
+      >
         {NOMBRE_SUPER[superKey]}
       </Text>
     </Pressable>
@@ -396,8 +362,9 @@ function FilaSuper({
  *  super de la lista — quedan visibles pero deshabilitados/grisados, así los botones no
  *  saltan de lugar mientras el usuario arma la selección. */
 function BloqueTope({
-  n, total, topeBorrador, onCambiarTope, monto, carritoVacio,
+  paleta, n, total, topeBorrador, onCambiarTope, monto, carritoVacio,
 }: {
+  paleta: Paleta;
   n: number;
   total: number;
   topeBorrador: number;
@@ -408,8 +375,8 @@ function BloqueTope({
   const opciones = Array.from({ length: total }, (_, i) => i + 1);
 
   return (
-    <View style={styles.bloqueTope}>
-      <Text style={styles.labelGrupo}>CUÁNTOS QUERÉS VISITAR COMO MÁXIMO?</Text>
+    <View style={[styles.bloqueTope, { borderBottomColor: paleta.borde }]}>
+      <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>CUÁNTOS QUERÉS VISITAR COMO MÁXIMO?</Text>
       <View style={styles.filaTope}>
         {opciones.map(valor => {
           const deshabilitado = valor > n;
@@ -435,16 +402,22 @@ function BloqueTope({
               style={[
                 styles.opcionTope,
                 deshabilitado
-                  ? styles.opcionTopeDeshabilitada
-                  : seleccionado ? styles.opcionTopeSeleccionada : styles.opcionTopeNoSeleccionada,
+                  ? { backgroundColor: paleta.superficieAlt }
+                  : seleccionado
+                    ? { backgroundColor: paleta.tinta }
+                    : { boxShadow: `inset 0 0 0 1px ${paleta.bordeFuerte}` },
               ]}
             >
               <Text
-                style={
-                  deshabilitado
-                    ? styles.textoOpcionTopeDeshabilitada
-                    : seleccionado ? styles.textoOpcionTopeSeleccionada : styles.textoOpcionTope
-                }
+                style={[
+                  texto.cuerpoMedio,
+                  {
+                    fontFamily: seleccionado ? fuentes.semi : fuentes.medio,
+                    color: deshabilitado
+                      ? paleta.tintaTenue
+                      : seleccionado ? paleta.superficie : paleta.tinta,
+                  },
+                ]}
               >
                 {valor}
               </Text>
@@ -452,17 +425,19 @@ function BloqueTope({
           );
         })}
       </View>
-      <LineaCostoTope n={n} tope={topeBorrador} monto={monto} carritoVacio={carritoVacio} />
+      <LineaCostoTope paleta={paleta} n={n} tope={topeBorrador} monto={monto} carritoVacio={carritoVacio} />
     </View>
   );
 }
 
 function LineaCostoTope({
-  n, tope, monto, carritoVacio,
-}: { n: number; tope: number; monto: number | null; carritoVacio: boolean }) {
+  paleta, n, tope, monto, carritoVacio,
+}: { paleta: Paleta; n: number; tope: number; monto: number | null; carritoVacio: boolean }) {
   if (tope === 0) {
     return (
-      <Text style={[styles.lineaCosto, textoPretty]}>Estás comparando los {n} supers elegidos.</Text>
+      <Text style={[texto.cuerpo, { color: paleta.tintaSuave }, textoPretty]}>
+        Estás comparando los {n} supers elegidos.
+      </Text>
     );
   }
   // Sin carrito no hay nada que comparar (la hoja se abre hoy desde Buscar, donde puede no
@@ -472,64 +447,34 @@ function LineaCostoTope({
 }
 
 const styles = StyleSheet.create({
-  scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,.55)' },
+  fondo: { flex: 1, justifyContent: 'flex-end' },
   hoja: {
-    position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: '85%',
-    backgroundColor: '#FFFFFF', borderTopLeftRadius: radio.pantalla, borderTopRightRadius: radio.pantalla,
-    paddingTop: 18, paddingHorizontal: espacio.pantalla, paddingBottom: 24, gap: espacio.lg,
-  },
-  // `userSelect: 'none'` (web): sin esto, arrastrar desde el título dispara selección de
-  // texto del navegador en vez del gesto de cierre — en iOS/Android nativo no hace nada.
-  zonaArrastre: { userSelect: 'none' },
-  sinSeleccionTexto: { userSelect: 'none' },
-  barraArrastre: {
-    width: 38, height: 4, borderRadius: radio.pill, backgroundColor: '#C6CCD3', alignSelf: 'center',
-    marginBottom: espacio.md,
+    maxHeight: '85%',
+    borderTopLeftRadius: radio.pantalla, borderTopRightRadius: radio.pantalla,
+    paddingTop: espacio.pantalla, paddingHorizontal: espacio.pantalla, paddingBottom: espacio.xl, gap: espacio.lg,
   },
   encabezado: { gap: 4 },
-  titulo: { fontFamily: fuentes.titulo, fontSize: 20, lineHeight: 24, color: '#14161A' },
-  bajada: { fontFamily: fuentes.cuerpo, fontSize: 14, lineHeight: 20, color: '#3C444D' },
   inputBusqueda: {
     height: 44, borderRadius: radio.md, paddingHorizontal: espacio.md, marginTop: espacio.md,
-    fontFamily: fuentes.cuerpo, fontSize: 15, lineHeight: 21, color: '#14161A',
-    boxShadow: 'inset 0 0 0 1px #C6CCD3', outlineWidth: 0, outlineStyle: 'none',
+    fontFamily: fuentes.cuerpo, fontSize: 15, lineHeight: 21,
+    outlineWidth: 0, outlineStyle: 'none',
   },
-  bloqueTope: { gap: 10, borderBottomWidth: 1, borderBottomColor: '#DFE3E7', paddingBottom: 18 },
+  bloqueTope: { gap: 10, borderBottomWidth: 1, paddingBottom: espacio.lg },
   filaTope: { flexDirection: 'row', gap: 6 },
-  opcionTope: { flex: 1, height: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  opcionTopeNoSeleccionada: { boxShadow: 'inset 0 0 0 1px #C6CCD3' },
-  opcionTopeSeleccionada: { backgroundColor: '#14161A' },
-  opcionTopeDeshabilitada: { backgroundColor: '#F1F2F4' },
-  textoOpcionTope: { fontFamily: fuentes.medio, fontSize: 15, color: '#14161A' },
-  textoOpcionTopeSeleccionada: { fontFamily: fuentes.semi, fontSize: 15, color: '#FFFFFF' },
-  textoOpcionTopeDeshabilitada: { fontFamily: fuentes.medio, fontSize: 15, color: '#A6ACB3' },
-  lineaCosto: { fontFamily: fuentes.cuerpo, fontSize: 14, lineHeight: 20, color: '#3C444D' },
-  montoLineaCosto: { fontFamily: fuentes.semi, fontSize: 14, lineHeight: 20, color: '#14161A' },
+  opcionTope: { flex: 1, height: 44, borderRadius: radio.chip, alignItems: 'center', justifyContent: 'center' },
   contenedorLista: { position: 'relative', flex: 1, minHeight: 0 },
   lista: { flex: 1 },
   listaContenido: { gap: espacio.lg },
   grupo: { gap: espacio.sm },
-  labelGrupo: {
-    fontFamily: fuentes.semi, fontSize: 11, lineHeight: 14, letterSpacing: 1.2, color: '#565E67',
-  },
-  separador: { height: 1, backgroundColor: '#DFE3E7' },
+  separador: { height: 1 },
   fila: {
-    flexDirection: 'row', alignItems: 'center', gap: espacio.md, paddingVertical: 9,
+    flexDirection: 'row', alignItems: 'center', gap: espacio.md, paddingVertical: espacio.sm,
   },
   filaBloqueada: { opacity: 0.5 },
   checkbox: {
-    width: 22, height: 22, borderRadius: 5, alignItems: 'center', justifyContent: 'center',
+    width: 22, height: 22, borderRadius: radio.sm, alignItems: 'center', justifyContent: 'center',
   },
-  checkboxTildado: { backgroundColor: '#14161A' },
-  checkboxVacio: { backgroundColor: 'transparent', boxShadow: 'inset 0 0 0 1.5px #14161A' },
-  checkboxBloqueado: { backgroundColor: '#A6ACB3' },
-  check: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+  check: { fontFamily: fuentes.semi, fontSize: 13 },
   barraColorFila: { width: 24, height: 8, borderRadius: radio.pill },
-  nombreFila: { flex: 1, color: '#14161A' },
-  nombreFilaBloqueada: { color: '#565E67' },
-  botonListo: {
-    backgroundColor: '#14161A', borderRadius: radio.md, minHeight: 52,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  textoBotonListo: { fontFamily: fuentes.semi, fontSize: 16, color: '#FFFFFF' },
+  nombreFila: { flex: 1 },
 });

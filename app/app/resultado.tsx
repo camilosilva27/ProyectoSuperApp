@@ -18,7 +18,7 @@ import { useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View,
+  Linking, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -27,7 +27,7 @@ import {
 import { useAuth } from '../src/auth';
 import { useCarrito } from '../src/carrito';
 import { BarraDiferencia } from '../src/componentes/BarraDiferencia';
-import { NOMBRE_SUPER, Problema, Vacio } from '../src/componentes/comunes';
+import { BotonPrincipal, Cargando, IconoChevron, NOMBRE_SUPER, Problema, Vacio } from '../src/componentes/comunes';
 import { FotoProducto } from '../src/componentes/FotoProducto';
 import { HeaderNegro } from '../src/componentes/HeaderNegro';
 import { useFiltrosSupers } from '../src/filtrosSupers';
@@ -150,10 +150,7 @@ export default function PantallaResultado() {
   if (isLoading) {
     return (
       <View style={[styles.centrado, { backgroundColor: paleta.fondo }]}>
-        <ActivityIndicator color={paleta.tintaSuave} />
-        <Text style={[texto.cuerpo, { color: paleta.tintaSuave, textAlign: 'center' }]}>
-          Consultando precios en Vea, Carrefour, Chango Más, Día y Coto…
-        </Text>
+        <Cargando mensaje="Consultando precios en Vea, Carrefour, Chango Más, Día y Coto…" />
       </View>
     );
   }
@@ -196,7 +193,7 @@ export default function PantallaResultado() {
 
         {promos.length ? (
           <View style={styles.seccion} onLayout={e => { yPromos.current = e.nativeEvent.layout.y; }}>
-            <Text style={[styles.tituloDeSeccion, { color: paleta.tinta }]}>Promos sin Aplicar · {promos.length}</Text>
+            <Text style={[styles.divisorSeccion, { color: paleta.tinta }]}>Promos sin Aplicar · {promos.length}</Text>
             {promos.map(promo => (
               <BloquePromo
                 key={promo.ean}
@@ -446,7 +443,7 @@ function PlanDeCompra({ data }: { data: RespuestaComparar }) {
 
   return (
     <View style={styles.seccion}>
-      <Text style={[styles.tituloDeSeccion, { color: paleta.tinta }]}>Plan de Compra</Text>
+      <Text style={[styles.divisorSeccion, { color: paleta.tinta }]}>Plan de Compra</Text>
       {paradas.map(s => {
         const url = linksCarrito[s.key];
         const ahorroBancario = bancario?.porSuper[s.key] ?? null;
@@ -548,17 +545,7 @@ function BloqueExportar({
   const { paleta } = useTema();
   return (
     <View style={{ gap: 4, marginTop: espacio.sm }}>
-      <Pressable
-        onPress={onPress}
-        accessibilityRole="button"
-        accessibilityLabel={`Ver carrito en ${nombre}`}
-        style={({ pressed }) => [
-          styles.botonExportar,
-          { backgroundColor: paleta.tinta, opacity: pressed ? 0.9 : 1 },
-        ]}
-      >
-        <Text style={[texto.cuerpoMedio, { color: paleta.superficie }]}>Ver carrito en {nombre}</Text>
-      </Pressable>
+      <BotonPrincipal onPress={onPress}>{`Ver carrito en ${nombre}`}</BotonPrincipal>
       <Text style={[texto.etiqueta, styles.leyendaExportar, { color: paleta.tintaSuave, letterSpacing: 0.2 }]}>
         {error ? `No se pudo abrir el carrito de ${nombre}`: ""}
       </Text>
@@ -614,7 +601,7 @@ function DetalleProductoPorProducto({ data, isFetching }: { data: RespuestaCompa
 
   return (
     <View style={styles.seccion}>
-      <Text style={[styles.tituloDeSeccion, { color: paleta.tinta }]}>Producto por Producto</Text>
+      <Text style={[styles.divisorSeccion, { color: paleta.tinta }]}>Producto por Producto</Text>
       <View style={styles.pieDetalle}>
         <Text style={[texto.etiqueta, { color: paleta.tintaSuave, letterSpacing: 0.2 }]}>
           {new Date(data.generado).toLocaleString('es-AR')}
@@ -731,7 +718,7 @@ function AvisoCantidad({
                 </Text>
               ) : null}
             </View>
-            <Text style={[texto.subtitulo, { color: paleta.tinta }]}>›</Text>
+            <IconoChevron color={paleta.tinta} />
           </Pressable>
         );
       })}
@@ -807,7 +794,6 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   checkTexto: { color: '#FFFFFF', fontSize: 11, fontWeight: '600' },
-  botonExportar: { minHeight: 48, borderRadius: radio.md, alignItems: 'center', justifyContent: 'center' },
   leyendaExportar: { textAlign: 'center' },
 
   bloquePromoContenedor: { borderWidth: 1, borderRadius: radio.tarjeta, overflow: 'hidden' },
@@ -824,13 +810,13 @@ const styles = StyleSheet.create({
   },
 
 
-  tituloDeSeccion: {
+  divisorSeccion: {
     fontFamily: fuentes.titulo, fontSize: 16, lineHeight: 20,
     textAlign: 'center', textDecorationLine: 'underline',
   },
   pieDetalle: { flexDirection: 'row', alignItems: 'center' },
 
-  tarjetaItem: { borderWidth: 1, borderRadius: radio.lg, padding: espacio.md, gap: espacio.md, marginTop: espacio.sm },
+  tarjetaItem: { borderWidth: 1, borderRadius: radio.tarjeta, padding: espacio.md, gap: espacio.md, marginTop: espacio.sm },
   itemEncabezado: { flexDirection: 'row', alignItems: 'flex-start', gap: espacio.sm },
   aviso: { borderWidth: 1, borderRadius: radio.md, padding: espacio.md, gap: espacio.sm },
   opcionPrevia: {

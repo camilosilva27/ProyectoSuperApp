@@ -19,7 +19,7 @@ import { useAuth } from '../src/auth';
 import { ConfirmacionModal, IconoTarjetaCancelar } from '../src/componentes/Confirmacion';
 import { MercadoPagoEmailSheet } from '../src/componentes/MercadoPagoEmailSheet';
 import { PlanSelect, type PreciosPlanes } from '../src/componentes/PlanSelect';
-import { Problema } from '../src/componentes/comunes';
+import { Cargando, Problema } from '../src/componentes/comunes';
 import { useFlujoDePago } from '../src/flujoDePago';
 import { estadoSuscripcionActiva, usePlanUsuario } from '../src/plan';
 import { espacio, texto } from '../src/theme';
@@ -72,8 +72,8 @@ export default function PantallaPlanYPago() {
 
   if (cargandoPlan || cargandoPrecio) {
     return (
-      <View style={{ flex: 1, backgroundColor: paleta.fondo, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator color={paleta.tintaSuave} />
+      <View style={{ flex: 1, backgroundColor: paleta.fondo }}>
+        <Cargando />
       </View>
     );
   }

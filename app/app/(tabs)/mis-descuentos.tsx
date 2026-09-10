@@ -18,15 +18,15 @@ import { useFocusEffect } from 'expo-router';
 import Head from 'expo-router/head';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ErrorApi, misDescuentos } from '../../src/api';
 import { useAuth } from '../../src/auth';
 import { useCarrito } from '../../src/carrito';
-import { Problema } from '../../src/componentes/comunes';
+import { Cargando, FilaToggleAnimada, Problema } from '../../src/componentes/comunes';
 import { HeaderNegro, TituloHeader } from '../../src/componentes/HeaderNegro';
-import { espacio, fuentes, radio, texto } from '../../src/theme';
+import { espacio, radio, texto } from '../../src/theme';
 import { useEstadoTour, useTour, useTourPaso } from '../../src/tour/TourContext';
 import { useTema } from '../../src/useTema';
 
@@ -36,63 +36,6 @@ import { useTema } from '../../src/useTema';
 // en AllPromos/promos-bancarias.js, ALIAS_TARJETAS) — con Banco Nación, casi al final, había
 // que scrollear para ver la zona resaltada.
 const NOMBRE_TARJETA_TOUR = 'Mercado Pago';
-
-/**
- * Ítem de la lista (SPEC diseño v2, tarjeta con barra de acento + radio circular): reemplaza al
- * switch anterior. Cada fila es su propia "tarjeta" tocable (fondo, borde y barra de acento
- * cambian juntos según el estado), en vez de un switch aislado dentro de una lista con borde
- * único. Todos los colores salen de `paleta` (no fijos) para no romper el tema oscuro.
- *
- * Selección múltiple real (varias tarjetas activas a la vez) — visualmente es un radio circular
- * con check, pero la semántica de accesibilidad sigue siendo checkbox, no radio.
- */
-function ItemDescuento({
-  paleta, filaRef, nombre, activa, onCambiar, accessibilityLabel,
-}: {
-  paleta: ReturnType<typeof useTema>['paleta'];
-  filaRef?: React.Ref<View>;
-  nombre: string;
-  activa: boolean;
-  onCambiar: (valor: boolean) => void;
-  accessibilityLabel: string;
-}) {
-  const progreso = useRef(new Animated.Value(activa ? 1 : 0)).current;
-
-  useEffect(() => {
-    Animated.timing(progreso, {
-      toValue: activa ? 1 : 0,
-      duration: 180,
-      easing: Easing.out(Easing.ease), // fade suave, sin rebote (spec: ease-out 150-200ms)
-      useNativeDriver: false, // anima colores, no soportado por el driver nativo
-    }).start();
-  }, [activa, progreso]);
-
-  const fondo = progreso.interpolate({ inputRange: [0, 1], outputRange: [paleta.superficieAlt, paleta.ofertaSuave] });
-  const borde = progreso.interpolate({ inputRange: [0, 1], outputRange: [paleta.borde, paleta.oferta] });
-  const acento = progreso.interpolate({ inputRange: [0, 1], outputRange: [paleta.borde, paleta.oferta] });
-  const radioFondo = progreso.interpolate({ inputRange: [0, 1], outputRange: [paleta.superficie, paleta.tinta] });
-  const radioBorde = progreso.interpolate({ inputRange: [0, 1], outputRange: [paleta.bordeFuerte, paleta.tinta] });
-
-  return (
-    <Pressable
-      ref={filaRef}
-      onPress={() => onCambiar(!activa)}
-      accessibilityRole="checkbox"
-      accessibilityState={{ checked: activa }}
-      accessibilityLabel={accessibilityLabel}
-    >
-      <Animated.View style={[styles.fila, { backgroundColor: fondo, borderColor: borde }]}>
-        <Animated.View style={[styles.barraAcento, { backgroundColor: acento }]} />
-        <View style={styles.filaTexto}>
-          <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>{nombre}</Text>
-        </View>
-        <Animated.View style={[styles.radio, { backgroundColor: radioFondo, borderColor: radioBorde }]}>
-          <Animated.Text style={[styles.radioCheck, { color: paleta.oferta, opacity: progreso }]}>✓</Animated.Text>
-        </Animated.View>
-      </Animated.View>
-    </Pressable>
-  );
-}
 
 // % / días / tope y "aplica en" ya no se muestran acá (redundante con la grilla de promos
 // bancarias por día en el estado inicial de Buscar, GrillaPromosBancarias.tsx) — esta pantalla
@@ -233,9 +176,7 @@ export default function PantallaMisDescuentos() {
       </HeaderNegro>
 
       {isLoading ? (
-        <View style={styles.centrado}>
-          <ActivityIndicator color={paleta.tintaSuave} />
-        </View>
+        <Cargando />
       ) : error || !data ? (
         <View style={styles.centrado}>
           <Problema
@@ -260,7 +201,7 @@ export default function PantallaMisDescuentos() {
               {descuentosFiltrados.map(d => {
                 const activa = carrito.tarjetas.includes(d.nombre);
                 return (
-                  <ItemDescuento
+                  <FilaToggleAnimada
                     key={d.nombre}
                     paleta={paleta}
                     filaRef={d.nombre === NOMBRE_TARJETA_TOUR ? refMercadoPago : undefined}
@@ -322,13 +263,5 @@ const styles = StyleSheet.create({
   contenedorLista: { position: 'relative', flex: 1, minHeight: 0 },
   contenido: { padding: espacio.pantalla, gap: espacio.pantalla },
   lista: { gap: espacio.sm },
-  fila: {
-    flexDirection: 'row', alignItems: 'center', gap: espacio.md, padding: espacio.md,
-    borderRadius: radio.tarjeta, borderWidth: 1, minHeight: 44,
-  },
-  barraAcento: { width: 8, height: 36, borderRadius: radio.pill },
-  filaTexto: { flex: 1, gap: 2 },
   bloqueInfo: { borderRadius: radio.tarjeta, padding: espacio.md },
-  radio: { width: 26, height: 26, borderRadius: radio.pill, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  radioCheck: { fontFamily: fuentes.semi, fontSize: 13, lineHeight: 13 },
 });

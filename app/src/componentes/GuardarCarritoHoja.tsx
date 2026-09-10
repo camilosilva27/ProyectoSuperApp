@@ -8,6 +8,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { espacio, radio, texto } from '../theme';
 import { useTema } from '../useTema';
+import { BotonPrincipal } from './comunes';
 
 const MESES = [
   'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
@@ -47,7 +48,7 @@ export function GuardarCarritoHoja({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancelar}>
-      <View style={styles.fondo}>
+      <View style={[styles.fondo, { backgroundColor: paleta.overlay }]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onCancelar} accessibilityLabel="Cerrar" />
         <View style={[styles.hoja, { backgroundColor: paleta.superficie }]}>
           <View style={{ gap: espacio.xs }}>
@@ -79,21 +80,17 @@ export function GuardarCarritoHoja({
           </View>
 
           <View style={styles.filaBotones}>
-            <Pressable
-              onPress={onCancelar}
-              accessibilityRole="button"
-              style={[styles.botonCancelar, { borderColor: paleta.borde }]}
-            >
-              <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>Cancelar</Text>
-            </Pressable>
-            <Pressable
+            <BotonPrincipal variante="secundario" estilo={styles.botonPar} onPress={onCancelar}>
+              Cancelar
+            </BotonPrincipal>
+            <BotonPrincipal
+              variante="primario"
+              estilo={styles.botonPar}
+              deshabilitado={!nombre.trim()}
               onPress={confirmar}
-              accessibilityRole="button"
-              disabled={!nombre.trim()}
-              style={[styles.botonGuardar, { backgroundColor: paleta.tinta, opacity: nombre.trim() ? 1 : 0.5 }]}
             >
-              <Text style={[texto.cuerpoMedio, { color: paleta.superficie }]}>Guardar</Text>
-            </Pressable>
+              Guardar
+            </BotonPrincipal>
           </View>
         </View>
       </View>
@@ -127,7 +124,7 @@ export function ToastGuardado({ nombre, onFin }: { nombre: string | null; onFin:
 }
 
 const styles = StyleSheet.create({
-  fondo: { flex: 1, backgroundColor: 'rgba(20,22,26,.55)', justifyContent: 'flex-end' },
+  fondo: { flex: 1, justifyContent: 'flex-end' },
   toast: {
     position: 'absolute', left: espacio.pantalla, right: espacio.pantalla, bottom: '100%',
     marginBottom: espacio.sm, backgroundColor: '#14161A', borderRadius: radio.sm,
@@ -145,11 +142,5 @@ const styles = StyleSheet.create({
     outlineWidth: 0, outlineStyle: 'none',
   },
   filaBotones: { flexDirection: 'row', gap: espacio.sm },
-  botonCancelar: {
-    width: 110, height: 50, borderWidth: 1, borderRadius: radio.sm,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  botonGuardar: {
-    flex: 1, height: 50, borderRadius: radio.sm, alignItems: 'center', justifyContent: 'center',
-  },
+  botonPar: { flex: 1 },
 });

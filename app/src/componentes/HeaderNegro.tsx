@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
   ayudaSelector: { fontFamily: fuentes.cuerpo, fontSize: 12, lineHeight: 16, color: '#C6CCD3' },
   filaCeldas: { flexDirection: 'row', gap: 6, alignItems: 'stretch' },
   celdaSuper: {
-    flex: 1, minWidth: 0, backgroundColor: 'rgba(255,255,255,.1)', borderRadius: 8,
+    flex: 1, minWidth: 0, backgroundColor: 'rgba(255,255,255,.1)', borderRadius: radio.chip,
     paddingVertical: 8, paddingHorizontal: 5, alignItems: 'center', justifyContent: 'center', gap: 7,
   },
   celdaSuperCompacta: { paddingVertical: 5, gap: 4 },
@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
     // `flexGrow`/`flexShrink` en 0 en vez de `flex: 0`: ese shorthand fija `flex-basis: 0%`
     // en CSS, que le gana al `width` explícito y colapsa la celda a ancho 0 (bug real, se veía
     // sin contorno y pegada a la celda anterior porque no había caja, solo el texto).
-    flexGrow: 0, flexShrink: 0, width: 54, borderRadius: 8,
+    flexGrow: 0, flexShrink: 0, width: 54, borderRadius: radio.chip,
     alignItems: 'center', justifyContent: 'center', gap: 1,
     boxShadow: 'inset 0 0 0 1px rgba(255,255,255,.35)',
   },

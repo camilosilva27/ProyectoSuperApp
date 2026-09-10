@@ -6,11 +6,14 @@
  * ("Comparar precios", "Vaciar carrito"), no cómo está hecho por dentro.
  */
 
-import React from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import {
+  ActivityIndicator, Animated, Easing, Pressable, StyleSheet, Text, View,
+  type StyleProp, type ViewStyle,
+} from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import type { SuperKey } from '../api';
-import { espacio, radio, texto, usePantallaBaja } from '../theme';
+import { espacio, fuentes, radio, texto, usePantallaBaja, type Paleta } from '../theme';
 import { useTema } from '../useTema';
 
 export const ORDEN_SUPERS: SuperKey[] = ['vea', 'carr', 'changomas', 'dia', 'coto', 'jumbo', 'disco'];
@@ -185,8 +188,30 @@ export function IconoBalanza({ color, chico = false }: { color: string; chico?: 
   );
 }
 
+/** Flecha de navegación ("ir a X") al final de una fila tocable — antes era el carácter "›"
+ *  suelto en varios lugares (ajustes.tsx, resultado.tsx), la única "iconografía" de la app que
+ *  no era SVG. Mismo mecanismo (`react-native-svg`, trazo de `tamanoIcono`) que el resto. */
+export function IconoChevron({ color, chico = false }: { color: string; chico?: boolean }) {
+  const { lado, grosor } = tamanoIcono(chico);
+  return (
+    <Svg width={lado} height={lado} viewBox="0 0 24 24" fill="none">
+      <Path d="M9 6l6 6-6 6" stroke={color} strokeWidth={grosor} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+/**
+ * Botón CTA único de la app (SPEC diseño v2): antes solo lo usaban "Ver carrito" y "Volver a
+ * Buscar", mientras "Comparar precios" (carrito.tsx), "Ver carrito en X"/"Llevar N"
+ * (resultado.tsx) y los pares Cancelar/Confirmar de las 3 hojas modales se resolvían cada uno
+ * a mano, con su propia altura/radio/opacity de "presionado". `variante` cubre esos casos:
+ * - primario (default): fondo `tinta`, para el CTA principal de una pantalla.
+ * - secundario: outline, para "Cancelar" al lado de un primario o un peligro.
+ * - peligro: fondo `paleta.peligro`, para confirmar una acción destructiva.
+ */
 export function BotonPrincipal({
   children, onPress, cargando = false, deshabilitado = false, subtitulo, iconoCarrito = false,
+  iconoBalanza = false, variante = 'primario', estilo, botonRef,
 }: {
   children: string;
   onPress: () => void;
@@ -195,25 +220,38 @@ export function BotonPrincipal({
   subtitulo?: string;
   /** Ícono de carrito de supermercado antes del texto — solo lo usa "Ver carrito" (index.tsx). */
   iconoCarrito?: boolean;
+  /** Balanza de dos platillos, en amarillo de oferta — solo la usa "Comparar precios"
+   *  (carrito.tsx), para distinguirse de "Ver carrito" (ver comentario de IconoBalanza). */
+  iconoBalanza?: boolean;
+  variante?: 'primario' | 'secundario' | 'peligro';
+  /** Para los pares Cancelar/Confirmar de las hojas modales, que necesitan `flex: 1` cada uno. */
+  estilo?: StyleProp<ViewStyle>;
+  /** Solo lo usa el tour, para medir el botón (ej. "comparar-precios" en carrito.tsx). */
+  botonRef?: React.Ref<View>;
 }) {
   const { paleta } = useTema();
   const pantallaBaja = usePantallaBaja();
   const inactivo = deshabilitado || cargando;
-  const colorTexto = inactivo ? paleta.tintaTenue : paleta.superficie;
+
+  const fondo = inactivo
+    ? (variante === 'secundario' ? 'transparent' : paleta.superficieAlt)
+    : variante === 'secundario' ? 'transparent' : variante === 'peligro' ? paleta.peligro : paleta.tinta;
+  const borde = inactivo ? paleta.borde : variante === 'secundario' ? paleta.borde : fondo;
+  const colorTexto = inactivo
+    ? paleta.tintaTenue
+    : variante === 'secundario' ? paleta.tinta : paleta.superficie;
 
   return (
     <Pressable
+      ref={botonRef}
       onPress={onPress}
       disabled={inactivo}
       accessibilityRole="button"
       accessibilityState={{ disabled: inactivo, busy: cargando }}
       style={({ pressed }) => [
         styles.botonPrincipal,
-        {
-          backgroundColor: inactivo ? paleta.superficieAlt : paleta.tinta,
-          borderColor: inactivo ? paleta.borde : paleta.tinta,
-          opacity: pressed ? 0.9 : 1,
-        },
+        { backgroundColor: fondo, borderColor: borde, opacity: pressed ? 0.9 : 1 },
+        estilo,
       ]}
     >
       {cargando ? (
@@ -222,6 +260,7 @@ export function BotonPrincipal({
         <View style={styles.botonContenido}>
           <View style={styles.filaTituloBoton}>
             {iconoCarrito ? <IconoCarritoCompra color={colorTexto} chico={pantallaBaja} /> : null}
+            {iconoBalanza ? <IconoBalanza color={paleta.oferta} chico={pantallaBaja} /> : null}
             <Text style={[texto.subtitulo, { color: colorTexto }]}>{children}</Text>
           </View>
           {subtitulo ? (
@@ -232,6 +271,79 @@ export function BotonPrincipal({
         </View>
       )}
     </Pressable>
+  );
+}
+
+/**
+ * Fila con switch animado (tarjeta con barra de acento + radio circular, SPEC diseño v2) — la
+ * usan tanto "Mis descuentos" (marcar qué tarjetas/apps tenés) como "Ajustes" (recordatorio
+ * semanal). Antes estaba duplicada a mano en los dos archivos; unificada acá porque eran
+ * pixel-idénticas salvo `filaRef` (scroll del tour a esta fila) y `deshabilitada`.
+ */
+export function FilaToggleAnimada({
+  paleta, filaRef, nombre, activa, deshabilitada = false, onCambiar, accessibilityLabel,
+}: {
+  paleta: Paleta;
+  filaRef?: React.Ref<View>;
+  nombre: string;
+  activa: boolean;
+  deshabilitada?: boolean;
+  onCambiar: (valor: boolean) => void;
+  accessibilityLabel: string;
+}) {
+  const progreso = useRef(new Animated.Value(activa ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.timing(progreso, {
+      toValue: activa ? 1 : 0,
+      duration: 180,
+      easing: Easing.out(Easing.ease), // fade suave, sin rebote (spec: ease-out 150-200ms)
+      useNativeDriver: false, // anima colores, no soportado por el driver nativo
+    }).start();
+  }, [activa, progreso]);
+
+  const fondo = progreso.interpolate({ inputRange: [0, 1], outputRange: [paleta.superficieAlt, paleta.ofertaSuave] });
+  const borde = progreso.interpolate({ inputRange: [0, 1], outputRange: [paleta.borde, paleta.oferta] });
+  const acento = progreso.interpolate({ inputRange: [0, 1], outputRange: [paleta.borde, paleta.oferta] });
+  const radioFondo = progreso.interpolate({ inputRange: [0, 1], outputRange: [paleta.superficie, paleta.tinta] });
+  const radioBorde = progreso.interpolate({ inputRange: [0, 1], outputRange: [paleta.bordeFuerte, paleta.tinta] });
+
+  return (
+    <Pressable
+      ref={filaRef}
+      onPress={() => onCambiar(!activa)}
+      disabled={deshabilitada}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: activa, disabled: deshabilitada }}
+      accessibilityLabel={accessibilityLabel}
+    >
+      <Animated.View style={[styles.filaToggleAnimada, { backgroundColor: fondo, borderColor: borde, opacity: deshabilitada ? 0.6 : 1 }]}>
+        <Animated.View style={[styles.barraAcentoToggle, { backgroundColor: acento }]} />
+        <Text style={[texto.cuerpoMedio, { color: paleta.tinta, flex: 1 }]}>{nombre}</Text>
+        <Animated.View style={[styles.radioToggle, { backgroundColor: radioFondo, borderColor: radioBorde }]}>
+          <Animated.Text style={[styles.radioCheckToggle, { color: paleta.oferta, opacity: progreso }]}>✓</Animated.Text>
+        </Animated.View>
+      </Animated.View>
+    </Pressable>
+  );
+}
+
+/**
+ * Estado de carga compartido — antes cada pantalla (Buscar, Mis descuentos, Resultado, Plan y
+ * pago) armaba el suyo por separado (con/sin texto, con/sin centrado propio), a diferencia de
+ * `Vacio`/`Problema` que sí eran un patrón único y bien adoptado. `mensaje` es opcional: solo
+ * Resultado lo usaba (explica qué está pasando mientras se consultan precios en vivo), el resto
+ * mostraba solo el spinner.
+ */
+export function Cargando({ mensaje }: { mensaje?: string }) {
+  const { paleta } = useTema();
+  return (
+    <View style={styles.cargando}>
+      <ActivityIndicator color={paleta.tintaSuave} />
+      {mensaje ? (
+        <Text style={[texto.cuerpo, { color: paleta.tintaSuave, textAlign: 'center' }]}>{mensaje}</Text>
+      ) : null}
+    </View>
   );
 }
 
@@ -289,9 +401,17 @@ const styles = StyleSheet.create({
   },
   botonContenido: { alignItems: 'center', gap: 2 },
   filaTituloBoton: { flexDirection: 'row', alignItems: 'center', gap: espacio.xs },
+  cargando: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: espacio.sm, padding: espacio.xl },
   vacio: { padding: espacio.xl, gap: espacio.sm, alignItems: 'center' },
   problema: {
     borderWidth: 1, borderRadius: radio.md, padding: espacio.md, gap: espacio.sm,
   },
   encabezado: { gap: 2, paddingBottom: espacio.md },
+  filaToggleAnimada: {
+    flexDirection: 'row', alignItems: 'center', gap: espacio.md, padding: espacio.md,
+    borderRadius: radio.tarjeta, borderWidth: 1, minHeight: 44,
+  },
+  barraAcentoToggle: { width: 8, height: 36, borderRadius: radio.pill },
+  radioToggle: { width: 26, height: 26, borderRadius: radio.pill, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  radioCheckToggle: { fontFamily: fuentes.semi, fontSize: 13, lineHeight: 13 },
 });
