@@ -17,6 +17,20 @@ function leerJSON(ruta) {
   }
 }
 
+// Huella de la promo de un SKU: Vea/Jumbo/Disco guardan el teaser crudo de VTEX en
+// `promocion`; Día/Carrefour/ChangoMás migraron a los campos estructurados
+// `descuentoDirecto`/`promosInternas`/`promosBancarias` y no tienen `promocion` (queda
+// undefined siempre) — comparar solo ese campo dejaba a estos 3 supers con
+// promocion_modificados clavado en 0 para siempre, aunque sí tuvieran cambios reales.
+function huellaPromoSku(sku) {
+  if (sku.promocion !== undefined) return JSON.stringify(sku.promocion);
+  return JSON.stringify({
+    descuentoDirecto: sku.descuentoDirecto,
+    promosInternas: sku.promosInternas,
+    promosBancarias: sku.promosBancarias,
+  });
+}
+
 // Identidad de un SKU: por skuId (estable dentro de un mismo super/seller entre corridas).
 function diffProductos(antes, despues) {
   const skusAntes = antes?.skus ?? [];
@@ -36,7 +50,7 @@ function diffProductos(antes, despues) {
       continue;
     }
     if (skuAntes.precioBase !== skuDespues.precioBase) precioModificados++;
-    if (JSON.stringify(skuAntes.promocion) !== JSON.stringify(skuDespues.promocion)) promocionModificados++;
+    if (huellaPromoSku(skuAntes) !== huellaPromoSku(skuDespues)) promocionModificados++;
   }
   for (const skuId of mapaAntes.keys()) {
     if (!mapaDespues.has(skuId)) eliminados++;
