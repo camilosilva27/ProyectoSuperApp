@@ -32,6 +32,7 @@ import { useFlujoDePago } from '../flujoDePago';
 import { calcularResumenAhorro, type EventoAhorro, useHistorialAhorro } from '../historialAhorro';
 import { estadoSuscripcionActiva, usePlanUsuario } from '../plan';
 import { useTema } from '../useTema';
+import { AvisoBetaModal } from './AvisoBetaModal';
 import { MercadoPagoEmailSheet } from './MercadoPagoEmailSheet';
 import { PaywallFinTrial } from './PaywallFinTrial';
 import { PlanSelect, type PreciosPlanes } from './PlanSelect';
@@ -169,5 +170,10 @@ export function GatePaywallFinTrial({ children }: { children: React.ReactNode })
     );
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      <AvisoBetaModal />
+    </>
+  );
 }
