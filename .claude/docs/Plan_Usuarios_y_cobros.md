@@ -146,9 +146,27 @@ Además, índice parcial `idx_perfil_usuario_pasarela_suscripcion` sobre `pasare
 - **La lógica vive en una función, no en un `update` suelto dentro del cron**, justo para poder volver a correrla a mano en cualquier momento desde el SQL editor (`select public.bajar_planes_vencidos();`) sin esperar al horario del cron. Es idempotente: si no queda ningún trial vencido sin pagar, no hace nada, así que correrla de más no tiene efecto colateral.
 - **Premium permanente otorgado a mano**: columna nueva `premium_manual boolean not null default false` en `perfil_usuario`. El downgrade automático excluye explícitamente (`and not premium_manual`) a cualquier usuario con esta columna en `true`, sin importar hace cuánto venció su trial ni si tiene suscripción. Para dar premium permanente a un usuario puntual (a mano, vía SQL editor, no hay UI para esto):
   ```sql
-  update perfil_usuario set plan = 'premium', premium_manual = true where id = '<uuid>';
+  update perfil_usuario set plan = 'premium', premium_manual = true, tipo_plan = 'permanente' where id = '<uuid>';
   ```
   Sacarle el premium permanente después es el `update` inverso (`premium_manual = false`), y a partir de ahí ese usuario vuelve a quedar sujeto al mismo mecanismo de trial/downgrade que cualquier otro (si su `plan` sigue en `'premium'` sin `pasarela_suscripcion_id`, conviene además volver a poner algún `trial_termina_en` con sentido o pasarlo a `'gratis'` a mano, según el caso).
+
+  **Bug encontrado y corregido (2026-09-11)**: los `UPDATE` manuales hechos antes de esta nota (familia del usuario) seteaban `plan='premium'`/`premium_manual=true` pero **no** `tipo_plan`, que quedaba en `null`. `ajustes.tsx § subtituloPlan` asumía que todo `plan==='premium'` sin `tipoPlan==='permanente'` era una suscripción mensual/anual, e interpolaba `nombrePlanActivo` (que daba `null` en ese caso) literal en el texto — el subtítulo de "Suscripción" mostraba la palabra "null". Corregido con un fallback a `'Premium'` genérico cuando `tipoPlan` no es ninguno de los tres valores esperados; **además hay que correr un `UPDATE ... SET tipo_plan = 'permanente' WHERE premium_manual = true AND tipo_plan IS NULL` una vez** para arreglar los datos de las cuentas ya afectadas (el fix de código evita el síntoma pero no corrige la causa en la fila).
+
+## Pausa del trial durante fase de pruebas — pendiente de revertir (2026-09-11)
+
+**Decisión**: mientras la app esté en fase de pruebas (sin fecha de cierre fijada todavía), nadie debe caer al paywall por vencimiento de trial. Apagar solo el cron `bajar_planes_vencidos` (pg_cron) **no alcanza**: `GatePaywallFinTrial.tsx` calcula `trialVencido` comparando `trial_termina_en` contra la hora actual directo en el cliente (a propósito, para no depender de la latencia del cron — ver la sección de arriba), así que el paywall igual bloquea apenas esa fecha pasa, sin importar si el cron corrió o no.
+
+**Implementado con `supabase/migrations/0019_pausar_trial_fase_pruebas.sql`** (a correr a mano en el SQL editor del proyecto real, no hay CLI de Supabase linkeada en este repo):
+- `UPDATE` que empuja `trial_termina_en` +365 días para todo usuario con `plan='trial'` existente.
+- `manejar_usuario_nuevo()` (el trigger de alta, ver más abajo) redefinido con `interval '365 days'` en vez de `'30 days'`, para que los registros nuevos durante la pausa también queden cubiertos.
+- De paso, en el mismo archivo: fix de datos para el bug de `tipo_plan` null en premium manual (ver más abajo, sección "Premium permanente otorgado a mano").
+
+**Frontend**: `ajustes.tsx § subtituloPlan` muestra `'Período de prueba'` fijo para `plan==='trial'` (sin contar días) mientras dure la pausa — mostrar "vence en 350 días" hubiera sido confuso. Marcado con un comentario `TODO` en el código.
+
+**Pendiente para cuando termine la fase de pruebas** (ninguno de estos dos pasos está hecho todavía, no confundir con "implementado"):
+1. Revertir `manejar_usuario_nuevo()` a `interval '30 days'` (nueva migración).
+2. Volver el texto de `ajustes.tsx § subtituloPlan` a `` `Prueba gratis · vence en ${diasTrial} día(s)` `` (ya calculado en `diasTrial`, solo hay que volver a usarlo).
+3. Decidir qué hacer con los usuarios que se registraron durante la pausa y ya tienen `trial_termina_en` a +365 días — probablemente haga falta otro `UPDATE` para bajarlos a una ventana razonable en vez de dejarlos con casi un año de trial sin querer.
 
 ## Cobro: Mercado Pago Suscripciones — código implementado 2026-08-21, cuenta de MP pendiente
 

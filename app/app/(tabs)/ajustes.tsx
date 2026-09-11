@@ -104,13 +104,20 @@ export default function PantallaAjustes() {
       ? (precioPlanActivo != null
         ? `Permanente · pagaste ${pesosCorto(precioPlanActivo)} el ${formatearFecha(infoPlan.pagadoEl)}`
         : `Permanente · pagado el ${formatearFecha(infoPlan.pagadoEl)}`)
-      : (precioPlanActivo != null
-        ? `${nombrePlanActivo} · ${pesosCorto(precioPlanActivo)} — próximo cobro el ${formatearFecha(infoPlan.renuevaEl)}`
-        : `${nombrePlanActivo} · próximo cobro ${formatearFecha(infoPlan.renuevaEl)}`)
+      // `nombrePlanActivo` puede venir null (premium otorgado a mano sin `tipo_plan` seteado
+      // a 'anual'/'mensual'/'permanente') — sin este fallback se imprimía literal "null" en
+      // esta fila. Cae acá también si el plan mensual/anual todavía no cargó `tipoPlan`.
+      : nombrePlanActivo == null
+        ? 'Premium'
+        : (precioPlanActivo != null
+          ? `${nombrePlanActivo} · ${pesosCorto(precioPlanActivo)} — próximo cobro el ${formatearFecha(infoPlan.renuevaEl)}`
+          : `${nombrePlanActivo} · próximo cobro ${formatearFecha(infoPlan.renuevaEl)}`)
     : infoPlan?.plan === 'trial'
-      ? (diasTrial !== null
-        ? `Prueba gratis · vence en ${diasTrial} día${diasTrial === 1 ? '' : 's'}`
-        : 'Prueba gratis')
+      // TODO(pausa trial fase de pruebas, ver Plan_Usuarios_y_cobros.md § "Pausa del trial
+      // durante fase de pruebas"): mientras dure la pausa no tiene sentido mostrar "vence en
+      // X días" (van a ser ~365, por la migración 0019). Volver a `Prueba gratis · vence en
+      // ${diasTrial} día(s)` cuando se reactive el vencimiento normal.
+      ? 'Período de prueba'
       : 'Elegí un plan';
 
   // GateSesion (_layout.tsx) ya garantiza que no se llega acá sin sesión.
