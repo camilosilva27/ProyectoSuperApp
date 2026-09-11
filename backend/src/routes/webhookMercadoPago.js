@@ -34,6 +34,16 @@ async function manejarPago(dataId, client, supabaseAdmin) {
   const payment = new Payment(client);
   const pago = await payment.get({ id: dataId });
 
+  // TEMPORAL (investigación 2026-09-11): un cargo recurrente de suscripción también llega acá
+  // como type=payment (topic "Pagos (legacy)"), pero sin external_reference (eso solo lo setea
+  // pagos.js para el plan permanente) — hoy se ignora en el `return` de abajo. Este log es para
+  // ver el payload real de un cargo de suscripción y encontrar el campo que lo liga al
+  // preapproval/usuario, antes de escribir la lógica que manda el recibo en el momento de
+  // aprobación real (no de acreditación). Sacar este log una vez confirmado el campo.
+  if (pago.status === 'approved' && !pago.external_reference) {
+    console.log('[investigación recibo] payment de posible cargo de suscripción:', JSON.stringify(pago));
+  }
+
   if (pago.status !== 'approved' || !pago.external_reference) return;
 
   // Se lee el estado ANTES de actualizar para poder distinguir "primera vez que se aprueba
