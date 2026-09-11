@@ -10,8 +10,10 @@
  * da lo mismo si el webhook y la verificación activa procesan el mismo pago dos veces.
  */
 
+const { MercadoPagoConfig, PreApproval, Payment } = require('mercadopago');
 const { planSegunEstado } = require('./planSegunEstadoSuscripcion');
 const { enviarRecibo } = require('./reciboPago');
+const { mercadopagoAccessToken } = require('./config');
 
 // Pago único del plan permanente: `pago.external_reference` es el usuarioId (seteado al crear
 // la Preference en pagos.js). Devuelve el plan resultante, o null si no había nada que aplicar
@@ -93,4 +95,42 @@ async function procesarSuscripcion(suscripcion, dataId, supabaseAdmin) {
   return nuevoPlan;
 }
 
-module.exports = { procesarPagoAprobado, procesarSuscripcion };
+// Punto de entrada único para "reconciliar el pago de este usuario contra MP ahora mismo" —
+// usado tanto por `POST /api/pagos/verificar` (un usuario, disparado por la app) como por el
+// cron de reintento (`cron/reintentarPagosPendientes.js`, varios usuarios en batch). Decide solo
+// la rama correcta (suscripción vs. pago único) a partir de lo que ya hay guardado en
+// `perfil_usuario` — evita duplicar esa decisión en los dos callers.
+async function verificarYAplicarPago(usuarioId, supabaseAdmin) {
+  const { data: perfil, error: errorPerfil } = await supabaseAdmin
+    .from('perfil_usuario')
+    .select('plan, pasarela_suscripcion_id, premium_manual')
+    .eq('id', usuarioId)
+    .single();
+  if (errorPerfil) throw errorPerfil;
+
+  if (perfil.plan === 'premium' || perfil.premium_manual) return perfil.plan;
+  if (!mercadopagoAccessToken) return perfil.plan;
+
+  const client = new MercadoPagoConfig({ accessToken: mercadopagoAccessToken });
+
+  if (perfil.pasarela_suscripcion_id) {
+    const preApproval = new PreApproval(client);
+    const suscripcion = await preApproval.get({ id: perfil.pasarela_suscripcion_id });
+    const plan = await procesarSuscripcion(suscripcion, perfil.pasarela_suscripcion_id, supabaseAdmin);
+    return plan ?? perfil.plan;
+  }
+
+  // Plan permanente: no hay id de suscripción guardado, el pago se busca por
+  // external_reference (seteado al crear la Preference en /pagos/pago-unico).
+  const payment = new Payment(client);
+  const { results } = await payment.search({
+    options: { external_reference: usuarioId, sort: 'date_approved', criteria: 'desc' },
+  });
+  const pagoAprobado = results?.find((p) => p.status === 'approved');
+  if (!pagoAprobado) return perfil.plan;
+
+  const plan = await procesarPagoAprobado(pagoAprobado, supabaseAdmin);
+  return plan ?? perfil.plan;
+}
+
+module.exports = { procesarPagoAprobado, procesarSuscripcion, verificarYAplicarPago };

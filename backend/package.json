@@ -16,7 +16,8 @@
     "resumen-mensual-ahorro": "node src/cron/resumenMensualAhorro.js",
     "resumen-semanal-ahorro": "node src/cron/resumenSemanalAhorro.js",
     "aviso-fin-trial": "node src/cron/avisoFinTrial.js",
-    "aviso-inactividad": "node src/cron/avisoInactividad.js"
+    "aviso-inactividad": "node src/cron/avisoInactividad.js",
+    "reintentar-pagos-pendientes": "node src/cron/reintentarPagosPendientes.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

@@ -13,12 +13,12 @@
 
 const express = require('express');
 const {
-  MercadoPagoConfig, PreApproval, Preference, Payment,
+  MercadoPagoConfig, PreApproval, Preference,
 } = require('mercadopago');
 const { requiereSesion } = require('../middleware/requiereSesion');
 const { clienteSupabaseAdmin } = require('../clienteSupabaseAdmin');
 const { planSegunEstado } = require('../planSegunEstadoSuscripcion');
-const { procesarPagoAprobado, procesarSuscripcion } = require('../procesarPagoMercadoPago');
+const { verificarYAplicarPago } = require('../procesarPagoMercadoPago');
 const {
   mercadopagoAccessToken, precioMensualArs, precioAnualArs, precioPermanenteArs,
   urlVueltaCheckoutMP,
@@ -105,6 +105,7 @@ router.post('/pagos/suscripcion', requiereSesion, async (req, res) => {
         suscripcion_estado: suscripcion.status ?? 'pending',
         tipo_plan: tipoPlan,
         mail_mercado_pago: emailPago,
+        intento_pago_en: new Date().toISOString(),
       })
       .eq('id', req.usuarioId);
     if (error) throw error;
@@ -164,7 +165,7 @@ router.post('/pagos/pago-unico', requiereSesion, async (req, res) => {
     // pero el mail sí se puede guardar ya: es el mismo dato que se usó para crear la Preference.
     const { error } = await supabaseAdmin
       .from('perfil_usuario')
-      .update({ mail_mercado_pago: emailPago })
+      .update({ mail_mercado_pago: emailPago, intento_pago_en: new Date().toISOString() })
       .eq('id', req.usuarioId);
     if (error) throw error;
 
@@ -238,45 +239,9 @@ router.post('/pagos/verificar', requiereSesion, async (req, res) => {
     return res.status(503).json({ error: 'Supabase (service role) todavía no está configurado' });
   }
 
-  const { data: perfil, error: errorPerfil } = await supabaseAdmin
-    .from('perfil_usuario')
-    .select('plan, pasarela_suscripcion_id, premium_manual')
-    .eq('id', req.usuarioId)
-    .single();
-  if (errorPerfil) {
-    return res.status(502).json({ error: 'No se pudo leer el perfil del usuario' });
-  }
-
-  // Nada que reconciliar: ya es premium (o lo otorgaron a mano), y esta ruta solo existe para
-  // destrabar el caso "ya pagué pero MP no avisó todavía" — no hace falta pegarle a la API de MP
-  // en cada visita a Ajustes de alguien que ya está al día.
-  if (perfil.plan === 'premium' || perfil.premium_manual) {
-    return res.json({ plan: perfil.plan });
-  }
-
   try {
-    const client = new MercadoPagoConfig({ accessToken: mercadopagoAccessToken });
-
-    if (perfil.pasarela_suscripcion_id) {
-      const preApproval = new PreApproval(client);
-      const suscripcion = await preApproval.get({ id: perfil.pasarela_suscripcion_id });
-      const plan = await procesarSuscripcion(suscripcion, perfil.pasarela_suscripcion_id, supabaseAdmin);
-      return res.json({ plan: plan ?? perfil.plan });
-    }
-
-    // Plan permanente: no hay id de suscripción guardado, el pago se busca por
-    // external_reference (seteado al crear la Preference en /pagos/pago-unico).
-    const payment = new Payment(client);
-    const { results } = await payment.search({
-      options: {
-        external_reference: req.usuarioId, sort: 'date_approved', criteria: 'desc',
-      },
-    });
-    const pagoAprobado = results?.find((p) => p.status === 'approved');
-    if (!pagoAprobado) return res.json({ plan: perfil.plan });
-
-    const plan = await procesarPagoAprobado(pagoAprobado, supabaseAdmin);
-    res.json({ plan: plan ?? perfil.plan });
+    const plan = await verificarYAplicarPago(req.usuarioId, supabaseAdmin);
+    res.json({ plan });
   } catch (err) {
     console.error('Error verificando pago de Mercado Pago:', err);
     res.status(502).json({ error: 'No se pudo verificar el pago en Mercado Pago' });
