@@ -50,29 +50,42 @@ async function procesarPagoAprobado(pago, supabaseAdmin) {
 }
 
 // Suscripción (mensual/anual): `dataId` es el id de la suscripción en MP
-// (`perfil_usuario.pasarela_suscripcion_id`). Devuelve el plan resultante, o null si no había
-// ningún usuario con esa suscripción (o ya estaba con premium manual).
+// (`perfil_usuario.pasarela_suscripcion_id`). Devuelve el plan resultante si cambió en la fila,
+// o null si no hubo cambio de plan (incluye el caso de gracia post-cancelación, ver abajo) o si
+// no había ningún usuario con esa suscripción (o ya estaba con premium manual).
 async function procesarSuscripcion(suscripcion, dataId, supabaseAdmin) {
   const nuevoPlan = planSegunEstado(suscripcion.status);
-  const cambios = {
-    suscripcion_estado: suscripcion.status,
-    siguiente_cobro_en: suscripcion.next_payment_date ?? null,
-  };
-  if (nuevoPlan) {
-    cambios.plan = nuevoPlan;
-    if (nuevoPlan === 'gratis') {
-      cambios.tipo_plan = null;
-      cambios.siguiente_cobro_en = null;
-    }
-  }
+  const cambios = { suscripcion_estado: suscripcion.status };
 
   const { data: filaAnterior } = await supabaseAdmin
     .from('perfil_usuario')
-    .select('id, nombre, tipo_plan, siguiente_cobro_en')
+    .select('id, plan, nombre, tipo_plan, siguiente_cobro_en')
     .eq('pasarela_suscripcion_id', dataId)
     .eq('premium_manual', false)
     .maybeSingle();
   if (!filaAnterior) return null;
+
+  if (nuevoPlan === 'premium') {
+    cambios.plan = 'premium';
+    cambios.siguiente_cobro_en = suscripcion.next_payment_date ?? null;
+    cambios.acceso_premium_hasta = null;
+  } else if (nuevoPlan === 'gratis') {
+    // Cancelada o pausada: no se corta el acceso ya pagado de una. `siguiente_cobro_en` (la
+    // fecha del próximo cobro que ya no va a pasar) es justo el límite de lo ya pagado, así
+    // que el plan queda en premium hasta ahí — recién `bajar_planes_vencidos()` (migración
+    // 0020) lo baja de verdad cuando esa fecha pasa. Si no hay `siguiente_cobro_en` (nunca
+    // llegó a cobrarse ni una vez), no hay nada "ya pagado" que honrar: se baja ya.
+    const yaVencido = filaAnterior.siguiente_cobro_en
+      && new Date(filaAnterior.siguiente_cobro_en) <= new Date();
+    if (filaAnterior.siguiente_cobro_en && !yaVencido) {
+      cambios.acceso_premium_hasta = filaAnterior.siguiente_cobro_en;
+    } else {
+      cambios.plan = 'gratis';
+      cambios.tipo_plan = null;
+      cambios.siguiente_cobro_en = null;
+      cambios.acceso_premium_hasta = null;
+    }
+  }
 
   const { error } = await supabaseAdmin
     .from('perfil_usuario')
@@ -92,7 +105,7 @@ async function procesarSuscripcion(suscripcion, dataId, supabaseAdmin) {
     if (!resultado.ok) console.error('No se pudo mandar el recibo de pago (suscripción):', resultado.error);
   }
 
-  return nuevoPlan;
+  return cambios.plan ?? null;
 }
 
 // Punto de entrada único para "reconciliar el pago de este usuario contra MP ahora mismo" —

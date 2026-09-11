@@ -17,8 +17,7 @@ const {
 } = require('mercadopago');
 const { requiereSesion } = require('../middleware/requiereSesion');
 const { clienteSupabaseAdmin } = require('../clienteSupabaseAdmin');
-const { planSegunEstado } = require('../planSegunEstadoSuscripcion');
-const { verificarYAplicarPago } = require('../procesarPagoMercadoPago');
+const { procesarSuscripcion, verificarYAplicarPago } = require('../procesarPagoMercadoPago');
 const {
   mercadopagoAccessToken, precioMensualArs, precioAnualArs, precioPermanenteArs,
   urlVueltaCheckoutMP,
@@ -176,10 +175,13 @@ router.post('/pagos/pago-unico', requiereSesion, async (req, res) => {
   }
 });
 
-// POST /api/pagos/cancelar-suscripcion — cancela la suscripción del usuario logueado. A
-// diferencia del webhook (que solo reacciona a lo que MP avisa async), acá se tiene la
-// respuesta de `preApproval.update` en la misma llamada, así que el plan se actualiza de
-// una sin esperar al webhook — el usuario ve el downgrade reflejado al instante en Ajustes.
+// POST /api/pagos/cancelar-suscripcion — cancela la suscripción del usuario logueado en
+// Mercado Pago. No baja el plan al instante: reusa `procesarSuscripcion` (la misma lógica que
+// aplica el webhook) para que, si ya había un período pagado por delante (`siguiente_cobro_en`),
+// el usuario mantenga premium hasta esa fecha — política confirmada 2026-09-11 (ver
+// .claude/docs/Plan_Usuarios_y_cobros.md § "Cancelación"): no se le cobra el próximo período,
+// pero conserva el acceso ya pagado, sin reembolso. `bajar_planes_vencidos()` (migración 0020)
+// es quien efectiviza el downgrade real cuando esa fecha pasa.
 router.post('/pagos/cancelar-suscripcion', requiereSesion, async (req, res) => {
   if (!mercadopagoAccessToken) {
     return res.status(503).json({ error: 'Mercado Pago todavía no está configurado' });
@@ -206,17 +208,16 @@ router.post('/pagos/cancelar-suscripcion', requiereSesion, async (req, res) => {
       body: { status: 'cancelled' },
     });
 
-    const nuevoPlan = planSegunEstado(suscripcion.status) ?? 'gratis';
-    // premium_manual nunca se pisa desde acá, mismo criterio que el webhook. tipo_plan se
-    // limpia porque ya no tiene sentido una vez que el usuario deja de ser premium.
-    const { error } = await supabaseAdmin
-      .from('perfil_usuario')
-      .update({ suscripcion_estado: suscripcion.status ?? 'cancelled', plan: nuevoPlan, tipo_plan: null })
-      .eq('id', req.usuarioId)
-      .eq('premium_manual', false);
-    if (error) throw error;
+    await procesarSuscripcion(suscripcion, perfil.pasarela_suscripcion_id, supabaseAdmin);
 
-    res.json({ plan: nuevoPlan });
+    const { data: perfilActualizado, error: errorLectura } = await supabaseAdmin
+      .from('perfil_usuario')
+      .select('plan, acceso_premium_hasta')
+      .eq('id', req.usuarioId)
+      .single();
+    if (errorLectura) throw errorLectura;
+
+    res.json({ plan: perfilActualizado.plan, accesoPremiumHasta: perfilActualizado.acceso_premium_hasta });
   } catch (err) {
     console.error('Error cancelando suscripción de Mercado Pago:', err);
     res.status(502).json({ error: 'No se pudo cancelar la suscripción en Mercado Pago' });
