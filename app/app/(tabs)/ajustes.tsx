@@ -1,44 +1,37 @@
 /**
  * Pantalla Ajustes.
  *
- * El rediseño v2 agrega este tab (antes eran solo Buscar/Carrito) pero su contenido no está
- * diseñado del todo (ver design_handoff_allpromos_v2/SPEC.md § 7.4): tema claro/oscuro y la
- * preferencia de compra online llegan en próximas fases, no como relleno acá. "Cómo funciona"
- * y "Cuenta" (Fase 1, Plan_Usuarios_y_cobros.md) sí tienen su punto de entrada ya. "Mis
- * descuentos" tenía su fila acá pero pasó a ser su propia pestaña de la barra inferior.
+ * Reestructurada (diseño 20d, Claude Design turno 20, 2026-09-10) en 3 grupos:
+ * - TU ACTIVIDAD: "Mis ahorros", mudada acá desde su propia pestaña de la barra inferior (le
+ *   cedió el lugar a "Alertas", ver (tabs)/_layout.tsx) — chip "NUEVO ACÁ" mientras dure la
+ *   mudanza.
+ * - PREFERENCIAS: "Supers cerca tuyo", anunciada como próxima (sin pantalla real todavía).
+ * - CUENTA: "Datos personales" (mail + cerrar sesión, antes inline acá) y "Ayuda" (tutorial +
+ *   contacto, antes sueltos en el cuerpo) pasan a ser sus propias pantallas; "Suscripción" es
+ *   la fila de plan/pago que ya existía (antes bajo su propio bloque "TU PLAN").
+ *
+ * "NOTIFICACIONES" (recordatorio semanal genérico) es una feature aparte de "Alertas" — no la
+ * tocó este rediseño, sigue en el cuerpo de esta pantalla tal cual estaba.
  *
  * La cuenta ya no es opcional (Fase 2, `GateSesion.tsx`): sin sesión no se llega a este tab
  * (ni a ningún otro) — por eso acá abajo no hace falta un branch para el caso sin sesión.
- *
- * El bloque "TU PLAN" (turnos 12/13, TURNOS-12-13-planes-y-pago.md § 4) reemplaza a los tres
- * botones provisorios de elegir plan que había acá (opciones_planes.md, Fase 3) — la selección
- * real de plan vive en `PlanSelect`, alcanzada desde `/plan-y-pago`. Va separado del grupo
- * "CUENTA" y no como una fila más ahí adentro: el plan Permanente necesita su propio tratamiento
- * visual (tarjeta oscura + badge ACTIVO), y meterlo en el grupo de filas simples no lo permite.
- * La nota al pie de ese bloque ya aclara que ahí también se cambia o se cancela, así que no hace
- * falta una fila separada de "Cancelar suscripción" en la lista — el modal de cancelación se
- * mantiene igual que antes, solo cambia desde dónde se dispara.
  */
 
 import { useFocusEffect, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { precioSuscripcion } from '../../src/api';
 import { useAuth } from '../../src/auth';
-import { ConfirmacionModal, IconoSalir } from '../../src/componentes/Confirmacion';
 import { FilaToggleAnimada, IconoChevron } from '../../src/componentes/comunes';
 import { HeaderNegro, TituloHeader } from '../../src/componentes/HeaderNegro';
+import { calcularResumenAhorro, useHistorialAhorro } from '../../src/historialAhorro';
 import { desuscribir, pedirPermisoYSuscribir, soportaPush, yaSuscripto } from '../../src/push/push';
 import { diasRestantesTrial, usePlanUsuario } from '../../src/plan';
 import { espacio, pesosCorto, radio, texto } from '../../src/theme';
 import { useTour } from '../../src/tour/TourContext';
 import { useTema } from '../../src/useTema';
-
-// Tarjeta oscura del bloque "TU PLAN" cuando el plan activo es Permanente (turno 13e) — mismo
-// token que la tarjeta invertida del Anual en PlanSelect.tsx.
-const TARJETA_OSCURA = '#14161A';
 
 function formatearFecha(iso: string | null): string {
   if (!iso) return '—';
@@ -51,18 +44,20 @@ export default function PantallaAjustes() {
   const { paleta } = useTema();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { session, cerrarSesion } = useAuth();
+  const { session } = useAuth();
   const { info: infoPlan, recargar: recargarPlan } = usePlanUsuario();
   const tour = useTour();
-  const [mostrarConfirmarSalir, setMostrarConfirmarSalir] = useState(false);
+  const { eventos } = useHistorialAhorro();
+  const totalAhorrado = useMemo(() => calcularResumenAhorro(eventos).totalMonto, [eventos]);
   const [precios, setPrecios] = useState<{ mensual: number; anual: number; permanente: number } | null>(null);
   const [notifsSoportadas, setNotifsSoportadas] = useState(false);
   const [notifsActivas, setNotifsActivas] = useState(false);
   const [notifsCargando, setNotifsCargando] = useState(false);
 
-  // El tour se lanza desde esta misma pantalla y su overlay se pinta encima sin desmontarla: el
-  // paso "notificaciones" pide el permiso y suscribe por su cuenta (TourOverlay.tsx), así que acá
-  // hay que volver a consultar `yaSuscripto()` cuando el tour termina, no solo al montar.
+  // El tour se lanza desde la pantalla de Ayuda y su overlay se pinta encima sin desmontar
+  // ninguna pantalla: el paso "notificaciones" pide el permiso y suscribe por su cuenta
+  // (TourOverlay.tsx), así que acá hay que volver a consultar `yaSuscripto()` cuando el tour
+  // termina, no solo al montar.
   useEffect(() => {
     if (tour.activo) return;
     setNotifsSoportadas(soportaPush());
@@ -88,8 +83,8 @@ export default function PantallaAjustes() {
   // el usuario estaba afuera.
   useFocusEffect(useCallback(() => { recargarPlan(); }, [recargarPlan]));
 
-  // Solo para mostrar el precio del plan activo en el bloque "TU PLAN" (turno 13d/13e) — si
-  // falla, los textos caen a la variante sin precio, no bloquea la pantalla.
+  // Solo para mostrar el precio del plan activo en la fila "Suscripción" — si falla, los
+  // textos caen a la variante sin precio, no bloquea la pantalla.
   useEffect(() => {
     precioSuscripcion()
       .then(({ precioMensualArs, precioAnualArs, precioPermanenteArs }) => {
@@ -104,13 +99,11 @@ export default function PantallaAjustes() {
   const precioPlanActivo = infoPlan?.tipoPlan && precios ? precios[infoPlan.tipoPlan] : null;
   const nombrePlanActivo = infoPlan?.tipoPlan === 'anual' ? 'Anual' : infoPlan?.tipoPlan === 'mensual' ? 'Mensual' : null;
 
-  // Subtítulo de la fila "Plan y pago" — mismo dato (tipo de plan + próximo cobro/fecha de
-  // pago) que va a repetirse arriba de `PlanSelect`, pero acá solo hace falta una línea.
   const subtituloPlan = infoPlan?.plan === 'premium'
     ? infoPlan.tipoPlan === 'permanente'
       ? (precioPlanActivo != null
-        ? `Pagaste ${pesosCorto(precioPlanActivo)} el ${formatearFecha(infoPlan.pagadoEl)}. No hay renovaciones ni cobros futuros.`
-        : `Pagado el ${formatearFecha(infoPlan.pagadoEl)}. No hay renovaciones ni cobros futuros.`)
+        ? `Permanente · pagaste ${pesosCorto(precioPlanActivo)} el ${formatearFecha(infoPlan.pagadoEl)}`
+        : `Permanente · pagado el ${formatearFecha(infoPlan.pagadoEl)}`)
       : (precioPlanActivo != null
         ? `${nombrePlanActivo} · ${pesosCorto(precioPlanActivo)} — próximo cobro el ${formatearFecha(infoPlan.renuevaEl)}`
         : `${nombrePlanActivo} · próximo cobro ${formatearFecha(infoPlan.renuevaEl)}`)
@@ -131,63 +124,68 @@ export default function PantallaAjustes() {
       </HeaderNegro>
       <View style={styles.cuerpo}>
         <View style={styles.seccion}>
-          <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>CUENTA</Text>
+          <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>TU ACTIVIDAD</Text>
           <View style={[styles.grupo, { borderColor: paleta.borde }]}>
-            <View style={styles.fila}>
-              <Text style={[texto.cuerpoMedio, { color: paleta.tinta, flex: 1 }]} numberOfLines={1}>
-                {session.user.email}
-              </Text>
-            </View>
-            <View style={[styles.separador, { backgroundColor: paleta.borde }]} />
             <Pressable
-              onPress={() => setMostrarConfirmarSalir(true)}
+              onPress={() => router.push('/mis-ahorros')}
               accessibilityRole="button"
-              style={styles.fila}
+              style={[styles.fila, { minHeight: 68 }]}
             >
-              <Text style={[texto.cuerpoMedio, { color: paleta.peligro }]}>Cerrar sesión</Text>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>Mis ahorros</Text>
+                <Text style={[texto.etiqueta, { color: paleta.tintaSuave, letterSpacing: 0.2 }]}>
+                  {pesosCorto(totalAhorrado)} desde que usás Super App
+                </Text>
+              </View>
+              <View style={[styles.chip, { backgroundColor: paleta.oferta }]}>
+                <Text style={[texto.micro, { color: paleta.ofertaTinta }]}>NUEVO ACÁ</Text>
+              </View>
+              <IconoChevron color={paleta.tintaTenue} />
             </Pressable>
           </View>
         </View>
 
         <View style={styles.seccion}>
-          <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>TU PLAN</Text>
-          {infoPlan?.plan === 'premium' && infoPlan.tipoPlan === 'permanente' ? (
-            <Pressable
-              onPress={() => router.push('/plan-y-pago')}
-              accessibilityRole="button"
-              style={[styles.tarjetaPlan, { backgroundColor: TARJETA_OSCURA }]}
-            >
+          <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>PREFERENCIAS</Text>
+          <View style={[styles.grupo, { borderColor: paleta.borde }]}>
+            <View style={[styles.fila, { minHeight: 68 }]}>
               <View style={{ flex: 1, gap: 2 }}>
-                <View style={styles.filaNombrePlan}>
-                  <Text style={[texto.cuerpoMedio, { color: '#FFFFFF' }]}>Permanente</Text>
-                  <View style={[styles.badgeActivo, { backgroundColor: paleta.oferta }]}>
-                    <Text style={[texto.micro, { color: paleta.ofertaTinta }]}>ACTIVO</Text>
-                  </View>
-                </View>
-                <Text style={[texto.etiqueta, { color: '#C6CCD3', letterSpacing: 0.2 }]}>{subtituloPlan}</Text>
+                <Text style={[texto.cuerpoMedio, { color: paleta.tintaSuave }]}>Supers cerca tuyo</Text>
+                <Text style={[texto.etiqueta, { color: paleta.tintaSuave, letterSpacing: 0.2 }]}>
+                  Elegís qué cadenas te muestra la app
+                </Text>
               </View>
-              <IconoChevron color="#FFFFFF" />
+              <View style={[styles.chip, { backgroundColor: paleta.superficieAlt }]}>
+                <Text style={[texto.micro, { color: paleta.tintaSuave }]}>PRÓXIMAMENTE</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.seccion}>
+          <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>CUENTA</Text>
+          <View style={[styles.grupo, { borderColor: paleta.borde }]}>
+            <Pressable onPress={() => router.push('/datos-personales')} accessibilityRole="button" style={styles.fila}>
+              <Text style={[texto.cuerpoMedio, { color: paleta.tinta, flex: 1 }]}>Datos personales</Text>
+              <IconoChevron color={paleta.tintaTenue} />
             </Pressable>
-          ) : (
-            <Pressable
-              onPress={() => router.push('/plan-y-pago')}
-              accessibilityRole="button"
-              style={[styles.tarjetaPlan, { borderWidth: 1, borderColor: paleta.borde }]}
-            >
+            <View style={[styles.separador, { backgroundColor: paleta.borde }]} />
+            <Pressable onPress={() => router.push('/plan-y-pago')} accessibilityRole="button" style={styles.fila}>
               <View style={{ flex: 1, gap: 2 }}>
-                <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>Plan y pago</Text>
+                <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>Suscripción</Text>
                 <Text style={[texto.etiqueta, { color: paleta.tintaSuave, letterSpacing: 0.2 }]}>{subtituloPlan}</Text>
               </View>
               <IconoChevron color={paleta.tintaTenue} />
             </Pressable>
-          )}
-          {infoPlan?.plan === 'premium' ? (
-            <Text style={[texto.etiqueta, { color: paleta.tintaSuave, letterSpacing: 0.2 }]}>
-              {infoPlan.tipoPlan === 'permanente'
-                ? 'Tenés la app completa para siempre.'
-                : 'Acá cambiás de plan o cancelás.'}
-            </Text>
-          ) : null}
+            <View style={[styles.separador, { backgroundColor: paleta.borde }]} />
+            <Pressable onPress={() => router.push('/ayuda')} accessibilityRole="button" style={styles.fila}>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>Ayuda</Text>
+                <Text style={[texto.etiqueta, { color: paleta.tintaSuave, letterSpacing: 0.2 }]}>Contacto y tutoriales</Text>
+              </View>
+              <IconoChevron color={paleta.tintaTenue} />
+            </Pressable>
+          </View>
         </View>
 
         {notifsSoportadas ? (
@@ -203,31 +201,7 @@ export default function PantallaAjustes() {
             />
           </View>
         ) : null}
-
-        <View style={[styles.grupo, { borderColor: paleta.borde }]}>
-          <Pressable
-            onPress={tour.iniciar}
-            accessibilityRole="button"
-            style={styles.fila}
-          >
-            <Text style={[texto.cuerpoMedio, { color: paleta.tinta, flex: 1 }]}>Ver el tutorial</Text>
-            <IconoChevron color={paleta.tintaTenue} />
-          </Pressable>
-        </View>
-
-        <Text style={[texto.cuerpo, { color: paleta.tintaSuave }]}>
-          Ante cualquier duda, opinión o problema, escribir a contacto@mi-superapp.com.ar
-        </Text>
       </View>
-      <ConfirmacionModal
-        visible={mostrarConfirmarSalir}
-        titulo="Cerrar sesión"
-        mensaje="¿Estás seguro de que querés cerrar sesión?"
-        textoConfirmar="Cerrar sesión"
-        icono={IconoSalir}
-        onCancelar={() => setMostrarConfirmarSalir(false)}
-        onConfirmar={() => { setMostrarConfirmarSalir(false); cerrarSesion(); }}
-      />
     </View>
   );
 }
@@ -237,12 +211,7 @@ const styles = StyleSheet.create({
   cuerpo: { padding: espacio.pantalla, gap: espacio.pantalla },
   seccion: { gap: espacio.sm },
   grupo: { borderWidth: 1, borderRadius: radio.tarjeta, paddingHorizontal: espacio.md },
-  fila: { flexDirection: 'row', alignItems: 'center', minHeight: 52 },
+  fila: { flexDirection: 'row', alignItems: 'center', gap: espacio.sm, minHeight: 52 },
   separador: { height: StyleSheet.hairlineWidth },
-  tarjetaPlan: {
-    flexDirection: 'row', alignItems: 'center', gap: espacio.md,
-    borderRadius: radio.tarjeta, padding: espacio.lg,
-  },
-  filaNombrePlan: { flexDirection: 'row', alignItems: 'center', gap: espacio.sm },
-  badgeActivo: { borderRadius: 5, paddingHorizontal: espacio.sm, paddingVertical: 3 },
+  chip: { borderRadius: 6, paddingHorizontal: espacio.sm, paddingVertical: 3 },
 });

@@ -1,7 +1,7 @@
 /**
- * Cinco pestañas (antes cuatro): buscar productos, ver la lista, Mis descuentos, Ahorros, y
- * Ajustes. El resultado no es una pestaña — es la consecuencia de una acción ("Comparar
- * precios"), así que se abre apilado encima.
+ * Cinco pestañas: buscar productos, ver la lista, Mis descuentos, Alertas, y Ajustes. El
+ * resultado no es una pestaña — es la consecuencia de una acción ("Comparar precios"), así que
+ * se abre apilado encima.
  *
  * "Mis descuentos" vivía como una fila dentro de Ajustes (una pantalla apilada, abierta con
  * router.push) y pasó a ser su propia pestaña: es algo que se consulta y toca seguido (activar/
@@ -11,9 +11,11 @@
  * El contador de la pestaña "Carrito" muestra unidades, no productos distintos: es lo que
  * el usuario está por comparar.
  *
- * "Ahorros" (PANTALLAS-ahorros-y-paywall.md) tiene su propio `tabBarLabel`: el label inactivo
- * usa `tintaSuave`, no `tintaTenue` como el ícono — son dos tokens distintos a propósito (ver
- * theme.ts), así que no alcanza con el `tabBarInactiveTintColor` global de abajo.
+ * "Alertas" (diseño 20a-20g, Claude Design turno 20, 2026-09-10) reemplaza a "Ahorros" en este
+ * lugar de la barra: seguir productos/categorías puntuales para recibir aviso cuando les
+ * aparece una promo. "Ahorros" no desapareció, se mudó a ser una fila dentro de Ajustes (ver
+ * ajustes.tsx) — es una consulta ocasional, no algo que se toque tan seguido como para merecer
+ * su propia pestaña, a diferencia de Alertas.
  */
 
 import { Tabs } from 'expo-router';
@@ -21,7 +23,7 @@ import React from 'react';
 import { Platform, StyleSheet, Text, View, type ColorValue } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { useCarrito } from '../../src/carrito';
-import { fuentes, radio, texto } from '../../src/theme';
+import { radio, texto } from '../../src/theme';
 import { useTema } from '../../src/useTema';
 
 export default function LayoutPestanas() {
@@ -80,23 +82,10 @@ export default function LayoutPestanas() {
         }}
       />
       <Tabs.Screen
-        name="ahorros"
+        name="alertas"
         options={{
-          title: 'Ahorros',
-          tabBarIcon: ({ color }) => <IconoAhorros color={color} />,
-          tabBarLabel: ({ focused }) => (
-            <Text
-              style={[
-                texto.micro,
-                {
-                  color: focused ? paleta.tinta : paleta.tintaSuave,
-                  fontFamily: focused ? fuentes.semi : fuentes.medio,
-                },
-              ]}
-            >
-              Ahorros
-            </Text>
-          ),
+          title: 'Alertas',
+          tabBarIcon: ({ color }) => <IconoAlertas color={color} />,
         }}
       />
       <Tabs.Screen
@@ -162,16 +151,20 @@ function IconoDescuentos({ color }: { color: ColorValue }) {
   );
 }
 
-// Tres barras de altura fija (9/15/20): el ícono no cambia de tamaño entre activo e inactivo,
-// solo de color — a diferencia del "globo" del carrito, acá no hay nada que contar.
-function IconoAhorros({ color }: { color: ColorValue }) {
+// Campana, mismo trazo 2px que el resto de los íconos de esta barra (diseño 20, sección t20).
+function IconoAlertas({ color }: { color: ColorValue }) {
   return (
     <View style={styles.icono}>
-      <View style={styles.barrasAhorro}>
-        <View style={[styles.barraAhorro, { height: 9, backgroundColor: color }]} />
-        <View style={[styles.barraAhorro, { height: 15, backgroundColor: color }]} />
-        <View style={[styles.barraAhorro, { height: 20, backgroundColor: color }]} />
-      </View>
+      <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+        <Path
+          d="M18.5 16.5V10.5a6.5 6.5 0 00-13 0v6L4 19h16l-1.5-2.5z"
+          stroke={color}
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Path d="M9.8 19a2.2 2.2 0 004.4 0" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      </Svg>
     </View>
   );
 }
@@ -207,8 +200,6 @@ const styles = StyleSheet.create({
   },
   lineas: { gap: 3 },
   linea: { height: 2, borderRadius: 1 },
-  barrasAhorro: { flexDirection: 'row', alignItems: 'flex-end', gap: 3 },
-  barraAhorro: { width: 4, borderRadius: 1 },
   diente: {
     position: 'absolute', width: 3, height: 7, borderRadius: 1,
     top: 8.5, left: 10.5,

@@ -7,19 +7,24 @@
  * Regla de transparencia (no negociable, ver el .md de arriba): el ahorro se calcula sobre
  * cada comparación vista, no sobre compras confirmadas, así que la cantidad de comparaciones
  * viaja siempre pegada al monto, nunca en letra chica aparte.
+ *
+ * Mudada de ser su propia pestaña a ser una fila dentro de Ajustes (diseño 20d, Claude Design
+ * turno 20, 2026-09-10): "Ahorros" le cedió el lugar en la nav bar a "Alertas", que se toca más
+ * seguido. El botón de volver usa el mismo patrón `‹` de resultado.tsx.
  */
 
+import { useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import React, { useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Vacio } from '../../src/componentes/comunes';
-import { HeaderNegro, TituloHeader } from '../../src/componentes/HeaderNegro';
+import { Vacio } from '../src/componentes/comunes';
+import { HeaderNegro, TituloHeader } from '../src/componentes/HeaderNegro';
 import {
   calcularResumenAhorro, useHistorialAhorro, type ResumenAhorro, type ResumenMes,
-} from '../../src/historialAhorro';
-import { espacio, fuentes, pesosCorto, radio, texto, usePantallaBaja, type Paleta } from '../../src/theme';
-import { useTema } from '../../src/useTema';
+} from '../src/historialAhorro';
+import { espacio, fuentes, pesosCorto, radio, texto, usePantallaBaja, type Paleta } from '../src/theme';
+import { useTema } from '../src/useTema';
 
 const NOMBRES_MES = [
   'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
@@ -41,6 +46,7 @@ export default function PantallaAhorros() {
   const { paleta } = useTema();
   const pantallaBaja = usePantallaBaja();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { eventos } = useHistorialAhorro();
   const resumen = useMemo(() => calcularResumenAhorro(eventos), [eventos]);
   const sinHistorial = resumen.totalConteo === 0;
@@ -56,6 +62,14 @@ export default function PantallaAhorros() {
         paddingTop={insets.top + (pantallaBaja ? espacio.md : espacio.xxl)}
         estilo={{ paddingBottom: espacio.xl, gap: espacio.md }}
       >
+        <Pressable
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/ajustes'))}
+          accessibilityRole="button"
+          style={styles.filaVolver}
+        >
+          <Text style={styles.flechaVolver}>‹</Text>
+          <Text style={[texto.micro, styles.labelVolver]}>AJUSTES</Text>
+        </Pressable>
         <TituloHeader>MIS AHORROS</TituloHeader>
         <View
           style={{ gap: 6 }}
@@ -195,6 +209,9 @@ function SeccionMesAMes({ ultimosMeses, paleta }: { ultimosMeses: ResumenMes[]; 
 }
 
 const styles = StyleSheet.create({
+  filaVolver: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start' },
+  flechaVolver: { fontSize: 22, color: '#FFFFFF' },
+  labelVolver: { color: '#FFFFFF', opacity: 0.6, letterSpacing: 1.2 },
   cuerpo: { padding: espacio.pantalla, gap: espacio.xl },
   montoTotal: { fontFamily: fuentes.precio, fontSize: 60, lineHeight: 54 },
   labelSeccion: { letterSpacing: 1.2 },

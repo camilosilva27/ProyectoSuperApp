@@ -32,7 +32,8 @@ const path = require('path');
 const { execFile } = require('child_process');
 const { rutaLogs } = require('../config');
 const { unificar } = require('./unificarCatalogo');
-const { leerJSON, diffProductos, diffPromosSuper, registrarDiff } = require('./diffCatalogos');
+const { leerJSON, diffProductos, diffPromosSuper, registrarDiff, estadoPromoPorEan } = require('./diffCatalogos');
+const { avisarProductosSeguidos } = require('../avisoProductosSeguidos');
 
 const DIR_ALLPROMOS = path.join(__dirname, '..', '..', '..', 'AllPromos');
 
@@ -158,6 +159,20 @@ async function refrescar() {
     }
   }
 
+  // Estado ACTUAL de promo por EAN (no un diff): se lee del disco después de que todos los
+  // scrapers terminaron, sin importar si esta corrida puntual falló para alguno (en ese caso
+  // simplemente se usa el catálogo de la corrida anterior, que sigue siendo el vigente) — así
+  // un usuario que sigue un producto que YA tenía promo antes de empezar a seguirlo también
+  // recibe el aviso, no solo cuando la promo se prende justo en esta corrida (ver el comentario
+  // de `estadoPromoPorEan` en diffCatalogos.js).
+  const estadoActualPromoPorEan = new Map();
+  for (const scraper of SCRAPERS) {
+    const catalogo = leerJSON(path.join(DIR_ALLPROMOS, scraper.archivoCatalogo));
+    for (const [ean, estado] of estadoPromoPorEan(catalogo, scraper.nombre)) {
+      if (!estadoActualPromoPorEan.has(ean)) estadoActualPromoPorEan.set(ean, estado);
+    }
+  }
+
   const resultadosExtras = [];
   for (const refrescador of REFRESCADORES_EXTRAS) {
     console.log(`   ▶ ${refrescador.nombre}...`);
@@ -203,6 +218,11 @@ async function refrescar() {
     });
   }
 
+  console.log(`   ▶ Avisos de productos seguidos (${estadoActualPromoPorEan.size} EAN con promo activa)...`);
+  const avisoSeguidos = await avisarProductosSeguidos(estadoActualPromoPorEan);
+  errores.push(...avisoSeguidos.errores);
+  console.log(`   ${avisoSeguidos.errores.length ? '⚠️ ' : '✅'} avisos de productos seguidos: ${avisoSeguidos.avisados} usuario(s) avisado(s)`);
+
   const reporte = {
     inicio: inicio.toISOString(),
     fin: new Date().toISOString(),
@@ -210,6 +230,7 @@ async function refrescar() {
     scrapers: resultados,
     refrescadoresExtras: resultadosExtras,
     totalProductosUnificados: unificado?.total ?? null,
+    avisosProductosSeguidos: { eanConPromoActiva: estadoActualPromoPorEan.size, usuariosAvisados: avisoSeguidos.avisados },
     errores,
   };
 

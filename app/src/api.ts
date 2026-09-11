@@ -254,6 +254,18 @@ export function buscarProductos(q: string, accessToken: string, opciones: {
   );
 }
 
+export type CategoriaCatalogo = { nombre: string; cantidad: number };
+
+/** Árbol de categorías (solo el primer nivel, ej. "Almacén") — usado por la pantalla Alertas
+ *  en modo "Categorías" (ver src/alertas.ts). No trae precio, mismo criterio que el resto de
+ *  `/api/catalogo/*`. */
+export function categoriasCatalogo(accessToken: string) {
+  return pedir<{ disponible: boolean; categorias: CategoriaCatalogo[] }>(
+    '/api/catalogo/categorias',
+    { headers: conSesion(accessToken) }
+  );
+}
+
 /** Productos para precargar el carrito del tour (ver src/tour/precarga.ts). */
 export function productosTour(accessToken: string) {
   return pedir<{ productos: ProductoCatalogo[] }>(
@@ -285,6 +297,25 @@ export function precios(eans: string[], accessToken: string, supers?: SuperKey[]
     method: 'POST',
     headers: conSesion(accessToken),
     body: JSON.stringify({ eans, supers }),
+  });
+}
+
+/** Estado de promo EN VIVO de un producto seguido (pantalla Alertas, chip amarillo con el %) —
+ *  reusa la misma lógica que arma el mail/push de "promo nueva" (ver
+ *  backend/src/routes/productosSeguidos.js), no una segunda fuente. */
+export type EstadoPromoSeguido = {
+  ean: string;
+  enPromo: boolean;
+  descuentoPct: number | null;
+  super: string | null;
+  precioFinal: number | null;
+};
+
+export function estadoProductosSeguidos(eans: string[], accessToken: string) {
+  return pedir<{ generado: string; resultados: EstadoPromoSeguido[] }>('/api/productos-seguidos/estado', {
+    method: 'POST',
+    headers: conSesion(accessToken),
+    body: JSON.stringify({ eans }),
   });
 }
 
