@@ -48,6 +48,14 @@ function mensajeError(error: unknown): string {
   if (codigo === 'invalid_credentials' || /invalid login credentials/i.test(bruto)) {
     return 'Mail o contraseña incorrectos.';
   }
+  // Tiene que ir ANTES del chequeo genérico de /password/i.test(bruto) de abajo: el mensaje
+  // real de Supabase para este caso ("New password should be different from the old
+  // password.") también matchea esa regex, y sin este caso puntual se mostraba el mensaje de
+  // "tiene que tener al menos 6 caracteres" — confuso cuando la contraseña nueva SÍ cumple el
+  // mínimo, el problema es que es igual a la anterior (NuevaPasswordForm.tsx § actualizarPassword).
+  if (codigo === 'same_password' || /different from the old password/i.test(bruto)) {
+    return 'Tiene que ser distinta de tu contraseña anterior.';
+  }
   if (codigo === 'weak_password' || /password/i.test(bruto)) {
     return 'La contraseña tiene que tener al menos 6 caracteres.';
   }
