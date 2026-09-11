@@ -29,9 +29,11 @@ import {
 } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { useAuth } from '../auth';
+import { SECCIONES_PRIVACIDAD, SECCIONES_TERMINOS } from '../legal/contenidoLegal';
 import { espacio, radio, texto } from '../theme';
 import { useTema } from '../useTema';
 import { esEmailValido } from '../validacion';
+import { ModalLegal } from './ModalLegal';
 
 const CLAVE_YA_VISITO = 'superapp_ya_visito_landing_auth_v1';
 
@@ -111,23 +113,50 @@ function IconoCandado({ tamano, color }: { tamano: number; color: string }) {
   );
 }
 
+/** Checkbox cuadrado con tilde — mismo patrón visual que el checkbox de `FilaSuper`
+ *  (HojaSupers.tsx): 22x22, fondo sólido cuando está activo, borde fino cuando no. No está
+ *  extraído a comunes.tsx porque acá va pegado a un párrafo de texto, no en una fila de lista. */
+function CheckboxTerminos({
+  activo, onPress, paleta,
+}: { activo: boolean; onPress: () => void; paleta: ReturnType<typeof useTema>['paleta'] }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={8}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: activo }}
+      style={[
+        styles.checkbox,
+        activo
+          ? { backgroundColor: paleta.tinta }
+          : { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: paleta.bordeFuerte },
+      ]}
+    >
+      {activo ? <Text style={[styles.checkboxTilde, { color: paleta.superficie }]}>✓</Text> : null}
+    </Pressable>
+  );
+}
+
 export function FormularioAuth({
   onExito, pantallaCompleta, anchoTarjeta = 390, insetSuperior = 0,
 }: { onExito?: () => void; pantallaCompleta?: boolean; anchoTarjeta?: number; insetSuperior?: number }) {
   const { paleta } = useTema();
-  const { registrarse, iniciarSesion, reenviarConfirmacion, iniciarSesionConGoogle } = useAuth();
-  const [modo, setModo] = useState<'registro' | 'login'>('registro');
+  const { registrarse, iniciarSesion, reenviarConfirmacion, iniciarSesionConGoogle, pedirRecuperacion } = useAuth();
+  const [modo, setModo] = useState<'registro' | 'login' | 'recuperar'>('registro');
   const [modoListo, setModoListo] = useState(false);
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmarPassword, setConfirmarPassword] = useState('');
+  const [aceptoTerminos, setAceptoTerminos] = useState(false);
+  const [modalLegalAbierto, setModalLegalAbierto] = useState<'terminos' | 'privacidad' | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [enviandoGoogle, setEnviandoGoogle] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mailPendiente, setMailPendiente] = useState<string | null>(null);
   const [reenviando, setReenviando] = useState(false);
   const [avisoReenvio, setAvisoReenvio] = useState<string | null>(null);
+  const [avisoRecuperacion, setAvisoRecuperacion] = useState<string | null>(null);
   const opacidad = useRef(new Animated.Value(1)).current;
 
   // `anchoTarjeta` lo calcula GateSesion con useWindowDimensions y nos llega como prop — de ahí
@@ -170,12 +199,17 @@ export function FormularioAuth({
   // `useNativeDriver: false` a propósito: en web no existe el native driver, y con `true`
   // react-native-web cae a un fallback silencioso (con warning) — más simple no pedirlo.
   const cambiarModo = () => {
+    irA(modo === 'registro' ? 'login' : 'registro');
+  };
+
+  const irA = (modoDestino: 'registro' | 'login' | 'recuperar') => {
     Animated.timing(opacidad, {
       toValue: 0, duration: 180, easing: Easing.out(Easing.ease), useNativeDriver: false,
     }).start(() => {
-      setModo(m => (m === 'registro' ? 'login' : 'registro'));
+      setModo(modoDestino);
       setError(null);
       setConfirmarPassword('');
+      setAvisoRecuperacion(null);
       Animated.timing(opacidad, {
         toValue: 1, duration: 180, easing: Easing.out(Easing.ease), useNativeDriver: false,
       }).start();
@@ -186,6 +220,10 @@ export function FormularioAuth({
     if (enviando) return;
     if (modo === 'registro' && !nombre.trim()) {
       setError('Completá tu nombre.');
+      return;
+    }
+    if (modo === 'registro' && !aceptoTerminos) {
+      setError('Tenés que aceptar los Términos de Servicio y la Política de Privacidad.');
       return;
     }
     if (!email.trim() || !password) {
@@ -214,6 +252,23 @@ export function FormularioAuth({
       if (r.error) { setError(r.error); return; }
       onExito?.();
     }
+  };
+
+  const enviarRecuperacion = async () => {
+    if (enviando) return;
+    if (!email.trim() || !esEmailValido(email)) {
+      setError('Poné el mail con el que te registraste.');
+      return;
+    }
+    setEnviando(true);
+    setError(null);
+    setAvisoRecuperacion(null);
+    const r = await pedirRecuperacion(email.trim());
+    setEnviando(false);
+    if (r.error) { setError(r.error); return; }
+    // Mismo criterio anti fuerza-bruta que registrarse/mensajeError (auth.tsx): no confirmamos
+    // ni negamos si el mail existe, el mensaje es igual en los dos casos.
+    setAvisoRecuperacion('Si existe una cuenta con ese mail, te mandamos un link para elegir una contraseña nueva.');
   };
 
   const reenviar = async () => {
@@ -246,6 +301,10 @@ export function FormularioAuth({
 
   const continuarConGoogle = async () => {
     if (enviandoGoogle) return;
+    if (modo === 'registro' && !aceptoTerminos) {
+      setError('Tenés que aceptar los Términos de Servicio y la Política de Privacidad.');
+      return;
+    }
     setEnviandoGoogle(true);
     setError(null);
     const r = await iniciarSesionConGoogle();
@@ -313,84 +372,63 @@ export function FormularioAuth({
     );
   }
 
+  // Antes eran dos bloques de hero casi idénticos (registro/login, solo cambiaba el texto) —
+  // sumar el tercer modo ('recuperar') hubiera sido un tercer copy-paste, así que se unificó en
+  // uno solo con el título/subtítulo calculados acá. El login "no tiene su propio diseño en el
+  // spec (solo la landing de registro)" — por pedido del usuario (2026-09-09) reusa el mismo
+  // hero amarillo del registro en vez del header negro que tenía antes; 'recuperar' sigue el
+  // mismo criterio en vez de sumar una variante visual nueva.
+  const heroTitulo = modo === 'registro'
+    ? 'UN SOLO CARRITO,\nTODOS LOS SUPERS'
+    : modo === 'recuperar' ? 'RECUPERÁ TU\nCONTRASEÑA' : 'QUÉ BUENO\nVERTE DE NUEVO';
+  const heroSubtitulo = modo === 'registro'
+    ? 'Compará precios y promos de distintos supermercados en un solo lugar.'
+    : modo === 'recuperar' ? 'Te mandamos un link para elegir una contraseña nueva.' : 'Iniciá sesión para ver tu carrito y tus tarjetas.';
+
   return (
     <View style={[styles.tarjeta, pantallaCompleta && styles.tarjetaCompleta, { backgroundColor: paleta.superficie, borderColor: paleta.bordeFuerte, overflow: 'hidden' }]}>
-      {modo === 'registro' ? (
-        // Hero amarillo: excepción deliberada del amarillo (reservado a promos/ahorro en el
-        // resto de la app) — acá no hay precios con los que competir, ver el spec.
-        //
-        // Texto e imagen van siempre en fila, con tamaños calculados a partir de `anchoTarjeta`
-        // (no un corte fijo mobile/desktop): así se adaptan solos a cualquier ancho de tarjeta y
-        // ambos quedan siempre visibles, en vez de que la imagen aparezca o desaparezca de
-        // golpe en un punto de quiebre.
-        <View style={[styles.hero, !pantallaCompleta && styles.heroEscritorio, { backgroundColor: paleta.oferta }, insetSuperior ? { paddingTop: espacio.lg + insetSuperior } : null]}>
-          <View style={styles.heroFila}>
-            <View style={{ width: anchoColumnaTexto }}>
-              <Text style={[styles.tituloHero, { color: paleta.ofertaTinta, fontSize: tamanoTituloHero, lineHeight: tamanoTituloHero * 0.94 }]}>
-                UN SOLO CARRITO,{'\n'}TODOS LOS SUPERS
-              </Text>
-              <Text
-                numberOfLines={3}
-                style={[
-                  texto.cuerpoMedio,
-                  {
-                    color: paleta.ofertaTinta, marginTop: espacio.xs,
-                    maxWidth: tamanoSubtituloHero * ANCHO_POR_PUNTO_SUBTITULO_HERO,
-                    fontSize: tamanoSubtituloHero, lineHeight: tamanoSubtituloHero * 1.4,
-                  },
-                ]}
-              >
-                Compará precios y promos de distintos supermercados en un solo lugar.
-              </Text>
-            </View>
-            <Image
-              source={require('../../assets/ilustraciones/carrito-supers.jpg')}
-              style={{ width: tamanoImagenHero, height: tamanoImagenHero * PROPORCION_IMAGEN_HERO }}
-              resizeMode="contain"
-              accessibilityLabel="Carrito con productos y logos de los supers comparados"
-            />
+      {/* Hero amarillo: excepción deliberada del amarillo (reservado a promos/ahorro en el
+          resto de la app) — acá no hay precios con los que competir, ver el spec.
+
+          Texto e imagen van siempre en fila, con tamaños calculados a partir de `anchoTarjeta`
+          (no un corte fijo mobile/desktop): así se adaptan solos a cualquier ancho de tarjeta y
+          ambos quedan siempre visibles, en vez de que la imagen aparezca o desaparezca de
+          golpe en un punto de quiebre. */}
+      <View style={[styles.hero, !pantallaCompleta && styles.heroEscritorio, { backgroundColor: paleta.oferta }, insetSuperior ? { paddingTop: espacio.lg + insetSuperior } : null]}>
+        <View style={styles.heroFila}>
+          <View style={{ width: anchoColumnaTexto }}>
+            <Text style={[styles.tituloHero, { color: paleta.ofertaTinta, fontSize: tamanoTituloHero, lineHeight: tamanoTituloHero * 0.94 }]}>
+              {heroTitulo}
+            </Text>
+            <Text
+              numberOfLines={3}
+              style={[
+                texto.cuerpoMedio,
+                {
+                  color: paleta.ofertaTinta, marginTop: espacio.xs,
+                  maxWidth: tamanoSubtituloHero * ANCHO_POR_PUNTO_SUBTITULO_HERO,
+                  fontSize: tamanoSubtituloHero, lineHeight: tamanoSubtituloHero * 1.4,
+                },
+              ]}
+            >
+              {heroSubtitulo}
+            </Text>
           </View>
+          <Image
+            source={require('../../assets/ilustraciones/carrito-supers.jpg')}
+            style={{ width: tamanoImagenHero, height: tamanoImagenHero * PROPORCION_IMAGEN_HERO }}
+            resizeMode="contain"
+            accessibilityLabel="Carrito con productos y logos de los supers comparados"
+          />
         </View>
-      ) : (
-        // El login no tiene su propio diseño en el spec (solo la landing de registro) — por
-        // pedido del usuario (2026-09-09) reusa el mismo hero amarillo del registro en vez del
-        // header negro que tenía antes, para que ambos modos se vean consistentes.
-        <View style={[styles.hero, !pantallaCompleta && styles.heroEscritorio, { backgroundColor: paleta.oferta }, insetSuperior ? { paddingTop: espacio.lg + insetSuperior } : null]}>
-          <View style={styles.heroFila}>
-            <View style={{ width: anchoColumnaTexto }}>
-              <Text style={[styles.tituloHero, { color: paleta.ofertaTinta, fontSize: tamanoTituloHero, lineHeight: tamanoTituloHero * 0.94 }]}>
-                QUÉ BUENO{'\n'}VERTE DE NUEVO
-              </Text>
-              <Text
-                numberOfLines={3}
-                style={[
-                  texto.cuerpoMedio,
-                  {
-                    color: paleta.ofertaTinta, marginTop: espacio.xs,
-                    maxWidth: tamanoSubtituloHero * ANCHO_POR_PUNTO_SUBTITULO_HERO,
-                    fontSize: tamanoSubtituloHero, lineHeight: tamanoSubtituloHero * 1.4,
-                  },
-                ]}
-              >
-                Iniciá sesión para ver tu carrito y tus tarjetas.
-              </Text>
-            </View>
-            <Image
-              source={require('../../assets/ilustraciones/carrito-supers.jpg')}
-              style={{ width: tamanoImagenHero, height: tamanoImagenHero * PROPORCION_IMAGEN_HERO }}
-              resizeMode="contain"
-              accessibilityLabel="Carrito con productos y logos de los supers comparados"
-            />
-          </View>
-        </View>
-      )}
+      </View>
 
       <Animated.View style={{ gap: espacio.md, opacity: opacidad, padding: pantallaCompleta ? espacio.xl : espacio.xxl }}>
         <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>
-          {modo === 'registro' ? 'PASO 1 DE 2 · CREÁ TU CUENTA' : 'INICIAR SESIÓN'}
+          {modo === 'registro' ? 'PASO 1 DE 2 · CREÁ TU CUENTA' : modo === 'recuperar' ? 'RECUPERAR CONTRASEÑA' : 'INICIAR SESIÓN'}
         </Text>
 
-        {GOOGLE_SIGNIN_HABILITADO && Platform.OS === 'web' ? (
+        {GOOGLE_SIGNIN_HABILITADO && Platform.OS === 'web' && modo !== 'recuperar' ? (
           <>
             <Pressable
               onPress={continuarConGoogle}
@@ -448,22 +486,31 @@ export function FormularioAuth({
             accessibilityLabel="Mail"
           />
         </View>
-        <View style={[styles.campo, { backgroundColor: paleta.superficieAlt }]}>
-          <IconoCandado tamano={18} color={paleta.tintaTenue} />
-          <TextInput
-            value={password}
-            onChangeText={setPassword}
-            placeholder={modo === 'registro' ? 'Contraseña · Mínimo 6 caracteres' : 'Contraseña'}
-            placeholderTextColor={paleta.tintaTenue}
-            style={[texto.cuerpo, styles.input, { color: paleta.tinta }]}
-            secureTextEntry
-            autoCapitalize="none"
-            textContentType={modo === 'registro' ? 'newPassword' : 'password'}
-            accessibilityLabel="Contraseña"
-            returnKeyType="done"
-            onSubmitEditing={modo === 'registro' ? undefined : enviar}
-          />
-        </View>
+        {modo !== 'recuperar' ? (
+          <View style={[styles.campo, { backgroundColor: paleta.superficieAlt }]}>
+            <IconoCandado tamano={18} color={paleta.tintaTenue} />
+            <TextInput
+              value={password}
+              onChangeText={setPassword}
+              placeholder={modo === 'registro' ? 'Contraseña · Mínimo 6 caracteres' : 'Contraseña'}
+              placeholderTextColor={paleta.tintaTenue}
+              style={[texto.cuerpo, styles.input, { color: paleta.tinta }]}
+              secureTextEntry
+              autoCapitalize="none"
+              textContentType={modo === 'registro' ? 'newPassword' : 'password'}
+              accessibilityLabel="Contraseña"
+              returnKeyType="done"
+              onSubmitEditing={modo === 'registro' ? undefined : enviar}
+            />
+          </View>
+        ) : null}
+        {modo === 'login' ? (
+          <Pressable onPress={() => irA('recuperar')} accessibilityRole="button" hitSlop={4} style={styles.filaOlvidoPassword}>
+            <Text style={[texto.etiqueta, { color: paleta.tintaSuave, textDecorationLine: 'underline' }]}>
+              ¿Olvidaste tu contraseña?
+            </Text>
+          </Pressable>
+        ) : null}
         {modo === 'registro' ? (
           <View style={[styles.campo, { backgroundColor: paleta.superficieAlt }]}>
             <IconoCandado tamano={18} color={paleta.tintaTenue} />
@@ -483,19 +530,53 @@ export function FormularioAuth({
           </View>
         ) : null}
 
+        {modo === 'registro' ? (
+          // View simple, no Pressable: los dos links de acá adentro son sus propios `Text`
+          // pressables (react-native-web propaga el click del hijo al padre en un Pressable
+          // envolvente, así que tocar un link terminaría también togglenado el checkbox).
+          <View style={styles.filaCheckbox}>
+            <CheckboxTerminos activo={aceptoTerminos} onPress={() => setAceptoTerminos(a => !a)} paleta={paleta} />
+            <Text
+              style={[texto.etiqueta, { color: paleta.tintaSuave, flex: 1 }]}
+              onPress={() => setAceptoTerminos(a => !a)}
+            >
+              Acepto los{' '}
+              <Text
+                style={{ textDecorationLine: 'underline' }}
+                onPress={(e) => { e.stopPropagation?.(); setModalLegalAbierto('terminos'); }}
+              >
+                Términos de Servicio
+              </Text>
+              {' '}y la{' '}
+              <Text
+                style={{ textDecorationLine: 'underline' }}
+                onPress={(e) => { e.stopPropagation?.(); setModalLegalAbierto('privacidad'); }}
+              >
+                Política de Privacidad
+              </Text>
+            </Text>
+          </View>
+        ) : null}
+
+        {avisoRecuperacion ? (
+          <Text style={[texto.etiqueta, { color: paleta.tintaSuave }]}>{avisoRecuperacion}</Text>
+        ) : null}
         {error ? <Text style={[texto.etiqueta, { color: paleta.errorTexto }]}>{error}</Text> : null}
 
         <Pressable
-          onPress={enviar}
-          disabled={enviando}
+          onPress={modo === 'recuperar' ? enviarRecuperacion : enviar}
+          disabled={enviando || (modo === 'registro' && !aceptoTerminos)}
           accessibilityRole="button"
-          style={[styles.botonPrincipal, { backgroundColor: paleta.oferta, opacity: enviando ? 0.6 : 1 }]}
+          style={[
+            styles.botonPrincipal,
+            { backgroundColor: paleta.oferta, opacity: enviando || (modo === 'registro' && !aceptoTerminos) ? 0.6 : 1 },
+          ]}
         >
           {enviando ? (
             <ActivityIndicator color={paleta.ofertaTinta} />
           ) : (
             <Text style={[styles.textoBotonPrincipal, { color: paleta.ofertaTinta }]}>
-              {modo === 'registro' ? 'CONTINUAR' : 'ENTRAR'}
+              {modo === 'registro' ? 'CONTINUAR' : modo === 'recuperar' ? 'ENVIAR LINK' : 'ENTRAR'}
             </Text>
           )}
         </Pressable>
@@ -514,12 +595,29 @@ export function FormularioAuth({
           </View>
         ) : null}
 
-        <Pressable onPress={cambiarModo} accessibilityRole="button" style={styles.filaToggle}>
+        <Pressable
+          onPress={modo === 'recuperar' ? () => irA('login') : cambiarModo}
+          accessibilityRole="button"
+          style={styles.filaToggle}
+        >
           <Text style={[texto.etiqueta, { color: paleta.tintaSuave, textDecorationLine: 'underline' }]}>
-            {modo === 'registro' ? '¿Ya tenés cuenta? Iniciá sesión' : '¿No tenés cuenta? Registrate'}
+            {modo === 'registro' ? '¿Ya tenés cuenta? Iniciá sesión'
+              : modo === 'recuperar' ? 'Volver a iniciar sesión' : '¿No tenés cuenta? Registrate'}
           </Text>
         </Pressable>
       </Animated.View>
+      <ModalLegal
+        visible={modalLegalAbierto === 'terminos'}
+        titulo="Términos de Servicio"
+        secciones={SECCIONES_TERMINOS}
+        onCerrar={() => setModalLegalAbierto(null)}
+      />
+      <ModalLegal
+        visible={modalLegalAbierto === 'privacidad'}
+        titulo="Política de Privacidad"
+        secciones={SECCIONES_PRIVACIDAD}
+        onCerrar={() => setModalLegalAbierto(null)}
+      />
     </View>
   );
 }
@@ -550,6 +648,7 @@ const styles = StyleSheet.create({
     minHeight: 44, borderRadius: radio.md, borderWidth: 1, alignItems: 'center', justifyContent: 'center',
   },
   filaToggle: { alignSelf: 'center', height: 44, justifyContent: 'center' },
+  filaOlvidoPassword: { alignSelf: 'flex-end' },
   beneficios: { gap: espacio.sm, paddingTop: espacio.md, borderTopWidth: 1 },
   filaBeneficio: { flexDirection: 'row', alignItems: 'flex-start', gap: espacio.sm },
   bala: { width: 8, height: 8, borderRadius: 999, marginTop: 6 },
@@ -563,4 +662,7 @@ const styles = StyleSheet.create({
   },
   divisor: { flexDirection: 'row', alignItems: 'center', gap: espacio.sm },
   lineaDivisor: { flex: 1, height: 1 },
+  filaCheckbox: { flexDirection: 'row', alignItems: 'flex-start', gap: espacio.sm },
+  checkbox: { width: 22, height: 22, borderRadius: radio.sm, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+  checkboxTilde: { fontSize: 14, fontWeight: '700' },
 });

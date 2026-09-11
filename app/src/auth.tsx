@@ -75,6 +75,17 @@ type Contexto = {
    *  no hay nada que hacer con el resultado más que mostrar el error si Google/Supabase no
    *  llegan a redirigir (provider mal configurado, sin red, etc). */
   iniciarSesionConGoogle: () => Promise<{ error: string | null }>;
+  /** Pide el mail de "restablecer contraseña" (link con `token_hash`, mismo mecanismo que la
+   *  confirmación de mail). Siempre devuelve éxito salvo error de red/formato — Supabase no
+   *  distingue si el mail existe (misma protección anti fuerza-bruta que en `registrarse`). */
+  pedirRecuperacion: (email: string) => Promise<{ error: string | null }>;
+  /** true una vez que se verificó el link de recuperación (`type=recovery` en la URL) y hasta
+   *  que `actualizarPassword` termina con éxito — GateSesion.tsx lo usa para forzar la pantalla
+   *  de "elegí tu nueva contraseña" en vez de dejar pasar directo a la app con la sesión de
+   *  recuperación (que ya es una sesión válida, pero el usuario vino específicamente a
+   *  cambiar la contraseña, no a usar la app). */
+  necesitaNuevaPassword: boolean;
+  actualizarPassword: (password: string) => Promise<{ error: string | null }>;
 };
 
 const AuthContext = createContext<Contexto | null>(null);
@@ -82,6 +93,7 @@ const AuthContext = createContext<Contexto | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [cargando, setCargando] = useState(true);
+  const [necesitaNuevaPassword, setNecesitaNuevaPassword] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -95,18 +107,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(nuevaSession);
     });
 
-    // Link de confirmación de mail: llega como ?token_hash=...&type=email en la URL (armado
-    // a mano en la plantilla del mail, ver comentario de arriba del archivo). Solo tiene
+    // Link de confirmación de mail o de recuperación de contraseña: llega como
+    // ?token_hash=...&type=email|recovery en la URL (armado a mano en la plantilla del mail
+    // correspondiente — ver comentario de arriba del archivo, y la plantilla "Reset Password"
+    // en el dashboard de Supabase, que sigue el mismo patrón que "Confirm signup"). Solo tiene
     // sentido en web — en nativo esto sería un deep link, que no está armado todavía.
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const tokenHash = params.get('token_hash');
       const tipo = params.get('type');
-      if (tokenHash && tipo === 'email') {
-        supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'email' }).then(({ error }) => {
+      if (tokenHash && (tipo === 'email' || tipo === 'recovery')) {
+        supabase.auth.verifyOtp({ token_hash: tokenHash, type: tipo }).then(({ error }) => {
           // Se limpia la URL haya salido bien o mal, para que un refresh no reintente
           // verificar un token que ya se usó (o que ya falló).
-          if (!error) window.history.replaceState({}, '', window.location.pathname);
+          if (!error) {
+            window.history.replaceState({}, '', window.location.pathname);
+            if (tipo === 'recovery') setNecesitaNuevaPassword(true);
+          }
         });
       }
     }
@@ -154,6 +171,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         : undefined;
       const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
       return { error: error ? mensajeError(error) : null };
+    },
+    pedirRecuperacion: async (email) => {
+      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      return { error: error ? mensajeError(error) : null };
+    },
+    necesitaNuevaPassword,
+    actualizarPassword: async (password) => {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) return { error: mensajeError(error) };
+      setNecesitaNuevaPassword(false);
+      return { error: null };
     },
   };
 

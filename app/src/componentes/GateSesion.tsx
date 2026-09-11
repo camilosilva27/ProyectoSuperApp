@@ -17,6 +17,7 @@ import { useAuth } from '../auth';
 import { espacio } from '../theme';
 import { useTema } from '../useTema';
 import { FormularioAuth } from './FormularioAuth';
+import { NuevaPasswordForm } from './NuevaPasswordForm';
 
 // Ancho de referencia del mock (design_handoff_allpromos_v2/14b-landing-cuenta.md): 390px,
 // pensado para iPhone. Por debajo de este ancho de viewport la tarjeta deja de ser una tarjeta
@@ -32,7 +33,7 @@ const ANCHO_MAXIMO_TARJETA_ESCRITORIO = 520;
 export function GateSesion({ children }: { children: React.ReactNode }) {
   const { paleta } = useTema();
   const insets = useSafeAreaInsets();
-  const { session, cargando } = useAuth();
+  const { session, cargando, necesitaNuevaPassword } = useAuth();
   const { width } = useWindowDimensions();
   const pantallaCompleta = width < ANCHO_QUIEBRE_PANTALLA_COMPLETA;
   // Ancho real que le queda a la tarjeta — se lo pasamos a FormularioAuth como prop en vez de
@@ -47,9 +48,11 @@ export function GateSesion({ children }: { children: React.ReactNode }) {
     return <View style={{ flex: 1, backgroundColor: paleta.fondo }} />;
   }
 
-  if (!session) {
+  if (!session || necesitaNuevaPassword) {
     // La tarjeta de FormularioAuth ya trae su propio hero/copy (pantalla 1 del mock) — acá no
-    // hace falta un título genérico repitiendo lo mismo por encima.
+    // hace falta un título genérico repitiendo lo mismo por encima. `necesitaNuevaPassword`
+    // (link de "olvidé mi contraseña" ya verificado) entra acá aunque `session` exista: la
+    // sesión de recuperación ya es válida, pero se fuerza este paso antes de dejar pasar.
     return (
       <ScrollView
         style={{ flex: 1, backgroundColor: paleta.fondo }}
@@ -65,11 +68,15 @@ export function GateSesion({ children }: { children: React.ReactNode }) {
           {/* En pantalla completa no hay margen blanco arriba: el inset del status bar se lo
               comemos dentro del hero (FormularioAuth) para que su color de fondo llegue hasta
               arriba, en vez de dejar una franja blanca del alto del status bar por encima. */}
-          <FormularioAuth
-            pantallaCompleta={pantallaCompleta}
-            anchoTarjeta={anchoTarjeta}
-            insetSuperior={pantallaCompleta ? insets.top : 0}
-          />
+          {necesitaNuevaPassword ? (
+            <NuevaPasswordForm pantallaCompleta={pantallaCompleta} insetSuperior={pantallaCompleta ? insets.top : 0} />
+          ) : (
+            <FormularioAuth
+              pantallaCompleta={pantallaCompleta}
+              anchoTarjeta={anchoTarjeta}
+              insetSuperior={pantallaCompleta ? insets.top : 0}
+            />
+          )}
         </View>
       </ScrollView>
     );
