@@ -35,10 +35,12 @@ import { GateSesion } from '../src/componentes/GateSesion';
 import { ProveedorFiltrosSupers } from '../src/filtrosSupers';
 import { ProveedorHistorialAhorro } from '../src/historialAhorro';
 import { texto } from '../src/theme';
+import { inicializarSentry } from '../src/sentry';
 import { TourOverlay } from '../src/tour/TourOverlay';
 import { useTema } from '../src/useTema';
 
 SplashScreen.preventAutoHideAsync();
+inicializarSentry();
 
 // "Cannot find single active touch." es un console.error interno de react-native-web (bookkeeping
 // de touches al soltar un gesto de pinch en la grilla de promos, ResponderTouchHistoryStore.js),
@@ -148,6 +150,8 @@ export default function LayoutRaiz() {
                         <Stack.Screen name="mis-ahorros" options={{ headerShown: false, presentation: 'card' }} />
                         <Stack.Screen name="datos-personales" options={{ headerShown: false, presentation: 'card' }} />
                         <Stack.Screen name="ayuda" options={{ headerShown: false, presentation: 'card' }} />
+                        <Stack.Screen name="terminos" options={{ headerShown: false, presentation: 'card' }} />
+                        <Stack.Screen name="privacidad" options={{ headerShown: false, presentation: 'card' }} />
                         <Stack.Screen name="seguir-producto" options={{ headerShown: false, presentation: 'card' }} />
                         {/* El header nativo (flecha + título) queda visible a propósito acá,
                             a diferencia de resultado: sin "title" mostraba el nombre del

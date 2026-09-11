@@ -17,9 +17,11 @@
     "resumen-semanal-ahorro": "node src/cron/resumenSemanalAhorro.js",
     "aviso-fin-trial": "node src/cron/avisoFinTrial.js",
     "aviso-inactividad": "node src/cron/avisoInactividad.js",
-    "reintentar-pagos-pendientes": "node src/cron/reintentarPagosPendientes.js"
+    "reintentar-pagos-pendientes": "node src/cron/reintentarPagosPendientes.js",
+    "verificar-reembolso": "node src/scripts/verificarReembolso.js"
   },
   "dependencies": {
+    "@sentry/node": "^10.74.0",
     "@supabase/supabase-js": "^2.45.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
