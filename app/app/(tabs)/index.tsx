@@ -13,7 +13,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { useFocusEffect, usePathname, useRouter } from 'expo-router';
+import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -21,8 +21,10 @@ import {
 } from 'react-native';
 // expo-router (v57) vendorea su propio bottom-tabs y no lo reexporta desde el root del
 // paquete: no hay `@react-navigation/bottom-tabs` instalado por separado, así que este es
-// el único import que existe hoy para este hook.
-import { useBottomTabBarHeight } from 'expo-router/build/react-navigation/bottom-tabs';
+// el único import que existe hoy para este hook. `BottomTabNavigationProp` es el tipo del
+// `navigation` de acá abajo (el genérico de `useNavigation()` no conoce el evento 'tabPress',
+// que sí trae el de bottom-tabs).
+import { useBottomTabBarHeight, type BottomTabNavigationProp } from 'expo-router/build/react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   buscarProductos, ErrorApi, precios as pedirPrecios, MAX_EANS_PRECIOS,
@@ -40,7 +42,8 @@ import { HojaSupers } from '../../src/componentes/HojaSupers';
 import { useFiltrosSupers } from '../../src/filtrosSupers';
 import { espacio, pesos, radio, texto, usePantallaBaja } from '../../src/theme';
 import {
-  tourReportarAltoTabBar, tourRegistrarReinicio, tourYaVisto, useCerrarModalDeTour, useTour, useTourPaso,
+  avanzarTour, tourReportarAltoTabBar, tourRegistrarReinicio, tourYaVisto,
+  useCerrarModalDeTour, useTour, useTourPaso,
 } from '../../src/tour/TourContext';
 import { useTema } from '../../src/useTema';
 
@@ -137,7 +140,7 @@ export default function PantallaBuscar() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const router = useRouter();
-  const pathname = usePathname();
+  const navigation = useNavigation<BottomTabNavigationProp<Record<string, object | undefined>>>();
   const carrito = useCarrito();
   const tour = useTour();
   const { session, cargando: cargandoSesion } = useAuth();
@@ -185,15 +188,14 @@ export default function PantallaBuscar() {
   }, [cargandoSesion, session?.user.id]);
 
   // 'volver-buscar' (ver pasos.ts): pide el toque real sobre la pestaña Buscar en vez de que
-  // 'mercado-pago' navegue solo. Misma lógica que 'tab-descuentos' en mis-descuentos.tsx —
-  // exige una transición real de foco (se resetea a `false` en el blur), no `true` fijo, para
-  // que un foco viejo de antes de este paso no lo dé por cumplido sin que el usuario toque nada.
-  const [volvioABuscar, setVolvioABuscar] = useState(false);
-  useFocusEffect(useCallback(() => {
-    setVolvioABuscar(true);
-    return () => setVolvioABuscar(false);
-  }, []));
-  useTourPaso('volver-buscar', volvioABuscar);
+  // 'mercado-pago' navegue solo. NO mira el foco (`useFocusEffect`) como antes: cualquier
+  // transición real de foco cuenta ahí, alcanzable en el build web con atrás/adelante del
+  // navegador o una URL a mano, sin tocar la pestaña resaltada (bug real, auditoría). `tabPress`
+  // (mismo mecanismo que 'tab-descuentos' en mis-descuentos.tsx) solo lo emite el propio botón
+  // de la barra al tocarlo, nunca una navegación programática.
+  const [tocoPestanaBuscar, setTocoPestanaBuscar] = useState(false);
+  useEffect(() => navigation.addListener('tabPress', () => setTocoPestanaBuscar(true)), [navigation]);
+  useTourPaso('volver-buscar', tocoPestanaBuscar);
 
   // Cierra la hoja sola si quedó abierta de una navegación anterior (blur de la tab o arranque
   // del tour) — mismo mecanismo que en Carrito (carrito.tsx), centralizado en TourContext.tsx.
@@ -231,27 +233,14 @@ export default function PantallaBuscar() {
   const [tocoPrimerResultado, setTocoPrimerResultado] = useState(false);
   useFocusEffect(useCallback(() => () => setTocoPrimerResultado(false), []));
   const refPrimerResultado = useTourPaso('primer-resultado', tocoPrimerResultado);
-  // NO mira `pathname === '/carrito'` directo: si el usuario ya estaba en /carrito cuando el
-  // paso 'ver-carrito' se activa (venía de ahí, o la navegación quedó en ese estado por otro
-  // paso previo), la condición ya sería verdadera de entrada y el paso se saltearía sin cartel
-  // — mismo bug que ya se corrigió para "marcá Coto"/"activá Mercado Pago". Solo cuenta una
-  // transición real hacia /carrito, no el estado ya alcanzado. Pero una vez en `true` este
-  // estado tampoco se resetea solo — si el usuario ya había entrado a Carrito en algún momento
-  // ANTERIOR de la sesión (ej. para dejar su hoja de supers abierta, ver el bug de arriba),
-  // quedaba en `true` para siempre (Buscar nunca se desmonta) y este paso se salteaba apenas se
-  // activaba, sin que hiciera falta ni tocar "Ver carrito" (bug real, reproducido). Se resetea
-  // al GANAR foco (no al perderlo, como `tocoSelectorOtros`): reiniciar en el blur competiría
-  // con el efecto de `pathname` de arriba, que corre casi en el mismo instante en que el toque
-  // real en "Ver carrito" dispara la navegación — limpiar temprano, al re-enfocar Buscar, evita
-  // esa carrera por completo.
-  const pathnameAnteriorRef = useRef(pathname);
-  const [navegoACarrito, setNavegoACarrito] = useState(false);
-  useFocusEffect(useCallback(() => setNavegoACarrito(false), []));
-  useEffect(() => {
-    if (pathname === '/carrito' && pathnameAnteriorRef.current !== '/carrito') setNavegoACarrito(true);
-    pathnameAnteriorRef.current = pathname;
-  }, [pathname]);
-  const refVerCarrito = useTourPaso('ver-carrito', navegoACarrito);
+  // 'ver-carrito' NO mira `pathname === '/carrito'` (como antes): cualquier llegada a esa ruta
+  // por otro camino (atrás/adelante del navegador, deep link, o ya estar ahí) contaba igual sin
+  // que el usuario tocara "Ver carrito" — mismo bug que 'tab-descuentos'/'volver-buscar' (ver
+  // auditoría). Se completa imperativo con `avanzarTour('ver-carrito')` en el propio `onPress`
+  // del botón (más abajo) — mismo patrón que 'listo' en HojaSupers.tsx, que también avanza así
+  // porque para cuando la navegación termina ya no hay forma de leer un booleano "cumplido". El
+  // hook acá solo registra el target a medir (`cumplido` siempre `false`).
+  const refVerCarrito = useTourPaso('ver-carrito', false);
 
   const { data, isFetching, error, refetch } = useQuery({
     queryKey: ['catalogo', consultaDemorada, supersActivos, orden],
@@ -465,7 +454,7 @@ export default function PantallaBuscar() {
           ]}
         >
           <BotonPrincipal
-            onPress={() => router.push('/carrito')}
+            onPress={() => { avanzarTour('ver-carrito'); router.push('/carrito'); }}
             subtitulo={`${carrito.items.length} producto${carrito.items.length === 1 ? '' : 's'} · ${carrito.totalUnidades} unidad${carrito.totalUnidades === 1 ? '' : 'es'}`}
             iconoCarrito
           >

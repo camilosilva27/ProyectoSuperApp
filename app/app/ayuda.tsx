@@ -23,6 +23,16 @@ export default function PantallaAyuda() {
 
   const volver = () => (router.canGoBack() ? router.back() : router.replace('/ajustes'));
 
+  // Ayuda es una pantalla apilada ENCIMA de las tabs (ver Stack.Screen en app/_layout.tsx) —
+  // arrancar el tour de acá directo dejaba su primer paso ("tab-descuentos", que resalta una
+  // celda de la barra inferior por fórmula, no con un ref) apuntando a un rectángulo fantasma:
+  // la barra real está tapada por esta misma pantalla (bug real, encontrado en auditoría). Por
+  // eso primero se vuelve a Buscar (revela la barra) y recién ahí se inicia el tour.
+  const iniciarTutorial = () => {
+    router.replace('/');
+    tour.iniciar();
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: paleta.fondo }}>
       <Head><title>Ayuda - Super App</title></Head>
@@ -36,7 +46,7 @@ export default function PantallaAyuda() {
 
       <View style={styles.cuerpo}>
         <View style={[styles.grupo, { borderColor: paleta.borde }]}>
-          <Pressable onPress={tour.iniciar} accessibilityRole="button" style={styles.fila}>
+          <Pressable onPress={iniciarTutorial} accessibilityRole="button" style={styles.fila}>
             <Text style={[texto.cuerpoMedio, { color: paleta.tinta, flex: 1 }]}>Ver el tutorial</Text>
             <IconoChevron color={paleta.tintaTenue} />
           </Pressable>

@@ -14,11 +14,11 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Linking, Pressable, ScrollView, StyleSheet, Text, View,
+  BackHandler, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -33,7 +33,7 @@ import { HeaderNegro } from '../src/componentes/HeaderNegro';
 import { useFiltrosSupers } from '../src/filtrosSupers';
 import { useHistorialAhorro } from '../src/historialAhorro';
 import { espacio, fuentes, pesos, pesosCorto, radio, texto, usePantallaBaja } from '../src/theme';
-import { useTourPaso } from '../src/tour/TourContext';
+import { useEstadoTour, useTourPaso } from '../src/tour/TourContext';
 import { useTema } from '../src/useTema';
 
 /** `/api/comparar` resuelve el nombre de cada item buscando el EAN en el catálogo unificado del
@@ -259,6 +259,32 @@ function HeaderVeredicto({
   const [ahorroListo, setAhorroListo] = useState(false);
   useEffect(() => { setAhorroListo(false); }, [data]);
   const refAhorro = useTourPaso('ahorro', ahorroListo);
+
+  // El botón físico de "atrás" (Android) navega hacia /carrito sin pasar por el overlay del
+  // tour (mismo mecanismo de fondo que el bug ya corregido en HojaSupers.tsx: el overlay solo
+  // bloquea toques sobre la pantalla, no ese evento del SO) — sin esto, salía de /resultado a
+  // mitad de 'ahorro'/'notificaciones' y dejaba el tour trabado para siempre sobre una pantalla
+  // que ya no está. Los otros pasos del tour no pasan por acá (no hay Stack.Screen empujada
+  // durante ellos), así que alcanza con bloquear mientras el paso activo es uno de estos dos.
+  const { activo: tourActivo, pasoActivo } = useEstadoTour();
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    if (!tourActivo || (pasoActivo !== 'ahorro' && pasoActivo !== 'notificaciones')) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => true);
+    return () => sub.remove();
+  }, [tourActivo, pasoActivo]);
+
+  // Mismo problema en iOS, con el gesto de swipe-back desde el borde en vez del botón físico:
+  // tampoco pasa por el overlay del tour. `navigation.setOptions` es la única forma de tocar
+  // `gestureEnabled` en runtime (el resto de las opciones del Stack.Screen de "resultado" son
+  // estáticas, ver app/_layout.tsx). Se restaura a `true` al desactivarse (limpieza del efecto),
+  // no solo al desmontar, porque esta pantalla no se desmonta entre 'ahorro' y 'notificaciones'.
+  const navigation = useNavigation();
+  useEffect(() => {
+    if (!tourActivo || (pasoActivo !== 'ahorro' && pasoActivo !== 'notificaciones')) return;
+    navigation.setOptions({ gestureEnabled: false });
+    return () => navigation.setOptions({ gestureEnabled: true });
+  }, [tourActivo, pasoActivo, navigation]);
 
   const paradasNombres = data.supermercados
     .filter(s => (data.resumen.subtotalAsignadoPorSuper[s.key] ?? 0) > 0)
