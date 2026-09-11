@@ -24,7 +24,7 @@ import { useCarrito } from '../carrito';
 import {
   espacio, fuentes, pesosCorto, radio, texto, textoPretty, type Paleta,
 } from '../theme';
-import { avanzarTour, useEstadoTour, useTourPaso } from '../tour/TourContext';
+import { avanzarTour, salirTour, useEstadoTour, useTourPaso } from '../tour/TourContext';
 import { useTema } from '../useTema';
 import { BotonPrincipal, NOMBRE_SUPER, ORDEN_SUPERS } from './comunes';
 import { PlacaLogoSuper } from './LogoSuper';
@@ -110,26 +110,43 @@ export function HojaSupers({
   const [busqueda, setBusqueda] = useState('');
   const carrito = useCarrito();
   const { session } = useAuth();
-  // Snapshot del tope con el que se abrió la hoja — el paso del tour "elegí un tope" (ver
-  // TourContext.tsx) necesita distinguir "el usuario tocó una opción" de "el tope ya venía así".
-  const topeInicialRef = useRef(tope);
   // El paso del tour "marcá Coto" NO puede mirar si Coto está en `borrador`: por defecto los 7
   // supers vienen activos, así que ya estaría "cumplido" apenas se abre la hoja, sin que el
   // usuario toque nada — pasaba justo eso (saltaba directo al paso del tope). En cambio, esto
   // se pone en `true` con el toque real sobre la fila, la marque o la desmarque.
   const [tocoCoto, setTocoCoto] = useState(false);
+  // Mismo problema con "tope-elegido", agravado: como esta hoja es un `<Modal>` (ver más abajo,
+  // `bloqueaCierreIndirecto`), el overlay del tour NO puede bloquear ningún toque adentro — con solo
+  // comparar `topeBorrador` contra el snapshot inicial (como estaba antes), tocar cualquier botón
+  // de tope DURANTE el paso "coto" (antes de que "tope-elegido" siquiera se active) ya dejaba la
+  // condición en `true` de entrada, saltando ese paso sin que el usuario tocara nada mientras su
+  // cartel estaba en pantalla (bug real, encontrado en auditoría). Por eso, igual que `tocoCoto`,
+  // esto solo se pone en `true` con el toque real sobre un botón de tope Y mientras ese paso en
+  // particular está activo (ver el handler pasado a `BloqueTope` más abajo).
+  const [tocoTope, setTocoTope] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
     setBorrador(activos);
     setTopeBorrador(normalizarTope(tope, activos.length));
-    topeInicialRef.current = normalizarTope(tope, activos.length);
     setTocoCoto(false);
+    setTocoTope(false);
     setBusqueda('');
     // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al abrir, no en cada cambio de `activos`/`tope`
   }, [visible]);
 
+  // Necesario ya acá arriba (no solo más abajo, donde vivía antes): tanto el handler del tope
+  // como `cerrarYConfirmar` necesitan saber el paso activo del tour para decidir si la acción
+  // cuenta como la que ese paso pide.
+  const { activo: tourActivo, pasoActivo } = useEstadoTour();
+  // Mientras dura "coto"/"tope-elegido", ninguna acción que no sea la del propio paso puede
+  // cerrar la hoja (ni el botón "Listo" ni el scrim/back, ver más abajo) — fuerza a que el
+  // usuario haga real la acción pedida en vez de saltarla. "listo" no entra acá: en ese paso el
+  // botón "Listo" SÍ es la acción correcta.
+  const bloqueaAccionPrevia = tourActivo && (pasoActivo === 'coto' || pasoActivo === 'tope-elegido');
+
   const cerrarYConfirmar = () => {
+    if (bloqueaAccionPrevia) return;
     onAplicar(borrador, topeBorrador);
     onCerrar();
     // Imperativo, no vía `useTourPaso`: para cuando esto corre, la hoja ya se está por
@@ -151,6 +168,13 @@ export function HojaSupers({
     setTopeBorrador(t => normalizarTope(t, siguiente.length));
   };
 
+  // Ver el comentario de `tocoTope` más arriba: solo cuenta como "hizo lo que este paso pide" si
+  // el toque pasa mientras el paso "tope-elegido" está realmente activo.
+  const cambiarTope = (valor: number) => {
+    if (pasoActivo === 'tope-elegido') setTocoTope(true);
+    setTopeBorrador(valor);
+  };
+
   const filtro = busqueda.trim().toLowerCase();
   const visiblesPorFiltro = ORDEN_SUPERS.filter(key => NOMBRE_SUPER[key].toLowerCase().includes(filtro));
   const comparando = visiblesPorFiltro.filter(key => borrador.includes(key));
@@ -164,7 +188,7 @@ export function HojaSupers({
   // `return null` en el render). Sin esto, la instancia oculta puede registrar su target y
   // "ganarle" a la visible (ver comentario en useTourPaso).
   const refCoto = useTourPaso('coto', tocoCoto, undefined, visible);
-  const refTope = useTourPaso('tope-elegido', topeBorrador !== topeInicialRef.current, undefined, visible);
+  const refTope = useTourPaso('tope-elegido', tocoTope, undefined, visible);
   // `cumplido` siempre en `false`: este paso se completa con `avanzarTour('listo')` imperativo
   // dentro de `cerrarYConfirmar` (arriba), no con una condición — para cuando se cumple, la
   // hoja ya se está desmontando. El hook igual sirve para registrar el target a medir.
@@ -178,7 +202,28 @@ export function HojaSupers({
   const scrollRef = useRef<ScrollView>(null);
   const scrollYRef = useRef(0);
   const refContenedorLista = useRef<View>(null);
-  const { pasoActivo } = useEstadoTour();
+  // El botón físico de "atrás" (Android) dispara `onRequestClose` del Modal sin pasar por el
+  // overlay del tour (que solo bloquea toques sobre la pantalla, no ese evento del SO) — sin
+  // este freno, cerraba la hoja en medio de cualquiera de los 3 pasos que viven acá ("coto",
+  // "tope-elegido", "listo") y dejaba el tour trabado para siempre pidiendo un paso sobre una
+  // hoja que ya no existe (bug real reportado). Durante "listo" el botón "Listo" SÍ tiene que
+  // seguir andando (`bloqueaAccionPrevia`, declarado más arriba, no incluye ese paso) — es la
+  // acción que ese paso pide; el scrim y el back físico quedan bloqueados igual, para que solo
+  // cuente tocar el botón real. Mientras dura cualquiera de los 3, la única salida sigue siendo
+  // "Finalizar" del propio cartel.
+  const bloqueaCierreIndirecto = bloqueaAccionPrevia || (tourActivo && pasoActivo === 'listo');
+  // Red de seguridad: la hoja no se desmonta al cerrarse (vive montada en Buscar/Carrito todo
+  // el tiempo, solo cambia `visible`, ver comentario del componente) — si por cualquier otro
+  // camino queda invisible mientras el tour sigue parado en uno de estos pasos (en vez de
+  // quedar trabado sin target, se corta el tour prolijo).
+  const eraVisibleRef = useRef(visible);
+  useEffect(() => {
+    const eraVisible = eraVisibleRef.current;
+    eraVisibleRef.current = visible;
+    if (eraVisible && !visible && (pasoActivo === 'coto' || pasoActivo === 'tope-elegido' || pasoActivo === 'listo')) {
+      salirTour();
+    }
+  }, [visible, pasoActivo]);
   useEffect(() => {
     if (pasoActivo !== 'coto') return;
     // Espera a que termine la animación de apertura de la hoja — antes de eso, medir la fila
@@ -200,11 +245,16 @@ export function HojaSupers({
   }, [pasoActivo]);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={cerrarYConfirmar}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={bloqueaCierreIndirecto ? () => {} : cerrarYConfirmar}
+    >
       <View style={[styles.fondo, { backgroundColor: paleta.overlay }]}>
         <Pressable
           style={StyleSheet.absoluteFill}
-          onPress={cerrarYConfirmar}
+          onPress={bloqueaCierreIndirecto ? undefined : cerrarYConfirmar}
           accessibilityLabel="Cerrar"
           accessibilityRole="button"
         />
@@ -241,7 +291,7 @@ export function HojaSupers({
                 n={borrador.length}
                 total={ORDEN_SUPERS.length}
                 topeBorrador={topeBorrador}
-                onCambiarTope={setTopeBorrador}
+                onCambiarTope={cambiarTope}
                 monto={montoTope}
                 carritoVacio={pedido.length === 0}
               />

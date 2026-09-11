@@ -14,12 +14,17 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useNavigation } from 'expo-router';
 import Head from 'expo-router/head';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
+// `BottomTabNavigationProp` es el tipo del `navigation` de acá abajo — el genérico de
+// `useNavigation()` no conoce el evento 'tabPress', que sí trae el de bottom-tabs (mismo import
+// que ya usa index.tsx para `useBottomTabBarHeight`: no hay `@react-navigation/bottom-tabs`
+// instalado aparte, expo-router vendorea el suyo).
+import type { BottomTabNavigationProp } from 'expo-router/build/react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ErrorApi, misDescuentos } from '../../src/api';
 import { useAuth } from '../../src/auth';
@@ -58,18 +63,17 @@ export default function PantallaMisDescuentos() {
 
   // El target del paso 'tab-descuentos' (la celda de la barra inferior) se calcula por fórmula
   // en TourOverlay, no con un ref — el ref que devuelve `useTourPaso` no se usa en ningún lado
-  // a propósito. NO usa `true` fijo: los tabs de expo-router no se desmontan al cambiar de
-  // pestaña, así que si el usuario ya había visitado esta pantalla antes de arrancar el tour,
-  // esa condición ya estaría cumplida apenas el paso se activa, saltándolo sin cartel — mismo
-  // bug que ya se corrigió para "marcá Coto"/"activá Mercado Pago". `useFocusEffect` sí exige
-  // una transición real de foco (un tap genuino en la pestaña): se resetea a `false` en el
-  // blur, así que un foco viejo de antes de iniciar el tour no cuenta.
-  const [enfocada, setEnfocada] = useState(false);
-  useFocusEffect(useCallback(() => {
-    setEnfocada(true);
-    return () => setEnfocada(false);
-  }, []));
-  useTourPaso('tab-descuentos', enfocada);
+  // a propósito. NO mira el foco (`useFocusEffect`/`usePathname`), como estaba antes: cualquier
+  // transición real de foco cuenta ahí, alcanzable en el build web con el botón atrás/adelante
+  // del navegador o una URL tipeada a mano, sin tocar la pestaña que el tour resalta (bug real,
+  // encontrado en auditoría). El evento `tabPress` de React Navigation SOLO lo emite el propio
+  // botón de la barra al tocarlo (ver BottomTabBar.js vendoreado por expo-router) — ninguna
+  // navegación programática (deep link, historial del navegador, otro paso del tour) lo dispara,
+  // así que es la señal correcta de "el usuario tocó esta pestaña", sin falsos positivos.
+  const navigation = useNavigation<BottomTabNavigationProp<Record<string, object | undefined>>>();
+  const [tocoPestana, setTocoPestana] = useState(false);
+  useEffect(() => navigation.addListener('tabPress', () => setTocoPestana(true)), [navigation]);
+  useTourPaso('tab-descuentos', tocoPestana);
 
   // NO mira `carrito.tarjetas.includes(...)`: si la cuenta ya tenía Mercado Pago activado de
   // antes (persiste entre sesiones, igual que el carrito), esa condición ya estaría cumplida

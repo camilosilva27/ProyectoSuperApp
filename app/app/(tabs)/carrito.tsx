@@ -14,9 +14,9 @@
  * cargar reemplaza la compra actual entera por la guardada.
  */
 
-import { useFocusEffect, usePathname, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import Head from 'expo-router/head';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 // expo-router (v57) vendorea su propio bottom-tabs y no lo reexporta desde el root del
 // paquete: no hay `@react-navigation/bottom-tabs` instalado por separado, así que este es
@@ -33,7 +33,7 @@ import { HeaderNegro, SelectorSupers, TituloHeader } from '../../src/componentes
 import { HojaSupers } from '../../src/componentes/HojaSupers';
 import { useFiltrosSupers } from '../../src/filtrosSupers';
 import { espacio, fuentes, radio, texto, usePantallaBaja } from '../../src/theme';
-import { useCerrarModalDeTour, useTourPaso } from '../../src/tour/TourContext';
+import { avanzarTour, useCerrarModalDeTour, useTourPaso } from '../../src/tour/TourContext';
 import { useTema } from '../../src/useTema';
 
 export default function PantallaCarrito() {
@@ -42,26 +42,16 @@ export default function PantallaCarrito() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const router = useRouter();
-  const pathname = usePathname();
   const carrito = useCarrito();
   const carritosGuardados = useCarritosGuardados();
   const { supersActivos, toggleSuper, topeSupers, setSupersYTope, usoPorSuper } = useFiltrosSupers();
-  // NO mira `pathname === '/resultado'` directo: si el usuario ya estaba en /resultado cuando
-  // el paso 'comparar-precios' se activa, la condición ya sería verdadera de entrada y el paso
-  // se saltearía sin cartel — mismo bug que ya se corrigió para "marcá Coto"/"activá Mercado
-  // Pago". Solo cuenta una transición real hacia /resultado, no el estado ya alcanzado. Tampoco
-  // se resetea solo una vez en `true`: si el usuario ya había entrado a Resultado en algún
-  // momento anterior de la sesión, este paso se salteaba apenas se activaba (mismo bug real que
-  // en `navegoACarrito`, index.tsx — ver ese comentario para el detalle). Se resetea al GANAR
-  // foco de esta pantalla, no al perderlo, para no competir con el efecto de `pathname` de abajo.
-  const pathnameAnteriorRef = useRef(pathname);
-  const [navegoAResultado, setNavegoAResultado] = useState(false);
-  useFocusEffect(useCallback(() => setNavegoAResultado(false), []));
-  useEffect(() => {
-    if (pathname === '/resultado' && pathnameAnteriorRef.current !== '/resultado') setNavegoAResultado(true);
-    pathnameAnteriorRef.current = pathname;
-  }, [pathname]);
-  const refComparar = useTourPaso('comparar-precios', navegoAResultado);
+  // 'comparar-precios' NO mira `pathname === '/resultado'` (como antes): cualquier llegada a esa
+  // ruta por otro camino (atrás/adelante del navegador, deep link, o ya estar ahí) contaba igual
+  // sin tocar "Comparar precios" — mismo bug que 'tab-descuentos'/'volver-buscar'/'ver-carrito'
+  // (ver auditoría). Se completa imperativo con `avanzarTour('comparar-precios')` en el propio
+  // `onPress` del botón (más abajo), mismo patrón que 'listo' en HojaSupers.tsx y 'ver-carrito'
+  // en index.tsx. El hook acá solo registra el target a medir (`cumplido` siempre `false`).
+  const refComparar = useTourPaso('comparar-precios', false);
   const [mostrarHoja, setMostrarHoja] = useState(false);
   const [recienGuardadoId, setRecienGuardadoId] = useState<string | null>(null);
   const [toastNombre, setToastNombre] = useState<string | null>(null);
@@ -260,7 +250,11 @@ export default function PantallaCarrito() {
             },
           ]}
         >
-          <BotonPrincipal botonRef={refComparar} onPress={() => router.push('/resultado')} iconoBalanza>
+          <BotonPrincipal
+            botonRef={refComparar}
+            onPress={() => { avanzarTour('comparar-precios'); router.push('/resultado'); }}
+            iconoBalanza
+          >
             Comparar precios
           </BotonPrincipal>
           <ToastGuardado nombre={toastNombre} onFin={() => setToastNombre(null)} />
