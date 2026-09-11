@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from './auth';
 import { supabase } from './supabase';
+import { verificarPago } from './api';
 
 export type InfoPlan = {
   plan: 'trial' | 'premium' | 'gratis';
@@ -39,6 +40,13 @@ export function usePlanUsuario() {
       return;
     }
     setCargando(true);
+    // Chequeo activo contra Mercado Pago antes de leer: el webhook puede demorar días en avisar
+    // un pago ya aprobado (ver Plan_Usuarios_y_cobros.md), así que no alcanza con esperarlo.
+    // Falla en silencio (sin bloquear la lectura de abajo) si el backend no responde — el
+    // webhook sigue siendo la vía de fondo, esto solo adelanta el caso feliz.
+    if (session?.access_token) {
+      await verificarPago(session.access_token).catch(() => null);
+    }
     const { data } = await supabase
       .from('perfil_usuario')
       .select(`
@@ -58,7 +66,7 @@ export function usePlanUsuario() {
       pagadoEl: data.pagado_en,
     } : null);
     setCargando(false);
-  }, [userId]);
+  }, [userId, session]);
 
   useEffect(() => { recargar(); }, [recargar]);
 

@@ -402,6 +402,17 @@ export function cancelarSuscripcion(accessToken: string) {
   });
 }
 
+/** Chequeo activo contra Mercado Pago (no depende del webhook, que puede demorar días en avisar
+ *  un pago ya aprobado — ver Plan_Usuarios_y_cobros.md). `usePlanUsuario().recargar()` la llama
+ *  antes de releer `perfil_usuario`, así que un pago recién aprobado se refleja al volver del
+ *  checkout aunque MP todavía no haya mandado el webhook. */
+export function verificarPago(accessToken: string) {
+  return pedir<{ plan: 'trial' | 'premium' | 'gratis' }>('/api/pagos/verificar', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
 /** Precios configurados en el backend (`MERCADOPAGO_PRECIO_*_ARS`) — pública, sin sesión. La
  *  usa `GatePaywallFinTrial` para no hardcodear precios en el cliente. Cada campo puede venir
  *  en `null` si ese plan puntual no está configurado. */

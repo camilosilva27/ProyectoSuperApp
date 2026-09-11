@@ -13,11 +13,12 @@
 
 const express = require('express');
 const {
-  MercadoPagoConfig, PreApproval, Preference,
+  MercadoPagoConfig, PreApproval, Preference, Payment,
 } = require('mercadopago');
 const { requiereSesion } = require('../middleware/requiereSesion');
 const { clienteSupabaseAdmin } = require('../clienteSupabaseAdmin');
 const { planSegunEstado } = require('../planSegunEstadoSuscripcion');
+const { procesarPagoAprobado, procesarSuscripcion } = require('../procesarPagoMercadoPago');
 const {
   mercadopagoAccessToken, precioMensualArs, precioAnualArs, precioPermanenteArs,
   urlVueltaCheckoutMP,
@@ -218,6 +219,67 @@ router.post('/pagos/cancelar-suscripcion', requiereSesion, async (req, res) => {
   } catch (err) {
     console.error('Error cancelando suscripción de Mercado Pago:', err);
     res.status(502).json({ error: 'No se pudo cancelar la suscripción en Mercado Pago' });
+  }
+});
+
+// POST /api/pagos/verificar — chequeo activo del estado real en Mercado Pago, para el usuario
+// logueado. No depende de que llegue el webhook: lo llama el frontend al volver del checkout
+// (`ajustes.tsx`, en vez de solo releer `perfil_usuario`). Existe porque se detectó en vivo
+// (2026-09-11, ver .claude/docs/Plan_Usuarios_y_cobros.md) que MP puede demorar días en avisar
+// un pago ya aprobado — sin esto, el usuario quedaba sin premium (y sin el mail de recibo)
+// aunque ya había pagado. Comparte la lógica de aplicar el estado con el webhook
+// (`procesarPagoMercadoPago.js`), así que llamarlo de más no genera recibos duplicados.
+router.post('/pagos/verificar', requiereSesion, async (req, res) => {
+  if (!mercadopagoAccessToken) {
+    return res.status(503).json({ error: 'Mercado Pago todavía no está configurado' });
+  }
+  const supabaseAdmin = clienteSupabaseAdmin();
+  if (!supabaseAdmin) {
+    return res.status(503).json({ error: 'Supabase (service role) todavía no está configurado' });
+  }
+
+  const { data: perfil, error: errorPerfil } = await supabaseAdmin
+    .from('perfil_usuario')
+    .select('plan, pasarela_suscripcion_id, premium_manual')
+    .eq('id', req.usuarioId)
+    .single();
+  if (errorPerfil) {
+    return res.status(502).json({ error: 'No se pudo leer el perfil del usuario' });
+  }
+
+  // Nada que reconciliar: ya es premium (o lo otorgaron a mano), y esta ruta solo existe para
+  // destrabar el caso "ya pagué pero MP no avisó todavía" — no hace falta pegarle a la API de MP
+  // en cada visita a Ajustes de alguien que ya está al día.
+  if (perfil.plan === 'premium' || perfil.premium_manual) {
+    return res.json({ plan: perfil.plan });
+  }
+
+  try {
+    const client = new MercadoPagoConfig({ accessToken: mercadopagoAccessToken });
+
+    if (perfil.pasarela_suscripcion_id) {
+      const preApproval = new PreApproval(client);
+      const suscripcion = await preApproval.get({ id: perfil.pasarela_suscripcion_id });
+      const plan = await procesarSuscripcion(suscripcion, perfil.pasarela_suscripcion_id, supabaseAdmin);
+      return res.json({ plan: plan ?? perfil.plan });
+    }
+
+    // Plan permanente: no hay id de suscripción guardado, el pago se busca por
+    // external_reference (seteado al crear la Preference en /pagos/pago-unico).
+    const payment = new Payment(client);
+    const { results } = await payment.search({
+      options: {
+        external_reference: req.usuarioId, sort: 'date_approved', criteria: 'desc',
+      },
+    });
+    const pagoAprobado = results?.find((p) => p.status === 'approved');
+    if (!pagoAprobado) return res.json({ plan: perfil.plan });
+
+    const plan = await procesarPagoAprobado(pagoAprobado, supabaseAdmin);
+    res.json({ plan: plan ?? perfil.plan });
+  } catch (err) {
+    console.error('Error verificando pago de Mercado Pago:', err);
+    res.status(502).json({ error: 'No se pudo verificar el pago en Mercado Pago' });
   }
 });
 
