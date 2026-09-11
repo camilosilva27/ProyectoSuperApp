@@ -17,8 +17,8 @@ const COLOR_TEXTO_FOOTER = '#767E88';
 const COLOR_FONDO = '#F6F7F9';
 const COLOR_ACENTO = '#FFD400'; // mismo amarillo "oferta" de theme.ts / confirm-signup.html — reservado para el botón CTA
 const COLOR_ACENTO_SUAVE = '#FFF6C9'; // "ofertaSuave" de theme.ts — para destacar un monto sin que se confunda con el botón
-const LOGO_URL = 'https://mi-superapp.vercel.app/apple-touch-icon.png';
-const URL_APP = 'https://mi-superapp.vercel.app';
+const LOGO_URL = 'https://mi-superapp.com.ar/apple-touch-icon.png';
+const URL_APP = 'https://mi-superapp.com.ar';
 
 /**
  * @param {string} preheader - texto oculto que se ve en la bandeja de entrada antes de abrir.

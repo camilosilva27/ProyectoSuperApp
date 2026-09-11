@@ -58,7 +58,7 @@ module.exports = {
     ? Number(process.env.MERCADOPAGO_PRECIO_PERMANENTE_ARS)
     : null,
   // A dónde vuelve el navegador/webview de MP una vez que el usuario termina el checkout.
-  urlVueltaCheckoutMP: process.env.URL_VUELTA_CHECKOUT_MP || 'https://mi-superapp.vercel.app',
+  urlVueltaCheckoutMP: process.env.URL_VUELTA_CHECKOUT_MP || 'https://mi-superapp.com.ar',
 
   // Notificaciones push web (recordatorio semanal, ver src/cron/recordatorioSemanal.js). La
   // pública viaja también en app/.env (EXPO_PUBLIC_VAPID_PUBLIC_KEY) — no es secreta, es la
