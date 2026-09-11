@@ -35,8 +35,21 @@ function huellaPromoSku(sku) {
 // `promosBancarias` (promo de tarjeta/banco, no del producto en sí; ver
 // aviso-promo-sin-aplicar-solo-si-gana en la memoria del proyecto, es un mecanismo aparte) para
 // no generar avisos de "promo nueva" por algo que no es una oferta puntual de ese producto.
+//
+// El teaser crudo de VTEX (`promocion`, Vea/Jumbo/Disco) puede venir con un % real de 0 (ej.
+// "OFERTA ROSAMONTE BA" con descuentoPct: "0%", mismo precioFinal que precioBase) — es una
+// campaña de marketing sin recorte de precio real, no una oferta. Bug real encontrado en
+// producción (2026-09-11): se avisaba "promo nueva" por esto aunque no hubiera nada que
+// mostrar (el chip de % quedaba vacío, 0 es falsy). Un `descuentoPct` presente pero no
+// numérico o <= 0 no cuenta como promo.
 function tienePromoDeProducto(sku) {
-  if (sku.promocion !== undefined) return !!sku.promocion;
+  if (sku.promocion !== undefined) {
+    if (!sku.promocion) return false;
+    const pct = typeof sku.promocion.descuentoPct === 'string'
+      ? parseFloat(sku.promocion.descuentoPct)
+      : sku.promocion.descuentoPct;
+    return Number.isFinite(pct) ? pct > 0 : true;
+  }
   return !!sku.descuentoDirecto || !!(sku.promosInternas && sku.promosInternas.length);
 }
 
