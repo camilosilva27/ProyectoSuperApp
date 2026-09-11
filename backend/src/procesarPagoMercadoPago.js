@@ -113,24 +113,33 @@ async function verificarYAplicarPago(usuarioId, supabaseAdmin) {
 
   const client = new MercadoPagoConfig({ accessToken: mercadopagoAccessToken });
 
+  // `pasarela_suscripcion_id` NO se limpia cuando alguien abandona una suscripción a medio
+  // camino y termina pagando el plan permanente (bug real encontrado probando esto en vivo,
+  // 2026-09-11) — así que su sola presencia no confirma que la suscripción sea el intento
+  // vigente. En vez de adivinar la rama por otro campo (que puede estar igual de
+  // desactualizado), se prueban las dos fuentes y gana la que confirme premium: es la única
+  // forma de no depender de que ningún campo guardado refleje bien "cuál fue el último intento
+  // real". Ambas siguen siendo idempotentes, así que no hay downside en consultar de más.
+  let plan = perfil.plan;
+
   if (perfil.pasarela_suscripcion_id) {
     const preApproval = new PreApproval(client);
     const suscripcion = await preApproval.get({ id: perfil.pasarela_suscripcion_id });
-    const plan = await procesarSuscripcion(suscripcion, perfil.pasarela_suscripcion_id, supabaseAdmin);
-    return plan ?? perfil.plan;
+    plan = (await procesarSuscripcion(suscripcion, perfil.pasarela_suscripcion_id, supabaseAdmin)) ?? plan;
+    if (plan === 'premium') return plan;
   }
 
-  // Plan permanente: no hay id de suscripción guardado, el pago se busca por
-  // external_reference (seteado al crear la Preference en /pagos/pago-unico).
+  // Plan permanente: el pago se busca por external_reference (seteado al crear la Preference
+  // en /pagos/pago-unico) — se revisa siempre que la rama de arriba no haya confirmado premium,
+  // sin importar si hay o no una suscripción vieja colgada.
   const payment = new Payment(client);
   const { results } = await payment.search({
     options: { external_reference: usuarioId, sort: 'date_approved', criteria: 'desc' },
   });
   const pagoAprobado = results?.find((p) => p.status === 'approved');
-  if (!pagoAprobado) return perfil.plan;
+  if (!pagoAprobado) return plan;
 
-  const plan = await procesarPagoAprobado(pagoAprobado, supabaseAdmin);
-  return plan ?? perfil.plan;
+  return (await procesarPagoAprobado(pagoAprobado, supabaseAdmin)) ?? plan;
 }
 
 module.exports = { procesarPagoAprobado, procesarSuscripcion, verificarYAplicarPago };
