@@ -576,7 +576,7 @@ export function FormularioAuth({
             <ActivityIndicator color={paleta.ofertaTinta} />
           ) : (
             <Text style={[styles.textoBotonPrincipal, { color: paleta.ofertaTinta }]}>
-              {modo === 'registro' ? 'CONTINUAR' : modo === 'recuperar' ? 'ENVIAR LINK' : 'ENTRAR'}
+              {modo === 'registro' ? 'CONTINUAR' : modo === 'recuperar' ? 'RECUPERAR CONTRASEÑA' : 'ENTRAR'}
             </Text>
           )}
         </Pressable>

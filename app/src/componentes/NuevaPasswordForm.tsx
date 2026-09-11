@@ -1,5 +1,5 @@
 /**
- * Pantalla "Elegí tu nueva contraseña" — se muestra en vez de la app cuando `necesitaNuevaPassword`
+ * Pantalla "Escribí tu nueva contraseña" — se muestra en vez de la app cuando `necesitaNuevaPassword`
  * está en `true` (GateSesion.tsx), justo después de verificar el link de "olvidé mi contraseña"
  * (auth.tsx § pedirRecuperacion/actualizarPassword). La sesión de recuperación ya es una sesión
  * válida en ese momento, pero forzamos este paso antes de dejar pasar a la app: el usuario vino
@@ -53,9 +53,9 @@ export function NuevaPasswordForm({
     >
       <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>RECUPERAR CONTRASEÑA</Text>
       <View style={{ gap: espacio.xs, marginTop: espacio.md, marginBottom: espacio.lg }}>
-        <Text style={[texto.titulo, { color: paleta.tinta }]}>Elegí tu nueva contraseña</Text>
+        <Text style={[texto.titulo, { color: paleta.tinta }]}>Escribí tu nueva contraseña</Text>
         <Text style={[texto.cuerpo, { color: paleta.tintaProsa }]}>
-          Ya verificamos tu mail — ahora poné la contraseña que vas a usar de acá en adelante.
+          Ya verificamos tu mail — ahora escribí la contraseña que vas a usar de acá en adelante.
         </Text>
       </View>
 
