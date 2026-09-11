@@ -25,6 +25,10 @@ export type InfoPlan = {
   renuevaEl: string | null;
   /** Fecha del pago único aprobado del plan permanente. `null` para mensual/anual. */
   pagadoEl: string | null;
+  /** Si la suscripción se canceló/pausó con un período ya pagado por delante, hasta cuándo
+   *  sigue el acceso premium (ver migración 0020_gracia_cancelacion_suscripcion.sql). `null`
+   *  si no hay ninguna cancelación pendiente de efectivizar. */
+  accesoPremiumHasta: string | null;
 };
 
 export function usePlanUsuario() {
@@ -51,7 +55,7 @@ export function usePlanUsuario() {
       .from('perfil_usuario')
       .select(`
         plan, tipo_plan, trial_termina_en, pasarela_suscripcion_id, suscripcion_estado,
-        mail_mercado_pago, siguiente_cobro_en, pagado_en
+        mail_mercado_pago, siguiente_cobro_en, pagado_en, acceso_premium_hasta
       `)
       .eq('id', userId)
       .single();
@@ -64,6 +68,7 @@ export function usePlanUsuario() {
       mailMercadoPago: data.mail_mercado_pago,
       renuevaEl: data.siguiente_cobro_en,
       pagadoEl: data.pagado_en,
+      accesoPremiumHasta: data.acceso_premium_hasta,
     } : null);
     setCargando(false);
   }, [userId, session]);

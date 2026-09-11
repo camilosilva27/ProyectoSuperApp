@@ -25,6 +25,12 @@ import { estadoSuscripcionActiva, usePlanUsuario } from '../src/plan';
 import { espacio, texto } from '../src/theme';
 import { useTema } from '../src/useTema';
 
+function formatearFecha(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
 export default function PantallaPlanYPago() {
   const { paleta } = useTema();
   const insets = useSafeAreaInsets();
@@ -67,8 +73,11 @@ export default function PantallaPlanYPago() {
   };
 
   // Solo mensual/anual generan una suscripción (`pasarela_suscripcion_id`) que cancelar — el
-  // permanente es un pago único, no hay nada que dar de baja.
-  const puedeCancelar = infoPlan?.plan === 'premium' && !!infoPlan.pasarelaSuscripcionId;
+  // permanente es un pago único, no hay nada que dar de baja. Una vez cancelada, `plan` sigue
+  // en 'premium' durante el período de gracia (ver plan.ts § accesoPremiumHasta), así que hace
+  // falta excluir `suscripcionEstado` ya cancelado/pausado para no ofrecer "cancelar" de nuevo.
+  const yaCancelada = infoPlan?.suscripcionEstado === 'cancelled' || infoPlan?.suscripcionEstado === 'paused';
+  const puedeCancelar = infoPlan?.plan === 'premium' && !!infoPlan.pasarelaSuscripcionId && !yaCancelada;
 
   if (cargandoPlan || cargandoPrecio) {
     return (
@@ -135,11 +144,19 @@ export default function PantallaPlanYPago() {
             )}
           </Pressable>
         </View>
+      ) : yaCancelada && infoPlan?.accesoPremiumHasta ? (
+        <View style={[styles.pieCancelar, { paddingBottom: insets.bottom + espacio.md }]}>
+          <Text style={[texto.cuerpo, { color: paleta.tintaSuave, textAlign: 'center' }]}>
+            Suscripción cancelada · tenés acceso hasta el {formatearFecha(infoPlan.accesoPremiumHasta)}
+          </Text>
+        </View>
       ) : null}
       <ConfirmacionModal
         visible={mostrarConfirmarCancelar}
         titulo="Cancelar suscripción"
-        mensaje="Vas a perder el acceso a la app hasta que vuelvas a suscribirte."
+        mensaje={infoPlan?.renuevaEl
+          ? `No se te va a cobrar el próximo período. Vas a mantener el acceso hasta el ${formatearFecha(infoPlan.renuevaEl)}.`
+          : 'No se te va a cobrar el próximo período. Vas a mantener el acceso hasta el final del período ya pagado.'}
         textoConfirmar="Cancelar suscripción"
         icono={IconoTarjetaCancelar}
         onCancelar={() => setMostrarConfirmarCancelar(false)}
