@@ -16,6 +16,8 @@ Este repo es la app "Super App" (motor interno de comparación de precios: AllPr
 | `ComoCorrerlo.md` | Cómo levantar el proyecto localmente. |
 | `mails_y_notificaciones.md` | Inventario de mails (existentes + planeados) y su futura notificación push equivalente. Abrir antes de agregar cualquier mail nuevo o de arrancar con push notifications. |
 | `ALERTAS-notificaciones-plan.md` | Feature "Alertas" (seguir productos/categorías, aviso de promo nueva): estado completo, decisiones de diseño, archivos tocados y pendientes. Abrir antes de retomar este trabajo. |
+| `TERMINOS_DE_SERVICIO.md` | Términos de Servicio (plan pago, cancelación con gracia hasta fin de período, derecho de arrepentimiento de 10 días, fase beta). Texto completo, espejado en `app/src/legal/contenidoLegal.ts` (checkbox de registro). |
+| `POLITICA_DE_PRIVACIDAD.md` | Política de Privacidad (qué datos guardamos, Supabase/Mercado Pago/Brevo como procesadores). Texto completo, mismo espejo que el ToS. |
 
 ## Contexto por subcarpeta (mismo criterio: abrir solo si se trabaja ahí)
 
