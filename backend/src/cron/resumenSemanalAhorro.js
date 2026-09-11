@@ -48,7 +48,7 @@ function armarHtml({ nombre, monto, cantidad }) {
     preheader: 'Esto ahorraste esta semana con Super App.',
     titulo: 'Tu resumen de la semana',
     cuerpoHtml: cuerpo,
-    cta: { texto: 'Ver mi historial de ahorro', url: `${URL_APP}/ahorros` },
+    cta: { texto: 'Ver mi historial de ahorro', url: `${URL_APP}/mis-ahorros` },
   });
 }
 
@@ -123,7 +123,7 @@ async function resumenSemanalAhorro() {
         const resultadoPush = await enviarPush(cliente, suscripcionesPush.get(perfil.id) ?? [], {
           title: 'Super App',
           body: `Esto ahorraste esta semana: ${formatoArs(monto)}`,
-          url: `${URL_APP}/ahorros`,
+          url: `${URL_APP}/mis-ahorros`,
         });
         enviadosPush += resultadoPush.enviados;
         errores.push(...resultadoPush.errores);

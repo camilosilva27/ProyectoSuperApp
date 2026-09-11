@@ -31,6 +31,60 @@ function huellaPromoSku(sku) {
   });
 }
 
+// Si un SKU tiene promo de PRODUCTO activa ahora mismo — a propósito NO cuenta
+// `promosBancarias` (promo de tarjeta/banco, no del producto en sí; ver
+// aviso-promo-sin-aplicar-solo-si-gana en la memoria del proyecto, es un mecanismo aparte) para
+// no generar avisos de "promo nueva" por algo que no es una oferta puntual de ese producto.
+function tienePromoDeProducto(sku) {
+  if (sku.promocion !== undefined) return !!sku.promocion;
+  return !!sku.descuentoDirecto || !!(sku.promosInternas && sku.promosInternas.length);
+}
+
+// Mejor esfuerzo para mostrar "35% off, $4.290" en el push/mail (ver diseño 20e). Solo cubre
+// los dos tipos que traen un % y un precio final directos en el propio SKU: el teaser crudo de
+// VTEX (`promocion`, Vea/Jumbo/Disco) y `descuentoDirecto` (Día/Carrefour/ChangoMás/Coto). Si
+// la única promo activa es un `promosInternas` (NxM, 2do al X%) no hay un % único que mostrar
+// sin calcular para una cantidad puntual — se deja null, el mail/push cae a un texto genérico.
+function descuentoDeProducto(sku) {
+  const promo = sku.promocion ?? sku.descuentoDirecto;
+  if (!promo) return { descuentoPct: null, precioFinal: null };
+  const pct = typeof promo.descuentoPct === 'string' ? parseFloat(promo.descuentoPct) : promo.descuentoPct;
+  return {
+    descuentoPct: Number.isFinite(pct) ? pct : null,
+    precioFinal: typeof promo.precioFinal === 'number' ? promo.precioFinal : null,
+  };
+}
+
+// Estado ACTUAL (no un diff) de la promo de cada SKU con promo de producto en este catálogo,
+// por EAN — es la base de "avisar a quien sigue este producto" (ver avisoProductosSeguidos.js).
+// Se compara por EAN, no por skuId: es lo que el usuario sigue (producto_seguido.ean) y lo que
+// identifica al mismo producto real entre supers.
+//
+// A propósito NO es un diff contra la corrida anterior (a diferencia de `diffProductos`): un
+// diff global de "sin promo a con promo" se pierde el caso de alguien que empieza a seguir un
+// producto que YA tenía promo activa — esa transición ya pasó antes de que existiera el
+// seguimiento, así que nunca volvería a dispararse y el usuario se quedaría sin avisar para
+// siempre. En cambio, acá se expone el estado actual con su `huella` (mismo formato que
+// `huellaPromoSku`) y es `avisoProductosSeguidos.js` quien decide, por CADA fila de
+// `producto_seguido`, si la huella actual difiere de la última que se le avisó a ese usuario —
+// eso cubre tanto "la promo recién se prendió" como "recién empecé a seguir algo que ya tenía
+// promo" con la misma comparación.
+function estadoPromoPorEan(catalogo, superNombre) {
+  const mapa = new Map();
+  for (const sku of catalogo?.skus ?? []) {
+    if (!sku.ean || !tienePromoDeProducto(sku)) continue;
+    mapa.set(sku.ean, {
+      ean: sku.ean,
+      nombre: sku.productName || sku.skuName || '(sin nombre)',
+      categoria: sku.categoria || null,
+      super: superNombre,
+      huella: huellaPromoSku(sku),
+      ...descuentoDeProducto(sku),
+    });
+  }
+  return mapa;
+}
+
 // Identidad de un SKU: por skuId (estable dentro de un mismo super/seller entre corridas).
 function diffProductos(antes, despues) {
   const skusAntes = antes?.skus ?? [];
@@ -122,4 +176,4 @@ async function registrarDiff(fila) {
   if (error) console.error(`   ⚠️  No se pudo registrar el diff de ${fila.super} (${fila.tipo}): ${error.message}`);
 }
 
-module.exports = { leerJSON, diffProductos, diffPromosSuper, registrarDiff };
+module.exports = { leerJSON, diffProductos, diffPromosSuper, registrarDiff, estadoPromoPorEan };
