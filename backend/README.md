@@ -167,3 +167,25 @@ Esto es una decisión de esta etapa (uso familiar/difusión chica por link), no 
 fijo — cuando exista login de usuarios (ver `PLAN_FEATURES_APP.md`), ahí sí va a haber una
 identidad real por request y vale la pena revisar si conviene sumar autenticación de nuevo,
 esta vez atada a un usuario y no a un secreto compartido.
+
+## Monitoreo de errores (Sentry)
+
+`src/sentry.js` inicializa `@sentry/node` si `SENTRY_DSN` está configurado en `.env` (ver
+`.env.example`) — sin esa variable, el server sigue funcionando exactamente igual, solo que sin
+reportar nada. Se importa e inicializa como la primera línea de `server.js`, antes que
+cualquier otro require (instrumentación temprana). El error handler (`Sentry.setupExpressErrorHandler`)
+va antes del handler final propio de `server.js`, así que reportar a Sentry es puramente
+aditivo — no cambia la respuesta JSON que recibe el cliente.
+
+El equivalente del lado del frontend es `app/src/sentry.ts` (`@sentry/react`, no
+`@sentry/react-native` — solo se inicializa en web, mismo criterio que
+`@vercel/analytics`/`@vercel/speed-insights` en `_layout.tsx`: no hay build nativo todavía,
+sumar el SDK nativo sería trabajo sin forma real de probarlo). Variable: `EXPO_PUBLIC_SENTRY_DSN`
+en `app/.env`.
+
+**Pendiente para que esto reporte de verdad**: crear una cuenta gratis en sentry.io (plan
+Developer, gratis para siempre, 5.000 errores/mes — de sobra para el volumen de esta app), un
+proyecto Node.js/Express (da el DSN para `SENTRY_DSN`) y un proyecto React (da el DSN para
+`EXPO_PUBLIC_SENTRY_DSN`), y cargar ambos DSN en sus `.env` respectivos (local y VM). Sentry
+manda un mail automático a la cuenta apenas detecta un error nuevo — no hace falta configurar
+nada aparte para eso.

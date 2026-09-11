@@ -11,6 +11,11 @@
  * No duplica lógica de negocio: importa AllPromos/core/* igual que el CLI.
  */
 
+// Antes que cualquier otro require: Sentry necesita inicializarse temprano para poder
+// instrumentar los módulos que se cargan después (ver sentry.js).
+const { Sentry, inicializar: inicializarSentry } = require('./sentry');
+inicializarSentry();
+
 const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
@@ -88,6 +93,11 @@ app.use('/api', rateLimit({
 }), catalogoRouter, compararRouter, misDescuentosRouter, promosBancariasGrillaRouter, productosSeguidosRouter);
 
 app.use((req, res) => res.status(404).json({ error: 'Ruta no encontrada' }));
+
+// Reporta a Sentry (no-op si SENTRY_DSN no está configurado, ver sentry.js) y deja pasar el
+// error al handler de abajo, que sigue respondiendo el mismo JSON de siempre — Sentry es
+// puramente aditivo acá, no cambia la respuesta que recibe el cliente.
+Sentry.setupExpressErrorHandler(app);
 
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {

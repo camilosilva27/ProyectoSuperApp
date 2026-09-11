@@ -74,4 +74,9 @@ module.exports = {
   brevoApiKey: process.env.BREVO_API_KEY,
   brevoRemitenteEmail: process.env.BREVO_REMITENTE_EMAIL || 'no-reply@mi-superapp.com.ar',
   brevoRemitenteNombre: process.env.BREVO_REMITENTE_NOMBRE || 'Super App',
+
+  // Monitoreo de errores (Sentry) — sin esta variable, sentry.js no inicializa nada y el
+  // server sigue funcionando exactamente igual que antes (mismo criterio "gracioso" que el
+  // resto de las integraciones opcionales de este archivo).
+  sentryDsn: process.env.SENTRY_DSN,
 };
