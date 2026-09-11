@@ -13,9 +13,10 @@
  * hubiera dejado de reintentar antes de que ese pago se resolviera solo.
  *
  * Uso: node src/cron/reintentarPagosPendientes.js   (o npm run reintentar-pagos-pendientes)
- * Crontab sugerido en la VM (cada 2hs en el minuto 0, mismo horario que refrescarCatalogos.js —
- * no hay conflicto, son procesos independientes):
- *   0 0,2,4,6,8,10,12,14,16,18,20,22 * * * cd /ruta/ProyectoSuperApp/backend && /usr/bin/node src/cron/reintentarPagosPendientes.js >> logs/cron-reintentar-pagos-pendientes.log 2>&1
+ * Crontab sugerido en la VM (cada 2hs, minuto 30, en horas impares — a propósito DESAFASADO del
+ * minuto 0 de refrescarCatalogos.js, que corre cada 2hs también: así nunca arrancan al mismo
+ * tiempo y compiten por RAM en esta VM e2-micro, aunque este proceso es liviano ~90MB de pico):
+ *   30 1,3,5,7,9,11,13,15,17,19,21,23 * * * cd /ruta/ProyectoSuperApp/backend && /usr/bin/node src/cron/reintentarPagosPendientes.js >> logs/cron-reintentar-pagos-pendientes.log 2>&1
  * Este archivo de crontab vive en la VM, no en el repo — mismo criterio que los demás crons.
  */
 
