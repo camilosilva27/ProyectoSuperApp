@@ -14,16 +14,16 @@ import Head from 'expo-router/head';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { cancelarSuscripcion, ErrorApi, precioSuscripcion } from '../src/api';
-import { useAuth } from '../src/auth';
-import { ConfirmacionModal, IconoTarjetaCancelar } from '../src/componentes/Confirmacion';
-import { MercadoPagoEmailSheet } from '../src/componentes/MercadoPagoEmailSheet';
-import { PlanSelect, type PreciosPlanes } from '../src/componentes/PlanSelect';
-import { Cargando, Problema } from '../src/componentes/comunes';
-import { useFlujoDePago } from '../src/flujoDePago';
-import { estadoSuscripcionActiva, usePlanUsuario } from '../src/plan';
-import { espacio, texto } from '../src/theme';
-import { useTema } from '../src/useTema';
+import { cancelarSuscripcion, ErrorApi, precioSuscripcion } from '../../../src/api';
+import { useAuth } from '../../../src/auth';
+import { ConfirmacionModal, IconoTarjetaCancelar } from '../../../src/componentes/Confirmacion';
+import { MercadoPagoEmailSheet } from '../../../src/componentes/MercadoPagoEmailSheet';
+import { PlanSelect, type PreciosPlanes } from '../../../src/componentes/PlanSelect';
+import { Cargando, Problema } from '../../../src/componentes/comunes';
+import { useFlujoDePago } from '../../../src/flujoDePago';
+import { estadoSuscripcionActiva, usePlanUsuario } from '../../../src/plan';
+import { espacio, texto } from '../../../src/theme';
+import { useTema } from '../../../src/useTema';
 
 function formatearFecha(iso: string | null): string {
   if (!iso) return '';

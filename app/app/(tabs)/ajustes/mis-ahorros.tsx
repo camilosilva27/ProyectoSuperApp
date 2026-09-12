@@ -18,13 +18,13 @@ import Head from 'expo-router/head';
 import React, { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Vacio } from '../src/componentes/comunes';
-import { HeaderNegro, TituloHeader } from '../src/componentes/HeaderNegro';
+import { Vacio } from '../../../src/componentes/comunes';
+import { HeaderNegro, TituloHeader } from '../../../src/componentes/HeaderNegro';
 import {
   calcularResumenAhorro, useHistorialAhorro, type ResumenAhorro, type ResumenMes,
-} from '../src/historialAhorro';
-import { espacio, fuentes, pesosCorto, radio, texto, usePantallaBaja, type Paleta } from '../src/theme';
-import { useTema } from '../src/useTema';
+} from '../../../src/historialAhorro';
+import { espacio, fuentes, pesosCorto, radio, texto, usePantallaBaja, type Paleta } from '../../../src/theme';
+import { useTema } from '../../../src/useTema';
 
 const NOMBRES_MES = [
   'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',

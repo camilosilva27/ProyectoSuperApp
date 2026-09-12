@@ -9,11 +9,11 @@ import Head from 'expo-router/head';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { IconoChevron } from '../src/componentes/comunes';
-import { HeaderNegro, TituloHeader } from '../src/componentes/HeaderNegro';
-import { useTour } from '../src/tour/TourContext';
-import { espacio, radio, texto } from '../src/theme';
-import { useTema } from '../src/useTema';
+import { IconoChevron } from '../../../src/componentes/comunes';
+import { HeaderNegro, TituloHeader } from '../../../src/componentes/HeaderNegro';
+import { useTour } from '../../../src/tour/TourContext';
+import { espacio, radio, texto } from '../../../src/theme';
+import { useTema } from '../../../src/useTema';
 
 export default function PantallaAyuda() {
   const { paleta } = useTema();

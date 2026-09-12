@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from './auth';
+import { desuscribir, pedirPermisoYSuscribir, soportaPush } from './push/push';
 import { supabase } from './supabase';
 
 export const TOPE_PRODUCTOS_SEGUIDOS = 20;
@@ -101,8 +102,12 @@ export function useCategoriasSeguidas() {
   return { categorias, cargando, alternar, recargar };
 }
 
-/** El único interruptor "Recibir notificaciones" (push + email juntos, sin split por canal —
- *  ver diseño 20a). Vive en `perfil_usuario.alertas_activas`, no en su propia tabla. */
+/** El único interruptor "Recibir notificaciones" de toda la app (push + mail juntos, sin split
+ *  por canal — ver diseño 20a). Vive en `perfil_usuario.alertas_activas`, no en su propia tabla:
+ *  ese booleano es lo que lee el backend para decidir si manda mail cuando corresponde, y
+ *  además ESTE toggle es el único punto de la app que pide el permiso de push del navegador
+ *  (antes lo pedía por separado el toggle "Recordatorio semanal" de Ajustes, que se sacó — ver
+ *  `push.ts`). Activar dispara `pedirPermisoYSuscribir`; desactivar da de baja la suscripción. */
 export function useAlertasActivas() {
   const { session } = useAuth();
   const userId = session?.user.id ?? null;
@@ -123,7 +128,14 @@ export function useAlertasActivas() {
     if (!userId) return;
     setActivas(valor); // optimista: es un toggle de preferencia, no una acción con costo real
     const { error } = await supabase.from('perfil_usuario').update({ alertas_activas: valor }).eq('id', userId);
-    if (error) { console.error('No se pudo actualizar alertas_activas:', error.message); setActivas(!valor); }
+    if (error) { console.error('No se pudo actualizar alertas_activas:', error.message); setActivas(!valor); return; }
+    // El permiso de push es un plus dentro de este mismo toggle, no un requisito: si el
+    // navegador no lo soporta (ej. iOS sin agregar a inicio desde Safari) o el usuario lo
+    // rechaza, el mail sigue funcionando igual — no hay que revertir `activas` por eso.
+    if (soportaPush()) {
+      if (valor) await pedirPermisoYSuscribir(userId);
+      else await desuscribir();
+    }
   }, [userId]);
 
   return { activas, cargando, cambiar, recargar };
