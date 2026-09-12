@@ -4,10 +4,11 @@
  * src/alertas.ts) para recibir mail + push apenas les aparece una promoción. Reemplaza a
  * "Ahorros" en la nav bar.
  *
- * El interruptor "Recibir notificaciones" (push + email juntos, sin split por canal) reusa
- * `FilaToggleAnimada` — el mismo componente que ya usa "Recordatorio semanal" en Ajustes — en
- * vez del switch tipo píldora del mockup: no vale la pena un componente nuevo para un solo uso
- * más cuando ya hay un patrón de toggle establecido en toda la app.
+ * El interruptor "Recibir notificaciones" (push + email juntos, sin split por canal) es el
+ * único permiso de notificaciones de toda la app — reemplazó al viejo "Recordatorio semanal"
+ * de Ajustes, que se sacó (ver `src/alertas.ts` § `useAlertasActivas`). Reusa `FilaToggleAnimada`
+ * en vez del switch tipo píldora del mockup: no vale la pena un componente nuevo para un solo
+ * uso más cuando ya hay un patrón de toggle establecido en toda la app.
  */
 
 import { useFocusEffect, useRouter } from 'expo-router';

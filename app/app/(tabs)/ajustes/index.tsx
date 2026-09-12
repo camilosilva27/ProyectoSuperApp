@@ -10,8 +10,9 @@
  *   contacto, antes sueltos en el cuerpo) pasan a ser sus propias pantallas; "Suscripción" es
  *   la fila de plan/pago que ya existía (antes bajo su propio bloque "TU PLAN").
  *
- * "NOTIFICACIONES" (recordatorio semanal genérico) es una feature aparte de "Alertas" — no la
- * tocó este rediseño, sigue en el cuerpo de esta pantalla tal cual estaba.
+ * El toggle de notificaciones/push que vivía acá ("recordatorio semanal") se sacó: el permiso de
+ * notificaciones ahora es uno solo, pedido desde el interruptor "Recibir notificaciones" de la
+ * pestaña Alertas (ver `alertas.tsx` / `src/alertas.ts`).
  *
  * La cuenta ya no es opcional (Fase 2, `GateSesion.tsx`): sin sesión no se llega a este tab
  * (ni a ningún otro) — por eso acá abajo no hace falta un branch para el caso sin sesión.
@@ -19,26 +20,16 @@
 
 import { useFocusEffect, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { precioSuscripcion } from '../../src/api';
-import { useAuth } from '../../src/auth';
-import { FilaToggleAnimada, IconoChevron } from '../../src/componentes/comunes';
-import { HeaderNegro, TituloHeader } from '../../src/componentes/HeaderNegro';
-import { calcularResumenAhorro, useHistorialAhorro } from '../../src/historialAhorro';
-import { desuscribir, pedirPermisoYSuscribir, soportaPush, yaSuscripto } from '../../src/push/push';
-import { diasRestantesTrial, usePlanUsuario } from '../../src/plan';
-import { espacio, pesosCorto, radio, texto } from '../../src/theme';
-import { useTour } from '../../src/tour/TourContext';
-import { useTema } from '../../src/useTema';
-
-function formatearFecha(iso: string | null): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' });
-}
+import { useAuth } from '../../../src/auth';
+import { IconoChevron } from '../../../src/componentes/comunes';
+import { HeaderNegro, TituloHeader } from '../../../src/componentes/HeaderNegro';
+import { calcularResumenAhorro, useHistorialAhorro } from '../../../src/historialAhorro';
+import { diasRestantesTrial, usePlanUsuario } from '../../../src/plan';
+import { espacio, pesosCorto, radio, texto } from '../../../src/theme';
+import { useTema } from '../../../src/useTema';
 
 export default function PantallaAjustes() {
   const { paleta } = useTema();
@@ -46,72 +37,24 @@ export default function PantallaAjustes() {
   const router = useRouter();
   const { session } = useAuth();
   const { info: infoPlan, recargar: recargarPlan } = usePlanUsuario();
-  const tour = useTour();
   const { eventos } = useHistorialAhorro();
   const totalAhorrado = useMemo(() => calcularResumenAhorro(eventos).totalMonto, [eventos]);
-  const [precios, setPrecios] = useState<{ mensual: number; anual: number; permanente: number } | null>(null);
-  const [notifsSoportadas, setNotifsSoportadas] = useState(false);
-  const [notifsActivas, setNotifsActivas] = useState(false);
-  const [notifsCargando, setNotifsCargando] = useState(false);
-
-  // El tour se lanza desde la pantalla de Ayuda y su overlay se pinta encima sin desmontar
-  // ninguna pantalla: el paso "notificaciones" pide el permiso y suscribe por su cuenta
-  // (TourOverlay.tsx), así que acá hay que volver a consultar `yaSuscripto()` cuando el tour
-  // termina, no solo al montar.
-  useEffect(() => {
-    if (tour.activo) return;
-    setNotifsSoportadas(soportaPush());
-    yaSuscripto().then(setNotifsActivas);
-  }, [tour.activo]);
-
-  const alCambiarNotifs = useCallback(async (activar: boolean) => {
-    setNotifsCargando(true);
-    if (activar) {
-      const ok = await pedirPermisoYSuscribir(session!.user.id);
-      setNotifsActivas(ok);
-    } else {
-      await desuscribir();
-      setNotifsActivas(false);
-    }
-    setNotifsCargando(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `session` es estable mientras
-    // hay sesión (GateSesion garantiza que no se llega a esta pantalla sin ella).
-  }, []);
 
   // Al volver a esta pantalla (ej. después de ir y volver del checkout de Mercado Pago) se
   // refresca el plan — el webhook de MP ya pudo haber actualizado `perfil_usuario` mientras
   // el usuario estaba afuera.
   useFocusEffect(useCallback(() => { recargarPlan(); }, [recargarPlan]));
 
-  // Solo para mostrar el precio del plan activo en la fila "Suscripción" — si falla, los
-  // textos caen a la variante sin precio, no bloquea la pantalla.
-  useEffect(() => {
-    precioSuscripcion()
-      .then(({ precioMensualArs, precioAnualArs, precioPermanenteArs }) => {
-        setPrecios(precioMensualArs && precioAnualArs && precioPermanenteArs
-          ? { mensual: precioMensualArs, anual: precioAnualArs, permanente: precioPermanenteArs }
-          : null);
-      })
-      .catch(() => setPrecios(null));
-  }, []);
-
   const diasTrial = diasRestantesTrial(infoPlan?.trialTerminaEn ?? null);
-  const precioPlanActivo = infoPlan?.tipoPlan && precios ? precios[infoPlan.tipoPlan] : null;
   const nombrePlanActivo = infoPlan?.tipoPlan === 'anual' ? 'Anual' : infoPlan?.tipoPlan === 'mensual' ? 'Mensual' : null;
 
   const subtituloPlan = infoPlan?.plan === 'premium'
     ? infoPlan.tipoPlan === 'permanente'
-      ? (precioPlanActivo != null
-        ? `Permanente · pagaste ${pesosCorto(precioPlanActivo)} el ${formatearFecha(infoPlan.pagadoEl)}`
-        : `Permanente · pagado el ${formatearFecha(infoPlan.pagadoEl)}`)
+      ? 'Permanente'
       // `nombrePlanActivo` puede venir null (premium otorgado a mano sin `tipo_plan` seteado
       // a 'anual'/'mensual'/'permanente') — sin este fallback se imprimía literal "null" en
       // esta fila. Cae acá también si el plan mensual/anual todavía no cargó `tipoPlan`.
-      : nombrePlanActivo == null
-        ? 'Premium'
-        : (precioPlanActivo != null
-          ? `${nombrePlanActivo} · ${pesosCorto(precioPlanActivo)} — próximo cobro el ${formatearFecha(infoPlan.renuevaEl)}`
-          : `${nombrePlanActivo} · próximo cobro ${formatearFecha(infoPlan.renuevaEl)}`)
+      : nombrePlanActivo ?? 'Premium'
     : infoPlan?.plan === 'trial'
       // TODO(pausa trial fase de pruebas, ver Plan_Usuarios_y_cobros.md § "Pausa del trial
       // durante fase de pruebas"): mientras dure la pausa no tiene sentido mostrar "vence en
@@ -134,7 +77,7 @@ export default function PantallaAjustes() {
           <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>TU ACTIVIDAD</Text>
           <View style={[styles.grupo, { borderColor: paleta.borde }]}>
             <Pressable
-              onPress={() => router.push('/mis-ahorros')}
+              onPress={() => router.push('/ajustes/mis-ahorros')}
               accessibilityRole="button"
               style={[styles.fila, { minHeight: 68 }]}
             >
@@ -172,12 +115,12 @@ export default function PantallaAjustes() {
         <View style={styles.seccion}>
           <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>CUENTA</Text>
           <View style={[styles.grupo, { borderColor: paleta.borde }]}>
-            <Pressable onPress={() => router.push('/datos-personales')} accessibilityRole="button" style={styles.fila}>
+            <Pressable onPress={() => router.push('/ajustes/datos-personales')} accessibilityRole="button" style={styles.fila}>
               <Text style={[texto.cuerpoMedio, { color: paleta.tinta, flex: 1 }]}>Datos personales</Text>
               <IconoChevron color={paleta.tintaTenue} />
             </Pressable>
             <View style={[styles.separador, { backgroundColor: paleta.borde }]} />
-            <Pressable onPress={() => router.push('/plan-y-pago')} accessibilityRole="button" style={styles.fila}>
+            <Pressable onPress={() => router.push('/ajustes/plan-y-pago')} accessibilityRole="button" style={styles.fila}>
               <View style={{ flex: 1, gap: 2 }}>
                 <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>Suscripción</Text>
                 <Text style={[texto.etiqueta, { color: paleta.tintaSuave, letterSpacing: 0.2 }]}>{subtituloPlan}</Text>
@@ -185,7 +128,7 @@ export default function PantallaAjustes() {
               <IconoChevron color={paleta.tintaTenue} />
             </Pressable>
             <View style={[styles.separador, { backgroundColor: paleta.borde }]} />
-            <Pressable onPress={() => router.push('/ayuda')} accessibilityRole="button" style={styles.fila}>
+            <Pressable onPress={() => router.push('/ajustes/ayuda')} accessibilityRole="button" style={styles.fila}>
               <View style={{ flex: 1, gap: 2 }}>
                 <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>Ayuda</Text>
                 <Text style={[texto.etiqueta, { color: paleta.tintaSuave, letterSpacing: 0.2 }]}>Contacto y tutoriales</Text>
@@ -194,20 +137,6 @@ export default function PantallaAjustes() {
             </Pressable>
           </View>
         </View>
-
-        {notifsSoportadas ? (
-          <View style={styles.seccion}>
-            <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>NOTIFICACIONES</Text>
-            <FilaToggleAnimada
-              paleta={paleta}
-              nombre="Recordatorio semanal"
-              activa={notifsActivas}
-              deshabilitada={notifsCargando}
-              onCambiar={alCambiarNotifs}
-              accessibilityLabel={`Recordatorio semanal ${notifsActivas ? 'activado' : 'desactivado'}`}
-            />
-          </View>
-        ) : null}
       </View>
     </View>
   );

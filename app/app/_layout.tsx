@@ -141,26 +141,18 @@ export default function LayoutRaiz() {
                           name="resultado"
                           options={{ headerShown: false, presentation: 'card' }}
                         />
-                        {/* Estas 4 pantallas dibujan su propio header negro (HeaderNegro o
+                        {/* Estas pantallas dibujan su propio header negro (HeaderNegro o
                             equivalente a mano) con flecha de volver incluida — sin
                             headerShown:false quedaba también el header nativo (barra blanca)
                             superpuesto, y su botón de volver invisible se comía los toques del
                             header negro (en seguir-producto, tocar el medio del header cerraba
-                            el buscador por navegar atrás sin querer). */}
-                        <Stack.Screen name="mis-ahorros" options={{ headerShown: false, presentation: 'card' }} />
-                        <Stack.Screen name="datos-personales" options={{ headerShown: false, presentation: 'card' }} />
-                        <Stack.Screen name="ayuda" options={{ headerShown: false, presentation: 'card' }} />
+                            el buscador por navegar atrás sin querer). Las 4 pantallas de Ajustes
+                            (mis-ahorros, datos-personales, ayuda, plan-y-pago) ya no están acá:
+                            viven anidadas en (tabs)/ajustes/ para que la tab bar siga visible al
+                            entrar a ellas (ver (tabs)/ajustes/_layout.tsx). */}
                         <Stack.Screen name="terminos" options={{ headerShown: false, presentation: 'card' }} />
                         <Stack.Screen name="privacidad" options={{ headerShown: false, presentation: 'card' }} />
                         <Stack.Screen name="seguir-producto" options={{ headerShown: false, presentation: 'card' }} />
-                        {/* El header nativo (flecha + título) queda visible a propósito acá,
-                            a diferencia de resultado: sin "title" mostraba el nombre del
-                            archivo tal cual ("plan-y-pago"). Dice "Ajustes" porque es adonde
-                            vuelve la flecha, no el nombre de esta pantalla. */}
-                        <Stack.Screen
-                          name="plan-y-pago"
-                          options={{ title: 'Ajustes', presentation: 'card' }}
-                        />
                       </Stack>
                       {/* Hermano del Stack, no dentro de una screen: así sobrevive la
                           navegación entre tabs y hacia /resultado sin remontarse. */}

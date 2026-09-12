@@ -9,11 +9,11 @@ import Head from 'expo-router/head';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuth } from '../src/auth';
-import { ConfirmacionModal, IconoSalir } from '../src/componentes/Confirmacion';
-import { HeaderNegro, TituloHeader } from '../src/componentes/HeaderNegro';
-import { espacio, radio, texto } from '../src/theme';
-import { useTema } from '../src/useTema';
+import { useAuth } from '../../../src/auth';
+import { ConfirmacionModal, IconoSalir } from '../../../src/componentes/Confirmacion';
+import { HeaderNegro, TituloHeader } from '../../../src/componentes/HeaderNegro';
+import { espacio, radio, texto } from '../../../src/theme';
+import { useTema } from '../../../src/useTema';
 
 export default function PantallaDatosPersonales() {
   const { paleta } = useTema();

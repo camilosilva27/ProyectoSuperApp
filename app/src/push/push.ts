@@ -6,9 +6,11 @@
  *
  * En iOS, `soportaPush()` da `false` salvo que la web esté agregada a la pantalla de inicio
  * DESDE SAFARI (agregarla desde Chrome/Firefox/Edge en iOS no alcanza, aunque corran sobre el
- * mismo motor — es una restricción de Apple a nivel de sistema, no del navegador). A pedido, el
- * toggle de Ajustes simplemente no se muestra cuando `soportaPush()` da `false`, sin explicar
- * por qué — no hace falta detectar el caso puntual de iOS para un mensaje.
+ * mismo motor — es una restricción de Apple a nivel de sistema, no del navegador). Los dos
+ * callers de `pedirPermisoYSuscribir` (el toggle "Recibir notificaciones" de Alertas, ver
+ * `src/alertas.ts` § `useAlertasActivas`, y el paso "notificaciones" del tour en
+ * `TourOverlay.tsx`) directamente no piden el permiso cuando `soportaPush()` da `false`, sin
+ * explicar por qué — no hace falta detectar el caso puntual de iOS para un mensaje.
  */
 
 import { Platform } from 'react-native';
@@ -76,12 +78,4 @@ export async function desuscribir(): Promise<void> {
 
   await supabase.from('push_suscripcion').delete().eq('endpoint', suscripcion.endpoint);
   await suscripcion.unsubscribe();
-}
-
-/** Para inicializar el estado del toggle de Ajustes: ¿el navegador actual ya está suscripto? */
-export async function yaSuscripto(): Promise<boolean> {
-  if (!soportaPush()) return false;
-  const registro = await navigator.serviceWorker.getRegistration('/sw.js');
-  const suscripcion = await registro?.pushManager.getSubscription();
-  return !!suscripcion;
 }
