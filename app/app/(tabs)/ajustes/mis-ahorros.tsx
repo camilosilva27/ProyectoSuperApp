@@ -10,13 +10,14 @@
  *
  * Mudada de ser su propia pestaña a ser una fila dentro de Ajustes (diseño 20d, Claude Design
  * turno 20, 2026-09-10): "Ahorros" le cedió el lugar en la nav bar a "Alertas", que se toca más
- * seguido. El botón de volver usa el mismo patrón `‹` de resultado.tsx.
+ * seguido. El volver es el header nativo del Stack (ver _layout.tsx) — a diferencia de "Ayuda" y
+ * "Datos personales", acá se mantiene la banda negra (HeaderNegro) porque lleva el monto total y
+ * el subtítulo con su propia jerarquía, no solo un título suelto.
  */
 
-import { useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import React, { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Vacio } from '../../../src/componentes/comunes';
 import { HeaderNegro, TituloHeader } from '../../../src/componentes/HeaderNegro';
@@ -46,7 +47,6 @@ export default function PantallaAhorros() {
   const { paleta } = useTema();
   const pantallaBaja = usePantallaBaja();
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const { eventos } = useHistorialAhorro();
   const resumen = useMemo(() => calcularResumenAhorro(eventos), [eventos]);
   const sinHistorial = resumen.totalConteo === 0;
@@ -59,17 +59,9 @@ export default function PantallaAhorros() {
     <View style={{ flex: 1, backgroundColor: paleta.fondo }}>
       <Head><title>Mis ahorros - Super App</title></Head>
       <HeaderNegro
-        paddingTop={insets.top + (pantallaBaja ? espacio.md : espacio.xxl)}
+        paddingTop={pantallaBaja ? espacio.md : espacio.xxl}
         estilo={{ paddingBottom: espacio.xl, gap: espacio.md }}
       >
-        <Pressable
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/ajustes'))}
-          accessibilityRole="button"
-          style={styles.filaVolver}
-        >
-          <Text style={styles.flechaVolver}>‹</Text>
-          <Text style={[texto.micro, styles.labelVolver]}>AJUSTES</Text>
-        </Pressable>
         <TituloHeader>MIS AHORROS</TituloHeader>
         <View
           style={{ gap: 6 }}
@@ -209,9 +201,6 @@ function SeccionMesAMes({ ultimosMeses, paleta }: { ultimosMeses: ResumenMes[]; 
 }
 
 const styles = StyleSheet.create({
-  filaVolver: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start' },
-  flechaVolver: { fontSize: 22, color: '#FFFFFF' },
-  labelVolver: { color: '#FFFFFF', opacity: 0.6, letterSpacing: 1.2 },
   cuerpo: { padding: espacio.pantalla, gap: espacio.xl },
   montoTotal: { fontFamily: fuentes.precio, fontSize: 60, lineHeight: 54 },
   labelSeccion: { letterSpacing: 1.2 },

@@ -28,15 +28,13 @@ export default function LayoutAjustes() {
       }}
     >
       <Stack.Screen name="index" options={{ headerShown: false }} />
-      {/* Estas 3 pantallas dibujan su propio header negro (HeaderNegro) con flecha de volver
-          incluida — sin headerShown:false quedaba también el header nativo superpuesto (ver
-          mismo comentario en el Stack raíz). */}
-      <Stack.Screen name="mis-ahorros" options={{ headerShown: false, presentation: 'card' }} />
-      <Stack.Screen name="datos-personales" options={{ headerShown: false, presentation: 'card' }} />
-      <Stack.Screen name="ayuda" options={{ headerShown: false, presentation: 'card' }} />
-      {/* El header nativo (flecha + título) queda visible a propósito acá, a diferencia de las
-          otras 3: sin "title" mostraba el nombre del archivo tal cual ("plan-y-pago"). Dice
-          "Ajustes" porque es adonde vuelve la flecha, no el nombre de esta pantalla. */}
+      {/* Las 4 pantallas de acá abajo comparten el header nativo (flecha + "Ajustes", adonde
+          vuelve la flecha, no el nombre de la pantalla) — cada una dibuja su propio título
+          adentro del cuerpo, como ya hacía "plan-y-pago". Sin "title" mostraba el nombre del
+          archivo tal cual (ej. "mis-ahorros"). */}
+      <Stack.Screen name="mis-ahorros" options={{ title: 'Ajustes', presentation: 'card' }} />
+      <Stack.Screen name="datos-personales" options={{ title: 'Ajustes', presentation: 'card' }} />
+      <Stack.Screen name="ayuda" options={{ title: 'Ajustes', presentation: 'card' }} />
       <Stack.Screen name="plan-y-pago" options={{ title: 'Ajustes', presentation: 'card' }} />
     </Stack>
   );
