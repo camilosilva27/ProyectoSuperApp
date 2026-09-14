@@ -4,6 +4,11 @@
  * de GoTrue (`auth.admin.listUsers`, incluida en supabase-js con la service role key). Paginada
  * (50 por página por default) — se recorre entera porque los crons de mail necesitan la lista
  * completa de usuarios, no una página.
+ *
+ * Incluye `emailConfirmado` porque los crons de mail deben excluir a quien nunca confirmó el
+ * mail — bug real encontrado el 2026-09-14: `perfil_usuario` se crea en el INSERT de
+ * `auth.users` (antes de la confirmación), así que sin este chequeo una cuenta sin confirmar
+ * podía recibir mails igual si cumplía la demás elegibilidad de cada cron.
  */
 
 async function listarTodosLosUsuarios(clienteAdmin) {
@@ -18,7 +23,12 @@ async function listarTodosLosUsuarios(clienteAdmin) {
     if (error) throw new Error(`listUsers falló (página ${pagina}): ${error.message}`);
 
     for (const u of data.users) {
-      usuarios.push({ id: u.id, email: u.email, ultimoLogin: u.last_sign_in_at });
+      usuarios.push({
+        id: u.id,
+        email: u.email,
+        ultimoLogin: u.last_sign_in_at,
+        emailConfirmado: Boolean(u.email_confirmed_at),
+      });
     }
 
     if (data.users.length < 200) break;

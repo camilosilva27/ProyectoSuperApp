@@ -94,6 +94,7 @@ async function avisoInactividad() {
           inicio.getTime()
         );
         if (!elegible) continue;
+        if (!usuario.emailConfirmado) continue;
         if (!usuario.email) {
           errores.push(`Usuario ${usuario.id} sin mail en auth.users — omitido`);
           continue;

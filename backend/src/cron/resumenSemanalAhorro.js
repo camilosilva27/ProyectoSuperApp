@@ -61,6 +61,7 @@ async function resumenSemanalAhorro() {
   let enviadosPush = 0;
   let omitidosSinAhorro = 0;
   let omitidosPlan = 0;
+  let omitidosSinConfirmar = 0;
 
   const cliente = clienteSupabaseAdmin();
   if (!cliente) {
@@ -88,6 +89,7 @@ async function resumenSemanalAhorro() {
 
     if (!errorPerfiles && !errorEventos) {
       const emailPorId = new Map(usuarios.map(u => [u.id, u.email]));
+      const confirmadoPorId = new Map(usuarios.map(u => [u.id, u.emailConfirmado]));
       const agregadoPorUsuario = new Map();
       for (const evento of eventos ?? []) {
         const actual = agregadoPorUsuario.get(evento.usuario_id) ?? { monto: 0, cantidad: 0 };
@@ -99,6 +101,10 @@ async function resumenSemanalAhorro() {
       for (const perfil of perfiles ?? []) {
         if (!esElegible(perfil, inicio.getTime())) {
           omitidosPlan++;
+          continue;
+        }
+        if (!confirmadoPorId.get(perfil.id)) {
+          omitidosSinConfirmar++;
           continue;
         }
         const { monto, cantidad } = agregadoPorUsuario.get(perfil.id) ?? { monto: 0, cantidad: 0 };
@@ -131,12 +137,12 @@ async function resumenSemanalAhorro() {
     }
   }
 
-  const reporte = { inicio: inicio.toISOString(), fin: new Date().toISOString(), enviados, enviadosPush, omitidosSinAhorro, omitidosPlan, errores };
+  const reporte = { inicio: inicio.toISOString(), fin: new Date().toISOString(), enviados, enviadosPush, omitidosSinAhorro, omitidosPlan, omitidosSinConfirmar, errores };
 
   fs.mkdirSync(rutaLogs, { recursive: true });
   fs.writeFileSync(path.join(rutaLogs, 'ultimo-resumen-semanal-ahorro.json'), JSON.stringify(reporte, null, 2));
 
-  console.log(`   ✅ ${enviados} mails, ${enviadosPush} push, ${omitidosSinAhorro} omitidos (sin ahorro), ${omitidosPlan} omitidos (plan gratis hace +30 días), ${errores.length} con error`);
+  console.log(`   ✅ ${enviados} mails, ${enviadosPush} push, ${omitidosSinAhorro} omitidos (sin ahorro), ${omitidosPlan} omitidos (plan gratis hace +30 días), ${omitidosSinConfirmar} omitidos (mail sin confirmar), ${errores.length} con error`);
 
   return reporte;
 }

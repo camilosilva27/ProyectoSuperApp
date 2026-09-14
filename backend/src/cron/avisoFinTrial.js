@@ -79,8 +79,10 @@ async function avisoFinTrial() {
       errores.push(`No se pudo leer perfil_usuario: ${error.message}`);
     } else {
       const emailPorId = new Map(usuarios.map(u => [u.id, u.email]));
+      const confirmadoPorId = new Map(usuarios.map(u => [u.id, u.emailConfirmado]));
 
       for (const perfil of candidatos ?? []) {
+        if (!confirmadoPorId.get(perfil.id)) continue;
         const email = emailPorId.get(perfil.id);
         if (!email) {
           errores.push(`Usuario ${perfil.id} sin mail en auth.users — omitido`);
