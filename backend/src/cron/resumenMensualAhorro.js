@@ -111,6 +111,7 @@ async function resumenMensualAhorro() {
 
     if (!errorPerfiles && !errorEventos) {
       const emailPorId = new Map(usuarios.map(u => [u.id, u.email]));
+      const confirmadoPorId = new Map(usuarios.map(u => [u.id, u.emailConfirmado]));
       const agregadoPorUsuario = new Map();
       for (const evento of eventos ?? []) {
         const actual = agregadoPorUsuario.get(evento.usuario_id) ?? { monto: 0, cantidad: 0 };
@@ -121,6 +122,10 @@ async function resumenMensualAhorro() {
 
       for (const perfil of perfiles ?? []) {
         if (!esElegible(perfil, inicio.getTime())) {
+          omitidos++;
+          continue;
+        }
+        if (!confirmadoPorId.get(perfil.id)) {
           omitidos++;
           continue;
         }
@@ -159,7 +164,7 @@ async function resumenMensualAhorro() {
   fs.mkdirSync(rutaLogs, { recursive: true });
   fs.writeFileSync(path.join(rutaLogs, 'ultimo-resumen-mensual-ahorro.json'), JSON.stringify(reporte, null, 2));
 
-  console.log(`   ✅ ${enviados} mails, ${enviadosPush} push, ${omitidos} omitidos (plan gratis hace +30 días o sin ahorro), ${errores.length} con error`);
+  console.log(`   ✅ ${enviados} mails, ${enviadosPush} push, ${omitidos} omitidos (plan gratis hace +30 días, mail sin confirmar o sin ahorro), ${errores.length} con error`);
 
   return reporte;
 }
