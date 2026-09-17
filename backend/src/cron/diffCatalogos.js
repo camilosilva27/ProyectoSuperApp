@@ -88,7 +88,10 @@ function estadoPromoPorEan(catalogo, superNombre) {
     if (!sku.ean || !tienePromoDeProducto(sku)) continue;
     mapa.set(sku.ean, {
       ean: sku.ean,
-      nombre: sku.productName || sku.skuName || '(sin nombre)',
+      // Los 6 supers VTEX traen productName/skuName; Coto (scraper propio, no VTEX) solo trae
+      // `nombre` — sin este 3er fallback, toda promo de Coto avisaba "(sin nombre)" en el
+      // push/mail (bug real, ver .claude/docs/ALERTAS-notificaciones-plan.md).
+      nombre: sku.productName || sku.skuName || sku.nombre || '(sin nombre)',
       categoria: sku.categoria || null,
       super: superNombre,
       huella: huellaPromoSku(sku),

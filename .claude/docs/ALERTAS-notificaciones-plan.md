@@ -191,6 +191,20 @@ esperar una corrida real de cron con un producto seguido que tenga promo, o forz
 notificación push nativa en un teléfono real (memoria: Huawei sin GMS no recibe push en
 absoluto, Samsung/Xiaomi pueden demorarla).
 
+## Bug real: aviso de Coto llegaba "(sin nombre)" (2026-09-17)
+
+El usuario recibió un push real ("(sin nombre) tiene 25% off en Coto") en la cuenta de prueba —
+correspondía al EAN `7790480089956` ("Yerba Liviana La Tranquera 500 G"). Causa: `estadoPromoPorEan()`
+en `backend/src/cron/diffCatalogos.js` arma el `nombre` con `sku.productName || sku.skuName`, que
+es el campo que usan los 6 supers VTEX; el scraper de Coto (`scraper-coto-por-ean.js`, no es VTEX,
+ver [[coto-scraper-por-ean]]) solo trae `sku.nombre`, así que **toda** promo de producto detectada
+en Coto caía al fallback literal `'(sin nombre)'` — no era un caso puntual de este EAN, afectaba a
+cualquier producto seguido con promo en Coto. El resto del código ya conocía el patrón correcto
+(`scraper-coto-por-ean.js:305` usa `productName || skuName || nombre || null`). Fix: agregar
+`|| sku.nombre` como tercer fallback antes de `'(sin nombre)'`. No re-probado en vivo todavía
+(haría falta esperar la próxima corrida de `refrescarCatalogos.js` con una promo de Coto vigente
+para un producto seguido).
+
 ## Pendiente para retomar
 
 1. **Decidir si pushear.** El usuario dijo explícitamente que no lo quiere en producción
