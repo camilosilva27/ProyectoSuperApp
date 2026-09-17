@@ -56,11 +56,7 @@ export default function PantallaAjustes() {
       // esta fila. Cae acá también si el plan mensual/anual todavía no cargó `tipoPlan`.
       : nombrePlanActivo ?? 'Premium'
     : infoPlan?.plan === 'trial'
-      // TODO(pausa trial fase de pruebas, ver Plan_Usuarios_y_cobros.md § "Pausa del trial
-      // durante fase de pruebas"): mientras dure la pausa no tiene sentido mostrar "vence en
-      // X días" (van a ser ~365, por la migración 0019). Volver a `Prueba gratis · vence en
-      // ${diasTrial} día(s)` cuando se reactive el vencimiento normal.
-      ? 'Período de prueba'
+      ? `Prueba gratis · vence en ${diasTrial} día(s)`
       : 'Elegí un plan';
 
   // GateSesion (_layout.tsx) ya garantiza que no se llega acá sin sesión.
