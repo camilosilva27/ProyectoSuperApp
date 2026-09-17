@@ -69,7 +69,7 @@ async function procesarSuscripcion(suscripcion, dataId, supabaseAdmin) {
     cambios.plan = 'premium';
     cambios.siguiente_cobro_en = suscripcion.next_payment_date ?? null;
     cambios.acceso_premium_hasta = null;
-  } else if (nuevoPlan === 'gratis') {
+  } else if (nuevoPlan === 'gratis' && filaAnterior.plan === 'premium') {
     // Cancelada o pausada: no se corta el acceso ya pagado de una. `siguiente_cobro_en` (la
     // fecha del próximo cobro que ya no va a pasar) es justo el límite de lo ya pagado, así
     // que el plan queda en premium hasta ahí — recién `bajar_planes_vencidos()` (migración
@@ -86,6 +86,11 @@ async function procesarSuscripcion(suscripcion, dataId, supabaseAdmin) {
       cambios.acceso_premium_hasta = null;
     }
   }
+  // Si nuevoPlan === 'gratis' pero filaAnterior.plan no era 'premium' (ej. 'trial'), esta
+  // suscripción nunca llegó a autorizarse — el usuario abrió el checkout y volvió atrás sin
+  // pagar. No hay ningún acceso pagado que cortar, así que no se toca `plan`: bug real
+  // encontrado 2026-09-14, un intento de pago abandonado bajaba a 'gratis' a alguien que
+  // todavía tenía trial vigente. Solo se deja constancia en `suscripcion_estado`.
 
   const { error } = await supabaseAdmin
     .from('perfil_usuario')
