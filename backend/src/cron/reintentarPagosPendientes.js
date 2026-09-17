@@ -27,6 +27,38 @@ const { clienteSupabaseAdmin } = require('../clienteSupabaseAdmin');
 const { verificarYAplicarPago } = require('../procesarPagoMercadoPago');
 
 const DIAS_VENTANA = 30;
+const REINTENTOS_QUERY = 3;
+const ESPERA_ENTRE_REINTENTOS_MS = 1000;
+
+function esperar(ms) {
+  return new Promise((resolve) => { setTimeout(resolve, ms); });
+}
+
+// Blips transitorios del gateway de Supabase (504/503) no deberían contarse como error real
+// de negocio ni tapar un error genuino — se reintenta antes de rendirse.
+async function consultarCandidatosConReintento(cliente, limiteVentana) {
+  let ultimoError;
+  for (let intento = 1; intento <= REINTENTOS_QUERY; intento += 1) {
+    // eslint-disable-next-line no-await-in-loop -- reintentos secuenciales a propósito
+    const { data, error } = await cliente
+      .from('perfil_usuario')
+      .select('id, plan')
+      .neq('plan', 'premium')
+      .eq('premium_manual', false)
+      .not('intento_pago_en', 'is', null)
+      .gte('intento_pago_en', limiteVentana.toISOString());
+
+    if (!error) return { data, error: null };
+
+    ultimoError = error;
+    if (intento < REINTENTOS_QUERY) {
+      console.warn(`   ⚠️  Intento ${intento}/${REINTENTOS_QUERY} falló (${error.message}), reintentando...`);
+      // eslint-disable-next-line no-await-in-loop -- backoff secuencial a propósito
+      await esperar(ESPERA_ENTRE_REINTENTOS_MS * intento);
+    }
+  }
+  return { data: null, error: ultimoError };
+}
 
 async function reintentarPagosPendientes() {
   const inicio = new Date();
@@ -43,13 +75,7 @@ async function reintentarPagosPendientes() {
   } else {
     const limiteVentana = new Date(inicio.getTime() - DIAS_VENTANA * 24 * 60 * 60 * 1000);
 
-    const { data: candidatos, error } = await cliente
-      .from('perfil_usuario')
-      .select('id, plan')
-      .neq('plan', 'premium')
-      .eq('premium_manual', false)
-      .not('intento_pago_en', 'is', null)
-      .gte('intento_pago_en', limiteVentana.toISOString());
+    const { data: candidatos, error } = await consultarCandidatosConReintento(cliente, limiteVentana);
 
     if (error) {
       errores.push(`No se pudo leer perfil_usuario: ${error.message}`);
