@@ -5,12 +5,14 @@
 # post-proceso EN la VM, donde ya están las ~65.000 fotos existentes.
 set -euo pipefail
 
+CORRIDA_EN=$(cat AllPromos/.corrida-en)
+
 cd AllPromos
 tar czf - catalogo-*.json \
   | ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no "$VM_USER@$VM_HOST" \
     'cd ~/ProyectoSuperApp/AllPromos && tar xzf -'
 cd ..
 
-echo "--- catálogos subidos, disparando post-proceso en la VM ---"
+echo "--- catálogos subidos, disparando post-proceso en la VM (corrida_en=$CORRIDA_EN) ---"
 ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no "$VM_USER@$VM_HOST" \
-  'cd ~/ProyectoSuperApp/backend && node src/cron/postProcesarCatalogos.js'
+  "cd ~/ProyectoSuperApp/backend && CORRIDA_EN='$CORRIDA_EN' node src/cron/postProcesarCatalogos.js"

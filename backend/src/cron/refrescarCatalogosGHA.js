@@ -21,12 +21,20 @@
  * Uso: node src/cron/refrescarCatalogosGHA.js   (cwd: backend/)
  */
 
+const fs = require('fs');
 const path = require('path');
 const { SCRAPERS, REFRESCADORES_EXTRAS, correrScraper, DIR_ALLPROMOS } = require('./refrescarCatalogos');
 const { leerJSON, diffProductos, registrarDiff } = require('./diffCatalogos');
 
+// Se escribe acá para que subir-catalogos.sh se lo pase como CORRIDA_EN a
+// postProcesarCatalogos.js en la VM — así los diffs de tipo='productos' (acá) y
+// tipo='promos_bancarias' (allá) quedan bajo el mismo corrida_en, como pasaba cuando todo
+// corría en un solo proceso (ver CONTEXTO_TECNICO.md § "VM: limpieza de RAM/CPU...").
+const RUTA_CORRIDA_EN = path.join(DIR_ALLPROMOS, '.corrida-en');
+
 async function correr() {
   const inicio = new Date();
+  fs.writeFileSync(RUTA_CORRIDA_EN, inicio.toISOString());
   console.log(`\n🔄 Scraping (GitHub Actions) — ${inicio.toISOString()}`);
 
   const resultados = [];
