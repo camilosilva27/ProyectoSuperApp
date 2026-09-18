@@ -185,11 +185,28 @@ function diffPromosSuper(promosAntes, promosDespues) {
   };
 }
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Reintentos cortos: la VM (e2-micro, RAM ajustada) y Supabase (plan free, compute compartido)
+// dan de vez en cuando un "fetch failed" o "Gateway Timeout" transitorio — ver
+// CONTEXTO_TECNICO.md § "Monitoreo de cambios entre corridas". No es crítico (solo se pierde
+// una fila de monitoreo, nunca el catálogo real), pero un par de reintentos evita que un
+// hipo de red puntual borre el dato de esa corrida para siempre.
+const REINTENTOS = 2;
+const ESPERA_MS = 3000;
+
 async function registrarDiff(fila) {
   const supabaseAdmin = clienteSupabaseAdmin();
   if (!supabaseAdmin) return; // sin credenciales configuradas (ej. entorno local sin .env completo)
-  const { error } = await supabaseAdmin.from('scraper_diffs').insert(fila);
-  if (error) console.error(`   ⚠️  No se pudo registrar el diff de ${fila.super} (${fila.tipo}): ${error.message}`);
+
+  let ultimoError;
+  for (let intento = 0; intento <= REINTENTOS; intento++) {
+    const { error } = await supabaseAdmin.from('scraper_diffs').insert(fila);
+    if (!error) return;
+    ultimoError = error;
+    if (intento < REINTENTOS) await sleep(ESPERA_MS);
+  }
+  console.error(`   ⚠️  No se pudo registrar el diff de ${fila.super} (${fila.tipo}) tras ${REINTENTOS + 1} intentos: ${ultimoError.message}`);
 }
 
 module.exports = { leerJSON, diffProductos, diffPromosSuper, registrarDiff, estadoPromoPorEan };
