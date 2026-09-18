@@ -88,27 +88,43 @@ sin caché, como siempre.
 
 ## Cron
 
-```bash
-npm run refrescar    # corre los 5 scrapers + regenera el unificado + sonda de promos bancarias
+**Desde 2026-09-18, el scraping ya no corre en la VM — corre en GitHub Actions** (ver
+`CONTEXTO_TECNICO.md` § "VM: limpieza de RAM/CPU y migración de crons a GitHub Actions" para el
+porqué: los scrapers + sus "extras" eran la parte que más CPU pedía). El pipeline quedó partido
+en tres piezas:
+
+1. **`.github/workflows/scrapers.yml`** (repo, corre en un runner de GitHub) — baja los
+   catálogos vigentes de la VM, corre `backend/src/cron/refrescarCatalogosGHA.js` (los 7
+   scrapers + sus 6 "extras" + registro de diffs en `scraper_diffs`), y sube el resultado de
+   vuelta a la VM.
+2. **`backend/src/cron/postProcesarCatalogos.js`** (VM, disparado por SSH al final del paso
+   anterior) — unifica el catálogo, descarga fotos nuevas, refresca promos bancarias y manda
+   avisos de productos seguidos. Se quedó en la VM a propósito: necesita las ~65.000 fotos que
+   ya están ahí (no tiene sentido bajarlas a un runner efímero) y las credenciales de mail/push,
+   que nunca salen de la VM.
+3. **`backend/scripts/disparar-scrapers.sh`** (VM, en crontab cada 2hs) — dispara el workflow de
+   arriba vía la API de GitHub. Existe porque **el trigger `schedule` nativo de GitHub Actions no
+   es confiable** (confirmado en vivo: de ~5 disparos esperados en 9hs, solo 1 llegó a correr,
+   con 40 min de atraso — GitHub mismo documenta que puede demorarse o descartarse en momentos
+   de carga alta). El cron de la VM sí es puntual, así que ahora solo hace esa llamada HTTP
+   liviana en vez de correr los scrapers — no reintroduce el problema de CPU/RAM.
+
+```
+0 */2 * * * /usr/bin/bash /home/camilosilva28/ProyectoSuperApp/backend/scripts/disparar-scrapers.sh >> /home/camilosilva28/ProyectoSuperApp/backend/logs/cron-disparar-scrapers.log 2>&1
 ```
 
-Los scrapers se lanzan como **subprocesos con `cwd = AllPromos/`**, no se refactorizan: tienen
-lógica de retry/backoff que `AllPromos/CLAUDE.md` pide no tocar, y escriben con rutas relativas
-al cwd (`./catalogo-vea.json`), así que correrlos desde otro directorio dejaría los catálogos en
-el lugar equivocado. Tardan ~17 min en total y pegan a APIs de producción: no correrlos en loop.
+Necesita `GH_TRIGGER_TOKEN` en `backend/.env` de la VM (un Personal Access Token fine-grained,
+scope "Actions: Read and write", solo este repo) — **nunca en el repo ni en GitHub Secrets**,
+porque acá es al revés de los otros secrets del deploy (la VM llama a GitHub, no GitHub a la VM).
 
-Ahora que `precioCache.js` sirve el precio que ve la app, la frecuencia de este cron pasó a ser
-la frescura real del precio (antes solo afectaba nombre/EAN). Crontab sugerido, arrancando
-conservador — es un punto de partida a monitorear con `/api/health` (`problemas`, 429/502 en
-`logs/cron.log`), no un número ya probado a esta frecuencia:
+`refrescarCatalogos.js` (el archivo original, todo-en-uno) sigue existiendo como fallback manual
+— útil en local o si GitHub Actions no está disponible — y como fuente de las constantes que
+reusan los otros dos scripts (`SCRAPERS`, `REFRESCADORES_EXTRAS`, etc.).
 
-```
-0 */2 * * * cd /ruta/ProyectoSuperApp/backend && /usr/bin/node src/cron/refrescarCatalogos.js >> logs/cron.log 2>&1
-```
-
-**Este archivo de crontab vive en la VM, no en el repo — hay que actualizarlo ahí a mano** (no
-se puede versionar ni se aplica solo con el deploy). El resultado de cada corrida queda en
-`logs/ultimo-refresco.json` y lo expone `/api/health`, para enterarse de un fallo sin leer logs.
+**El crontab de la VM vive solo ahí, no en el repo — hay que actualizarlo a mano** (no se puede
+versionar ni se aplica solo con el deploy; hay un backup del crontab de antes de esta migración
+en `/tmp/crontab-backup.txt` en la VM). El resultado de cada corrida sigue en
+`logs/ultimo-refresco.json`, expuesto por `/api/health`.
 
 ### Descubrimiento de candidatos nuevos por EAN (mensual, aparte del cron de 2hs)
 
