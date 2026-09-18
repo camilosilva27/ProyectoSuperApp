@@ -23,6 +23,7 @@
  */
 
 const fs = require('fs');
+const { guardarCatalogoConGuardrail } = require('./core/guardrailCatalogo');
 
 // Seller interno compartido por toda la cuenta VTEX de Cencosud Argentina (Jumbo/Vea/Disco),
 // necesario para `_v/search-promotions` — no confundir con el "1" que sí aparece en `sellers[]`
@@ -159,11 +160,11 @@ async function main() {
   // --- PASO 4: Guardar ambos archivos ---
   const meta = { fecha: new Date().toISOString(), supermercado: 'Disco', seller: PROMO_SELLER };
 
-  fs.writeFileSync('./catalogo-disco.json', JSON.stringify({
+  guardarCatalogoConGuardrail('./catalogo-disco.json', {
     ...meta,
     total_skus: catalogo.length,
     skus: catalogo,
-  }, null, 2));
+  });
 
   fs.writeFileSync('./promos-disco.json', JSON.stringify({
     ...meta,

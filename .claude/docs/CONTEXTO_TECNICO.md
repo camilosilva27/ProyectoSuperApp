@@ -416,6 +416,24 @@ A diferencia de `promo-engine.js` (promos atadas a un producto), esto cubre el o
 
 **Regresión del mismo fix, encontrada y corregida el mismo día (2026-09-04): `item.opciones` podía quedar desordenado y `item.mejor` stale tras el reparto.** `calcularOpciones` (`core/comparador.js`) entrega `opciones` ordenadas ascendente por `total`, y varias partes de la UI confían en esa invariante sin volver a ordenar — en particular `app/src/componentes/BarraDiferencia.tsx` usa `opciones[0]` como "la opción más barata". La función vieja `aplicarPromoBancariaAOpcion` (eliminada en el fix de arriba) terminaba con un `opcionesPublicas.sort((a,b) => a.total - b.total)` que mantenía esa invariante; `repartirDescuentoBancarioEntreFilas` bajaba el `total` de la opción asignada sin volver a ordenar el array ni recalcular `item.mejor`. Caso real detectado: Yerba Rosamonte con Banco Nación activo — Carrefour terminaba más barato ($3.554,10 con el 10% de ticket) que Vea ($3.890) y el plan de compra la asignaba correctamente a Carrefour, pero `item.opciones[0]`/`item.mejor` seguían apuntando a Vea (el precio de lista, sin el descuento), así que otra parte de la pantalla mostraba "más barata en Vea" para el mismo producto. Fix: al final de `repartirDescuentoBancarioEntreFilas`, por cada ítem tocado por algún reparto, `item.opciones.sort((a,b) => a.total - b.total)` y `item.mejor = item.opciones[0]`.
 
+**Crash real en `BarraDiferencia.tsx` con un tope de supers ajustado — corregido 2026-09-12.**
+`FilaSuper` calculaba `delta = opcion.total - mejor.total` para las opciones "fuera de tope"
+(`fueraDeTope`, supers con el producto pero excluidos del plan por el tope elegido) contra
+`mejor` = la más barata de las opciones EN PLAN — pero el tope solo limita cuántos supers
+visitar, no garantiza que los elegidos sean los más baratos para cada producto puntual. Con un
+tope ajustado (ej. "como mucho 1 super"), un producto puede tener su precio más barato de
+verdad en un super que quedó fuera — ese `delta` da negativo, `porcentaje` (`delta/totalMejor`)
+también, y `Math.sqrt(porcentaje/100)` dentro del cálculo de `escalado` es `NaN`. Eso llega como
+`NaN%` al `outputRange` de `Animated.interpolate` (línea "el ancho de la barra"), que tira
+`Uncaught Error: invalid pattern 0% and NaN%` — un crash duro de toda la pantalla, reportado por
+el usuario justo después de tocar "Comparar precios" en el tour (con Vea excluido por el tope y
+más barato ahí que el super en plan para uno de los productos). Fix: `Math.max(0, ...)` tanto en
+el `delta` de las filas "fuera de tope" como en el propio `porcentaje` (red de seguridad extra) —
+en ese caso se muestra "+$0,00" en vez de un sobreprecio negativo sin sentido (la fila nunca pasa
+a ser "MÁS BARATO": el usuario ya eligió no visitar ese super con el tope). Reproducido a mano
+tras el fix con Vea/Carrefour/Coto y tope=1 (Poroto Egran Soja: Carrefour $1.490 en plan, Vea
+$800 fuera de tope) para confirmar que ya no rompe.
+
 **Cache de promos bancarias, para que `/api/comparar` no le pegue en vivo a los 5 supers en el camino de request.** `backend/src/cron/refrescarCatalogos.js` (`refrescarPromosBancarias()`, corre en cada pasada del cron) llama `obtenerTodasLasPromosBancarias()` (todas las tarjetas conocidas, sin filtrar) y persiste el resultado crudo en `backend/logs/promos-bancarias.json` (gitignoreado, mismo directorio que `ultimo-refresco.json`). `backend/src/promosBancariasCache.js` lo lee con cache por `mtime` (mismo patrón que `leerCatalogo` de `AllPromos/core/catalogo.js`) y revive `vigenciaDesde`/`vigenciaHasta` a `Date` (se serializan como string en el JSON). Tanto `/api/comparar` como `/api/mis-descuentos` leen de ahí — este último migró su cache TTL-en-memoria propio (que sí pegaba en vivo dentro del request) a esta misma fuente compartida.
 
 **MasClub "por ticket" — confirmado en vivo el 2026-08-19: sí existe y es real.** El usuario vio en `masonline.com.ar` un cartel de "15% con MasClub, miércoles y jueves, sin tope" — no confundir con MasClub "por producto" (descartado más arriba, sección de Chango Más): esto es el mecanismo por ticket, que ya estaba implementado (`isMasClubField` en `fetchChangoMas()`). Consulta en vivo a la API de Chango Más lo confirmó byte a byte: `{descuentoPct: 0.15, dias: [3,4], tope: null, canales: ['express']}`. **Corrección 2026-08-26 a esta nota: la afirmación de que `canales` "es solo metadata, no filtra nada en `/api/comparar`" quedó desactualizada y era parcialmente incorrecta incluso en ese momento.** `promoAplicaEnCanal` (Fase 2, `promos-bancarias.js`) sí se usa en el camino real de `/api/comparar`, dentro de `reoptimizarAsignacion` → `mejorOportunidadTicket` → `mejoresDiasTicket`, para elegir entre canal online/físico al armar `resumen.bancario`/`resumen.totalOptimo` (expuesto además como `resumen.requiereOnlinePorSuper` por super, `backend/src/routes/comparar.js`). Donde el gap era real: `aplicarPromoBancariaAOpcion()` (el badge de promo bancaria por producto, `comparar.js`) llamaba a `mejorPromoTicket()` sin filtrar por canal y además hardcodeaba `esOnline: false` en el badge — con eso, una promo bancaria solo-online podía elegirse como "mejor" para ese producto sin que el badge `ONLINE` (ya renderizado en el frontend para promos de producto, `BarraDiferencia.tsx`/`index.tsx`) lo reflejara. Arreglado agregando `promoBancariaRequiereOnline(promo)` (deriva de `promoAplicaEnCanal(promo, 'fisico')`) y usándolo para setear `esOnline` en ambas ramas de `aplicarPromoBancariaAOpcion`. **`aplicarPromoBancariaAOpcion()` ya no existe (eliminada 2026-09-03, ver nota de esa fecha más arriba) — el badge de ticket por fila lo arma ahora `repartirDescuentoBancarioEntreFilas()`, tomando `esOnline` de `resumen.requiereOnlinePorSuper[key]` (ya calculado por `reoptimizarAsignacion` con el canal correcto), así que ese problema de canal no reaparece con el nuevo mecanismo.** **`/api/mis-descuentos` (`backend/src/routes/misDescuentos.js`) sigue sin usar `canales`/`promoAplicaEnCanal` en absoluto** — esa pantalla ("Mis descuentos") no distingue promos solo-online de solo-en-local; queda pendiente si se decide exponerlo ahí (el frontend tampoco tiene hoy un lugar para mostrarlo en esa pantalla). Lo que sí pasó: **el cache de producción (`backend/logs/promos-bancarias.json`) no existía en el momento de la verificación** — por eso la app no mostraba la promo aunque el mecanismo funcionaba. Se regeneró a mano; el cron (cada 2hs) la mantiene fresca de ahí en más. Causa raíz de por qué faltaba el archivo: no determinada con certeza (el log del cron mostraba "OK" en corridas previas, así que no fue un error de fetch/escritura reportado).
@@ -676,6 +694,31 @@ de la tab bar, que `app/(tabs)/index.tsx` reporta una sola vez vía `tourReporta
 (el `TourOverlay` vive fuera del navigator de tabs, en `app/_layout.tsx`, así que no puede leer
 `useBottomTabBarHeight()` directamente).
 
+**El botón "Activar notificaciones" del último paso no activaba el check de Alertas — corregido
+2026-09-12.** `activarNotificaciones()` (`TourOverlay.tsx`) llamaba directo a
+`pedirPermisoYSuscribir()` (`push.ts`), que solo pide el permiso del navegador y crea la
+suscripción push (tabla `push_suscripcion`) — nunca toca `perfil_usuario.alertas_activas`, el
+booleano real que lee el backend (`avisoProductosSeguidos.js`) para decidir si manda avisos, y
+que el toggle "Recibir notificaciones" de `alertas.tsx` muestra/edita vía `useAlertasActivas()`
+(`alertas.ts:111-142`). Con eso, el botón del tour y el toggle de Alertas eran dos caminos
+independientes hacia la misma feature — un usuario podía tocar "Activar notificaciones" en el
+tour y el check de Alertas seguir sin reflejarlo (o viceversa). Fix: `activarNotificaciones` ahora
+llama a `useAlertasActivas().cambiar(true)`, el MISMO hook/función que usa el toggle — un solo
+camino de verdad.
+
+**Regresión encontrada de paso al verificar el fix de arriba: `screenListeners` con identidad
+inestable rompía la navegación de tabs durante el tour (corregido 2026-09-12).**
+`app/(tabs)/_layout.tsx` pasaba `screenListeners={({ route }) => ({...})}` como una arrow function
+inline — `LayoutPestanas` se re-renderiza seguido (cambia `totalUnidades` del carrito con cada
+toque), y una identidad nueva de `screenListeners` en cada uno de esos renders hace que el
+navegador de tabs resuscriba sus listeners internos en cada render. Efecto real observado: un
+toque genuino sobre una pestaña SÍ disparaba `tabPress` (el paso del tour avanzaba) pero la
+navegación de verdad a esa pestaña no llegaba a completarse — la resuscripción corría a mitad del
+propio manejo del evento. No es exclusivo del tour (cualquier interacción que dispare un
+re-render de `LayoutPestanas` justo al tocar una pestaña podría gatillarlo), pero se manifestaba
+seguido siguiendo el tour paso a paso. Fix: `useCallback(..., [])` alrededor de la función que arma
+`screenListeners`, para que su identidad quede estable entre renders.
+
 **Montaje**: `<TourOverlay />` es hermano del `<Stack>` en `app/_layout.tsx`, dentro de
 `GatePaywallFinTrial` — sobrevive la navegación entre tabs y hacia `/resultado` sin remontarse.
 El auto-onboarding (primera vez, `AsyncStorage` clave `allpromos:tourVisto:v1`) y el botón
@@ -686,6 +729,36 @@ manual ("Ver el tutorial", en el estado inicial de Buscar y en Ajustes) llaman a
 supers apenas se escribía en el buscador, antes de tocar ningún resultado. A pedido, se invirtió
 — `primer-resultado` (agregar un producto) va antes que `selector-otros` (abrir la hoja), ver el
 orden final en `ORDEN_PASOS` de `pasos.ts`.
+
+**`tab-descuentos`/`volver-buscar` no avanzaban al primer toque real (bug real, corregido
+2026-09-12).** El commit `d594fb4` (11/09) había cambiado de `useFocusEffect` a un listener de
+`tabPress` puesto en un `useEffect` de la propia pantalla (`mis-descuentos.tsx`/`index.tsx`),
+para no contar navegación no genuina (atrás/adelante del navegador, deep link). Pero esas
+pantallas son pestañas `lazy` de expo-router: la PRIMERA vez que el usuario toca "Descuentos",
+ese mismo toque es el que MONTA la pantalla — el `useEffect` que suscribe el listener corre
+recién después del montaje, así que llega tarde al evento que lo causó. Resultado: el paso
+quedaba pidiendo un segundo toque sobre una pestaña ya abierta. Fix: `tourMarcarTabPress` +
+`useTourTabPresionado` en `TourContext.tsx`, alimentados por `screenListeners` en
+`app/(tabs)/_layout.tsx` (el navegador de tabs, montado toda la vida de la app, así que su
+listener existe antes de que cualquier pestaña lazy se monte).
+
+**El spotlight de 'coto'/'tope-elegido'/'listo' (pasos dentro de `HojaSupers`) quedaba invisible
+(bug real, corregido 2026-09-12, encontrado reproduciendo en el navegador).** Desde el turno
+"Unifica consistencia visual" (10/09), `HojaSupers` usa el `<Modal>` de RN — en RN Web ese
+componente porta su contenido a un `<div>` propio al final de `document.body` con
+`position:fixed`, por fuera del árbol normal de la app. `TourOverlay` seguía viviendo DENTRO de
+ese árbol normal como `View` con `position:absolute` común: el rect medido caía justo sobre la
+fila correcta, pero se pintaba por DEBAJO del contenido de la hoja, tapado. Subir el `zIndex` del
+`View` de siempre no alcanzaba (cualquier ancestro intermedio con `position`+`zIndex` explícito,
+común en las Views de RN Web, arranca su propio stacking context y aísla esa comparación).
+Envolver `TourOverlay` en el `<Modal>` de RN tampoco sirvió: ese componente antepone sus propios
+`<div>` (`ModalContent.js` de react-native-web) SIN `pointerEvents:'box-none'`, capturando
+cualquier toque en toda la pantalla y tapando el "agujero" que el overlay necesita dejar pasar
+directo al elemento real de abajo. Fix definitivo: `TourOverlay.tsx` porta su contenido a mano
+(`react-dom`'s `createPortal`, mismo patrón que `ModalPortal.js` mismo, sin la carga del `<Modal>`
+entero) a un `<div>` propio en `document.body`, con `position:fixed`+`zIndex` alto — solo en web
+(`usarNodoPortalWeb`/`ContenedorOverlay`); en nativo sigue siendo el `View` de siempre, no hay DOM
+ni este problema de stacking.
 
 **Sin botón de salir en los pasos intermedios (a pedido) — el tour se completa siempre de punta
 a punta.** Solo el último paso tiene un botón en el cartel.
@@ -950,6 +1023,25 @@ Cómo funciona: `backend/src/cron/diffCatalogos.js` compara, en memoria, el cat�
 - Si un scraper falla esa corrida, no se registra diff (el catálogo no se pisó, sería puro ruido).
 
 No hay endpoint propio para leerlo todavía — se consulta directo en Supabase (SQL editor o `select ... from scraper_diffs`), por ejemplo agrupando por `super`, `extract(dow from corrida_en)` y `extract(hour from corrida_en)` para ver en qué día/hora se concentran los cambios reales de cada super. Hace falta acumular varios días de corridas (cron cada 2hs) antes de que el patrón sea significativo.
+
+**Primer análisis con datos reales (2026-09-17, 9 días acumulados desde la creación de la tabla, 1.490 filas):** el cron corrió siempre puntual, en horas impares ART (01, 03, 05… 23hs), sin ninguna corrida fuera de horario. Como cada corrida solo sabe "cambió algo entre la corrida anterior y esta", la resolución real es de ventana de 2hs, no de minuto exacto. Agrupando `precio_modificados`/`promocion_modificados` por super y por hora de corrida, la franja horaria en la que cada super concentra sus cambios de **precio** es:
+
+- **Vea, Jumbo, Disco, Día:** pico único y claro en la corrida de la 01:00 (cambio real ocurrido entre 23:00 y 01:00) — actualizan de madrugada, apenas pasada la medianoche.
+- **Coto:** pico único en la corrida de las 03:00 (cambio entre 01:00 y 03:00) — también de madrugada, un poco más tarde que los anteriores.
+- **Carrefour:** pico en las corridas de 05:00 y 07:00 (cambio entre 03:00 y 07:00) — de madrugada pero más tarde que el resto.
+- **Chango Más — caso distinto a todos los demás:** no tiene un pico de madrugada; cambia precio durante **todo el día**, con la mayor concentración entre las 13:00 y las 19:00 (prácticamente el 100% de las corridas de esa franja tienen al menos un cambio). Es el único de los 7 que actualiza precios en horario diurno de forma sistemática, no solo de noche.
+
+Para **promos/teaser** el patrón de horario coincide en general con el de precio de cada super, con una excepción notable: **Carrefour reformula casi el 100% del campo de promo de todo su catálogo (~2.400-2.500 SKUs) todos los días en la corrida de la 01:00** — se repite día tras día con valores casi idénticos. Es un comportamiento sistemático de esa API (probablemente republican el campo de teaser completo aunque la condición real no cambie), no una anomalía puntual — no confundirlo con un evento real si se lo vuelve a ver.
+
+**Glitches de scraper encontrados en esta ventana (pendientes de investigar la causa, no son cambios de precio reales):**
+- **Carrefour, 2026-09-17 13:00→15:00 ART:** el catálogo cacheado cayó de 2.550 a 151 SKUs en una corrida y se recuperó a 2.546 en la siguiente. Caída y recuperación total en 2hs — consistente con un timeout/rate-limit puntual de la API de Carrefour, no con un cambio real de catálogo.
+- **Vea + Jumbo, 2026-09-16 15:00→17:00 ART, al mismo tiempo:** Vea cayó de 2.544 a 648 SKUs y Jumbo de 2.545 a 1.694, ambos se recuperaron en la corrida de las 17:00. Mismo patrón que el de Carrefour, pero afectando a los dos a la vez — consistente con que comparten la misma cuenta VTEX (ver "API de Jumbo/Disco" más abajo), sugiere que el problema fue de esa cuenta/API en ese momento puntual, no de cada scraper por separado.
+
+**Causa raíz confirmada (2026-09-17, contra `backend/logs/cron.log` real de la VM + código):** los tres scrapers (`scraper-promos-{carrefour,vea,jumbo}.js`) paginan la API de VTEX en un `while(true)` que, ante **cualquier** error de página (429/502/timeout), hace `catch { break }` — trata el error como "se acabó el catálogo", no como una falla, y sigue con lo que ya tenía acumulado. Carrefour reintenta el 429 (3 veces, 10s), pero Vea y Jumbo no reintentan nada. Como el proceso termina con `exit 0`, `refrescarCatalogos.js` lo cuenta como éxito — confirmado en el log real: la corrida de Carrefour del 17/09 13:00 figura `✅ Carrefour (58s)` sin ningún error, y las de Vea/Jumbo del 16/09 15:00 figuran `✅ Vea (35s)` / `✅ Jumbo (85s)` (anormalmente rápidas vs. los ~130s habituales — la firma de que cortaron la paginación a mitad de camino). Ningún error queda logueado porque el `catch` lo atrapa adentro del scraper antes de llegar al proceso padre.
+
+**Fix aplicado (2026-09-17):** `AllPromos/core/guardrailCatalogo.js` — antes de pisar `catalogo-*.json`, compara el `total_skus` nuevo contra el de la corrida anterior (leyendo el archivo actual antes de sobreescribirlo). Si el nuevo total es menor al 70% del anterior, **no pisa el archivo** (queda la corrida anterior intacta) y lanza una excepción — así el scraper termina con `exit 1` y `refrescarCatalogos.js` lo loguea como falla real (❌, visible en `cron.log` y en `/api/health`), igual que ya pasa con los scripts "extras" que sí propagan errores crudos. Aplicado a los 7 scrapers (`scraper-promos-{carrefour,vea,jumbo,changomas,dia,disco}.js` + `scraper-coto-por-ean.js`), reemplazando el `fs.writeFileSync` directo del catálogo por `guardarCatalogoConGuardrail()` (que además escribe atómico, reusando `escrituraAtomica.js`). El umbral del 70% se eligió porque cubre los 3 incidentes reales (Carrefour cayó a 5,9% de lo normal, Vea a 25,5%, Jumbo a 66,6% — todos por debajo de 70%) sin falsos positivos: el ruido día a día normal de los 7 supers nunca superó ese salto (agregados/eliminados típicos <5% del catálogo, salvo el crecimiento legítimo y gradual de Coto, ver más abajo). No se tocó `promos-*.json` (archivo de inspección manual, no lo lee el backend) ni la lógica de paginación en sí — sigue sin reintentar 502/timeout en Vea/Jumbo/Carrefour, eso queda como posible mejora futura si se repiten los cortes.
+
+**Resuelto — crecimiento de catálogo de Coto explicado (no era un problema):** en esta misma ventana el catálogo cacheado de Coto pasó de ~4.084 a ~8.637 SKUs, muy por encima de los ~3.298 SKUs documentados para "Coto: scraper por EAN". Es un cambio de lógica real, no un bug: el commit `976218f` (2026-09-10 12:07) "Suma ofertas exclusivas de Coto al catálogo (no solo lo que cruza por EAN)" dejó de limitar el catálogo a los EAN que también existen en los otros 6 supers, y empezó a incluir además las ofertas exclusivas de Coto. Justo después, `ec2e3ff` (2026-09-10 12:44) paralelizó la búsqueda por EAN para evitar timeout en la VM. El crecimiento observado en `scraper_diffs` coincide con la fecha de ambos commits.
 
 ---
 

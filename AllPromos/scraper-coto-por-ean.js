@@ -64,6 +64,7 @@
 const fs = require('fs');
 const path = require('path');
 const { leerCatalogo } = require('./core/catalogo');
+const { guardarCatalogoConGuardrail } = require('./core/guardrailCatalogo');
 
 const KEY = 'key_r6xzz4IAoTWcipni';
 const AUTOCOMPLETE_URL = 'https://ac.cnstrc.com/autocomplete';
@@ -383,11 +384,11 @@ async function main() {
 
   const meta = { fecha: new Date().toISOString(), supermercado: 'Coto' };
 
-  fs.writeFileSync('./catalogo-coto.json', JSON.stringify({
+  guardarCatalogoConGuardrail('./catalogo-coto.json', {
     ...meta,
     total_skus: encontrados.length,
     skus: encontrados,
-  }, null, 2));
+  });
 
   fs.writeFileSync('./promos-coto.json', JSON.stringify({
     ...meta,

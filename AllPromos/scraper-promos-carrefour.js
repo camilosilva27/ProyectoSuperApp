@@ -11,6 +11,7 @@
  */
 
 const fs = require('fs');
+const { guardarCatalogoConGuardrail } = require('./core/guardrailCatalogo');
 
 const BASE_URL = 'https://www.carrefour.com.ar';
 const SC = 1;
@@ -140,11 +141,11 @@ async function main() {
     seller: SELLER,
   };
 
-  fs.writeFileSync('./catalogo-carrefour.json', JSON.stringify({
+  guardarCatalogoConGuardrail('./catalogo-carrefour.json', {
     ...meta,
     total_skus: allSkus.length,
     skus: allSkus,
-  }, null, 2));
+  });
 
   fs.writeFileSync('./promos-carrefour.json', JSON.stringify({
     ...meta,

@@ -17,6 +17,7 @@
  */
 
 const fs = require('fs');
+const { guardarCatalogoConGuardrail } = require('./core/guardrailCatalogo');
 
 const SELLER = 'jumboargentinav700cordoba700';
 const BASE_URL = 'https://www.vea.com.ar';
@@ -147,11 +148,11 @@ async function main() {
   // --- PASO 4: Guardar ambos archivos ---
   const meta = { fecha: new Date().toISOString(), supermercado: 'Vea', seller: SELLER };
 
-  fs.writeFileSync('./catalogo-vea.json', JSON.stringify({
+  guardarCatalogoConGuardrail('./catalogo-vea.json', {
     ...meta,
     total_skus: catalogo.length,
     skus: catalogo,
-  }, null, 2));
+  });
 
   fs.writeFileSync('./promos-vea.json', JSON.stringify({
     ...meta,
