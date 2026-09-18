@@ -23,7 +23,13 @@ const { refrescarPromosBancarias, SCRAPERS, DIR_ALLPROMOS } = require('./refresc
 const { avisarProductosSeguidos } = require('../avisoProductosSeguidos');
 
 async function postProcesar() {
-  const inicio = new Date();
+  // CORRIDA_EN lo pasa subir-catalogos.sh (leído del archivo que escribe
+  // refrescarCatalogosGHA.js) para que el diff de promos_bancarias de acá quede bajo el MISMO
+  // corrida_en que el de tipo='productos' que ya se registró en GitHub Actions — sin esto,
+  // cada script pone su propio `new Date()` y las dos mitades de una misma corrida quedan con
+  // timestamps distintos en scraper_diffs. Si se corre este script suelto (sin la variable,
+  // ej. a mano en la VM) cae en `new Date()` como antes.
+  const inicio = process.env.CORRIDA_EN ? new Date(process.env.CORRIDA_EN) : new Date();
   console.log(`\n🔧 Post-proceso de catálogos — ${inicio.toISOString()}`);
 
   const errores = [];
