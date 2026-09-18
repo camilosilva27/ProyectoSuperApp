@@ -1,8 +1,8 @@
 # Política de Privacidad — Super App
 
-> Adaptado a los datos que la App realmente guarda (ver `.claude/docs/Plan_Usuarios_y_cobros.md`, `CONTEXTO_TECNICO.md`), no un template genérico. No reemplaza asesoramiento legal — para un lanzamiento con volumen real conviene que un abogado lo revise, pero cubre el piso mínimo razonable para el beta con amigos y un lanzamiento chico.
+> Adaptado a los datos que la App realmente guarda (ver `.claude/docs/Plan_Usuarios_y_cobros.md`, `CONTEXTO_TECNICO.md`), no un template genérico. No reemplaza asesoramiento legal — para un lanzamiento con volumen real conviene que un abogado lo revise, pero cubre el piso mínimo razonable para un lanzamiento chico.
 
-**Última actualización:** 2026-09-11
+**Última actualización:** 2026-09-17
 
 ## 1. Quiénes somos
 
@@ -52,14 +52,10 @@ La Agencia de Acceso a la Información Pública, en su carácter de Órgano de C
 
 Guardamos tus datos mientras tu cuenta esté activa. Si pedís la baja de tu cuenta, eliminamos tus datos personales, salvo la información que estemos obligados a conservar por ley (por ejemplo, registros de pagos, según normativa impositiva).
 
-## 9. Fase de pruebas (beta)
-
-Mientras la App esté en fase de pruebas, puede haber ajustes en qué datos recolectamos o cómo los procesamos, a medida que agregamos o cambiamos funciones. Vamos a actualizar esta política si eso cambia de forma significativa.
-
-## 10. Cambios a esta política
+## 9. Cambios a esta política
 
 Podemos actualizar esta Política de Privacidad. Si el cambio es significativo, te avisaremos por mail o dentro de la App.
 
-## 11. Contacto
+## 10. Contacto
 
 Dudas sobre tus datos o esta política: **contacto@mi-superapp.com.ar**
