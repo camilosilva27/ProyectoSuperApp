@@ -312,7 +312,7 @@ export default function PantallaBuscar() {
 
   return (
     <View style={[styles.pantalla, { backgroundColor: paleta.fondo }]}>
-      <Head><title>Buscar productos - Super App</title></Head>
+      <Head><title>Buscar productos - SuperAhorro</title></Head>
       <HeaderNegro paddingTop={insets.top + (pantallaBaja ? espacio.md : espacio.xl)}>
         <TituloHeader>¿Qué vas a comprar?</TituloHeader>
         <View style={[styles.buscador, pantallaBaja && styles.buscadorCompacto]}>

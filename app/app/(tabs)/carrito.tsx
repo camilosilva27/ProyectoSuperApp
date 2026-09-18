@@ -81,7 +81,7 @@ export default function PantallaCarrito() {
 
   return (
     <View style={[styles.pantalla, { backgroundColor: paleta.fondo }]}>
-      <Head><title>Carrito - Super App</title></Head>
+      <Head><title>Carrito - SuperAhorro</title></Head>
       <HeaderNegro paddingTop={insets.top + (pantallaBaja ? espacio.md : espacio.xl)}>
         <View style={styles.headerCarrito}>
           <TituloHeader>Carrito</TituloHeader>

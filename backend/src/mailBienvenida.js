@@ -1,5 +1,5 @@
 /**
- * Mail de bienvenida propio de Super App (ver .claude/docs/mails_y_notificaciones.md, tipo #7).
+ * Mail de bienvenida propio de SuperAhorro (ver .claude/docs/mails_y_notificaciones.md, tipo #7).
  * Supabase Auth ya manda el mail de confirmación de registro (plantilla en
  * supabase/email-templates/confirm-signup.html) — este es adicional, y se manda recién cuando
  * la persona confirma ese link (no al hacer signUp), para que sea lo primero que ve una vez
@@ -23,15 +23,15 @@ function armarHtml({ nombre }) {
 
   const cuerpo = `
     <p style="margin:0 0 16px 0;">${saludo}</p>
-    <p style="margin:0 0 16px 0;">¡Confirmaste tu cuenta! Ya podés usar Super App para comparar precios entre supermercados y armar tu carrito con el más barato de cada producto.</p>
-    <p style="margin:0 0 16px 0;">Soy Camilo, el creador de Super App. Soy un desarrollador independiente empezando con este proyecto. Próximamente vas a poder encontrar Super App en Play Store y App Store.</p>
+    <p style="margin:0 0 16px 0;">¡Confirmaste tu cuenta! Ya podés usar SuperAhorro para comparar precios entre supermercados y armar tu carrito con el más barato de cada producto.</p>
+    <p style="margin:0 0 16px 0;">Soy Camilo, el creador de SuperAhorro. Soy un desarrollador independiente empezando con este proyecto. Próximamente vas a poder encontrar SuperAhorro en Play Store y App Store.</p>
     <p style="margin:0 0 16px 0;">No dudes en escribirme a contacto@mi-superapp.com.ar ante cualquier duda, consulta o sugerencia.</p>
-    <p style="margin:0;">¡Muchas gracias por usar Super App!</p>
+    <p style="margin:0;">¡Muchas gracias por usar SuperAhorro!</p>
   `;
 
   return armarMailBase({
-    preheader: 'Ya podés usar Super App para comparar precios entre supermercados.',
-    titulo: '¡Bienvenido a Super App!',
+    preheader: 'Ya podés usar SuperAhorro para comparar precios entre supermercados.',
+    titulo: '¡Bienvenido a SuperAhorro!',
     cuerpoHtml: cuerpo,
   });
 }
@@ -52,14 +52,14 @@ async function enviarBienvenida(usuarioId, detalles = {}) {
   const resultadoMail = await enviarMail({
     destinatarioEmail: data.user.email,
     destinatarioNombre: detalles.nombre,
-    asunto: '¡Bienvenido a Super App!',
+    asunto: '¡Bienvenido a SuperAhorro!',
     html: armarHtml(detalles),
   });
 
   const suscripciones = await obtenerSuscripcionesDeUsuario(cliente, usuarioId).catch(() => []);
   await enviarPush(cliente, suscripciones, {
-    title: 'Super App',
-    body: '¡Bienvenido a Super App! Ya podés comparar precios entre supermercados.',
+    title: 'SuperAhorro',
+    body: '¡Bienvenido a SuperAhorro! Ya podés comparar precios entre supermercados.',
     url: URL_APP,
   });
 

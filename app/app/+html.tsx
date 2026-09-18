@@ -30,13 +30,13 @@ export default function Root({ children }: PropsWithChildren) {
 
         {/* Preview al compartir el link (WhatsApp, iMessage, redes) */}
         <meta property="og:type" content="website" />
-        <meta property="og:title" content="Super App" />
+        <meta property="og:title" content="SuperAhorro" />
         <meta property="og:description" content={DESCRIPCION} />
         <meta property="og:image" content={`${URL_APP}/og-image.png`} />
         <meta property="og:url" content={URL_APP} />
         <meta property="og:locale" content="es_AR" />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Super App" />
+        <meta name="twitter:title" content="SuperAhorro" />
         <meta name="twitter:description" content={DESCRIPCION} />
         <meta name="twitter:image" content={`${URL_APP}/og-image.png`} />
 
@@ -46,12 +46,12 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="theme-color" content="#14161A" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="Super App" />
+        <meta name="apple-mobile-web-app-title" content="SuperAhorro" />
 
         {/* Splash del acceso directo en iOS: a diferencia de Android, Safari IGNORA
             background_color/icons del manifest para esto — solo lee estos <link> con media
             query exacta por tamaño de pantalla (ver CONTEXTO_TECNICO.md). Imágenes generadas
-            en public/splash/ (logo + "Super App" sobre blanco). Solo portrait: la app está
+            en public/splash/ (logo + "SuperAhorro" sobre blanco). Solo portrait: la app está
             fijada a esa orientación (app.json → "orientation": "portrait"). */}
         <link rel="apple-touch-startup-image" href="/splash/apple-splash-1290-2796.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
         <link rel="apple-touch-startup-image" href="/splash/apple-splash-1179-2556.png" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />

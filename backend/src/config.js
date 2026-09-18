@@ -73,7 +73,7 @@ module.exports = {
   // > API Keys), no el SMTP key que ya tiene Supabase.
   brevoApiKey: process.env.BREVO_API_KEY,
   brevoRemitenteEmail: process.env.BREVO_REMITENTE_EMAIL || 'no-reply@mi-superapp.com.ar',
-  brevoRemitenteNombre: process.env.BREVO_REMITENTE_NOMBRE || 'Super App',
+  brevoRemitenteNombre: process.env.BREVO_REMITENTE_NOMBRE || 'SuperAhorro',
 
   // Monitoreo de errores (Sentry) — sin esta variable, sentry.js no inicializa nada y el
   // server sigue funcionando exactamente igual que antes (mismo criterio "gracioso" que el

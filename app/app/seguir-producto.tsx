@@ -100,7 +100,7 @@ export default function PantallaSeguirProducto() {
 
   return (
     <View style={{ flex: 1, backgroundColor: paleta.fondo }}>
-      <Head><title>Seguir un producto - Super App</title></Head>
+      <Head><title>Seguir un producto - SuperAhorro</title></Head>
       <View style={[styles.header, { backgroundColor: paleta.tinta, paddingTop: insets.top + espacio.lg }]}>
         <Pressable onPress={volver} accessibilityRole="button" style={styles.filaVolver}>
           <Text style={styles.flechaVolver}>‹</Text>

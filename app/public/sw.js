@@ -3,7 +3,7 @@
 // servible en /sw.js sin configuración adicional (mismo mecanismo que manifest.json).
 
 self.addEventListener('push', event => {
-  let datos = { title: 'Super App', body: '', url: '/' };
+  let datos = { title: 'SuperAhorro', body: '', url: '/' };
   try {
     if (event.data) datos = { ...datos, ...event.data.json() };
   } catch {

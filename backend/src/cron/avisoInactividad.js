@@ -43,15 +43,15 @@ function armarHtml({ nombre }) {
   const saludo = nombre ? `Hola ${nombre},` : 'Hola,';
   const cuerpo = `
     <p style="margin:0 0 16px 0;">${saludo}</p>
-    <p style="margin:0 0 16px 0;">Hace un tiempo que no comparás precios con Super App.</p>
+    <p style="margin:0 0 16px 0;">Hace un tiempo que no comparás precios con SuperAhorro.</p>
     <p style="margin:0;">Los precios en los supermercados cambian todo el tiempo. Puede que esta semana haya
     alguna promo que te convenga. Date una vuelta cuando quieras.</p>
   `;
   return armarMailBase({
-    preheader: 'Hace un tiempo que no comparás precios con Super App.',
+    preheader: 'Hace un tiempo que no comparás precios con SuperAhorro.',
     titulo: 'Te extrañamos',
     cuerpoHtml: cuerpo,
-    cta: { texto: 'Abrir Super App', url: URL_APP },
+    cta: { texto: 'Abrir SuperAhorro', url: URL_APP },
   });
 }
 
@@ -103,7 +103,7 @@ async function avisoInactividad() {
         const resultado = await enviarMail({
           destinatarioEmail: usuario.email,
           destinatarioNombre: perfil.nombre,
-          asunto: 'Te extrañamos en Super App',
+          asunto: 'Te extrañamos en SuperAhorro',
           html: armarHtml({ nombre: perfil.nombre }),
         });
         if (resultado.ok) {
@@ -118,7 +118,7 @@ async function avisoInactividad() {
         }
 
         const resultadoPush = await enviarPush(cliente, suscripcionesPush.get(usuario.id) ?? [], {
-          title: 'Super App',
+          title: 'SuperAhorro',
           body: 'Hace un tiempo que no comparás precios. Puede que esta semana haya alguna promo que te convenga.',
           url: URL_APP,
         });

@@ -48,14 +48,14 @@ function armarHtml({ nombreUsuario, productos }) {
     <p style="margin:0 0 16px 0;">${saludo}</p>
     <p style="margin:0 0 16px 0;">Le apareció una promoción a ${productos.length === 1 ? 'un producto que seguís' : 'productos que seguís'}:</p>
     <ul style="margin:0 0 16px 0; padding-left:20px;">${items}</ul>
-    <p style="margin:0;">Abrí Super App para ver el detalle y comparar contra el resto de los supermercados.</p>
+    <p style="margin:0;">Abrí SuperAhorro para ver el detalle y comparar contra el resto de los supermercados.</p>
   `;
 
   return armarMailBase({
-    preheader: 'Le apareció una promoción a un producto que seguís en Super App.',
+    preheader: 'Le apareció una promoción a un producto que seguís en SuperAhorro.',
     titulo: productos.length === 1 ? '¡Nueva promoción!' : `¡${productos.length} nuevas promociones!`,
     cuerpoHtml: cuerpo,
-    cta: { texto: 'Ver en Super App', url: `${URL_APP}/alertas` },
+    cta: { texto: 'Ver en SuperAhorro', url: `${URL_APP}/alertas` },
   });
 }
 
@@ -66,10 +66,10 @@ function armarPush(productos) {
     const detalle = p.descuentoPct
       ? `${p.nombre} tiene ${p.descuentoPct}% off en ${p.super}`
       : `${p.nombre} tiene una promo nueva en ${p.super}`;
-    return { title: 'Super App', body: detalle, url: `${URL_APP}/alertas` };
+    return { title: 'SuperAhorro', body: detalle, url: `${URL_APP}/alertas` };
   }
   return {
-    title: 'Super App',
+    title: 'SuperAhorro',
     body: `${productos.length} productos que seguís tienen una promo nueva`,
     url: `${URL_APP}/alertas`,
   };

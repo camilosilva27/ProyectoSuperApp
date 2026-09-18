@@ -1,5 +1,5 @@
 /**
- * Recibo de pago propio de Super App (ver .claude/docs/mails_y_notificaciones.md, tipo #2).
+ * Recibo de pago propio de SuperAhorro (ver .claude/docs/mails_y_notificaciones.md, tipo #2).
  * Mercado Pago ya le manda su propio comprobante genérico al pagador — este es adicional, con
  * la marca de la app y contexto (qué plan, cuándo es el próximo cobro).
  *
@@ -27,11 +27,11 @@ function armarHtml({ nombre, tipoPlan, monto, siguienteCobroEn }) {
   const nombrePlan = NOMBRE_PLAN[tipoPlan] || tipoPlan;
   const lineaProximoCobro = siguienteCobroEn
     ? `<p style="margin:0;">Tu próximo cobro es el <strong>${formatoFecha(siguienteCobroEn)}</strong>.</p>`
-    : `<p style="margin:0;">Tu acceso a Super App ya es permanente — no vas a recibir más cobros por este plan.</p>`;
+    : `<p style="margin:0;">Tu acceso a SuperAhorro ya es permanente — no vas a recibir más cobros por este plan.</p>`;
 
   const cuerpo = `
     <p style="margin:0 0 16px 0;">${saludo}</p>
-    <p style="margin:0 0 16px 0;">Tu pago del plan <strong>${nombrePlan}</strong> de Super App se acreditó correctamente:</p>
+    <p style="margin:0 0 16px 0;">Tu pago del plan <strong>${nombrePlan}</strong> de SuperAhorro se acreditó correctamente:</p>
     <p style="margin:0 0 16px 0; text-align:center;">
       <span style="display:inline-block; background:${COLOR_ACENTO_SUAVE}; border:2px solid ${COLOR_ACENTO}; color:${COLOR_TEXTO}; padding:6px 16px; border-radius:8px; font-size:1.5em; font-weight:700;">${formatoArs(monto)}</span>
     </p>
@@ -39,7 +39,7 @@ function armarHtml({ nombre, tipoPlan, monto, siguienteCobroEn }) {
   `;
 
   return armarMailBase({
-    preheader: `Tu pago del plan ${nombrePlan} de Super App se acreditó.`,
+    preheader: `Tu pago del plan ${nombrePlan} de SuperAhorro se acreditó.`,
     titulo: 'Recibo de pago',
     cuerpoHtml: cuerpo,
     cta: { texto: 'Ver mi plan', url: `${URL_APP}/ajustes` },
@@ -62,14 +62,14 @@ async function enviarRecibo(usuarioId, detalles) {
   const resultadoMail = await enviarMail({
     destinatarioEmail: data.user.email,
     destinatarioNombre: detalles.nombre,
-    asunto: 'Tu pago en Super App se acreditó',
+    asunto: 'Tu pago en SuperAhorro se acreditó',
     html: armarHtml(detalles),
   });
 
   const nombrePlan = NOMBRE_PLAN[detalles.tipoPlan] || detalles.tipoPlan;
   const suscripciones = await obtenerSuscripcionesDeUsuario(cliente, usuarioId).catch(() => []);
   await enviarPush(cliente, suscripciones, {
-    title: 'Super App',
+    title: 'SuperAhorro',
     body: `Tu pago del plan ${nombrePlan} se acreditó: ${formatoArs(detalles.monto)}`,
     url: `${URL_APP}/ajustes`,
   });

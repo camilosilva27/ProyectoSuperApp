@@ -1,7 +1,7 @@
 /**
  * Plantilla visual compartida para los mails que arma el backend (clienteBrevo.js) — replica
  * a mano el diseño de `supabase/email-templates/confirm-signup.html` (banner oscuro + tarjeta
- * blanca + acento amarillo "oferta") para que todos los mails de Super App se vean como parte
+ * blanca + acento amarillo "oferta") para que todos los mails de SuperAhorro se vean como parte
  * de la misma app, no como texto plano. Son dos sistemas separados (ese template lo edita
  * Supabase con sus propios placeholders `{{ .SiteURL }}`, este lo arma JS puro), así que no se
  * puede compartir el archivo — si se retoca el diseño de uno, conviene revisar el otro.
@@ -64,11 +64,11 @@ function armarMailBase({ preheader, titulo, cuerpoHtml, cta, footerTexto }) {
             <td align="center" style="background-color:${COLOR_BANNER}; padding:32px 24px;">
               <img
                 src="${LOGO_URL}"
-                width="56" height="56" alt="Super App"
+                width="56" height="56" alt="SuperAhorro"
                 style="display:block; border-radius:12px; margin-bottom:12px;"
               />
               <div style="font-family:Helvetica,Arial,sans-serif; font-size:20px; font-weight:700; color:#FFFFFF;">
-                Super App
+                SuperAhorro
               </div>
             </td>
           </tr>
@@ -87,7 +87,7 @@ function armarMailBase({ preheader, titulo, cuerpoHtml, cta, footerTexto }) {
 
           <tr>
             <td style="padding:20px 32px; background-color:${COLOR_FONDO}; font-family:Helvetica,Arial,sans-serif; font-size:12px; color:${COLOR_TEXTO_FOOTER}; text-align:center;">
-              ${footerTexto || 'Recibís este mail porque tenés una cuenta en Super App.'}
+              ${footerTexto || 'Recibís este mail porque tenés una cuenta en SuperAhorro.'}
             </td>
           </tr>
 

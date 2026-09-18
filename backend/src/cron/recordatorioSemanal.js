@@ -17,7 +17,7 @@ const { rutaLogs, vapidPublicKey, vapidPrivateKey, vapidSubject } = require('../
 const { clienteSupabaseAdmin } = require('../clienteSupabaseAdmin');
 
 const MENSAJE = {
-  title: 'Super App',
+  title: 'SuperAhorro',
   body: '¿Ya revisaste los precios de esta semana? Puede que hayas ahorrado.',
 };
 

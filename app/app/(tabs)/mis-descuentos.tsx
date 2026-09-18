@@ -143,7 +143,7 @@ export default function PantallaMisDescuentos() {
 
   return (
     <View style={{ flex: 1, backgroundColor: paleta.fondo }}>
-      <Head><title>Mis descuentos - Super App</title></Head>
+      <Head><title>Mis descuentos - SuperAhorro</title></Head>
       <HeaderNegro paddingTop={insets.top + espacio.xl} estilo={{ gap: espacio.sm }}>
         <TituloHeader>Mis descuentos</TituloHeader>
         <Text style={[texto.cuerpo, styles.bajada]}>

@@ -2,7 +2,7 @@
  * Hoja "Tu mail de Mercado Pago" (turno 13, design_handoff_allpromos_v2/TURNOS-12-13-planes-y-
  * -pago.md). Resuelve un bug de producto real, no un paso decorativo:
  * el `payer_email` de una suscripción tiene que coincidir con la cuenta de MP del pagador, y
- * hoy se manda siempre el mail de la sesión de Super App sin preguntar (opciones_planes.md,
+ * hoy se manda siempre el mail de la sesión de SuperAhorro sin preguntar (opciones_planes.md,
  * "Problema real de producto confirmado"). Se abre después de `PlanSelect`, antes del checkout.
  *
  * Mismo patrón de bottom sheet que `GuardarCarritoHoja.tsx`: `Modal` transparente + backdrop +
@@ -27,7 +27,7 @@ export function MercadoPagoEmailSheet({
 }: {
   visible: boolean;
   plan: Plan | null;
-  /** Mail de la cuenta de Super App — se compara contra lo que el usuario deja en el campo
+  /** Mail de la cuenta de SuperAhorro — se compara contra lo que el usuario deja en el campo
    *  para decidir si mostrar el aviso informativo de "mail distinto". */
   mailApp: string;
   /** Prellenado: `mailMercadoPago` guardado de un intento anterior, o `mailApp` si nunca hubo uno. */

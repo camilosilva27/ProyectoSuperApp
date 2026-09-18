@@ -64,7 +64,7 @@ export default function PantallaAjustes() {
 
   return (
     <View style={[styles.pantalla, { backgroundColor: paleta.fondo }]}>
-      <Head><title>Ajustes - Super App</title></Head>
+      <Head><title>Ajustes - SuperAhorro</title></Head>
       <HeaderNegro paddingTop={insets.top + espacio.xl}>
         <TituloHeader>Ajustes</TituloHeader>
       </HeaderNegro>
@@ -80,7 +80,7 @@ export default function PantallaAjustes() {
               <View style={{ flex: 1, gap: 2 }}>
                 <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>Mis ahorros</Text>
                 <Text style={[texto.etiqueta, { color: paleta.tintaSuave, letterSpacing: 0.2 }]}>
-                  {pesosCorto(totalAhorrado)} desde que usás Super App
+                  {pesosCorto(totalAhorrado)} desde que usás SuperAhorro
                 </Text>
               </View>
               <View style={[styles.chip, { backgroundColor: paleta.oferta }]}>

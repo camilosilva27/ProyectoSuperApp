@@ -27,7 +27,7 @@ const router = express.Router();
 
 // Turnos 12/13 (design_handoff_allpromos_v2/PANTALLA-12-eleccion-de-plan.md): el payer_email de
 // una suscripción o un pago único tiene que ser el de la cuenta de Mercado Pago del pagador, no
-// necesariamente el de la sesión de Super App (opciones_planes.md, bug real ya encontrado con un
+// necesariamente el de la sesión de SuperAhorro (opciones_planes.md, bug real ya encontrado con un
 // pago fallido). MercadoPagoEmailSheet deja confirmar/cambiar ese mail antes de pagar; esta regex
 // es solo un chequeo de formato (no se puede verificar si la cuenta existe antes del checkout).
 const REGEX_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -83,7 +83,7 @@ router.post('/pagos/suscripcion', requiereSesion, async (req, res) => {
 
     const suscripcion = await preApproval.create({
       body: {
-        reason: `Super App Premium (${tipoPlan})`,
+        reason: `SuperAhorro Premium (${tipoPlan})`,
         external_reference: req.usuarioId,
         payer_email: emailPago,
         back_url: urlVueltaCheckoutMP,
@@ -144,7 +144,7 @@ router.post('/pagos/pago-unico', requiereSesion, async (req, res) => {
       body: {
         items: [{
           id: 'super-app-premium-permanente',
-          title: 'Super App Premium (permanente)',
+          title: 'SuperAhorro Premium (permanente)',
           quantity: 1,
           unit_price: precioPermanenteArs,
           currency_id: 'ARS',

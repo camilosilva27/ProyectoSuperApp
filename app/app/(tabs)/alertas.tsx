@@ -71,7 +71,7 @@ export default function PantallaAlertas() {
 
   return (
     <View style={{ flex: 1, backgroundColor: paleta.fondo }}>
-      <Head><title>Alertas - Super App</title></Head>
+      <Head><title>Alertas - SuperAhorro</title></Head>
       <HeaderNegro paddingTop={insets.top + (pantallaBaja ? espacio.md : espacio.xl)}>
         <TituloHeader>ALERTAS</TituloHeader>
         <Text style={[texto.cuerpoMedio, { color: '#C6CCD3' }]}>
