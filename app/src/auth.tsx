@@ -145,8 +145,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     registrarse: async (email, password, nombre) => {
       // `nombre` viaja en user_metadata (raw_user_meta_data) — el trigger de la base lo copia
       // a perfil_usuario.nombre al crear la fila, ver supabase/migrations/0003_nombre_en_perfil.sql.
+      // `full_name` es la clave que lee la columna "Display name" del Dashboard de Supabase
+      // (es la misma que completa Google en el login con OAuth); sin esto, los signups por
+      // mail+contraseña aparecían "sin nombre" ahí aunque perfil_usuario.nombre estuviera bien.
       const { data, error } = await supabase.auth.signUp({
-        email, password, options: { data: { nombre } },
+        email, password, options: { data: { nombre, full_name: nombre } },
       });
       if (error) return { error: mensajeError(error), necesitaConfirmarMail: false };
       // Bug real (2026-09-04): registrarse con un mail que YA tiene una cuenta CONFIRMADA no
