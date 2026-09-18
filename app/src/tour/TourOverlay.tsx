@@ -20,15 +20,36 @@
  * el layout corre) como el caso de HojaSupers, que anima su entrada con `Animated.spring` — acá
  * no hace falta escuchar el fin de esa animación, el spotlight simplemente sigue midiendo y
  * "viaja" con el target mientras se termina de mover.
+ *
+ * En web, todo el árbol de acá abajo se porta a mano a un `<div>` propio al final de
+ * `document.body` (ver `usarNodoPortalWeb`/`createPortal` más abajo) — bug real, encontrado
+ * reproduciendo en el navegador: los pasos 'coto'/'tope-elegido'/'listo' viven dentro de
+ * `HojaSupers`, que desde el turno "Unifica consistencia visual" usa el `<Modal>` de RN, y en RN
+ * Web ese componente porta su contenido a un `<div>` propio al final de `document.body` con
+ * `position:fixed`, por fuera del árbol normal de la app. Sin este mismo portal acá, el
+ * spotlight quedaba pintado por DEBAJO del contenido de esa hoja (mismo rect medido, mismo
+ * borde amarillo, pero invisible, tapado) apenas el paso activo caía dentro de un `Modal` — un
+ * `zIndex` más alto en el `View` de siempre no alcanza: cualquier ancestro intermedio con
+ * `position` + `zIndex` explícito (común en las Views de RN Web) arranca su propio stacking
+ * context y aísla esa comparación, así que hay que salir del árbol de verdad, no solo subir el
+ * número. Envolver esto en el `<Modal>` de RN en vez de portar a mano se probó y se descartó: ese
+ * componente antepone sus propios `<div>` (el "modal" y el "container" de
+ * `ModalContent.js` de react-native-web) SIN `pointerEvents:'box-none'` — capturan cualquier
+ * toque en toda la pantalla, tapando el "agujero" del recorte que este overlay necesita dejar
+ * pasar directo al elemento real de abajo (el punto central de este archivo, ver el comentario
+ * de arriba). Portar a mano evita esos `<div>` intermedios: el `box-none` de nuestro propio
+ * `View` es, de nuevo, lo único que decide qué pasa el toque. Nativo no tiene este problema (no
+ * hay DOM ni estos ancestros con stacking context propio), así que ahí sigue siendo un `View`
+ * común dentro del árbol de siempre.
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Platform, Pressable, StyleSheet, Text, View, useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuth } from '../auth';
-import { pedirPermisoYSuscribir } from '../push/push';
+import { useAlertasActivas } from '../alertas';
 import { espacio, fuentes, radio } from '../theme';
 import { ORDEN_PASOS, PASOS, type PasoId } from './pasos';
 import { avanzarTour, refDeTarget, salirTour, tourAltoTabBar, useEstadoTour } from './TourContext';
@@ -92,6 +113,48 @@ function recortarEnPantalla(recorte: Rect, anchoVentana: number, altoVentana: nu
   return { x, y, width: Math.max(0, right - x), height: Math.max(0, bottom - y) };
 }
 
+/** `<div>` propio al final de `document.body`, creado una sola vez por instancia y liberado al
+ *  desmontar — mismo patrón que `ModalPortal.js` de react-native-web, pero sin pasar por el
+ *  `<Modal>` entero (ver el comentario del encabezado del archivo: ese componente antepone
+ *  `<div>`s propios que capturan cualquier toque, tapando el "agujero" del recorte). En nativo
+ *  no hace falta (no hay DOM): devuelve `null` y el caller renderiza el `View` en el árbol de
+ *  siempre. */
+function usarNodoPortalWeb(): HTMLElement | null {
+  const elementoRef = useRef<HTMLElement | null>(null);
+  const [, forzarRender] = useState(0);
+  if (Platform.OS === 'web' && !elementoRef.current && typeof document !== 'undefined') {
+    elementoRef.current = document.createElement('div');
+  }
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !elementoRef.current) return;
+    document.body.appendChild(elementoRef.current);
+    forzarRender(n => n + 1);
+    return () => {
+      if (elementoRef.current) document.body.removeChild(elementoRef.current);
+    };
+  }, []);
+  return elementoRef.current;
+}
+
+// En native no hace falta escapar de ningún stacking context (no hay DOM): sigue siendo un
+// `View` común, `absoluteFill` de siempre.
+const ESTILO_CONTENEDOR_OVERLAY = Platform.OS === 'web'
+  ? { position: 'fixed' as const, top: 0, left: 0, right: 0, bottom: 0, zIndex: 999999 }
+  : StyleSheet.absoluteFill;
+
+/** Portado a `nodoPortalWeb` en web (ver `usarNodoPortalWeb`); en native, el `View` de siempre
+ *  dentro del árbol de la app — no hay ningún `Modal` nativo por encima que lo tape. */
+function ContenedorOverlay({
+  nodoPortalWeb, children,
+}: { nodoPortalWeb: HTMLElement | null; children: React.ReactNode }) {
+  const contenido = (
+    <View style={ESTILO_CONTENEDOR_OVERLAY} pointerEvents="box-none">
+      {children}
+    </View>
+  );
+  return Platform.OS === 'web' && nodoPortalWeb ? createPortal(contenido, nodoPortalWeb) : contenido;
+}
+
 function medirNodo(nodo: unknown): Promise<Rect | null> {
   return new Promise(resolve => {
     const medible = nodo as { measureInWindow?: (cb: (x: number, y: number, w: number, h: number) => void) => void } | null;
@@ -110,7 +173,14 @@ export function TourOverlay() {
   const { width: anchoVentana, height: altoVentana } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [rect, setRect] = useState<Rect | null>(null);
-  const { session } = useAuth();
+  // Mismo mecanismo que el toggle "Recibir notificaciones" de Alertas (`useAlertasActivas` en
+  // `alertas.ts`) — antes este botón llamaba directo a `pedirPermisoYSuscribir`, que solo pide
+  // el permiso del navegador y crea la suscripción push, sin tocar `perfil_usuario.alertas_
+  // activas` (el booleano real que lee el backend para decidir si manda avisos, y que el check
+  // de Alertas muestra). Bug real: el check podía quedar mostrando un estado que no reflejaba
+  // lo que este botón acababa de hacer (o no hacer si el navegador rechazaba el permiso).
+  const { cambiar: activarAlertas } = useAlertasActivas();
+  const nodoPortalWeb = usarNodoPortalWeb();
 
   // Plain state + transición CSS (solo en web — nativo no tiene CSS transitions, cae a un
   // corte instantáneo) para TODO lo que se anima en este archivo, en vez de `Animated` de
@@ -152,7 +222,7 @@ export function TourOverlay() {
 
   async function activarNotificaciones() {
     try {
-      if (session) await pedirPermisoYSuscribir(session.user.id);
+      await activarAlertas(true);
     } finally {
       // Avanza haya aceptado o rechazado el permiso: un navegador no deja re-preguntar tras un
       // rechazo, así que bloquear el tour hasta que acepte dejaría afuera a quien rechace.
@@ -363,7 +433,7 @@ export function TourOverlay() {
   // real en la que se podía tocar cualquier cosa antes de que el spotlight "enganchara".
   if (!rect) {
     return (
-      <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+      <ContenedorOverlay nodoPortalWeb={nodoPortalWeb}>
         <View
           pointerEvents="none"
           style={[
@@ -385,7 +455,7 @@ export function TourOverlay() {
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
         />
-      </View>
+      </ContenedorOverlay>
     );
   }
 
@@ -401,7 +471,7 @@ export function TourOverlay() {
   const targetEnMitadInferior = rect.y + rect.height / 2 > altoVentana / 2;
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+    <ContenedorOverlay nodoPortalWeb={nodoPortalWeb}>
       <Bloqueador estilo={{ top: 0, left: 0, right: 0, height: Math.max(0, recorte.y) }} />
       <Bloqueador
         estilo={{
@@ -520,7 +590,7 @@ export function TourOverlay() {
           ) : null}
         </View>
       </View>
-    </View>
+    </ContenedorOverlay>
   );
 }
 
