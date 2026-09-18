@@ -188,8 +188,15 @@ export function GrillaPromosBancarias({
 
   if (error || !filasOrdenadas.length) return null; // decorativo: si falla, no bloquea el resto del estado inicial
 
+  // En pantallaAncha el ScrollView interno ocupa todo el ancho restante del contenedor (crece para
+  // llenarlo, es su comportamiento por defecto como hijo de un row sin flex propio) — así que sin
+  // esto la grilla queda pegada a la izquierda cuando el ancho de columna tocó el tope de
+  // ANCHO_MAXIMO_DIA_DESKTOP y sobra pantalla. Fijar el ancho real del contenido + alignSelf:
+  // 'center' la centra dentro de `estadoInicial` (que por defecto la estira, alignItems: 'stretch').
+  const anchoContenido = dim.anchoSuper + dim.anchoDia * 7;
+
   return (
-    <View style={styles.fila}>
+    <View style={[styles.fila, pantallaAncha ? { alignSelf: 'center', width: anchoContenido } : null]}>
       <View
         style={[styles.columnaSupers, { width: dim.anchoSuper, borderColor: paleta.bordeSuave }]}
       >
