@@ -1,6 +1,15 @@
 /**
  * Refresco diario de los catálogos locales + regeneración del catálogo unificado.
  *
+ * Desde 2026-09-18 este archivo dejó de ser lo que corre el cron de producción — se partió en
+ * dos (ver CONTEXTO_TECNICO.md § "VM: limpieza de RAM/CPU y migración de crons a GitHub Actions"
+ * para el porqué): `refrescarCatalogosGHA.js` corre los scrapers + extras en GitHub Actions
+ * (`.github/workflows/scrapers.yml`, es la parte que más CPU pedía) y `postProcesarCatalogos.js`
+ * corre en la VM el resto (unificar, fotos, promos bancarias, avisos) después de que el workflow
+ * sube los catalogo-*.json frescos por SCP. Este archivo sigue existiendo como fallback manual
+ * (corre TODO en una sola máquina, útil en local o si GitHub Actions no está disponible) y como
+ * fuente de las constantes/helpers que reusan los otros dos (ver exports al final).
+ *
  * Corre los scrapers existentes como SUBPROCESOS, sin refactorizarlos. Es deliberado:
  * tienen lógica de retry/backoff frente a 429 (Carrefour) y 502 intermitentes (Chango Más)
  * que AllPromos/CLAUDE.md pide explícitamente no tocar. Invocarlos como proceso separado es
@@ -254,4 +263,14 @@ if (require.main === module) {
     });
 }
 
-module.exports = { refrescar, refrescarPromosBancarias };
+module.exports = {
+  refrescar,
+  refrescarPromosBancarias,
+  // Reutilizados por refrescarCatalogosGHA.js (corre los scrapers/extras en GitHub Actions,
+  // ver .github/workflows/scrapers.yml) y postProcesarCatalogos.js (el resto, en la VM) —
+  // ver CONTEXTO_TECNICO.md § "VM: limpieza de RAM/CPU y migración de crons a GitHub Actions".
+  SCRAPERS,
+  REFRESCADORES_EXTRAS,
+  correrScraper,
+  DIR_ALLPROMOS,
+};

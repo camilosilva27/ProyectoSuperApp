@@ -1,0 +1,44 @@
+name: Scraping de catálogos
+
+# Corre los 7 scrapers + sus "extras" (la parte que más CPU pedía en la VM, ver
+# CONTEXTO_TECNICO.md § "VM: limpieza de RAM/CPU y migración de crons a GitHub Actions").
+# El repo es público, así que este cron corre gratis sin límite de minutos.
+#
+# `workflow_dispatch` primero para probar a mano; el `schedule` se activa recién cuando esté
+# validado en producción (y ahí se saca refrescarCatalogos.js del crontab de la VM).
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '0 */2 * * *'
+
+jobs:
+  scrapear:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      VM_HOST: ${{ secrets.VM_HOST }}
+      VM_USER: ${{ secrets.VM_USER }}
+      VM_SSH_KEY: ${{ secrets.VM_SSH_KEY }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependencias del backend
+        working-directory: backend
+        run: npm ci
+
+      - name: Bajar catálogos vigentes de la VM
+        run: bash .github/scripts/bajar-catalogos.sh
+
+      - name: Correr scrapers + extras
+        working-directory: backend
+        run: node src/cron/refrescarCatalogosGHA.js
+
+      - name: Subir catálogos y disparar post-proceso en la VM
+        if: always()
+        run: bash .github/scripts/subir-catalogos.sh
