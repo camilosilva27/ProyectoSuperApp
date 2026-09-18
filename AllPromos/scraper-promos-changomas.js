@@ -25,6 +25,7 @@
  */
 
 const fs = require('fs');
+const { guardarCatalogoConGuardrail } = require('./core/guardrailCatalogo');
 
 const BASE_URL = 'https://www.masonline.com.ar';
 const SC = 1;
@@ -150,11 +151,11 @@ async function main() {
     seller: SELLER,
   };
 
-  fs.writeFileSync('./catalogo-changomas.json', JSON.stringify({
+  guardarCatalogoConGuardrail('./catalogo-changomas.json', {
     ...meta,
     total_skus: allSkus.length,
     skus: allSkus,
-  }, null, 2));
+  });
 
   fs.writeFileSync('./promos-changomas.json', JSON.stringify({
     ...meta,

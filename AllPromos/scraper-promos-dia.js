@@ -20,6 +20,7 @@
  */
 
 const fs = require('fs');
+const { guardarCatalogoConGuardrail } = require('./core/guardrailCatalogo');
 
 const BASE_URL = 'https://diaonline.supermercadosdia.com.ar';
 const SC = 1;
@@ -143,11 +144,11 @@ async function main() {
     seller: SELLER,
   };
 
-  fs.writeFileSync('./catalogo-dia.json', JSON.stringify({
+  guardarCatalogoConGuardrail('./catalogo-dia.json', {
     ...meta,
     total_skus: allSkus.length,
     skus: allSkus,
-  }, null, 2));
+  });
 
   fs.writeFileSync('./promos-dia.json', JSON.stringify({
     ...meta,
