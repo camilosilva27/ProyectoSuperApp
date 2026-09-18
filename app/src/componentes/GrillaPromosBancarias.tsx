@@ -21,7 +21,9 @@
 
 import { useQuery } from '@tanstack/react-query';
 import React, { useEffect, useRef } from 'react';
-import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator, Platform, ScrollView, StyleSheet, Text, useWindowDimensions, View,
+} from 'react-native';
 import { type CeldaGrilla, type FilaGrilla, promosBancariasGrilla } from '../api';
 import { espacio, fuentes, radio, texto, usePantallaBaja } from '../theme';
 import { useTema } from '../useTema';
@@ -79,6 +81,19 @@ function etiquetaCelda(celda: CeldaGrilla): string {
 
 type Dimensiones = (typeof DIMENSIONES)[keyof typeof DIMENSIONES];
 
+// Desktop/monitor ancho (≥900px, tablet grande en adelante): las columnas de día se agrandan para
+// llenar el ancho disponible en vez de quedar angostas con scroll horizontal. Tope de 160 (vs. los
+// 92 de DIMENSIONES.normal) para que en un monitor ultra-wide las celdas no queden absurdamente
+// anchas — el contenido de la celda (logo + chip %) no crece, solo respira más.
+const ANCHO_QUIEBRE_DESKTOP = 900;
+const ANCHO_MAXIMO_DIA_DESKTOP = 160;
+
+function calcularAnchoDiaDesktop(anchoVentana: number, anchoSuper: number): number {
+  const anchoDisponible = anchoVentana - espacio.pantalla * 2 - anchoSuper;
+  const anchoPorDia = Math.floor(anchoDisponible / 7);
+  return Math.min(Math.max(anchoPorDia, DIMENSIONES.normal.anchoDia), ANCHO_MAXIMO_DIA_DESKTOP);
+}
+
 function CeldaPromo({
   celda, esHoy, dim,
 }: {
@@ -129,7 +144,12 @@ export function GrillaPromosBancarias({
 }) {
   const { paleta } = useTema();
   const pantallaBaja = usePantallaBaja();
-  const dim = pantallaBaja ? DIMENSIONES.compacta : DIMENSIONES.normal;
+  const { width: anchoVentana } = useWindowDimensions();
+  const dimBase = pantallaBaja ? DIMENSIONES.compacta : DIMENSIONES.normal;
+  const pantallaAncha = anchoVentana >= ANCHO_QUIEBRE_DESKTOP;
+  const dim = pantallaAncha
+    ? { ...dimBase, anchoDia: calcularAnchoDiaDesktop(anchoVentana, dimBase.anchoSuper) }
+    : dimBase;
   const hoy = indiceDiaDeHoy();
   const fechas = fechasDeLaSemana();
   const refScroll = useRef<ScrollView>(null);
