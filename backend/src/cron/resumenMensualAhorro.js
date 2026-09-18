@@ -43,15 +43,15 @@ function armarHtml({ nombre, nombreMes, monto, cantidad }) {
   const saludo = nombre ? `Hola ${nombre},` : 'Hola,';
   const cuerpo = `
     <p style="margin:0 0 16px 0;">${saludo}</p>
-    <p style="margin:0 0 16px 0;">Esto ahorraste en <strong>${nombreMes}</strong> con Super App:</p>
+    <p style="margin:0 0 16px 0;">Esto ahorraste en <strong>${nombreMes}</strong> con SuperAhorro:</p>
     <p style="margin:0 0 16px 0; text-align:center;">
       <span style="display:inline-block; background:${COLOR_ACENTO_SUAVE}; border:2px solid ${COLOR_ACENTO}; color:${COLOR_TEXTO}; padding:6px 16px; border-radius:8px; font-size:1.5em; font-weight:700;">${formatoArs(monto)}</span>
     </p>
     <p style="margin:0 0 16px 0;">ahorrados en ${cantidad} comparaci${cantidad === 1 ? 'ón' : 'ones'} de precios.</p>
-    <p style="margin:0;">Seguí usando Super App para seguir ahorrando!</p>
+    <p style="margin:0;">Seguí usando SuperAhorro para seguir ahorrando!</p>
   `;
   return armarMailBase({
-    preheader: `Esto ahorraste en ${nombreMes} con Super App.`,
+    preheader: `Esto ahorraste en ${nombreMes} con SuperAhorro.`,
     titulo: 'Tu resumen del mes',
     cuerpoHtml: cuerpo,
     cta: { texto: 'Ver mi historial de ahorro', url: `${URL_APP}/mis-ahorros` },
@@ -142,14 +142,14 @@ async function resumenMensualAhorro() {
         const resultado = await enviarMail({
           destinatarioEmail: email,
           destinatarioNombre: perfil.nombre,
-          asunto: `Esto ahorraste en ${nombreMes} con Super App`,
+          asunto: `Esto ahorraste en ${nombreMes} con SuperAhorro`,
           html: armarHtml({ nombre: perfil.nombre, nombreMes, monto, cantidad }),
         });
         if (resultado.ok) enviados++;
         else errores.push(`Falló el mail a ${email}: ${resultado.error}`);
 
         const resultadoPush = await enviarPush(cliente, suscripcionesPush.get(perfil.id) ?? [], {
-          title: 'Super App',
+          title: 'SuperAhorro',
           body: `Esto ahorraste en ${nombreMes}: ${formatoArs(monto)}`,
           url: `${URL_APP}/mis-ahorros`,
         });

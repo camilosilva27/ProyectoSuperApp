@@ -1,4 +1,4 @@
-# Política de Privacidad — Super App
+# Política de Privacidad — SuperAhorro
 
 > Adaptado a los datos que la App realmente guarda (ver `.claude/docs/Plan_Usuarios_y_cobros.md`, `CONTEXTO_TECNICO.md`), no un template genérico. No reemplaza asesoramiento legal — para un lanzamiento con volumen real conviene que un abogado lo revise, pero cubre el piso mínimo razonable para un lanzamiento chico.
 
@@ -6,7 +6,7 @@
 
 ## 1. Quiénes somos
 
-Super App es operada por Camilo Silva, persona física (no hay una empresa/razón social detrás). Contacto: contacto@mi-superapp.com.ar.
+SuperAhorro es operada por Camilo Silva, persona física (no hay una empresa/razón social detrás). Contacto: contacto@mi-superapp.com.ar.
 
 ## 2. Qué datos recolectamos
 

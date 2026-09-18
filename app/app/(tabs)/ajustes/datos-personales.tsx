@@ -27,7 +27,7 @@ export default function PantallaDatosPersonales() {
 
   return (
     <View style={{ flex: 1, backgroundColor: paleta.fondo, paddingTop: insets.top }}>
-      <Head><title>Datos personales - Super App</title></Head>
+      <Head><title>Datos personales - SuperAhorro</title></Head>
       <Text style={[texto.titulo, styles.titulo, { color: paleta.tinta }]}>Datos personales</Text>
 
       <View style={styles.cuerpo}>

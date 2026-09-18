@@ -22,7 +22,7 @@ export default function PantallaNoEncontrada() {
 
   return (
     <View style={[styles.pantalla, { backgroundColor: paleta.fondo }]}>
-      <Head><title>Página no encontrada - Super App</title></Head>
+      <Head><title>Página no encontrada - SuperAhorro</title></Head>
       <HeaderNegro paddingTop={insets.top + espacio.xl}>
         <TituloHeader>Esta página no existe</TituloHeader>
       </HeaderNegro>

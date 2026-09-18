@@ -1,6 +1,6 @@
 {
-  "name": "Super App",
-  "short_name": "Super App",
+  "name": "SuperAhorro",
+  "short_name": "SuperAhorro",
   "description": "Comparador de precios de supermercados.",
   "start_url": "/",
   "display": "standalone",

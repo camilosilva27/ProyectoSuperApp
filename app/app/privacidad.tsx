@@ -23,7 +23,7 @@ export default function PantallaPrivacidad() {
 
   return (
     <View style={{ flex: 1, backgroundColor: paleta.fondo }}>
-      <Head><title>Política de Privacidad - Super App</title></Head>
+      <Head><title>Política de Privacidad - SuperAhorro</title></Head>
       <HeaderNegro paddingTop={insets.top + espacio.xl} estilo={{ gap: espacio.md }}>
         <Pressable onPress={volver} accessibilityRole="button" style={styles.filaVolver}>
           <Text style={styles.flechaVolver}>‹</Text>

@@ -95,7 +95,7 @@ export default function LayoutRaiz() {
   if (!fuentesListas) {
     return (
       <>
-        <Head><title>Super App</title></Head>
+        <Head><title>SuperAhorro</title></Head>
         <View style={{ flex: 1, backgroundColor: paleta.fondo, alignItems: 'center', justifyContent: 'center' }}>
           <Image
             source={require('../assets/splash-icon.png')}
@@ -115,7 +115,7 @@ export default function LayoutRaiz() {
             <ProveedorCarrito>
               <ProveedorCarritosGuardados>
                 <ProveedorHistorialAhorro>
-                  <Head><title>Super App</title></Head>
+                  <Head><title>SuperAhorro</title></Head>
                   <StatusBar style={esquema === 'dark' ? 'light' : 'dark'} />
                   {/* GateSesion envuelve solo la navegación, no los providers de arriba: así,
                       si alguien ya tenía carrito/tarjetas locales de antes de este gate, la

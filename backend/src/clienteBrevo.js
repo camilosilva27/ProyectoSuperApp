@@ -1,5 +1,5 @@
 /**
- * Envío de mails propios de Super App (recibo de pago, resúmenes de ahorro, avisos de trial,
+ * Envío de mails propios de SuperAhorro (recibo de pago, resúmenes de ahorro, avisos de trial,
  * re-engagement — ver .claude/docs/mails_y_notificaciones.md) vía la API HTTP de Brevo.
  *
  * Deliberadamente separado del SMTP de Brevo que ya usa Supabase Auth para sus mails

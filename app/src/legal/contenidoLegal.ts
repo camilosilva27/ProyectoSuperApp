@@ -15,11 +15,11 @@ export type SeccionLegal = { titulo: string; cuerpo: string };
 export const SECCIONES_TERMINOS: SeccionLegal[] = [
   {
     titulo: '1. Aceptación de los términos',
-    cuerpo: 'Al crear una cuenta o usar Super App ("la App"), aceptás estos Términos de Servicio y la Política de Privacidad. Si no estás de acuerdo, no uses la App.\n\nLa App es operada por Camilo Silva, persona física (no hay una empresa/razón social detrás), con contacto en contacto@mi-superapp.com.ar.',
+    cuerpo: 'Al crear una cuenta o usar SuperAhorro ("la App"), aceptás estos Términos de Servicio y la Política de Privacidad. Si no estás de acuerdo, no uses la App.\n\nLa App es operada por Camilo Silva, persona física (no hay una empresa/razón social detrás), con contacto en contacto@mi-superapp.com.ar.',
   },
   {
-    titulo: '2. Qué es Super App',
-    cuerpo: 'Super App es un comparador de precios de supermercados: junta y compara precios, promociones y descuentos bancarios publicados por distintas cadenas para ayudarte a armar tu compra más barata.\n\nSuper App no vende productos, no procesa compras de supermercado ni es parte de ninguna transacción entre vos y el supermercado. Los precios y promos pueden tener errores, demoras o quedar desactualizados — siempre confirmá el precio final en el supermercado antes de pagar.',
+    titulo: '2. Qué es SuperAhorro',
+    cuerpo: 'SuperAhorro es un comparador de precios de supermercados: junta y compara precios, promociones y descuentos bancarios publicados por distintas cadenas para ayudarte a armar tu compra más barata.\n\nSuperAhorro no vende productos, no procesa compras de supermercado ni es parte de ninguna transacción entre vos y el supermercado. Los precios y promos pueden tener errores, demoras o quedar desactualizados — siempre confirmá el precio final en el supermercado antes de pagar.',
   },
   {
     titulo: '3. Cuenta de usuario',
@@ -47,7 +47,7 @@ export const SECCIONES_TERMINOS: SeccionLegal[] = [
   },
   {
     titulo: '9. Propiedad intelectual',
-    cuerpo: 'El diseño, marca, logo y código de Super App nos pertenecen (o están licenciados para nuestro uso). Los logos de los supermercados pertenecen a sus respectivas cadenas y se usan solo con fines identificatorios.',
+    cuerpo: 'El diseño, marca, logo y código de SuperAhorro nos pertenecen (o están licenciados para nuestro uso). Los logos de los supermercados pertenecen a sus respectivas cadenas y se usan solo con fines identificatorios.',
   },
   {
     titulo: '10. Exactitud de la información',
@@ -78,7 +78,7 @@ export const SECCIONES_TERMINOS: SeccionLegal[] = [
 export const SECCIONES_PRIVACIDAD: SeccionLegal[] = [
   {
     titulo: '1. Quiénes somos',
-    cuerpo: 'Super App es operada por Camilo Silva, persona física (no hay una empresa/razón social detrás). Contacto: contacto@mi-superapp.com.ar.',
+    cuerpo: 'SuperAhorro es operada por Camilo Silva, persona física (no hay una empresa/razón social detrás). Contacto: contacto@mi-superapp.com.ar.',
   },
   {
     titulo: '2. Qué datos recolectamos',

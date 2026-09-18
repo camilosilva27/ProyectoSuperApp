@@ -171,7 +171,7 @@ export default function PantallaResultado() {
 
   return (
     <View style={{ flex: 1, backgroundColor: paleta.fondo }}>
-      <Head><title>Dónde comprar - Super App</title></Head>
+      <Head><title>Dónde comprar - SuperAhorro</title></Head>
       <HeaderVeredicto
         data={data}
         insets={insets}

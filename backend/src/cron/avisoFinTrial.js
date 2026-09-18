@@ -31,7 +31,7 @@ function armarHtml({ nombre, diasRestantes }) {
   const cuando = diasRestantes <= 0 ? 'hoy' : `en ${diasRestantes} día${diasRestantes === 1 ? '' : 's'}`;
   const cuerpo = `
     <p style="margin:0 0 16px 0;">${saludo}</p>
-    <p style="margin:0 0 16px 0;">Tu prueba gratis de Super App termina <strong>${cuando}</strong>.</p>
+    <p style="margin:0 0 16px 0;">Tu prueba gratis de SuperAhorro termina <strong>${cuando}</strong>.</p>
     <p style="margin:0;">Si querés seguir comparando precios y viendo cuánto ahorrás, suscribite antes de que
     termine. Podés hacerlo desde Ajustes en la app.</p>
   `;
@@ -94,7 +94,7 @@ async function avisoFinTrial() {
         const resultado = await enviarMail({
           destinatarioEmail: email,
           destinatarioNombre: perfil.nombre,
-          asunto: 'Tu prueba de Super App está por terminar',
+          asunto: 'Tu prueba de SuperAhorro está por terminar',
           html: armarHtml({ nombre: perfil.nombre, diasRestantes }),
         });
         if (resultado.ok) {
@@ -109,7 +109,7 @@ async function avisoFinTrial() {
         }
 
         const resultadoPush = await enviarPush(cliente, suscripcionesPush.get(perfil.id) ?? [], {
-          title: 'Super App',
+          title: 'SuperAhorro',
           body: `Tu prueba gratis termina ${diasRestantes <= 0 ? 'hoy' : `en ${diasRestantes} día${diasRestantes === 1 ? '' : 's'}`}. Suscribite desde Ajustes.`,
           url: `${URL_APP}/ajustes`,
         });

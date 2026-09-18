@@ -1,4 +1,4 @@
-# Términos de Servicio — Super App
+# Términos de Servicio — SuperAhorro
 
 > Estructura adaptada de templates estándar de ToS para apps/SaaS (Termly), recortada a lo que aplica acá y con el contexto real de la app (Supabase, Mercado Pago). No reemplaza asesoramiento legal — para un lanzamiento con volumen real conviene que un abogado lo revise, pero cubre el piso mínimo razonable para un lanzamiento chico.
 
@@ -6,15 +6,15 @@
 
 ## 1. Aceptación de los términos
 
-Al crear una cuenta o usar Super App ("la App"), aceptás estos Términos de Servicio y la [Política de Privacidad](./POLITICA_DE_PRIVACIDAD.md). Si no estás de acuerdo, no uses la App.
+Al crear una cuenta o usar SuperAhorro ("la App"), aceptás estos Términos de Servicio y la [Política de Privacidad](./POLITICA_DE_PRIVACIDAD.md). Si no estás de acuerdo, no uses la App.
 
 La App es operada por Camilo Silva, persona física (no hay una empresa/razón social detrás), con contacto en contacto@mi-superapp.com.ar.
 
-## 2. Qué es Super App
+## 2. Qué es SuperAhorro
 
-Super App es un comparador de precios de supermercados: junta y compara precios, promociones y descuentos bancarios publicados por distintas cadenas (Coto, Día, Vea, Carrefour, Jumbo, Disco, Chango Más) para ayudarte a armar tu compra más barata.
+SuperAhorro es un comparador de precios de supermercados: junta y compara precios, promociones y descuentos bancarios publicados por distintas cadenas (Coto, Día, Vea, Carrefour, Jumbo, Disco, Chango Más) para ayudarte a armar tu compra más barata.
 
-**Super App no vende productos, no procesa compras de supermercado ni es parte de ninguna transacción entre vos y el supermercado.** Los precios y promos que mostramos provienen de fuentes públicas de cada cadena y pueden tener errores, demoras o quedar desactualizados — siempre confirmá el precio final en el supermercado antes de pagar. No nos hacemos responsables por diferencias entre el precio mostrado en la App y el precio real en caja.
+**SuperAhorro no vende productos, no procesa compras de supermercado ni es parte de ninguna transacción entre vos y el supermercado.** Los precios y promos que mostramos provienen de fuentes públicas de cada cadena y pueden tener errores, demoras o quedar desactualizados — siempre confirmá el precio final en el supermercado antes de pagar. No nos hacemos responsables por diferencias entre el precio mostrado en la App y el precio real en caja.
 
 ## 3. Cuenta de usuario
 
@@ -63,7 +63,7 @@ Nos reservamos el derecho de suspender o cancelar cuentas que violen estas condi
 
 ## 9. Propiedad intelectual
 
-El diseño, marca, logo y código de Super App nos pertenecen (o están licenciados para nuestro uso). Los logos de los supermercados que aparecen en la App pertenecen a sus respectivas cadenas y se usan solo con fines identificatorios/informativos.
+El diseño, marca, logo y código de SuperAhorro nos pertenecen (o están licenciados para nuestro uso). Los logos de los supermercados que aparecen en la App pertenecen a sus respectivas cadenas y se usan solo con fines identificatorios/informativos.
 
 ## 10. Exactitud de la información — sin garantías
 

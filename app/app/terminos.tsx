@@ -25,7 +25,7 @@ export default function PantallaTerminos() {
 
   return (
     <View style={{ flex: 1, backgroundColor: paleta.fondo }}>
-      <Head><title>Términos de Servicio - Super App</title></Head>
+      <Head><title>Términos de Servicio - SuperAhorro</title></Head>
       <HeaderNegro paddingTop={insets.top + espacio.xl} estilo={{ gap: espacio.md }}>
         <Pressable onPress={volver} accessibilityRole="button" style={styles.filaVolver}>
           <Text style={styles.flechaVolver}>‹</Text>

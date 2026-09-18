@@ -57,7 +57,7 @@ export default function PantallaAhorros() {
 
   return (
     <View style={{ flex: 1, backgroundColor: paleta.fondo }}>
-      <Head><title>Mis ahorros - Super App</title></Head>
+      <Head><title>Mis ahorros - SuperAhorro</title></Head>
       <HeaderNegro
         paddingTop={pantallaBaja ? espacio.md : espacio.xxl}
         estilo={{ paddingBottom: espacio.xl, gap: espacio.md }}
@@ -71,7 +71,7 @@ export default function PantallaAhorros() {
               : `Ahorraste ${pesosCorto(resumen.totalMonto)} en ${textoComparaciones(resumen.totalConteo)}`
           }
         >
-          <Text style={[texto.tituloSeccion, { color: paleta.oferta }]}>Desde que usás Super App</Text>
+          <Text style={[texto.tituloSeccion, { color: paleta.oferta }]}>Desde que usás SuperAhorro</Text>
           <Text style={[styles.montoTotal, { color: paleta.oferta }]}>{pesosCorto(resumen.totalMonto)}</Text>
           <Text style={[texto.cuerpoMedio, { color: '#FFFFFF' }]}>{subtituloHeader}</Text>
         </View>

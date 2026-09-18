@@ -36,7 +36,7 @@ export default function PantallaAyuda() {
 
   return (
     <View style={{ flex: 1, backgroundColor: paleta.fondo, paddingTop: insets.top }}>
-      <Head><title>Ayuda - Super App</title></Head>
+      <Head><title>Ayuda - SuperAhorro</title></Head>
       <Text style={[texto.titulo, styles.titulo, { color: paleta.tinta }]}>Ayuda</Text>
 
       <View style={styles.cuerpo}>

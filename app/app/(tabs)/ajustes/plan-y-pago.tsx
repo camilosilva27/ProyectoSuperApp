@@ -101,7 +101,7 @@ export default function PantallaPlanYPago() {
 
   return (
     <View style={{ flex: 1, backgroundColor: paleta.fondo, paddingTop: insets.top }}>
-      <Head><title>Plan y pago - Super App</title></Head>
+      <Head><title>Plan y pago - SuperAhorro</title></Head>
       <PlanSelect
         precios={precios}
         suscripcion={estadoSuscripcionActiva(infoPlan)}
