@@ -90,7 +90,16 @@ export function BarraDiferencia({
         <FilaSuper
           key={opcion.key}
           opcion={opcion}
-          delta={mejor ? opcion.total - mejor.total : 0}
+          // `mejor` es la más barata de las opciones EN PLAN — una opción fuera de tope puede
+          // ser más barata en la realidad (el tope solo limita cuántos supers visitar, no
+          // garantiza que los elegidos sean los más baratos para cada producto puntual). Sin
+          // el `Math.max(0, ...)` acá, ese caso da `delta` negativo → `porcentaje` negativo →
+          // `Math.sqrt` de un negativo → `NaN` → crash real de `Animated.interpolate` ("invalid
+          // pattern 0% and NaN%"), encontrado en vivo eligiendo un tope que dejaba afuera al
+          // super más barato de un producto. No se la muestra como "MÁS BARATO" (ver `esMejor`
+          // más abajo, a propósito: el usuario ya eligió no visitar ese super) — clampeado a 0
+          // en vez de mostrar un sobreprecio negativo sin sentido.
+          delta={mejor ? Math.max(0, opcion.total - mejor.total) : 0}
           totalMejor={mejor ? mejor.total : opcion.total}
           esMejor={opciones.length === 0 && i === 0}
           estiloIdentidad={estiloIdentidadDe(paleta, opcion.key)}
@@ -162,7 +171,10 @@ function FilaSuper({
   // "Cuánto % más caro que la mejor opción" — comparable entre productos y entre cantidad
   // de alternativas, a diferencia de normalizar contra la diferencia máxima (ver comentario
   // de arriba). Techo en 100% para que un caso extremo no rompa el layout.
-  const porcentaje = totalMejor > 0 ? Math.min(100, (delta / totalMejor) * 100) : 0;
+  // `Math.max(0, ...)`: red de seguridad además del clamp en `delta` de las filas "fuera de
+  // tope" (ver más arriba) — un `delta` negativo acá haría `Math.sqrt` de un negativo más
+  // abajo, `NaN`, y `Animated.interpolate` tira un error real con eso en el `outputRange`.
+  const porcentaje = totalMejor > 0 ? Math.max(0, Math.min(100, (delta / totalMejor) * 100)) : 0;
   // Raíz cuadrada, no lineal: en la práctica casi todas las diferencias reales caen entre 2%
   // y 15% (un segundo viaje rara vez duplica el precio), así que una escala lineal dejaba casi
   // todas las barras apiladas cerca del piso — se notaba la diferencia en el número ("+$90" vs
