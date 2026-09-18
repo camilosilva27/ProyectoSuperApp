@@ -527,6 +527,18 @@ Bugs reales encontrados y corregidos al verificar en navegador (no al implementa
   SVG bajado de Wikimedia Commons) — visualmente parecido a un logo del súper pero no lo es.
   Reemplazado por `Carrefour_Groupe.svg` (el isologo real, flecha roja/azul) de Wikipedia.
 
+**Responsive en monitores anchos (2026-09-17):** hasta esta fecha `dim` (ancho de columnas/celdas)
+solo dependía de `usePantallaBaja` (alto de viewport). Se agregó un segundo eje, ancho de viewport,
+con el mismo patrón local que `GateSesion.tsx`/`PlanSelect.tsx` (`useWindowDimensions` + umbral
+propio, no hay un hook compartido de breakpoints en la app). Por debajo de **900px** de ancho el
+comportamiento es idéntico a antes (scroll horizontal, `anchoDia` fijo de `DIMENSIONES`). Por encima,
+`calcularAnchoDiaDesktop()` reparte el ancho disponible (ventana − padding de pantalla − columna de
+supers) entre los 7 días, con un tope de **160px** por columna para no estirarse de forma absurda en
+un monitor ultra-wide — el contenido de la celda (logo + chip %) no crece, solo tiene más aire
+alrededor. Decisión del usuario: preferencia explícita por "llenar el ancho sin scroll" en vez de
+mantener tamaño fijo y centrar, con el breakpoint de 900px (no 1024/1280) para que ya se note la
+mejora en laptops chicas.
+
 ---
 
 ## Tope de supers — cantidad máxima de viajes (hoja "Qué supers comparar")
