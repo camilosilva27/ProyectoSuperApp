@@ -70,6 +70,36 @@ export function refDeTarget(id: PasoId): React.RefObject<unknown> | undefined {
   return targets.get(id);
 }
 
+/** Nombres de ruta de pestaña que ya recibieron un toque real de la barra inferior (evento
+ *  `tabPress`, ver `screenListeners` en `_layout.tsx`). Registrado ahí (el navegador de tabs,
+ *  montado siempre) y no en cada pantalla individual: las pestañas son `lazy` por defecto, así
+ *  que la primera vez que el usuario toca "Descuentos" o "Buscar", ese mismo toque es lo que
+ *  MONTA la pantalla — un listener puesto en un `useEffect` de la propia pantalla se suscribe
+ *  recién después del montaje, demasiado tarde para el evento que lo causó (bug real: el paso
+ *  del tour quedaba pidiendo un segundo toque sobre una pestaña ya abierta). */
+const pestanasTocadas = new Set<string>();
+const oyentesPestanas = new Set<() => void>();
+
+export function tourMarcarTabPress(nombreRuta: string) {
+  if (pestanasTocadas.has(nombreRuta)) return;
+  pestanasTocadas.add(nombreRuta);
+  oyentesPestanas.forEach(o => o());
+}
+
+/** `cumplido` para `useTourPaso` de los pasos que piden tocar una pestaña puntual
+ *  ('tab-descuentos', 'volver-buscar') — reemplaza al listener local de `tabPress` que cada
+ *  pantalla registraba en su propio `useEffect` (ver el comentario de `pestanasTocadas`). */
+export function useTourTabPresionado(nombreRuta: string): boolean {
+  return useSyncExternalStore(
+    cb => {
+      oyentesPestanas.add(cb);
+      return () => oyentesPestanas.delete(cb);
+    },
+    () => pestanasTocadas.has(nombreRuta),
+    () => pestanasTocadas.has(nombreRuta)
+  );
+}
+
 /** Reportado una vez por la pantalla Buscar (ver index.tsx) — es un dato físico de layout, no
  *  una condición de avance, por eso no pasa por `useTourPaso`. */
 let altoTabBarReportado: number | null = null;

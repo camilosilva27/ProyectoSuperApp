@@ -14,17 +14,12 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { useFocusEffect, useNavigation } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import Head from 'expo-router/head';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
-// `BottomTabNavigationProp` es el tipo del `navigation` de acá abajo — el genérico de
-// `useNavigation()` no conoce el evento 'tabPress', que sí trae el de bottom-tabs (mismo import
-// que ya usa index.tsx para `useBottomTabBarHeight`: no hay `@react-navigation/bottom-tabs`
-// instalado aparte, expo-router vendorea el suyo).
-import type { BottomTabNavigationProp } from 'expo-router/build/react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ErrorApi, misDescuentos } from '../../src/api';
 import { useAuth } from '../../src/auth';
@@ -32,7 +27,9 @@ import { useCarrito } from '../../src/carrito';
 import { Cargando, FilaToggleAnimada, Problema } from '../../src/componentes/comunes';
 import { HeaderNegro, TituloHeader } from '../../src/componentes/HeaderNegro';
 import { espacio, radio, texto } from '../../src/theme';
-import { useEstadoTour, useTour, useTourPaso } from '../../src/tour/TourContext';
+import {
+  useEstadoTour, useTour, useTourPaso, useTourTabPresionado,
+} from '../../src/tour/TourContext';
 import { useTema } from '../../src/useTema';
 
 // Nombre exacto tal como lo devuelve el backend en `Descuento.nombre` — el paso del tour que
@@ -66,13 +63,12 @@ export default function PantallaMisDescuentos() {
   // a propósito. NO mira el foco (`useFocusEffect`/`usePathname`), como estaba antes: cualquier
   // transición real de foco cuenta ahí, alcanzable en el build web con el botón atrás/adelante
   // del navegador o una URL tipeada a mano, sin tocar la pestaña que el tour resalta (bug real,
-  // encontrado en auditoría). El evento `tabPress` de React Navigation SOLO lo emite el propio
-  // botón de la barra al tocarlo (ver BottomTabBar.js vendoreado por expo-router) — ninguna
-  // navegación programática (deep link, historial del navegador, otro paso del tour) lo dispara,
-  // así que es la señal correcta de "el usuario tocó esta pestaña", sin falsos positivos.
-  const navigation = useNavigation<BottomTabNavigationProp<Record<string, object | undefined>>>();
-  const [tocoPestana, setTocoPestana] = useState(false);
-  useEffect(() => navigation.addListener('tabPress', () => setTocoPestana(true)), [navigation]);
+  // encontrado en auditoría). `useTourTabPresionado` mira el evento `tabPress` registrado en
+  // `_layout.tsx` (el navegador de tabs, siempre montado) en vez de un listener puesto acá: esta
+  // pantalla es `lazy` y no está montada la primera vez que el usuario toca "Descuentos" — ese
+  // mismo toque monta la pantalla, así que un listener puesto en un efecto de acá llegaba
+  // siempre un toque tarde (bug real: el paso pedía tocar la pestaña una segunda vez).
+  const tocoPestana = useTourTabPresionado('mis-descuentos');
   useTourPaso('tab-descuentos', tocoPestana);
 
   // NO mira `carrito.tarjetas.includes(...)`: si la cuenta ya tenía Mercado Pago activado de

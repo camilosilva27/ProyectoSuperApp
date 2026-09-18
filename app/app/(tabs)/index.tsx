@@ -13,7 +13,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -21,10 +21,8 @@ import {
 } from 'react-native';
 // expo-router (v57) vendorea su propio bottom-tabs y no lo reexporta desde el root del
 // paquete: no hay `@react-navigation/bottom-tabs` instalado por separado, así que este es
-// el único import que existe hoy para este hook. `BottomTabNavigationProp` es el tipo del
-// `navigation` de acá abajo (el genérico de `useNavigation()` no conoce el evento 'tabPress',
-// que sí trae el de bottom-tabs).
-import { useBottomTabBarHeight, type BottomTabNavigationProp } from 'expo-router/build/react-navigation/bottom-tabs';
+// el único import que existe hoy para este hook.
+import { useBottomTabBarHeight } from 'expo-router/build/react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   buscarProductos, ErrorApi, precios as pedirPrecios, MAX_EANS_PRECIOS,
@@ -43,7 +41,7 @@ import { useFiltrosSupers } from '../../src/filtrosSupers';
 import { espacio, pesos, radio, texto, usePantallaBaja } from '../../src/theme';
 import {
   avanzarTour, tourReportarAltoTabBar, tourRegistrarReinicio, tourYaVisto,
-  useCerrarModalDeTour, useTour, useTourPaso,
+  useCerrarModalDeTour, useTour, useTourPaso, useTourTabPresionado,
 } from '../../src/tour/TourContext';
 import { useTema } from '../../src/useTema';
 
@@ -140,7 +138,6 @@ export default function PantallaBuscar() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const router = useRouter();
-  const navigation = useNavigation<BottomTabNavigationProp<Record<string, object | undefined>>>();
   const carrito = useCarrito();
   const tour = useTour();
   const { session, cargando: cargandoSesion } = useAuth();
@@ -190,11 +187,10 @@ export default function PantallaBuscar() {
   // 'volver-buscar' (ver pasos.ts): pide el toque real sobre la pestaña Buscar en vez de que
   // 'mercado-pago' navegue solo. NO mira el foco (`useFocusEffect`) como antes: cualquier
   // transición real de foco cuenta ahí, alcanzable en el build web con atrás/adelante del
-  // navegador o una URL a mano, sin tocar la pestaña resaltada (bug real, auditoría). `tabPress`
-  // (mismo mecanismo que 'tab-descuentos' en mis-descuentos.tsx) solo lo emite el propio botón
-  // de la barra al tocarlo, nunca una navegación programática.
-  const [tocoPestanaBuscar, setTocoPestanaBuscar] = useState(false);
-  useEffect(() => navigation.addListener('tabPress', () => setTocoPestanaBuscar(true)), [navigation]);
+  // navegador o una URL a mano, sin tocar la pestaña resaltada (bug real, auditoría).
+  // `useTourTabPresionado` (mismo mecanismo que 'tab-descuentos' en mis-descuentos.tsx) mira el
+  // `tabPress` registrado en `_layout.tsx` en vez de un listener puesto acá.
+  const tocoPestanaBuscar = useTourTabPresionado('index');
   useTourPaso('volver-buscar', tocoPestanaBuscar);
 
   // Cierra la hoja sola si quedó abierta de una navegación anterior (blur de la tab o arranque

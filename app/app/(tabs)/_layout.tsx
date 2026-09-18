@@ -19,19 +19,36 @@
  */
 
 import { Tabs } from 'expo-router';
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Platform, StyleSheet, Text, View, type ColorValue } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { useCarrito } from '../../src/carrito';
 import { radio, texto } from '../../src/theme';
+import { tourMarcarTabPress } from '../../src/tour/TourContext';
 import { useTema } from '../../src/useTema';
 
 export default function LayoutPestanas() {
   const { paleta } = useTema();
   const { totalUnidades } = useCarrito();
 
+  // Identidad estable entre renders (`useCallback`, sin deps): `LayoutPestanas` se re-renderiza
+  // seguido (cambia `totalUnidades` con cada toque del carrito) y una función nueva en cada
+  // render como `screenListeners` le hace resuscribir los listeners del navegador de tabs en
+  // cada una de esas renders — encontrado en vivo como un toque real sobre una pestaña que
+  // avanzaba el paso del tour (el listener SÍ corría) pero no llegaba a navegar (el mismo toque,
+  // ya con los listeners resuscritos a mitad de su propio manejo, no completaba el dispatch de
+  // navegación por defecto).
+  const listenersDePestana = useCallback(({ route }: { route: { name: string } }) => ({
+    tabPress: () => tourMarcarTabPress(route.name),
+  }), []);
+
   return (
     <Tabs
+      // Se declara acá (el navegador de tabs, montado toda la vida de la app) y no en cada
+      // pantalla: así el toque real sobre una pestaña queda registrado aunque ese mismo toque
+      // sea el que recién está montando la pantalla `lazy` de destino (ver `tourMarcarTabPress`
+      // en TourContext.tsx).
+      screenListeners={listenersDePestana}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: paleta.tinta,
