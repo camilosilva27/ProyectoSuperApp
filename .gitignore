@@ -16,6 +16,10 @@ AllPromos/*.json.tmp.*
 # se borra solo al terminar con éxito, esto es solo por si queda alguno a mitad de camino.
 AllPromos/.checkpoint-*.json
 
+# Timestamp de corrida que refrescarCatalogosGHA.js le pasa a postProcesarCatalogos.js (ver
+# .github/scripts/subir-catalogos.sh) — solo tiene sentido durante una corrida puntual.
+AllPromos/.corrida-en
+
 # Fotos de producto descargadas una sola vez (ver backend/src/cron/descargarImagenes.js) —
 # miles de archivos, se regeneran solas la primera vez que falten, no tiene sentido versionarlas.
 backend/imagenes/
