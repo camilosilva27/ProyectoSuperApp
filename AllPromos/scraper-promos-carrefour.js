@@ -114,7 +114,15 @@ async function main() {
 
   while (true) {
     try {
-      const { skus, count } = await getCatalogPage(from, from + PAGE_SIZE - 1);
+      let { skus, count } = await getCatalogPage(from, from + PAGE_SIZE - 1);
+      if (count < PAGE_SIZE) {
+        // Página corta: puede ser el fin real del catálogo, o un corte transitorio
+        // de VTEX (índice con lag) — confirmar antes de darla por terminada.
+        for (let intento = 0; count < PAGE_SIZE && intento < 2; intento++) {
+          await sleep(3000);
+          ({ skus, count } = await getCatalogPage(from, from + PAGE_SIZE - 1));
+        }
+      }
       allSkus.push(...skus);
       process.stdout.write(`\r  ${allSkus.length} SKUs recolectados...`);
       if (count < PAGE_SIZE) break;
