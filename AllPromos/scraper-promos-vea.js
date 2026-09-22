@@ -31,9 +31,24 @@ const HEADERS = {
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-async function getCatalogPage(from, to) {
+async function getCatalogPage(from, to, retries = 3) {
   const url = `${BASE_URL}/api/catalog_system/pub/products/search?_from=${from}&_to=${to}&sc=${SC}`;
-  const res = await fetch(url, { headers: HEADERS });
+  let res;
+  try {
+    res = await fetch(url, { headers: HEADERS });
+  } catch (err) {
+    if (retries > 0) {
+      process.stdout.write(' [error de red, esperando 10s]');
+      await sleep(10000);
+      return getCatalogPage(from, to, retries - 1);
+    }
+    throw err;
+  }
+  if ((res.status === 429 || res.status >= 500) && retries > 0) {
+    process.stdout.write(` [${res.status}, esperando 10s]`);
+    await sleep(10000);
+    return getCatalogPage(from, to, retries - 1);
+  }
   if (!res.ok) throw new Error(`Catálogo falló: ${res.status} ${res.statusText}`);
 
   const products = await res.json();

@@ -212,7 +212,17 @@ async function buscarPorEAN(ean, retries = 3) {
   const url = `${AUTOCOMPLETE_URL}/${encodeURIComponent(ean)}`
     + `?c=${CLIENT}&key=${KEY}`
     + `&num_results_Products=3&num_results_Search+Suggestions=0&num_results_Brands=0&num_results_Categories=0`;
-  const res = await fetch(url, { headers: HEADERS });
+  let res;
+  try {
+    res = await fetch(url, { headers: HEADERS });
+  } catch (err) {
+    if (retries > 0) {
+      process.stdout.write(' [error de red, esperando 10s]');
+      await sleep(10000);
+      return buscarPorEAN(ean, retries - 1);
+    }
+    throw err;
+  }
 
   if ((res.status === 429 || res.status === 500 || res.status === 502 || res.status === 503) && retries > 0) {
     process.stdout.write(` [${res.status}, esperando 10s]`);
@@ -248,7 +258,17 @@ async function pool(items, concurrency, fn, onItem) {
 
 async function getOfertasPage(page, retries = 3) {
   const url = `${OFERTAS_URL}?key=${KEY}&num_results_per_page=${OFERTAS_PAGE_SIZE}&page=${page}`;
-  const res = await fetch(url, { headers: HEADERS });
+  let res;
+  try {
+    res = await fetch(url, { headers: HEADERS });
+  } catch (err) {
+    if (retries > 0) {
+      process.stdout.write(' [error de red, esperando 10s]');
+      await sleep(10000);
+      return getOfertasPage(page, retries - 1);
+    }
+    throw err;
+  }
   if ((res.status === 429 || res.status === 500 || res.status === 502 || res.status === 503) && retries > 0) {
     process.stdout.write(` [${res.status}, esperando 10s]`);
     await sleep(10000);

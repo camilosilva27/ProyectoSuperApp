@@ -67,11 +67,19 @@ function getJSON(url, retries = 3) {
       res.on('end', () => {
         try { resolve(JSON.parse(body)); } catch (err) { reject(err); }
       });
-    }).on('error', reject);
+    }).on('error', err => {
+      // Error de conexión (timeout, reset, DNS) — no llegó a haber status code, así que no lo
+      // atrapa el retry de arriba. Mismo backoff de 10s.
+      if (retries > 0) {
+        sleep(10000).then(() => resolve(getJSON(url, retries - 1)));
+        return;
+      }
+      reject(err);
+    });
   });
 }
 
-function postJSON(url, body) {
+function postJSON(url, body, retries = 3) {
   return new Promise((resolve, reject) => {
     const payload = JSON.stringify(body);
     const req = https.request(url, {
@@ -79,12 +87,25 @@ function postJSON(url, body) {
       agent: AGENTE_SIN_KEEPALIVE,
       headers: { ...HEADERS, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
     }, res => {
+      if ((res.statusCode === 429 || res.statusCode >= 500) && retries > 0) {
+        res.resume();
+        sleep(10000).then(() => resolve(postJSON(url, body, retries - 1)));
+        return;
+      }
       if (res.statusCode !== 200) { res.resume(); resolve(null); return; }
       let chunk = '';
       res.on('data', c => { chunk += c; });
       res.on('end', () => { try { resolve(JSON.parse(chunk)); } catch { resolve(null); } });
     });
-    req.on('error', () => resolve(null));
+    // Solo lote de promos, no el precio en sí — si se agotan los reintentos, resolve(null) deja
+    // ese lote sin promo esta corrida en vez de tirar abajo todo el completador.
+    req.on('error', () => {
+      if (retries > 0) {
+        sleep(10000).then(() => resolve(postJSON(url, body, retries - 1)));
+        return;
+      }
+      resolve(null);
+    });
     req.write(payload);
     req.end();
   });

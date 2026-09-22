@@ -49,7 +49,16 @@ function getJSON(url, headers, retries = 3) {
       res.on('end', () => {
         try { resolve(JSON.parse(body)); } catch (err) { reject(err); }
       });
-    }).on('error', reject);
+    }).on('error', err => {
+      // Error de conexión (timeout, reset, DNS) — no llegó a haber status code, así que no lo
+      // atrapa el retry de arriba. Mismo backoff de 10s, para no perder el lote entero por un
+      // corte de red puntual.
+      if (retries > 0) {
+        sleep(10000).then(() => resolve(getJSON(url, headers, retries - 1)));
+        return;
+      }
+      reject(err);
+    });
   });
 }
 

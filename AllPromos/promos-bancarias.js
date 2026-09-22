@@ -25,6 +25,22 @@
 const fs   = require('fs');
 const path = require('path');
 
+// Reintento simple para errores de conexión (timeout, reset, DNS) — no para status HTTP, que
+// cada fetch*() ya trata como "fuente caída" (`fetch_failed`) sin reintentar, a propósito: son
+// pocos supers y esto corre cada 2hs, así que perder un ciclo por un 5xx real no es grave. Un
+// corte de red puntual sí vale la pena reintentar antes de resignarse.
+async function fetchConReintento(url, opts, retries = 2) {
+  try {
+    return await fetch(url, opts);
+  } catch (err) {
+    if (retries > 0) {
+      await new Promise(r => setTimeout(r, 3000));
+      return fetchConReintento(url, opts, retries - 1);
+    }
+    throw err;
+  }
+}
+
 // Hashes de las queries GraphQL persistidas de VTEX. Son específicos de la versión
 // desplegada de cada app (valtech.carrefourar-bank-promotions / valtech.gdn-banks-promotions)
 // y pueden romperse sin aviso si el super actualiza la app — ver detectarHashRoto() más abajo.
@@ -231,7 +247,7 @@ const WEBSITE_TAGS_POR_SUPER = {
 
 async function fetchCencosud(superNombre) {
   try {
-    const res = await fetch('https://www.vea.com.ar/api/dataentities/JN/documents/bankDiscount?_fields=value,id&an=jumboargentina');
+    const res = await fetchConReintento('https://www.vea.com.ar/api/dataentities/JN/documents/bankDiscount?_fields=value,id&an=jumboargentina');
     if (!res.ok) return { promos: [], error: 'fetch_failed' };
     const arr = JSON.parse((await res.json()).value);
     const tags = WEBSITE_TAGS_POR_SUPER[superNombre];
@@ -278,7 +294,7 @@ async function fetchGraphQL(host, operationName, hash, variablesObj) {
     const extensions = { persistedQuery: { version: 1, sha256Hash: hash } };
     if (variablesObj) extensions.variables = Buffer.from(JSON.stringify(variablesObj)).toString('base64');
     const url = `${host}/_v/public/graphql/v1?operationName=${operationName}&extensions=${encodeURIComponent(JSON.stringify(extensions))}`;
-    const res = await fetch(url, { headers: { Accept: 'application/json' } });
+    const res = await fetchConReintento(url, { headers: { Accept: 'application/json' } });
     const data = await res.json();
     if (data.errors) {
       const msg = data.errors[0]?.message || '';
@@ -461,7 +477,7 @@ function extraerTopeTextoLibre(texto) {
 
 async function fetchDia() {
   try {
-    const res = await fetch(`${DIA_HOST}${DIA_PROMOS_PATH}`, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    const res = await fetchConReintento(`${DIA_HOST}${DIA_PROMOS_PATH}`, { headers: { 'User-Agent': 'Mozilla/5.0' } });
     if (!res.ok) return { promos: [], error: 'fetch_failed' };
     const html = await res.text();
 
@@ -583,7 +599,7 @@ const ICONO_BANCO_COTO = {
 
 async function fetchCoto() {
   try {
-    const res = await fetch(COTO_PROMOS_URL, { headers: { Accept: 'application/json' } });
+    const res = await fetchConReintento(COTO_PROMOS_URL, { headers: { Accept: 'application/json' } });
     if (!res.ok) return { promos: [], error: 'fetch_failed' };
     const data = await res.json();
     const raiz = data?.result;
