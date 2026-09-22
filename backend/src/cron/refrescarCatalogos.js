@@ -41,7 +41,7 @@ const path = require('path');
 const { execFile } = require('child_process');
 const { rutaLogs } = require('../config');
 const { unificar } = require('./unificarCatalogo');
-const { leerJSON, diffProductos, diffPromosSuper, registrarDiff, estadoPromoPorEan } = require('./diffCatalogos');
+const { leerJSON, diffProductos, diffPromosSuper, registrarDiff, registrarError, estadoPromoPorEan } = require('./diffCatalogos');
 const { avisarProductosSeguidos } = require('../avisoProductosSeguidos');
 
 const DIR_ALLPROMOS = path.join(__dirname, '..', '..', '..', 'AllPromos');
@@ -72,12 +72,12 @@ const SCRAPERS = [
 // ~2h42min que tarda buscar candidatos nuevos) — por eso esto sí entra en el cron de 2hs y la
 // búsqueda de candidatos nuevos queda en un cron aparte, mensual.
 const REFRESCADORES_EXTRAS = [
-  { nombre: 'Vea (extras)',        archivo: 'refrescar-precio-extras-vea.js',        timeoutMs: 5 * 60 * 1000 },
-  { nombre: 'Carrefour (extras)',  archivo: 'refrescar-precio-extras-carrefour.js',  timeoutMs: 5 * 60 * 1000 },
-  { nombre: 'Chango Más (extras)', archivo: 'refrescar-precio-extras-changomas.js',  timeoutMs: 5 * 60 * 1000 },
-  { nombre: 'Día (extras)',        archivo: 'refrescar-precio-extras-dia.js',        timeoutMs: 5 * 60 * 1000 },
-  { nombre: 'Jumbo (extras)',      archivo: 'refrescar-precio-extras-jumbo.js',      timeoutMs: 5 * 60 * 1000 },
-  { nombre: 'Disco (extras)',      archivo: 'refrescar-precio-extras-disco.js',      timeoutMs: 5 * 60 * 1000 },
+  { nombre: 'Vea (extras)',        clave: 'vea',       archivo: 'refrescar-precio-extras-vea.js',        timeoutMs: 5 * 60 * 1000 },
+  { nombre: 'Carrefour (extras)',  clave: 'carrefour', archivo: 'refrescar-precio-extras-carrefour.js',  timeoutMs: 5 * 60 * 1000 },
+  { nombre: 'Chango Más (extras)', clave: 'changomas', archivo: 'refrescar-precio-extras-changomas.js',  timeoutMs: 5 * 60 * 1000 },
+  { nombre: 'Día (extras)',        clave: 'dia',       archivo: 'refrescar-precio-extras-dia.js',        timeoutMs: 5 * 60 * 1000 },
+  { nombre: 'Jumbo (extras)',      clave: 'jumbo',      archivo: 'refrescar-precio-extras-jumbo.js',      timeoutMs: 5 * 60 * 1000 },
+  { nombre: 'Disco (extras)',      clave: 'disco',      archivo: 'refrescar-precio-extras-disco.js',      timeoutMs: 5 * 60 * 1000 },
 ];
 
 function correrScraper({ nombre, archivo, timeoutMs }) {
@@ -94,10 +94,16 @@ function correrScraper({ nombre, archivo, timeoutMs }) {
           ok: !error,
           codigo: error?.code ?? 0,
           duracionSeg: Math.round((Date.now() - inicio) / 1000),
-          // Solo la cola: los scrapers loguean progreso página por página y no queremos
-          // guardar megas de log por corrida.
+          // Solo la cola: los scrapers loguean progreso página por página (con \r) y no
+          // queremos guardar megas de log por corrida — ahí sí importa el final, no el arranque.
           salida: (stdout || '').split('\n').slice(-5).join('\n').trim(),
-          error: error ? (stderr || error.message).split('\n').slice(-5).join('\n').trim() : null,
+          // stderr es al revés: no tiene spam de progreso, y lo importante (mensaje + código del
+          // error, ej. `code: 'ETIMEDOUT'`) suele estar cerca del PRINCIPIO del volcado del
+          // objeto Error, no al final — quedarse con la cola (como hacía antes) podía recortar
+          // justo la parte que explica la causa real y dejar solo propiedades sueltas al final
+          // (`port: 443` sin el `code` que lo acompaña). Tope por caracteres, no por líneas, para
+          // no perder el mensaje si viene en una sola línea larga.
+          error: error ? (stderr || error.message).trim().slice(0, 4000) : null,
         });
       }
     );
@@ -153,8 +159,18 @@ async function refrescar() {
     console.log(`   ▶ ${scraper.nombre}...`);
     const resultado = await correrScraper(scraper);
     console.log(`   ${resultado.ok ? '✅' : '❌'} ${scraper.nombre} (${resultado.duracionSeg}s)`);
-    if (!resultado.ok) console.error(`      ${resultado.error}`);
     resultados.push(resultado);
+
+    if (!resultado.ok) {
+      console.error(`      ${resultado.error}`);
+      await registrarError({
+        super: scraper.clave,
+        etapa: 'scraper',
+        script: scraper.archivo,
+        corrida_en: inicio.toISOString(),
+        mensaje: resultado.error,
+      });
+    }
 
     // Si el scraper falló, el catálogo no se pisó — no hay diff real que registrar.
     if (resultado.ok) {
@@ -187,8 +203,18 @@ async function refrescar() {
     console.log(`   ▶ ${refrescador.nombre}...`);
     const resultado = await correrScraper(refrescador);
     console.log(`   ${resultado.ok ? '✅' : '❌'} ${refrescador.nombre} (${resultado.duracionSeg}s)`);
-    if (!resultado.ok) console.error(`      ${resultado.error}`);
     resultadosExtras.push(resultado);
+
+    if (!resultado.ok) {
+      console.error(`      ${resultado.error}`);
+      await registrarError({
+        super: refrescador.clave,
+        etapa: 'extra',
+        script: refrescador.archivo,
+        corrida_en: inicio.toISOString(),
+        mensaje: resultado.error,
+      });
+    }
   }
 
   const errores = resultados

@@ -209,4 +209,23 @@ async function registrarDiff(fila) {
   console.error(`   ⚠️  No se pudo registrar el diff de ${fila.super} (${fila.tipo}) tras ${REINTENTOS + 1} intentos: ${ultimoError.message}`);
 }
 
-module.exports = { leerJSON, diffProductos, diffPromosSuper, registrarDiff, estadoPromoPorEan };
+// Historial de FALLOS (scraper_errores, ver migración 0023) — complementa a registrarDiff, que
+// solo guarda corridas exitosas. Objetivo: poder responder "¿cuántas veces falló Carrefour por
+// conexión este mes?" sin depender de que el log de esa corrida de GitHub Actions siga
+// existiendo (retención ~90 días). Mismo criterio de reintentos cortos que registrarDiff — es
+// monitoreo, no crítico, pero vale la pena no perder la fila por un hipo de red puntual.
+async function registrarError(fila) {
+  const supabaseAdmin = clienteSupabaseAdmin();
+  if (!supabaseAdmin) return;
+
+  let ultimoError;
+  for (let intento = 0; intento <= REINTENTOS; intento++) {
+    const { error } = await supabaseAdmin.from('scraper_errores').insert(fila);
+    if (!error) return;
+    ultimoError = error;
+    if (intento < REINTENTOS) await sleep(ESPERA_MS);
+  }
+  console.error(`   ⚠️  No se pudo registrar el error de ${fila.super} (${fila.etapa}) tras ${REINTENTOS + 1} intentos: ${ultimoError.message}`);
+}
+
+module.exports = { leerJSON, diffProductos, diffPromosSuper, registrarDiff, registrarError, estadoPromoPorEan };

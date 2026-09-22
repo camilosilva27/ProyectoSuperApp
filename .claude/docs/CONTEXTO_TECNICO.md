@@ -1036,6 +1036,14 @@ Cómo funciona: `backend/src/cron/diffCatalogos.js` compara, en memoria, el cat�
 
 No hay endpoint propio para leerlo todavía — se consulta directo en Supabase (SQL editor o `select ... from scraper_diffs`), por ejemplo agrupando por `super`, `extract(dow from corrida_en)` y `extract(hour from corrida_en)` para ver en qué día/hora se concentran los cambios reales de cada super. Hace falta acumular varios días de corridas (cron cada 2hs) antes de que el patrón sea significativo.
 
+### Historial de fallos (`scraper_errores`, 2026-09-22)
+
+`scraper_diffs` solo registra corridas EXITOSAS — un fallo no deja rastro ahí. Hasta acá, la única forma de saber *por qué* falló un scraper era mirar el log de esa corrida puntual de GitHub Actions, que GitHub borra solo a los ~90 días. Se agregó `scraper_errores` (migración `0023_scraper_errores.sql`) para que quede un historial consultable indefinidamente: `super`, `etapa` (`'scraper'` o `'extra'`), `script`, `corrida_en`, `mensaje`. Se escribe desde `refrescarCatalogosGHA.js` (y también desde el `refrescarCatalogos.js` fallback) cada vez que `resultado.ok` es `false`, vía `registrarError()` en `diffCatalogos.js` (mismo patrón de reintentos cortos que `registrarDiff`).
+
+**De paso se corrigió un bug real en el mensaje capturado:** `correrScraper()` (en `refrescarCatalogos.js`) armaba `resultado.error` quedándose con las **últimas 5 líneas** de stderr — pensado para el spam de progreso de stdout (`salida`), pero aplicado por copy-paste también a stderr. Un volcado de error de Node (`console.error(err)`) tiene el mensaje y el `code` (`ETIMEDOUT`, `ECONNRESET`, etc.) cerca del PRINCIPIO, no al final — con la cola de 5 líneas nos quedábamos con propiedades sueltas sin contexto (ej. `port: 443` sin el `code` que lo explica, visto en vivo el 22/09 con un fallo de conexión de `refrescar-precio-extras-carrefour.js`). Ahora `error` toma los primeros 4000 caracteres de stderr en vez de la cola — `salida` (stdout) sigue quedándose con la cola, ahí sí importa el conteo final, no el arranque.
+
+No hace falta un cron de limpieza para esta tabla: los fallos son raros (4 en 75 corridas hasta ahora) y no van a acumular volumen real.
+
 **Primer análisis con datos reales (2026-09-17, 9 días acumulados desde la creación de la tabla, 1.490 filas):** el cron corrió siempre puntual, en horas impares ART (01, 03, 05… 23hs), sin ninguna corrida fuera de horario. Como cada corrida solo sabe "cambió algo entre la corrida anterior y esta", la resolución real es de ventana de 2hs, no de minuto exacto. Agrupando `precio_modificados`/`promocion_modificados` por super y por hora de corrida, la franja horaria en la que cada super concentra sus cambios de **precio** es:
 
 - **Vea, Jumbo, Disco, Día:** pico único y claro en la corrida de la 01:00 (cambio real ocurrido entre 23:00 y 01:00) — actualizan de madrugada, apenas pasada la medianoche.

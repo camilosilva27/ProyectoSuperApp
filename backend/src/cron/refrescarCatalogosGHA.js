@@ -24,7 +24,7 @@
 const fs = require('fs');
 const path = require('path');
 const { SCRAPERS, REFRESCADORES_EXTRAS, correrScraper, DIR_ALLPROMOS } = require('./refrescarCatalogos');
-const { leerJSON, diffProductos, registrarDiff } = require('./diffCatalogos');
+const { leerJSON, diffProductos, registrarDiff, registrarError } = require('./diffCatalogos');
 
 // Se escribe acá para que subir-catalogos.sh se lo pase como CORRIDA_EN a
 // postProcesarCatalogos.js en la VM — así los diffs de tipo='productos' (acá) y
@@ -45,8 +45,18 @@ async function correr() {
     console.log(`   ▶ ${scraper.nombre}...`);
     const resultado = await correrScraper(scraper);
     console.log(`   ${resultado.ok ? '✅' : '❌'} ${scraper.nombre} (${resultado.duracionSeg}s)`);
-    if (!resultado.ok) console.error(`      ${resultado.error}`);
     resultados.push(resultado);
+
+    if (!resultado.ok) {
+      console.error(`      ${resultado.error}`);
+      await registrarError({
+        super: scraper.clave,
+        etapa: 'scraper',
+        script: scraper.archivo,
+        corrida_en: inicio.toISOString(),
+        mensaje: resultado.error,
+      });
+    }
 
     if (resultado.ok) {
       const catalogoDespues = leerJSON(rutaCatalogo);
@@ -64,8 +74,18 @@ async function correr() {
     console.log(`   ▶ ${refrescador.nombre}...`);
     const resultado = await correrScraper(refrescador);
     console.log(`   ${resultado.ok ? '✅' : '❌'} ${refrescador.nombre} (${resultado.duracionSeg}s)`);
-    if (!resultado.ok) console.error(`      ${resultado.error}`);
     resultadosExtras.push(resultado);
+
+    if (!resultado.ok) {
+      console.error(`      ${resultado.error}`);
+      await registrarError({
+        super: refrescador.clave,
+        etapa: 'extra',
+        script: refrescador.archivo,
+        corrida_en: inicio.toISOString(),
+        mensaje: resultado.error,
+      });
+    }
   }
 
   const fallos = resultados.filter(r => !r.ok).length + resultadosExtras.filter(r => !r.ok).length;
