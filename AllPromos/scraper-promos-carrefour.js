@@ -126,10 +126,12 @@ async function main() {
     try {
       let { skus, count } = await getCatalogPage(from, from + PAGE_SIZE - 1);
       if (count < PAGE_SIZE) {
-        // Página corta: puede ser el fin real del catálogo, o un corte transitorio
-        // de VTEX (índice con lag) — confirmar antes de darla por terminada.
-        for (let intento = 0; count < PAGE_SIZE && intento < 2; intento++) {
-          await sleep(3000);
+        // Página corta: puede ser el fin real del catálogo, o un corte transitorio de VTEX —
+        // confirmar antes de darla por terminada. 3 intentos de 30s (no 3s): visto en vivo
+        // 2026-09-23 que un throttle real de VTEX puede sostenerse varios minutos, no solo una
+        // página aislada — con esperas cortas no alcanzaba a recuperarse.
+        for (let intento = 0; count < PAGE_SIZE && intento < 3; intento++) {
+          await sleep(30000);
           ({ skus, count } = await getCatalogPage(from, from + PAGE_SIZE - 1));
         }
       }
