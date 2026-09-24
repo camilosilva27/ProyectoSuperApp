@@ -24,11 +24,21 @@
  * catálogo completo solo marca los 2 casos reales de Stella Artois — cero falsos positivos.
  */
 
-// "x 6 Un", "X 12 Unid.", "x6 Unidades" — exige el sufijo "un/unid/unidad(es)" para no
-// confundir con cantidades que no son de empaquetado (ej. "x kg", medidas, gramajes). Se
-// matchea sobre el nombre sin puntos (ver abajo) para no tener que lidiar con el límite de
-// palabra justo después de una abreviatura con punto ("Unid.").
-const REGEX_MULTIPLICADOR = /\bx\s*(\d{1,3})\s*(?:un|unid|unidad|unidades)\b/i;
+// Formas de escribir "pack de N" que usan los supers. Se matchea sobre el nombre sin puntos
+// (ver abajo) para no tener que lidiar con el límite de palabra justo después de una
+// abreviatura con punto ("Unid."). El primer grupo de captura es siempre N.
+const REGEX_MULTIPLICADOR = [
+  // "x 6 Un", "X 12 Unid.", "x6 Unidades" — exige el sufijo "un/unid/unidad(es)" para no
+  // confundir con cantidades que no son de empaquetado (ej. "x kg", medidas, gramajes).
+  /\bx\s*(\d{1,3})\s*(?:un|unid|unidad|unidades)\b/i,
+  // "Lata 473mlx6", "473 cc x 6", "500gx12" — una medida pegada a "x N" (Vea/Jumbo/Disco en
+  // cervezas: la auditoría del 2026-09-24 encontró Brahma Chopp pack x6 comparado contra la
+  // lata suelta de Día porque este formato no se reconocía).
+  /\d\s*(?:ml|cc|cm3|g|gr|grs|kg|l|lt|lts)\s*x\s*(\d{1,2})\b/i,
+  // "473 CC 6 Unidades" (Coto): sin "x", pero con la palabra completa para no confundir con
+  // abreviaturas sueltas.
+  /\b(\d{1,2})\s*(?:unidades|unid)\b/i,
+];
 
 // Por debajo de esto, una diferencia de precio entre supers es variación normal (Coto vs. el
 // resto, ofertas puntuales, etc.) — no alcanza sola para sospechar de un problema de
@@ -37,8 +47,11 @@ const UMBRAL_RATIO_PRECIO = 2.5;
 
 function multiplicadorDeEmpaquetado(nombre) {
   const limpio = (nombre || '').replace(/\./g, '');
-  const m = limpio.match(REGEX_MULTIPLICADOR);
-  return m ? parseInt(m[1], 10) : null;
+  for (const regex of REGEX_MULTIPLICADOR) {
+    const m = limpio.match(regex);
+    if (m) return parseInt(m[1], 10);
+  }
+  return null;
 }
 
 /** true si el nombre sugiere empaquetado distinto ENTRE supers Y el precio real también

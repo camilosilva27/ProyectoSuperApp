@@ -8,8 +8,8 @@ Estado: resuelto el crítico de autopromoción; el resto pendiente. Al arreglar 
 - [x] **Autopromoción a premium** — ✅ RESUELTO 24/09: migración `0024` aplicada en prod + chequeo de `external_reference` en `procesarSuscripcion`; verificado con la cuenta de prueba (403 en plan/premium_manual/trial/nombre, 204 en tour_visto). Detalle original: `authenticated` tenía UPDATE sobre las 25 columnas de `perfil_usuario` (confirmado en prod con `has_column_privilege`). La policy de 0002 solo limita la fila. Fix: revoke update + grant update por columna (carrito_items, carrito_tarjetas, supers_activos, tope_supers, tour_visto, alertas_activas, nombre). También validar en `procesarPagoMercadoPago.js` que la suscripción de MP sea del usuario.
 - [ ] **Cambio de plan cobra doble** — `routes/pagos.js:84-109,125-176` pisa `pasarela_suscripcion_id` sin cancelar la suscripción vieja en MP.
 - [ ] **Permanente puede perder acceso** — `procesarPagoAprobado` no limpia `pasarela_suscripcion_id`/`suscripcion_estado`/`acceso_premium_hasta`; `bajar_planes_vencidos` no excluye `tipo_plan='permanente'`.
-- [ ] **2x1 como 50% por unidad** — `AllPromos/promo-engine.js:32` regex `^(\d+)x` falla con nombres que empiezan con espacio (Vea/Jumbo/Disco, ~85 SKUs).
-- [ ] **Packs "473mlx6" no detectados** — `AllPromos/core/empaquetado.js` (Brahma, Andes IPA).
+- [x] **2x1 como 50% por unidad** — ✅ RESUELTO 24/09 (trim en promo-engine + tests). — `AllPromos/promo-engine.js:32` regex `^(\d+)x` falla con nombres que empiezan con espacio (Vea/Jumbo/Disco, ~85 SKUs).
+- [x] **Packs "473mlx6" no detectados** — ✅ RESUELTO 24/09 (3 patrones en empaquetado.js + tests). — `AllPromos/core/empaquetado.js` (Brahma, Andes IPA).
 - [ ] *(probable)* **Cuotas de suscripción tomadas como permanente** — la suscripción usa el mismo `external_reference`; depende de si MP lo propaga a cada cobro.
 
 ## Alto

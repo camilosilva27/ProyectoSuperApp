@@ -25,7 +25,11 @@
 const ONLINE_RE = /trafico|ecommerce|online|web/i;
 
 function interpretarPromoPorTexto(nombrePromo, effectiveDiscount) {
-  const nombre = nombrePromo || '';
+  // trim: Vea/Jumbo/Disco tienen promos con espacio adelante (" 2x1 Legumbres | Ofertas
+  // Internas") y las regex de abajo están ancladas con ^. Sin esto un 2x1 caía a pct_directo
+  // con el 50% de effectiveDiscount aplicado a CADA unidad — mostraba $1.345 para una sola
+  // lata de $2.690 (auditoría 2026-09-24).
+  const nombre = (nombrePromo || '').trim();
   const esOnline = ONLINE_RE.test(nombre);
 
   // --- NxM: 2x1, 3x2, 4x2, 6x4, 6x5 ---
@@ -104,7 +108,7 @@ function interpretarPromoPorTexto(nombrePromo, effectiveDiscount) {
 }
 
 function interpretarPromoCarrefour(teaser) {
-  const nombre = teaser?.nombre || '';
+  const nombre = (teaser?.nombre || '').trim();
   const esOnline = ONLINE_RE.test(nombre);
 
   // Extraer código interno: Reg-N-M donde N=unidades, M=% de descuento en la Nésima
