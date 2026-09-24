@@ -20,6 +20,7 @@
  */
 
 const fs = require('fs');
+const { esTeaserBancario } = require('./promo-engine');
 const { guardarCatalogoConGuardrail } = require('./core/guardrailCatalogo');
 const { fetchConReintentoHTTP, errorHTTP, esFinLegitimoDePaginacion } = require('./core/reintentoVTEX');
 
@@ -43,10 +44,9 @@ function parseTeasers(teasers = []) {
         ?.find(p => p['<Name>k__BackingField'] === 'PercentualDiscount')
         ?.['<Value>k__BackingField'] || null,
       cantidadMinima: t['<Conditions>k__BackingField']?.['<MinimumQuantity>k__BackingField'] || 0,
-      esBancaria: (() => {
-        const n = (t['<Name>k__BackingField'] || '').toLowerCase();
-        return n.includes('tarjeta') || n.includes('cuenta digital') || n.includes('banco') || n.includes('bin');
-      })(),
+      // Criterio compartido con el fallback en vivo (promo-engine.js § esTeaserBancario):
+      // antes `includes('bin')` marcaba como bancario todo teaser "Combinable".
+      esBancaria: esTeaserBancario(t['<Name>k__BackingField']),
     }))
     .filter(t => t.nombre);
 }

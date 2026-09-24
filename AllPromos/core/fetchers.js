@@ -13,6 +13,7 @@ const {
   interpretarPromoPorTexto,
   interpretarPromoCarrefour,
   interpretarTeaserTarjetaPropia,
+  esTeaserBancario,
 } = require('../promo-engine');
 const { skuIdVeaPorEAN } = require('./catalogo');
 const { sanearPorEmpaquetado } = require('./empaquetado');
@@ -121,10 +122,8 @@ function parsearProductosCarrefour(products, { tarjetas = [] } = {}) {
         });
       }
 
-      const teasersInternos = (offer.Teasers || []).filter(t => {
-        const n = (t['<Name>k__BackingField'] || '').toLowerCase();
-        return !n.includes('tarjeta') && !n.includes('cuenta digital') && !n.includes('banco');
-      });
+      const teasersInternos = (offer.Teasers || [])
+        .filter(t => !esTeaserBancario(t['<Name>k__BackingField']));
 
       for (const t of teasersInternos) {
         const promo = interpretarPromoCarrefour({ nombre: t['<Name>k__BackingField'] || '' });
@@ -220,7 +219,7 @@ function parsearProductosChangoMas(products) {
 
       const teasersInternos = [...(offer.Teasers || []), ...(offer.PromotionTeasers || [])]
         .map(t => ({ nombre: t['<Name>k__BackingField'] ?? t.Name ?? t.name ?? '' }))
-        .filter(t => t.nombre && !/tarjeta|cuenta digital|banco/i.test(t.nombre));
+        .filter(t => t.nombre && !esTeaserBancario(t.nombre));
 
       for (const t of teasersInternos) {
         const promo = interpretarPromoCarrefour(t);
@@ -458,7 +457,7 @@ function parsearProductosDia(products) {
 
       const teasersInternos = [...(offer.Teasers || []), ...(offer.PromotionTeasers || [])]
         .map(t => ({ nombre: t['<Name>k__BackingField'] ?? t.Name ?? t.name ?? '' }))
-        .filter(t => t.nombre && !/tarjeta|cuenta digital|banco/i.test(t.nombre));
+        .filter(t => t.nombre && !esTeaserBancario(t.nombre));
 
       for (const t of teasersInternos) {
         const promo = interpretarPromoCarrefour(t);

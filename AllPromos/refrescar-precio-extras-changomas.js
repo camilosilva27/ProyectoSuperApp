@@ -7,6 +7,7 @@
  */
 
 const fs = require('fs');
+const { esTeaserBancario } = require('./promo-engine');
 const { escribirAtomico } = require('./core/escrituraAtomica');
 const { buscarPorSkuIds } = require('./core/batchPorSkuId');
 
@@ -29,7 +30,7 @@ function parseTeasers(teasers = []) {
   return teasers
     .map(t => ({
       nombre: nombreTeaser(t),
-      esBancaria: /tarjeta|cuenta digital|banco|bin/i.test(nombreTeaser(t)),
+      esBancaria: esTeaserBancario(nombreTeaser(t)), // criterio compartido, ver promo-engine.js
     }))
     .filter(t => t.nombre);
 }

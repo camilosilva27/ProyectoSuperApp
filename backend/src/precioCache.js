@@ -25,7 +25,7 @@
 
 const { leerCatalogo } = require('../../AllPromos/core/catalogo');
 const {
-  interpretarPromoPorTexto, interpretarPromoCarrefour, interpretarTeaserTarjetaPropia,
+  interpretarPromoPorTexto, interpretarPromoCarrefour, interpretarTeaserTarjetaPropia, esTeaserBancario,
 } = require('../../AllPromos/promo-engine');
 const { sanearPorEmpaquetado } = require('../../AllPromos/core/empaquetado');
 const { calcularOpciones } = require('../../AllPromos/core/comparador');
@@ -125,13 +125,24 @@ function entradasVtexConTeasers(sku, superNombre, { conTarjetaPropia = false } =
     });
   }
 
-  for (const t of sku.promosInternas || []) {
+  // Se reclasifica al leer con esTeaserBancario (el mismo criterio del fallback en vivo) en vez
+  // de confiar en el split promosInternas/promosBancarias guardado por el scraper: los
+  // catálogos escritos antes de 2026-09-24 mandaban a promosBancarias todo teaser con "bin"
+  // como subcadena — incluido "Combinable" —, perdiendo el 2do al X%/NxM de ~560 SKUs de
+  // Carrefour. Es solo por nombre, igual que lo haría el scraper hoy: con un catálogo nuevo
+  // no cambia nada. Como el criterio nuevo es más estricto que el viejo, nada de lo que ya
+  // estaba en promosInternas puede pasar a bancaria.
+  const teasers = [...(sku.promosInternas || []), ...(sku.promosBancarias || [])];
+  const internos = teasers.filter(t => !esTeaserBancario(t.nombre));
+  const bancarios = teasers.filter(t => esTeaserBancario(t.nombre));
+
+  for (const t of internos) {
     const promo = interpretarPromoCarrefour({ nombre: t.nombre });
     if (promo) resultados.push({ ...base, precioBase: sku.precioActual, promo });
   }
 
   if (conTarjetaPropia) {
-    const teaserTarjeta = (sku.promosBancarias || [])
+    const teaserTarjeta = bancarios
       .find(t => (t.nombre || '').toLowerCase().includes(NOMBRE_TARJETA_PROPIA));
     if (teaserTarjeta) {
       // Reconstruye el mismo teaser crudo que espera interpretarTeaserTarjetaPropia, con el
@@ -296,4 +307,4 @@ function elegirProductosTour() {
   return candidatos.slice(0, CANTIDAD_PRODUCTOS_TOUR);
 }
 
-module.exports = { precioPorEAN, estadoFuentes, elegirProductosTour, _test: { entradasCencosud, aplicarVigencia } };
+module.exports = { precioPorEAN, estadoFuentes, elegirProductosTour, _test: { entradasCencosud, entradasVtexConTeasers, aplicarVigencia } };

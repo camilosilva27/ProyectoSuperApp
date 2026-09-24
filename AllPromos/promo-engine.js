@@ -197,6 +197,25 @@ function interpretarPromoCarrefour(teaser) {
 }
 
 /**
+ * ¿El teaser de un súper VTEX (Carrefour/Chango Más/Día) es una promo bancaria (Tarjeta,
+ * Cuenta Digital, Banco, BIN) y por lo tanto queda fuera de las promos por producto generales?
+ * Único criterio compartido por los scrapers, los completadores/refrescadores de extras, el
+ * fallback en vivo (core/fetchers.js) y precioCache.js.
+ *
+ * "bin" va con límite de palabra: antes cada scraper hacía `includes('bin')` y "Com*bin*able"
+ * (presente en casi todos los teasers "PROMO-2do al 50% Max 8 unidades Combinable ...") lo
+ * matcheaba — ~560 SKUs de Carrefour perdían su 2do al X%/NxM en el camino cacheado mientras
+ * el fallback en vivo (que no miraba "bin") sí lo aplicaba (auditoría 2026-09-24).
+ * Los teasers "Mi Crf" (exigen Mi Carrefour) NO son bancarios acá: el fallback en vivo nunca
+ * los trató distinto de una promo general.
+ */
+const TEASER_BANCARIO_RE = /tarjeta|cuenta digital|banco|\bbin\b/i;
+
+function esTeaserBancario(nombre) {
+  return TEASER_BANCARIO_RE.test(nombre || '');
+}
+
+/**
  * Promo por producto condicionada a tarjeta propia: el teaser "Tarjeta Carrefour X%" de
  * Carrefour, identificado por el campo estructurado RestrictionsBins (no por texto —
  * confirmado en vivo que el % real viene del campo `PercentualDiscount` de `<Effects>`,
@@ -375,4 +394,7 @@ function fmt(n) {
   return Number(n).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-module.exports = { interpretarPromoPorTexto, interpretarPromoCarrefour, interpretarTeaserTarjetaPropia, calcularCosto };
+module.exports = {
+  interpretarPromoPorTexto, interpretarPromoCarrefour, interpretarTeaserTarjetaPropia, calcularCosto,
+  esTeaserBancario,
+};
