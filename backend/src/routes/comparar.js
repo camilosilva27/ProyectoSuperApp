@@ -608,7 +608,11 @@ router.post('/precios', requiereSesion, requierePlanActivo, async (req, res) => 
       return {
         ean,
         mejor: { key: o.key, super: o.nombre, tag: o.tag, total: o.total },
-        oferta: o.mejor.promo?.descripcion ?? null,
+        // En el cartel de la búsqueda un NxM va corto ("2x1"), sin el "(llevás 2, pagás 1)"
+        // que sí se muestra en el detalle del carrito.
+        oferta: o.mejor.promo?.tipo === 'nxm'
+          ? o.mejor.promo.descripcion.replace(/\s*\(.*\)\s*$/, '')
+          : (o.mejor.promo?.descripcion ?? null),
         esOnline: !!o.mejor.promo?.esOnline,
       };
     } catch {
