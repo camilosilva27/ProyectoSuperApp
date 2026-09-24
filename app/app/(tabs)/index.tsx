@@ -53,6 +53,9 @@ import { useTema } from '../../src/useTema';
  * (POST /api/precios) para por qué esto no reemplaza /api/catalogo/buscar: ese nunca trae
  * precio, a propósito.
  */
+const MAX_REINTENTOS_PRECIO = 2;
+const ESPERA_REINTENTO_PRECIO_MS = 5000;
+
 function usePreciosProgresivos(supersActivos: SuperKey[], accessToken: string | null) {
   const [precios, setPrecios] = useState<Record<string, PrecioRapido | 'error'>>({});
   const pedidos = useRef(new Set<string>());
@@ -64,14 +67,27 @@ function usePreciosProgresivos(supersActivos: SuperKey[], accessToken: string | 
   const tokenRef = useRef(accessToken);
   tokenRef.current = accessToken;
 
+  // Auditoría 2026-09-24: (1) si cambia el filtro de supers mientras hay un lote en vuelo, la
+  // respuesta vieja (calculada con los supers anteriores) llegaba después del `setPrecios({})`
+  // y pisaba — `generacion` sube en cada cambio de filtro y se descartan respuestas de una
+  // generación anterior. (2) Un EAN que fallaba quedaba en `pedidos` para siempre y nunca se
+  // volvía a pedir: ahora se saca de `pedidos` (se re-pide al volver a verse) y, si sigue en
+  // pantalla, se reintenta solo hasta MAX_REINTENTOS_PRECIO veces.
+  const generacion = useRef(0);
+  const intentosFallidos = useRef(new Map<string, number>());
+  const marcarVisiblesRef = useRef<(eans: string[]) => void>(() => {});
+
   const pedirLote = useCallback(() => {
     const lote = [...pendientes.current].slice(0, MAX_EANS_PRECIOS);
     pendientes.current.clear();
     if (!lote.length || !tokenRef.current) return;
     lote.forEach(ean => pedidos.current.add(ean));
+    const generacionDelPedido = generacion.current;
 
     pedirPrecios(lote, tokenRef.current, supersRef.current)
       .then(({ resultados }) => {
+        if (generacionDelPedido !== generacion.current) return;
+        lote.forEach(ean => intentosFallidos.current.delete(ean));
         setPrecios(prev => {
           const siguiente = { ...prev };
           for (const r of resultados) siguiente[r.ean] = r;
@@ -79,11 +95,28 @@ function usePreciosProgresivos(supersActivos: SuperKey[], accessToken: string | 
         });
       })
       .catch(() => {
+        if (generacionDelPedido !== generacion.current) return;
         setPrecios(prev => {
           const siguiente = { ...prev };
           for (const ean of lote) siguiente[ean] = 'error';
           return siguiente;
         });
+        let hayReintento = false;
+        for (const ean of lote) {
+          pedidos.current.delete(ean);
+          const n = (intentosFallidos.current.get(ean) ?? 0) + 1;
+          intentosFallidos.current.set(ean, n);
+          if (n <= MAX_REINTENTOS_PRECIO) hayReintento = true;
+        }
+        if (hayReintento) {
+          setTimeout(() => {
+            if (generacionDelPedido !== generacion.current) return;
+            const aReintentar = visibles.current.filter(
+              ean => (intentosFallidos.current.get(ean) ?? 0) <= MAX_REINTENTOS_PRECIO,
+            );
+            if (aReintentar.length) marcarVisiblesRef.current(aReintentar);
+          }, ESPERA_REINTENTO_PRECIO_MS);
+        }
       });
   }, []);
 
@@ -99,6 +132,7 @@ function usePreciosProgresivos(supersActivos: SuperKey[], accessToken: string | 
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(pedirLote, 350);
   }, [pedirLote]);
+  marcarVisiblesRef.current = marcarVisibles;
 
   // El "mejor precio" depende de qué supers se consideran: si el filtro cambia, lo ya
   // pedido queda obsoleto y hay que volver a consultarlo. No alcanza con esperar a que
@@ -107,9 +141,11 @@ function usePreciosProgresivos(supersActivos: SuperKey[], accessToken: string | 
   // dejando el precio vacío para siempre. Por eso se recuerdan los últimos EAN visibles y se
   // vuelven a pedir a mano acá.
   useEffect(() => {
+    generacion.current += 1;
     setPrecios({});
     pedidos.current.clear();
     pendientes.current.clear();
+    intentosFallidos.current.clear();
     if (visibles.current.length) marcarVisibles(visibles.current);
   }, [supersActivos, marcarVisibles]);
 

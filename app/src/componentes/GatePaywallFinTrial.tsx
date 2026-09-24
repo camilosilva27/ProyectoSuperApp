@@ -32,6 +32,7 @@ import { useFlujoDePago } from '../flujoDePago';
 import { calcularResumenAhorro, type EventoAhorro, useHistorialAhorro } from '../historialAhorro';
 import { estadoSuscripcionActiva, usePlanUsuario } from '../plan';
 import { useTema } from '../useTema';
+import { Problema } from './comunes';
 import { MercadoPagoEmailSheet } from './MercadoPagoEmailSheet';
 import { PaywallFinTrial } from './PaywallFinTrial';
 import { PlanSelect, type PreciosPlanes } from './PlanSelect';
@@ -54,7 +55,9 @@ function ahorroDuranteTrial(eventos: EventoAhorro[], trialTerminaEn: string | nu
 export function GatePaywallFinTrial({ children }: { children: React.ReactNode }) {
   const { paleta } = useTema();
   const { session } = useAuth();
-  const { info: infoPlan, cargando: cargandoPlan, recargar: recargarPlan } = usePlanUsuario();
+  const {
+    info: infoPlan, cargando: cargandoPlan, error: errorPlan, recargar: recargarPlan,
+  } = usePlanUsuario();
   const { eventos } = useHistorialAhorro();
 
   const [precios, setPrecios] = useState<PreciosPlanes | null>(null);
@@ -64,7 +67,8 @@ export function GatePaywallFinTrial({ children }: { children: React.ReactNode })
   const [pantalla, setPantalla] = useState<'paywall' | 'planSelect'>('paywall');
   const flujoDePago = useFlujoDePago(session?.access_token ?? null, recargarPlan);
 
-  useEffect(() => {
+  const cargarPrecios = useCallback(() => {
+    setCargandoPrecio(true);
     precioSuscripcion()
       .then(({ precioMensualArs, precioAnualArs, precioPermanenteArs }) => {
         if (precioMensualArs && precioAnualArs && precioPermanenteArs) {
@@ -76,6 +80,8 @@ export function GatePaywallFinTrial({ children }: { children: React.ReactNode })
       .catch(() => setPrecios(null))
       .finally(() => setCargandoPrecio(false));
   }, []);
+
+  useEffect(() => { cargarPrecios(); }, [cargarPrecios]);
 
   // Vuelve a pedir el plan al volver a la app (ej. después de ir y volver del checkout de
   // Mercado Pago) — si el pago se acreditó, el próximo render ya no bloquea.
@@ -115,12 +121,33 @@ export function GatePaywallFinTrial({ children }: { children: React.ReactNode })
   const cargando = (cargandoPlan && !infoPlan) || cargandoPrecio;
   const mostrarPaywall = !cargando && bloqueado && precios !== null;
 
+  // Auditoría 2026-09-24: antes, si fallaba la lectura del plan (`infoPlan` null) o el precio
+  // (`precios` null) con el usuario bloqueado, el gate dejaba pasar — y como el backend igual
+  // corta por el claim del JWT, el usuario veía errores genéricos en todas las pantallas. Un
+  // error acá no es motivo para abrir la app: se muestra "Volver a intentar" en su lugar.
+  const errorDeCarga = !cargando && ((!infoPlan && !!errorPlan) || (bloqueado && precios === null));
+
   const onSuscribirse = useCallback(() => setPantalla('planSelect'), []);
+  const reintentar = useCallback(() => {
+    recargarPlan();
+    cargarPrecios();
+  }, [recargarPlan, cargarPrecios]);
 
   // Mismo criterio que GateSesion/_layout.tsx: pantalla lisa mientras se resuelve si hay que
   // bloquear, no un parpadeo mostrando primero la navegación y después el paywall encima.
   if (cargando) {
     return <View style={{ flex: 1, backgroundColor: paleta.fondo }} />;
+  }
+
+  if (errorDeCarga) {
+    return (
+      <View style={{ flex: 1, backgroundColor: paleta.fondo, padding: 20, justifyContent: 'center' }}>
+        <Problema
+          mensaje="No pudimos verificar el estado de tu cuenta. Revisá tu conexión y volvé a intentar."
+          onReintentar={reintentar}
+        />
+      </View>
+    );
   }
 
   if (mostrarPaywall && pantalla === 'paywall') {

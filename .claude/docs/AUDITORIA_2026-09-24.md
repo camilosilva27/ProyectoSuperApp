@@ -18,20 +18,26 @@ Estado: los 6 críticos resueltos el 24/09; altos/medios/bajos pendientes salvo 
 ## Alto
 - [x] ✅ RESUELTO 24/09 (0025). Trial eterno en backend si se abandona el checkout (0020 filtra `pasarela_suscripcion_id is null`). Los 22 preapprovals pending de prod son de la etapa de pruebas (confirmado por el usuario), así que baja prioridad; el bug de código sigue para checkouts futuros.
 - [ ] Reembolsos/contracargos no bajan el plan (`procesarPagoMercadoPago.js:22`); arrepentimiento solo manual.
-- [ ] Tras pagar, 403 hasta ~1h: la app no llama `refreshSession()` (`flujoDePago.ts`).
-- [ ] Promos bancarias por día en UTC (`promos-bancarias.js:193`, VM en UTC).
-- [ ] Guardrail de catálogo relativo a la corrida anterior, deja bajar escalonado (`guardrailCatalogo.js:28`).
-- [ ] Caché sin límite de antigüedad + fallos de scrapers GHA no llegan a `/api/health`.
-- [ ] `schedule` de `scrapers.yml` sigue activo además del disparo de la VM, sin `concurrency` (4 corridas extra/día en prod).
-- [ ] Cola sin tope y fetch sin timeout en el fallback en vivo de `/api/comparar`.
+- [x] ✅ RESUELTO 24/09. Tras pagar, 403 hasta ~1h: la app no llama `refreshSession()` (`flujoDePago.ts`).
+- [x] ✅ RESUELTO 24/09. Promos bancarias por día en UTC (`promos-bancarias.js:193`, VM en UTC).
+- [x] ✅ RESUELTO 24/09. Guardrail de catálogo relativo a la corrida anterior, deja bajar escalonado (`guardrailCatalogo.js:28`).
+- [x] ✅ RESUELTO 24/09. Caché sin límite de antigüedad + fallos de scrapers GHA no llegan a `/api/health`.
+- [x] ✅ RESUELTO 24/09. `schedule` de `scrapers.yml` sigue activo además del disparo de la VM, sin `concurrency` (4 corridas extra/día en prod).
+- [x] ✅ RESUELTO 24/09. Cola sin tope y fetch sin timeout en el fallback en vivo de `/api/comparar`.
 - [x] ✅ RESUELTO 24/09. Recibo de pago duplicado: guarda compara fechas como string (`procesarPagoMercadoPago.js:102`).
-- [ ] Huella de Alertas incluye precio y bancarias (`diffCatalogos.js:25-32`) → re-avisos.
-- [ ] Alertas sin filtro de plan/emailConfirmado (`avisoProductosSeguidos.js`).
-- [ ] Carrito puede pisarse con vacío si falla la lectura (`sincronizacionPersistente.ts:81-109`).
-- [ ] Mails de 2 usuarios reales en `Plan_Usuarios_y_cobros.md:165` (repo público, commit 000b48d).
-- [ ] Timeout único de 4s en `app/src/api.ts` + retry puede duplicar POST de pago.
+- [x] ✅ RESUELTO 24/09. Huella de Alertas incluye precio y bancarias (`diffCatalogos.js:25-32`) → re-avisos.
+- [x] ✅ RESUELTO 24/09. Alertas sin filtro de plan/emailConfirmado (`avisoProductosSeguidos.js`).
+- [x] ✅ RESUELTO 24/09. Carrito puede pisarse con vacío si falla la lectura (`sincronizacionPersistente.ts:81-109`).
+- [ ] (en curso 24/09) Mails de 2 usuarios reales en `Plan_Usuarios_y_cobros.md:165` (repo público, commit 000b48d).
+- [x] ✅ RESUELTO 24/09. Timeout único de 4s en `app/src/api.ts` + retry puede duplicar POST de pago.
 
 ## Medio / bajo
+Resueltos el 24/09 (ver sección "Correcciones de la auditoría" en CONTEXTO_TECNICO.md): webhooks/async en Express, deploy con rollback, escrituras atómicas, search-promotions con retry, vigencia de promos, fallback en vivo ($0, Promise.all, timeouts), baja de mails (List-Unsubscribe + pie, sin endpoint con token todavía), HTML escapado, resúmenes paginados e idempotentes, Brevo con timeout, Política de Privacidad y ToS de la app actualizados, `www` con redirect, headers de seguridad, gate/carreras/ErrorBoundary en la app, contraseñas (mín. 8 + mayúscula), tests e2e arreglados.
+Pendientes: `StrictHostKeyChecking=no` en scripts de CI (requiere secret con el fingerprint), captcha (descartado por ahora), endpoint de baja con token.
+
+**Bug nuevo encontrado 24/09, sin tocar (decisión de producto):** los scrapers de Carrefour y Día marcan como bancaria cualquier teaser cuyo nombre contenga `'bin'`, y "Com**bin**able" lo contiene → ~561 SKUs de Carrefour pierden su "2do al 50%"/"2x1" en el camino cacheado (el fallback en vivo sí los aplica). Arreglarlo baja precios en masa y hay teasers "Mi Crf" que exigen Mi Carrefour y habría que tratar aparte.
+
+Detalle original:
 Ver el reporte. Los más baratos: `www` sin certificado en Vercel, headers de seguridad en `app/vercel.json`, HIBP/min password en Supabase Auth, tests e2e rotos (401), escapar HTML en mails, List-Unsubscribe, Política de Privacidad sin Sentry/GCP/Vercel/ImprovMX, docs desactualizados (`opciones_planes.md` precios de VM, `ALERTAS-notificaciones-plan.md` "no se pusheó").
 
 ## Confirmado OK en prod (24/09)

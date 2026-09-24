@@ -11,10 +11,10 @@ import Head from 'expo-router/head';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { buscarProductos, type ProductoCatalogo } from '../src/api';
+import { buscarProductos, ErrorApi, type ProductoCatalogo } from '../src/api';
 import { TOPE_PRODUCTOS_SEGUIDOS, useProductosSeguidos } from '../src/alertas';
 import { useAuth } from '../src/auth';
-import { BotonPrincipal, Vacio } from '../src/componentes/comunes';
+import { BotonPrincipal, Problema, Vacio } from '../src/componentes/comunes';
 import { espacio, fuentes, radio, texto, usePantallaBaja } from '../src/theme';
 import { useTema } from '../src/useTema';
 
@@ -40,6 +40,8 @@ export default function PantallaSeguirProducto() {
   const consultaValida = consultaDemorada.length >= 2;
   const [resultados, setResultados] = useState<ProductoCatalogo[]>([]);
   const [buscando, setBuscando] = useState(false);
+  const [errorBusqueda, setErrorBusqueda] = useState<string | null>(null);
+  const [intentoBusqueda, setIntentoBusqueda] = useState(0);
 
   // Estado local: parte de lo que ya se seguía, y el usuario lo va tildando/destildando acá
   // sin tocar el servidor hasta tocar GUARDAR.
@@ -60,14 +62,29 @@ export default function PantallaSeguirProducto() {
     setNombrePorEan(mapa);
   }, [cargandoSeguidos, seguidos]);
 
+  // Auditoría 2026-09-24: una respuesta vieja (ej. "yer") que llega después de la nueva
+  // ("yerba") pisaba los resultados — se descarta con el flag `vigente` del cleanup. Y un error
+  // del backend ya no se muestra como "no encontramos productos": se distingue con `errorBusqueda`.
   useEffect(() => {
-    if (!consultaValida || !session?.access_token) { setResultados([]); return; }
+    if (!consultaValida || !session?.access_token) {
+      setResultados([]);
+      setErrorBusqueda(null);
+      setBuscando(false);
+      return;
+    }
+    let vigente = true;
     setBuscando(true);
+    setErrorBusqueda(null);
     buscarProductos(consultaDemorada, session.access_token, { limit: 20 })
-      .then(r => setResultados(r.resultados))
-      .catch(() => setResultados([]))
-      .finally(() => setBuscando(false));
-  }, [consultaValida, consultaDemorada, session?.access_token]);
+      .then(r => { if (vigente) setResultados(r.resultados); })
+      .catch(err => {
+        if (!vigente) return;
+        setResultados([]);
+        setErrorBusqueda(err instanceof ErrorApi ? err.message : 'No se pudo buscar');
+      })
+      .finally(() => { if (vigente) setBuscando(false); });
+    return () => { vigente = false; };
+  }, [consultaValida, consultaDemorada, session?.access_token, intentoBusqueda]);
 
   const alTope = eansElegidos.size >= TOPE_PRODUCTOS_SEGUIDOS;
 
@@ -135,11 +152,16 @@ export default function PantallaSeguirProducto() {
           keyExtractor={p => p.ean}
           contentContainerStyle={[styles.lista, { paddingBottom: insets.bottom + espacio.xl }]}
           ItemSeparatorComponent={() => <View style={{ height: espacio.sm }} />}
-          ListEmptyComponent={!buscando ? (
+          ListEmptyComponent={buscando ? null : errorBusqueda ? (
+            <Problema
+              mensaje={`No se pudo buscar ahora (${errorBusqueda}).`}
+              onReintentar={() => setIntentoBusqueda(n => n + 1)}
+            />
+          ) : (
             <Text style={[texto.cuerpo, { color: paleta.tintaSuave, textAlign: 'center', marginTop: espacio.xl }]}>
               No encontramos productos con ese nombre.
             </Text>
-          ) : null}
+          )}
           renderItem={({ item }) => {
             const elegido = eansElegidos.has(item.ean);
             return (

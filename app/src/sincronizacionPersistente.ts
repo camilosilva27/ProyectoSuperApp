@@ -32,9 +32,10 @@ type Opciones<Local, Fila extends Record<string, unknown>> = {
   deFila: (fila: Fila) => Local;
   /** La fila del servidor sigue en su default de creación (nunca se sincronizó todavía). */
   filaVacia: (fila: Fila) => boolean;
-  /** Se llama siempre que termina un intento de hidratar, con `null` si no había nada que
-   *  aplicar (AsyncStorage vacío, o error leyendo Supabase) — el caller usa esto también para
-   *  marcar su propio "ya cargó", no solo para aplicar un valor. */
+  /** Se llama cuando termina de hidratar, con `null` si no había nada que aplicar (AsyncStorage
+   *  vacío) — el caller usa esto también para marcar su propio "ya cargó", no solo para aplicar
+   *  un valor. Si falla la lectura de Supabase NO se llama (se reintenta con backoff): marcar
+   *  "cargado" con el estado vacío habilitaría la escritura que pisa lo del servidor. */
   onHidratar: (local: Local | null) => void;
 };
 
@@ -50,14 +51,41 @@ export function useSincronizacionPersistente<Local, Fila extends Record<string, 
   // "recién me logueo, migro lo local" de "abrí la app y ya estaba logueado de antes".
   const yaFueAnonimoRef = useRef(false);
 
+  // Escrituras a Supabase serializadas con "última gana" (auditoría 2026-09-24): antes cada
+  // cambio disparaba un `.update()` suelto sin esperar al anterior, así que con cambios rápidos
+  // (tocar +/+/+ en el carrito) dos updates podían llegar al revés y quedar guardado un estado
+  // viejo. Ahora hay a lo sumo un update en vuelo; si llegan cambios mientras tanto, se guarda
+  // solo el último y se manda cuando termina el anterior. Sin debounce a propósito: una demora
+  // artificial es una ventana más para perder el último cambio si se cierra la pestaña.
+  const enviandoRef = useRef(false);
+  const pendienteRef = useRef<{ userId: string; valor: Local } | null>(null);
+
+  const drenarEscrituras = async () => {
+    if (enviandoRef.current) return;
+    enviandoRef.current = true;
+    try {
+      while (pendienteRef.current) {
+        const { userId: idDestino, valor: aEnviar } = pendienteRef.current;
+        pendienteRef.current = null;
+        const { error } = await supabase
+          .from('perfil_usuario').update(aFila(aEnviar) as any).eq('id', idDestino);
+        if (error) console.warn(`[sincronizacion ${clave}] no se pudo guardar en Supabase`, error.message);
+      }
+    } finally {
+      enviandoRef.current = false;
+    }
+  };
+
   useEffect(() => {
     if (authCargando) return;
     const fuente = userId ?? 'anonimo';
     if (fuenteHidratadaRef.current === fuente) return;
 
     const esTransicionALogueado = yaFueAnonimoRef.current && userId !== null;
+    let cancelado = false;
+    let reintento: ReturnType<typeof setTimeout> | null = null;
 
-    (async () => {
+    const hidratar = async (intento: number) => {
       if (!userId) {
         yaFueAnonimoRef.current = true;
         let local: Local | null = null;
@@ -67,6 +95,7 @@ export function useSincronizacionPersistente<Local, Fila extends Record<string, 
         } catch {
           // Datos corruptos en AsyncStorage: se ignoran, el caller se queda con su estado inicial.
         }
+        if (cancelado) return;
         onHidratar(local);
         fuenteHidratadaRef.current = fuente;
         return;
@@ -77,10 +106,17 @@ export function useSincronizacionPersistente<Local, Fila extends Record<string, 
         .select(columnas.join(','))
         .eq('id', userId)
         .single();
+      if (cancelado) return;
 
       if (error || !data) {
-        onHidratar(null);
-        fuenteHidratadaRef.current = fuente;
+        // Auditoría 2026-09-24: antes esto llamaba `onHidratar(null)` y marcaba la fuente como
+        // hidratada — el caller quedaba "cargado" con su estado vacío por defecto y el efecto de
+        // escritura de abajo lo subía, pisando el carrito/tarjetas/supers reales del servidor
+        // por un error de red. Ahora NO se hidrata ni se habilitan escrituras: se reintenta con
+        // backoff (1s, 2s, 4s… tope 30s) mientras siga siendo el mismo usuario.
+        console.warn(`[sincronizacion ${clave}] no se pudo leer perfil_usuario (intento ${intento + 1})`, error?.message);
+        const espera = Math.min(30_000, 1000 * 2 ** intento);
+        reintento = setTimeout(() => { hidratar(intento + 1); }, espera);
         return;
       }
       const fila = data as unknown as Fila;
@@ -88,13 +124,22 @@ export function useSincronizacionPersistente<Local, Fila extends Record<string, 
       if (esTransicionALogueado && valor !== null && filaVacia(fila)) {
         // Primer login con datos locales y el servidor todavía vacío: sube lo local. El estado
         // del caller ya es `valor` — se re-afirma igual, así el caller también se marca "cargado".
-        await supabase.from('perfil_usuario').update(aFila(valor) as any).eq('id', userId);
+        const { error: errorSubida } = await supabase
+          .from('perfil_usuario').update(aFila(valor) as any).eq('id', userId);
+        if (errorSubida) console.warn(`[sincronizacion ${clave}] no se pudo migrar lo local`, errorSubida.message);
+        if (cancelado) return;
         onHidratar(valor);
       } else {
         onHidratar(deFila(fila));
       }
       fuenteHidratadaRef.current = fuente;
-    })();
+    };
+
+    hidratar(0);
+    return () => {
+      cancelado = true;
+      if (reintento) clearTimeout(reintento);
+    };
   }, [authCargando, userId]);
 
   useEffect(() => {
@@ -103,9 +148,12 @@ export function useSincronizacionPersistente<Local, Fila extends Record<string, 
     if (fuenteHidratadaRef.current !== fuente) return; // no pisar antes de hidratar esta fuente
 
     if (!userId) {
-      AsyncStorage.setItem(clave, JSON.stringify(valor)).catch(() => {});
+      AsyncStorage.setItem(clave, JSON.stringify(valor)).catch((err) => {
+        console.warn(`[sincronizacion ${clave}] no se pudo guardar en AsyncStorage`, err);
+      });
     } else {
-      supabase.from('perfil_usuario').update(aFila(valor) as any).eq('id', userId).then(() => {});
+      pendienteRef.current = { userId, valor };
+      drenarEscrituras();
     }
   }, [valor, userId]);
 }

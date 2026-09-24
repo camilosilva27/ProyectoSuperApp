@@ -1235,3 +1235,44 @@ Objetivo del usuario: elegir productos puntuales (por ahora, no categorías — 
 - ~~Interpretar el formato "2x$X" (precio fijo) de Día en `promo-engine.js`~~ ✅ hecho (2026-08-19) — tipo `oferta_precio_fijo`, ver "API de Día" arriba
 - ~~Promos por producto condicionadas a tarjeta propia más allá de Mi Carrefour: MasClub~~ descartado (2026-08-19) — ver "Cerrado, no implementar" en "API de Chango Más" arriba, sin evidencia de que exista (mismo cierre que Cencopay, ver sección de promos bancarias)
 - ~~Conectar promos bancarias con tope a `/api/comparar`~~ ✅ hecho (2026-08-19) — ver "`POST /api/comparar` SÍ conecta este módulo" en la sección de promos bancarias arriba
+
+
+## Correcciones de la auditoría 2026-09-24 (altos y medios)
+
+Detalle y checklist en `AUDITORIA_2026-09-24.md`. Hechos estables que resultaron:
+
+**Motor (`AllPromos/`)**
+- El día de la semana de las promos bancarias se calcula en hora argentina (`core/fechaArgentina.js`); la VM está en UTC. Antes, entre 21 y 24 h se aplicaban las del día siguiente.
+- Guardrail de catálogo: referencia = máximo de las corridas aceptadas en los últimos 7 días, umbral 85% (`RATIO_MINIMO`). El historial viaja dentro de cada `catalogo-*.json` (`guardrail.historial`) porque en GHA solo los catálogos pasan de corrida a corrida. Las corridas bloqueadas no entran al historial; una baja real de más de 7 días se acepta sola.
+- Scrapers VTEX: solo un HTTP 400 con `from ≥ 2000` es fin de catálogo; cualquier otro error aborta con exit 1 y deja el catálogo anterior. Retry compartido en `core/reintentoVTEX.js` (red/429/5xx, 3×10s, timeout 60s). `search-promotions` usa el mismo retry y falla fuerte en vez de guardar sin promos.
+- `precioCache.js` anula al consultar las promos con `promocion.vigenciaHasta` vencida (ISO con offset -03:00).
+- Fallback en vivo (`core/fetchers.js`): timeout 15s por fetch (`fetchEnVivo`), un súper caído no descarta a los otros (`sinRomperElResto`), filtro `IsAvailable` y precio > 0 (`skuVendible`).
+- `interpretarPromoPorTexto` con `effectiveDiscount` no numérico devuelve null (antes NaN). `maxUnidades` ("Max 8 unidades" de Carrefour) se respeta en `calcularCosto`.
+- Tests: `node --test backend/test/*.test.js AllPromos/*.test.js AllPromos/core/*.test.js` (Node 22 no acepta un directorio en `--test`).
+
+**Backend e infra**
+- `/api/health`: catálogo vencido a las 12 h (`horasMaximoCatalogo`), lee `scraper_errores` de las últimas 6 h: un fallo aislado va a `avisos`, 2 corridas fallidas seguidas del mismo súper van a `problemas` y dan `ok:false` (UptimeRobot alerta). Un fallo ya recuperado no cuenta. La respuesta pública no trae mensajes de error crudos; el detalle se ve con `HEALTH_TOKEN` (header `x-health-token` o `?token=`), variable opcional en la VM.
+- Los scrapers los dispara solo el cron de la VM (`workflow_dispatch`); se sacó el `schedule` de `scrapers.yml` y hay `concurrency: scrapers`.
+- `deploy.yml`: solo corre con cambios en `backend/**`, `AllPromos/**` o el propio workflow; usa `npm ci`; health check contra `127.0.0.1:$PORT/api/health` (15×2s) y si falla vuelve al commit anterior y deja el job en rojo. El check exige que responda el campo `ok`, no `ok:true` (un catálogo viejo no bloquea deploys).
+- Fallback en vivo de `/api/comparar`: cola con tope 20 (`ColaLlenaError` → advertencia en el ítem) y `cacheEnVivo` con máximo 500 entradas.
+- `server.js` atrapa rechazos de handlers async de Express 4 (parche sobre el Layer; borrarlo al migrar a Express 5). `unhandledRejection` se loguea/reporta sin tumbar el proceso; `uncaughtException` sale para que systemd reinicie. En producción escucha solo en 127.0.0.1 (Caddy proxya a `localhost:3000`); en desarrollo en todas las interfaces para el teléfono (`HOST` lo fuerza).
+- Escrituras atómicas: subida de catálogos (`subir-catalogos.sh`, temporal + mv), `promos-bancarias.json` y el unificado (temporal único por proceso). `promosBancariasCache` conserva el último valor bueno.
+- Los e2e de `/comparar` firman su propio JWT con claves servidas por un HTTP local: pasan por el middleware real sin bypass.
+
+**Mails y Alertas**
+- Alertas usa `huellaIdentidadPromo` (prefijo `v2:`; nombre/código/% redondeado, sin precio, vigencia ni bancarias). Una huella guardada en formato viejo se reescribe sin avisar. `huellaPromoSku` sigue para `scraper_diffs`.
+- "Plan activo" en el backend = `tienePlanActivo` (`usuariosAuth.js`), mismo criterio que `GatePaywallFinTrial`. Alertas e inactividad solo van a plan activo; el mail además exige mail confirmado.
+- Selects de crons sobre tablas grandes pasan por `leerTodasLasFilas` (PostgREST corta en 1000 filas sin avisar).
+- `enviarMail` (`clienteBrevo.js`) nunca lanza: timeout 15s, un reintento ante 429 respetando `Retry-After`, devuelve `{ok:false, error}`.
+- `escaparHtml` (`plantillaMail.js`) en todo dato no confiable de los 7 mails. Mails no transaccionales (resúmenes, inactividad, Alertas) llevan `noTransaccional: true` → header `List-Unsubscribe` (mailto a contacto@ con asunto "baja") y pie de baja, centralizados en `HEADERS_NO_TRANSACCIONAL`/`PIE_BAJA`.
+- Idempotencia de resúmenes: tabla `envio_mail_periodico` (migración 0026, solo service_role), clave (usuario, tipo, período 'YYYY-MM' o semana ISO AR '2026-W39'). La marca se reclama antes de mandar y se libera si no salió por ningún canal.
+- Fin de trial e inactividad guardan la marca si el aviso llegó por al menos un canal (el push ya no se repite a diario). La bienvenida sale solo si el update devolvió fila; el secreto del webhook se compara en tiempo constante.
+
+**App**
+- El backend decide acceso por el claim `plan` del JWT: el cliente renueva la sesión (`refrescarSesionCompartida`, `supabase.ts`) cuando la fila y el token no coinciden, y ante un 403 de plan vencido reintenta una vez.
+- `sincronizacionPersistente.ts` nunca marca hidratado ni escribe si falló la lectura (reintenta con backoff); escrituras serializadas, "última gana".
+- Timeouts por endpoint en `api.ts` (catálogo 4s, lotes 15s, comparar 45s, pagos 30s); la URL base alternativa solo se prueba en pedidos idempotentes (nunca en POST de pago).
+- El gate de paywall muestra error con "Volver a intentar" si no puede leer el plan o el precio, en vez de dejar pasar. `ErrorBoundary` raíz en `app/_layout.tsx`.
+- Headers de seguridad en `app/vercel.json` (X-Frame-Options, CSP solo `frame-ancestors 'none'`, nosniff, Referrer-Policy, HSTS con subdominios). Sin CSP de scripts a propósito.
+- Contraseñas: mínimo 8 caracteres y una mayúscula (`RequisitosPassword.tsx`, aviso visible antes de escribir y en rojo si no cumple). Supabase exige el mínimo de 8 (`password_min_length`, cambiado por Management API PATCH, no config push); la mayúscula solo se valida en la app porque Supabase no tiene opción "solo mayúscula".
+- `www.mi-superapp.com.ar` redirige 308 al dominio sin www (configurado en Vercel el 24/09).

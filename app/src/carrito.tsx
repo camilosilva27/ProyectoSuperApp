@@ -151,8 +151,8 @@ export function ProveedorCarrito({ children }: { children: React.ReactNode }) {
       tarjetas: Array.isArray(fila.carrito_tarjetas) ? fila.carrito_tarjetas : [],
     }),
     filaVacia: fila => fila.carrito_items.length === 0 && fila.carrito_tarjetas.length === 0,
-    // `local` es null si no había nada guardado (usuario anónimo nuevo, o error leyendo el
-    // perfil) — se despacha igual con `{}` para que el reducer marque `cargado: true` y
+    // `local` es null si no había nada guardado (usuario anónimo nuevo) — un error leyendo el
+    // perfil ya no llega acá, se reintenta dentro del hook (auditoría 2026-09-24) — se despacha igual con `{}` para que el reducer marque `cargado: true` y
     // arranque a persistir, mismo criterio que el fallback que ya tenía esto antes.
     onHidratar: local => despachar({ tipo: 'hidratar', estado: local ?? {} }),
   });

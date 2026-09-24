@@ -34,6 +34,9 @@ import { espacio, radio, texto } from '../theme';
 import { useTema } from '../useTema';
 import { esEmailValido } from '../validacion';
 import { ModalLegal } from './ModalLegal';
+import {
+  AvisoRequisitosPassword, passwordCumpleRequisitos, passwordInvalida, TEXTO_REQUISITOS_PASSWORD,
+} from './RequisitosPassword';
 
 const CLAVE_YA_VISITO = 'superapp_ya_visito_landing_auth_v1';
 
@@ -232,6 +235,10 @@ export function FormularioAuth({
     }
     if (modo === 'registro' && !esEmailValido(email)) {
       setError('Ese mail no es válido.');
+      return;
+    }
+    if (modo === 'registro' && !passwordCumpleRequisitos(password)) {
+      setError(`La contraseña no cumple los requisitos: ${TEXTO_REQUISITOS_PASSWORD.toLowerCase()}`);
       return;
     }
     if (modo === 'registro' && password !== confirmarPassword) {
@@ -486,13 +493,20 @@ export function FormularioAuth({
             accessibilityLabel="Mail"
           />
         </View>
+        {modo === 'registro' ? <AvisoRequisitosPassword password={password} /> : null}
         {modo !== 'recuperar' ? (
-          <View style={[styles.campo, { backgroundColor: paleta.superficieAlt }]}>
+          <View
+            style={[
+              styles.campo,
+              { backgroundColor: paleta.superficieAlt },
+              modo === 'registro' && passwordInvalida(password) ? { borderWidth: 1.5, borderColor: paleta.errorTexto } : null,
+            ]}
+          >
             <IconoCandado tamano={18} color={paleta.tintaTenue} />
             <TextInput
               value={password}
               onChangeText={setPassword}
-              placeholder={modo === 'registro' ? 'Contraseña · Mínimo 6 caracteres' : 'Contraseña'}
+              placeholder="Contraseña"
               placeholderTextColor={paleta.tintaTenue}
               style={[texto.cuerpo, styles.input, { color: paleta.tinta }]}
               secureTextEntry

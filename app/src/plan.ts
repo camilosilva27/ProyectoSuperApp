@@ -6,9 +6,9 @@
  * después de crear/cancelar una suscripción.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from './auth';
-import { supabase } from './supabase';
+import { planDelToken, refrescarSesionCompartida, supabase } from './supabase';
 import { verificarPago } from './api';
 
 export type InfoPlan = {
@@ -31,51 +31,106 @@ export type InfoPlan = {
   accesoPremiumHasta: string | null;
 };
 
+type ResultadoCarga = { info: InfoPlan | null; error: string | null };
+
+/** Si `verificarPago` corrió hace menos que esto para el mismo usuario, no se repite: evita que
+ *  las 3 instancias del hook (gate, ajustes, plan-y-pago) consulten a Mercado Pago cada una, y
+ *  que cada vuelta a la pestaña dispare otra consulta. Corto a propósito: al volver del checkout
+ *  de MP (varios segundos después de abrirlo) tiene que volver a correr. */
+const INTERVALO_MIN_VERIFICAR_MS = 10_000;
+let ultimaVerificacion: { userId: string; en: number } | null = null;
+/** Carga en curso compartida entre instancias del hook (mismo usuario → mismo pedido). */
+let cargaEnCurso: { userId: string; promesa: Promise<ResultadoCarga> } | null = null;
+
+async function cargarInfoPlan(userId: string, accessToken: string | null): Promise<ResultadoCarga> {
+  // Chequeo activo contra Mercado Pago antes de leer: el webhook puede demorar días en avisar
+  // un pago ya aprobado (ver Plan_Usuarios_y_cobros.md), así que no alcanza con esperarlo.
+  // Falla en silencio (sin bloquear la lectura de abajo) si el backend no responde — el
+  // webhook sigue siendo la vía de fondo, esto solo adelanta el caso feliz.
+  const verificacionReciente = ultimaVerificacion?.userId === userId
+    && Date.now() - ultimaVerificacion.en < INTERVALO_MIN_VERIFICAR_MS;
+  if (accessToken && !verificacionReciente) {
+    ultimaVerificacion = { userId, en: Date.now() };
+    await verificarPago(accessToken).catch(() => null);
+  }
+  const { data, error } = await supabase
+    .from('perfil_usuario')
+    .select(`
+      plan, tipo_plan, trial_termina_en, pasarela_suscripcion_id, suscripcion_estado,
+      mail_mercado_pago, siguiente_cobro_en, pagado_en, acceso_premium_hasta
+    `)
+    .eq('id', userId)
+    .single();
+  // Antes (hasta la auditoría 2026-09-24) el error se ignoraba y quedaba `info: null`, que el
+  // gate interpretaba como "no hay nada que bloquear": el usuario pasaba y veía errores
+  // genéricos en todas las pantallas. Ahora se reporta para que el gate muestre "Reintentar".
+  if (error || !data) {
+    return { info: null, error: error?.message ?? 'No se encontró el perfil del usuario' };
+  }
+  const info: InfoPlan = {
+    plan: data.plan,
+    tipoPlan: data.tipo_plan,
+    trialTerminaEn: data.trial_termina_en,
+    pasarelaSuscripcionId: data.pasarela_suscripcion_id,
+    suscripcionEstado: data.suscripcion_estado,
+    mailMercadoPago: data.mail_mercado_pago,
+    renuevaEl: data.siguiente_cobro_en,
+    pagadoEl: data.pagado_en,
+    accesoPremiumHasta: data.acceso_premium_hasta,
+  };
+  // Bug "bloqueado después de pagar" (auditoría 2026-09-24): el backend decide acceso con el
+  // claim `plan` del JWT (Auth Hook, migración 0006), no con esta fila. Si la fila ya cambió
+  // (ej. pasó a premium tras verificar el pago) y el token todavía trae el plan viejo, se
+  // renueva la sesión ya — si no, `/api/*` sigue respondiendo 403 hasta el auto-refresh (~1h).
+  const planToken = planDelToken(accessToken);
+  if (planToken !== null && planToken !== info.plan) {
+    await refrescarSesionCompartida();
+  }
+  return { info, error: null };
+}
+
+function cargarInfoPlanCompartida(userId: string, accessToken: string | null) {
+  if (cargaEnCurso?.userId === userId) return cargaEnCurso.promesa;
+  const promesa = cargarInfoPlan(userId, accessToken).finally(() => {
+    if (cargaEnCurso?.promesa === promesa) cargaEnCurso = null;
+  });
+  cargaEnCurso = { userId, promesa };
+  return promesa;
+}
+
 export function usePlanUsuario() {
   const { session } = useAuth();
   const userId = session?.user.id ?? null;
+  // El token se lee por ref: `recargar` depende solo del user id. Antes dependía de `session`
+  // entero, y cada auto-refresh del token (o el refresh que dispara este mismo hook) recreaba
+  // `recargar` → el efecto de abajo volvía a correr → otra consulta a Mercado Pago.
+  const tokenRef = useRef<string | null>(session?.access_token ?? null);
+  tokenRef.current = session?.access_token ?? null;
   const [info, setInfo] = useState<InfoPlan | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
 
   const recargar = useCallback(async () => {
     if (!userId) {
       setInfo(null);
+      setError(null);
       setCargando(false);
       return;
     }
     setCargando(true);
-    // Chequeo activo contra Mercado Pago antes de leer: el webhook puede demorar días en avisar
-    // un pago ya aprobado (ver Plan_Usuarios_y_cobros.md), así que no alcanza con esperarlo.
-    // Falla en silencio (sin bloquear la lectura de abajo) si el backend no responde — el
-    // webhook sigue siendo la vía de fondo, esto solo adelanta el caso feliz.
-    if (session?.access_token) {
-      await verificarPago(session.access_token).catch(() => null);
-    }
-    const { data } = await supabase
-      .from('perfil_usuario')
-      .select(`
-        plan, tipo_plan, trial_termina_en, pasarela_suscripcion_id, suscripcion_estado,
-        mail_mercado_pago, siguiente_cobro_en, pagado_en, acceso_premium_hasta
-      `)
-      .eq('id', userId)
-      .single();
-    setInfo(data ? {
-      plan: data.plan,
-      tipoPlan: data.tipo_plan,
-      trialTerminaEn: data.trial_termina_en,
-      pasarelaSuscripcionId: data.pasarela_suscripcion_id,
-      suscripcionEstado: data.suscripcion_estado,
-      mailMercadoPago: data.mail_mercado_pago,
-      renuevaEl: data.siguiente_cobro_en,
-      pagadoEl: data.pagado_en,
-      accesoPremiumHasta: data.acceso_premium_hasta,
-    } : null);
+    const resultado = await cargarInfoPlanCompartida(userId, tokenRef.current);
+    // En una revalidación fallida se conserva el último `info` bueno: tirarlo a null haría que el
+    // gate deje de bloquear (o que desbloquee) por un error de red momentáneo.
+    if (resultado.info) setInfo(resultado.info);
+    setError(resultado.error);
     setCargando(false);
-  }, [userId, session]);
+  }, [userId]);
 
+  // Cambio de usuario: no arrastrar el plan del anterior si la primera lectura del nuevo falla.
+  useEffect(() => { setInfo(null); setError(null); }, [userId]);
   useEffect(() => { recargar(); }, [recargar]);
 
-  return { info, cargando, recargar };
+  return { info, cargando, error, recargar };
 }
 
 export type PlanId = 'mensual' | 'anual' | 'permanente';

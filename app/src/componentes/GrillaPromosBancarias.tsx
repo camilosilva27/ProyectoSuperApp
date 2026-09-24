@@ -79,7 +79,10 @@ function etiquetaCelda(celda: CeldaGrilla): string {
   return celda.promos.map(p => `${p.banco} ${Math.round(p.pct * 100)}%`).join(', ');
 }
 
-type Dimensiones = (typeof DIMENSIONES)[keyof typeof DIMENSIONES];
+// `as const` deja cada valor como literal (anchoDia: 92 | 80), pero en desktop `anchoDia` se
+// calcula (calcularAnchoDiaDesktop) — se ensancha a `number` para que entre ese caso sin perder
+// el chequeo del resto de las claves (fix TS de la auditoría 2026-09-24).
+type Dimensiones = { readonly [K in keyof (typeof DIMENSIONES)['normal']]: number };
 
 // Desktop/monitor ancho (≥900px, tablet grande en adelante): las columnas de día se agrandan para
 // llenar el ancho disponible en vez de quedar angostas con scroll horizontal. Tope de 160 (vs. los

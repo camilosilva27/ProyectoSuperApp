@@ -48,3 +48,55 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: Platform.OS === 'web',
   },
 });
+
+/**
+ * `refreshSession()` compartido (auditoría 2026-09-24, bug "bloqueado después de pagar"): el
+ * backend decide acceso con el claim `plan` del JWT (Auth Hook, migración 0006), no leyendo
+ * `perfil_usuario`. Después de pagar, la fila ya dice `premium` pero el token viejo sigue
+ * diciendo `gratis` hasta que supabase-js lo renueve solo (~1h) — y mientras tanto `/api/*`
+ * responde 403. Lo llaman `plan.ts` (cuando la fila y el token no coinciden) y `api.ts` (ante un
+ * 403 de plan vencido).
+ *
+ * Dedup + enfriamiento: varios pedidos que reciben 403 a la vez comparten UN refresh, y un
+ * usuario que de verdad está en `gratis` no dispara un refresh por cada request (cada uno
+ * gastaría un pedido a Supabase Auth y no cambiaría nada). Devuelve el token nuevo, o `null` si
+ * no se refrescó (enfriamiento, sin sesión o error).
+ */
+const ENFRIAMIENTO_REFRESH_MS = 30_000;
+let refreshEnCurso: Promise<string | null> | null = null;
+let ultimoRefresh = 0;
+
+export function refrescarSesionCompartida(): Promise<string | null> {
+  if (refreshEnCurso) return refreshEnCurso;
+  if (Date.now() - ultimoRefresh < ENFRIAMIENTO_REFRESH_MS) return Promise.resolve(null);
+  ultimoRefresh = Date.now();
+  refreshEnCurso = supabase.auth.refreshSession()
+    .then(({ data, error }) => {
+      if (error) {
+        console.warn('[supabase] refreshSession falló', error.message);
+        return null;
+      }
+      return data.session?.access_token ?? null;
+    })
+    .catch((err) => {
+      console.warn('[supabase] refreshSession falló', err);
+      return null;
+    })
+    .finally(() => { refreshEnCurso = null; });
+  return refreshEnCurso;
+}
+
+/** Lee el claim `plan` del JWT sin validarlo (solo para comparar contra `perfil_usuario`; la
+ *  validación real la hace el backend). `null` si el token no se puede decodificar. */
+export function planDelToken(accessToken: string | null | undefined): string | null {
+  if (!accessToken) return null;
+  try {
+    const payload = accessToken.split('.')[1];
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const relleno = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+    const claims = JSON.parse(atob(relleno));
+    return typeof claims?.plan === 'string' ? claims.plan : null;
+  } catch {
+    return null;
+  }
+}

@@ -13,6 +13,9 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 
 import { useAuth } from '../auth';
 import { espacio, radio, texto } from '../theme';
 import { useTema } from '../useTema';
+import {
+  AvisoRequisitosPassword, passwordCumpleRequisitos, passwordInvalida, TEXTO_REQUISITOS_PASSWORD,
+} from './RequisitosPassword';
 
 export function NuevaPasswordForm({
   pantallaCompleta, insetSuperior = 0,
@@ -26,8 +29,8 @@ export function NuevaPasswordForm({
 
   const confirmar = async () => {
     if (enviando) return;
-    if (!password || password.length < 6) {
-      setError('La contraseña tiene que tener al menos 6 caracteres.');
+    if (!passwordCumpleRequisitos(password)) {
+      setError(`La contraseña no cumple los requisitos: ${TEXTO_REQUISITOS_PASSWORD.toLowerCase()}`);
       return;
     }
     if (password !== confirmarPassword) {
@@ -60,11 +63,18 @@ export function NuevaPasswordForm({
       </View>
 
       <View style={{ gap: espacio.md }}>
-        <View style={[styles.campo, { backgroundColor: paleta.superficieAlt }]}>
+        <AvisoRequisitosPassword password={password} />
+        <View
+          style={[
+            styles.campo,
+            { backgroundColor: paleta.superficieAlt },
+            passwordInvalida(password) ? { borderWidth: 1.5, borderColor: paleta.errorTexto } : null,
+          ]}
+        >
           <TextInput
             value={password}
             onChangeText={setPassword}
-            placeholder="Contraseña nueva · Mínimo 6 caracteres"
+            placeholder="Contraseña nueva"
             placeholderTextColor={paleta.tintaTenue}
             style={[texto.cuerpo, styles.input, { color: paleta.tinta }]}
             secureTextEntry

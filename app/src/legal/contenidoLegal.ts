@@ -19,7 +19,7 @@ export const SECCIONES_TERMINOS: SeccionLegal[] = [
   },
   {
     titulo: '2. Qué es SuperAhorro',
-    cuerpo: 'SuperAhorro es un comparador de precios de supermercados: junta y compara precios, promociones y descuentos bancarios publicados por distintas cadenas para ayudarte a armar tu compra más barata.\n\nSuperAhorro no vende productos, no procesa compras de supermercado ni es parte de ninguna transacción entre vos y el supermercado. Los precios y promos pueden tener errores, demoras o quedar desactualizados — siempre confirmá el precio final en el supermercado antes de pagar.',
+    cuerpo: 'SuperAhorro es un comparador de precios de supermercados: junta y compara precios, promociones y descuentos bancarios publicados por distintas cadenas para ayudarte a armar tu compra más barata.\n\nSuperAhorro no vende productos, no procesa compras de supermercado ni es parte de ninguna transacción entre vos y el supermercado. Los precios y promos pueden tener errores, demoras o quedar desactualizados — siempre confirmá el precio final en el supermercado antes de pagar. No nos hacemos responsables por diferencias entre el precio mostrado en la App y el precio real en caja.',
   },
   {
     titulo: '3. Cuenta de usuario',
@@ -27,7 +27,7 @@ export const SECCIONES_TERMINOS: SeccionLegal[] = [
   },
   {
     titulo: '4. Planes, precios y período de prueba',
-    cuerpo: 'Todo usuario nuevo arranca con un período de prueba gratuito con acceso completo. Al finalizar, para seguir usando la App hace falta un plan pago: mensual, anual o permanente (pago único). No ofrecemos un plan gratuito permanente.',
+    cuerpo: 'Todo usuario nuevo arranca con un período de prueba gratuito con acceso completo. Al finalizar, para seguir usando la App hace falta un plan pago: mensual, anual o permanente (pago único). Los precios vigentes se muestran en la pantalla de selección de plan dentro de la App y pueden cambiar — el precio que pagás en el momento de suscribirte queda fijo mientras esa suscripción siga activa. No ofrecemos un plan gratuito permanente: sin un plan pago activo o un período de prueba vigente, la App no está disponible.',
   },
   {
     titulo: '5. Pagos y facturación',
@@ -51,7 +51,7 @@ export const SECCIONES_TERMINOS: SeccionLegal[] = [
   },
   {
     titulo: '10. Exactitud de la información',
-    cuerpo: 'La información de precios y promociones se ofrece "tal cual", sin garantía de exactitud, disponibilidad o actualización en tiempo real.',
+    cuerpo: 'La información de precios y promociones se ofrece "tal cual", sin garantía de exactitud, disponibilidad o actualización en tiempo real. No garantizamos que la App esté libre de errores o interrupciones.',
   },
   {
     titulo: '11. Limitación de responsabilidad',
@@ -82,19 +82,19 @@ export const SECCIONES_PRIVACIDAD: SeccionLegal[] = [
   },
   {
     titulo: '2. Qué datos recolectamos',
-    cuerpo: 'Datos de cuenta (mail, nombre, o tu cuenta de Google). Datos de uso: carrito, tarjetas bancarias marcadas como propias (solo nombre/tipo, nunca número de tarjeta), supers activos, listas guardadas, historial de ahorro. Datos de pago: el mail que usaste en Mercado Pago y el estado de tu suscripción — nunca el número de tarjeta, eso lo procesa y guarda Mercado Pago directamente.',
+    cuerpo: 'Datos de cuenta (mail, nombre, o tu cuenta de Google). Datos de uso: carrito, tarjetas bancarias marcadas como propias (solo nombre/tipo, nunca número de tarjeta), supers activos, listas guardadas, historial de ahorro. Alertas: los productos y categorías que seguís y si tenés activado "Recibir notificaciones". Notificaciones push (web): si las aceptás, la suscripción push que genera tu navegador (dirección técnica de envío y sus claves de cifrado). Datos de pago: el mail que usaste en Mercado Pago y el estado de tu suscripción — nunca el número de tarjeta, eso lo procesa y guarda Mercado Pago directamente. Datos técnicos: reportes de errores (qué falló, navegador/sistema operativo, y puede incluir tu dirección IP) y métricas agregadas de uso y rendimiento de la versión web.',
   },
   {
     titulo: '3. Cómo usamos tus datos',
-    cuerpo: 'Para darte acceso a la App y sincronizar tu carrito entre dispositivos, gestionar tu plan y pagos, enviarte mails operativos (confirmación de cuenta, recibos, avisos de plan) y calcular tu historial de ahorro. No usamos tus datos para publicidad ni los vendemos a terceros.',
+    cuerpo: 'Para darte acceso a la App y sincronizar tu carrito entre dispositivos, gestionar tu plan y pagos, calcular tu historial de ahorro, y detectar errores y mejorar el rendimiento. Te mandamos mails operativos (confirmación de cuenta, recibos, aviso de fin del período de prueba y otros avisos de plan) y, además, resúmenes semanal y mensual de ahorro, un aviso si hace un tiempo que no entrás, y alertas de promos de lo que seguís (por mail y push).\n\nLas alertas se apagan desde la App con "Recibir notificaciones" (las push también desde tu navegador). Para dejar de recibir los resúmenes de ahorro o el aviso de inactividad, escribinos a contacto@mi-superapp.com.ar con el asunto "baja". Los mails operativos se siguen mandando mientras tengas cuenta. No usamos tus datos para publicidad ni los vendemos a terceros.',
   },
   {
     titulo: '4. Con quién compartimos tus datos',
-    cuerpo: 'Supabase (base de datos y login), Mercado Pago (pagos y suscripciones), Brevo (mails transaccionales) y, si elegís ese método, Google (login). No compartimos tus datos con nadie más, salvo que la ley nos obligue.',
+    cuerpo: 'Supabase (base de datos y login), Google Cloud Platform (servidor que procesa los pedidos de la App), Vercel (hosting de la versión web, más Vercel Analytics y Speed Insights para métricas agregadas de uso y rendimiento), Sentry (reportes de errores, que pueden incluir tu IP), Mercado Pago (pagos y suscripciones), Brevo (envío de mails), ImprovMX (reenvío de los mails que nos mandás a contacto@mi-superapp.com.ar), el servicio de notificaciones de tu navegador si activás las push, y, si elegís ese método, Google (login). No compartimos tus datos con nadie más, salvo que la ley nos obligue.',
   },
   {
-    titulo: '5. Uso sin cuenta',
-    cuerpo: 'Si usás la App sin crear cuenta, tu carrito, tarjetas y listas quedan solo en tu dispositivo, no en nuestros servidores. Al crear una cuenta, esos datos se suben para sincronizarlos entre dispositivos.',
+    titulo: '5. Datos guardados en tu dispositivo',
+    cuerpo: 'Para usar la App necesitás una cuenta. Además, la App guarda en el almacenamiento local de tu navegador/teléfono tu sesión y una copia de tu carrito, tarjetas, supers activos y preferencias, para funcionar más rápido. Esos datos se sincronizan con tu cuenta; la copia local la podés borrar limpiando los datos del navegador o de la app.',
   },
   {
     titulo: '6. Seguridad',

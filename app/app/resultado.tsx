@@ -115,6 +115,12 @@ function promosSinAplicarDe(items: ItemComparado[], itemsCarrito: { ean: string;
   return promos;
 }
 
+/** "A, B y C" — para el mensaje de carga. */
+function listaNatural(nombres: string[]): string {
+  if (nombres.length <= 1) return nombres[0] ?? 'los supers';
+  return `${nombres.slice(0, -1).join(', ')} y ${nombres[nombres.length - 1]}`;
+}
+
 export default function PantallaResultado() {
   const { paleta } = useTema();
   const insets = useSafeAreaInsets();
@@ -150,7 +156,9 @@ export default function PantallaResultado() {
   if (isLoading) {
     return (
       <View style={[styles.centrado, { backgroundColor: paleta.fondo }]}>
-        <Cargando mensaje="Consultando precios en Vea, Carrefour, Chango Más, Día y Coto…" />
+        {/* Derivado de los supers que de verdad se consultan (auditoría 2026-09-24: el texto fijo
+            había quedado sin Jumbo ni Disco, y además listaba supers desactivados). */}
+        <Cargando mensaje={`Consultando precios en ${listaNatural(supersActivos.map(k => NOMBRE_SUPER[k]))}…`} />
       </View>
     );
   }

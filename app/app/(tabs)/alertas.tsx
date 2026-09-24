@@ -22,7 +22,7 @@ import {
 } from '../../src/alertas';
 import { useAuth } from '../../src/auth';
 import { DejarDeSeguirHoja } from '../../src/componentes/DejarDeSeguirHoja';
-import { Cargando, FilaToggleAnimada } from '../../src/componentes/comunes';
+import { Cargando, FilaToggleAnimada, Problema } from '../../src/componentes/comunes';
 import { HeaderNegro, TituloHeader } from '../../src/componentes/HeaderNegro';
 import { espacio, fuentes, radio, texto, usePantallaBaja, type Paleta } from '../../src/theme';
 import { useTema } from '../../src/useTema';
@@ -42,6 +42,13 @@ export default function PantallaAlertas() {
   const [catalogoCategorias, setCatalogoCategorias] = useState<CategoriaCatalogo[]>([]);
   const [paraDejarDeSeguir, setParaDejarDeSeguir] = useState<{ ean: string; nombre: string } | null>(null);
   const [promoPorEan, setPromoPorEan] = useState<Map<string, EstadoPromoSeguido>>(new Map());
+  // Auditoría 2026-09-24: si el backend fallaba, las dos cargas de abajo quedaban vacías y la
+  // pantalla se veía igual que "no hay categorías" / "ningún seguido en promo". Ahora el error se
+  // muestra aparte, con reintento (`intento*` fuerza a re-correr el efecto).
+  const [errorCategorias, setErrorCategorias] = useState(false);
+  const [intentoCategorias, setIntentoCategorias] = useState(0);
+  const [errorPromos, setErrorPromos] = useState(false);
+  const [intentoPromos, setIntentoPromos] = useState(0);
 
   // Las tabs de expo-router no se desmontan al cambiar de tab, así que el efecto de carga
   // inicial de cada hook (useProductosSeguidos, etc.) no vuelve a correr solo. Sin esto, volver
@@ -55,19 +62,30 @@ export default function PantallaAlertas() {
 
   useEffect(() => {
     if (modo !== 'categorias' || !session?.access_token || catalogoCategorias.length) return;
+    let vigente = true;
+    setErrorCategorias(false);
     categoriasCatalogo(session.access_token)
-      .then(r => setCatalogoCategorias(r.categorias))
-      .catch(() => setCatalogoCategorias([]));
-  }, [modo, session?.access_token, catalogoCategorias.length]);
+      .then(r => { if (vigente) setCatalogoCategorias(r.categorias); })
+      .catch(() => { if (vigente) { setCatalogoCategorias([]); setErrorCategorias(true); } });
+    return () => { vigente = false; };
+  }, [modo, session?.access_token, catalogoCategorias.length, intentoCategorias]);
 
   // Chip amarillo con el % de descuento de cada producto seguido (estado EN VIVO, no lo que se
   // usó para el último aviso) — se re-pide cada vez que cambia la lista de seguidos.
   useEffect(() => {
-    if (!session?.access_token || !productos.length) { setPromoPorEan(new Map()); return; }
+    if (!session?.access_token || !productos.length) {
+      setPromoPorEan(new Map());
+      setErrorPromos(false);
+      return;
+    }
+    // `vigente`: descarta la respuesta de una lista de seguidos ya reemplazada por otra.
+    let vigente = true;
+    setErrorPromos(false);
     estadoProductosSeguidos(productos.map(p => p.ean), session.access_token)
-      .then(r => setPromoPorEan(new Map(r.resultados.map(e => [e.ean, e]))))
-      .catch(() => setPromoPorEan(new Map()));
-  }, [productos, session?.access_token]);
+      .then(r => { if (vigente) setPromoPorEan(new Map(r.resultados.map(e => [e.ean, e]))); })
+      .catch(() => { if (vigente) { setPromoPorEan(new Map()); setErrorPromos(true); } });
+    return () => { vigente = false; };
+  }, [productos, session?.access_token, intentoPromos]);
 
   return (
     <View style={{ flex: 1, backgroundColor: paleta.fondo }}>
@@ -110,6 +128,12 @@ export default function PantallaAlertas() {
                   {productos.length} de {TOPE_PRODUCTOS_SEGUIDOS}
                 </Text>
               </View>
+              {errorPromos ? (
+                <Problema
+                  mensaje="No pudimos consultar qué productos están en promo ahora."
+                  onReintentar={() => setIntentoPromos(n => n + 1)}
+                />
+              ) : null}
               {productos.map(p => (
                 <FilaSeguido
                   key={p.ean}
@@ -135,6 +159,12 @@ export default function PantallaAlertas() {
                 {categoriasSeguidas.length} elegida{categoriasSeguidas.length === 1 ? '' : 's'}
               </Text>
             </View>
+            {errorCategorias ? (
+              <Problema
+                mensaje="No pudimos cargar las categorías."
+                onReintentar={() => setIntentoCategorias(n => n + 1)}
+              />
+            ) : null}
             {catalogoCategorias.map(c => (
               <FilaSeguido
                 key={c.nombre}

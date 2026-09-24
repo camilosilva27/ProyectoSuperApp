@@ -6,6 +6,8 @@
  * permite controlar el ritmo de requests en un solo lugar en vez de en cada teléfono.
  */
 
+import { refrescarSesionCompartida } from './supabase';
+
 export type SuperKey = 'vea' | 'carr' | 'changomas' | 'dia' | 'coto' | 'jumbo' | 'disco';
 
 export type Supermercado = { key: SuperKey; nombre: string; tag: string };
@@ -168,7 +170,20 @@ if (URLS_BASE.length === 0) URLS_BASE.push('http://localhost:3000');
  *  perder tiempo re-probando una IP caída en cada request. */
 let indiceUrlActiva = 0;
 
-const TIMEOUT_MS = 4000;
+/** Timeouts por tipo de endpoint (auditoría 2026-09-24). Antes había un único 4s para todo:
+ *  alcanza para las lecturas de catálogo (sirven de un archivo en memoria, y un timeout corto
+ *  es lo que hace rápido el salto a `EXPO_PUBLIC_API_URL_FALLBACK`), pero `/api/comparar` puede
+ *  consultar supers en vivo y `/api/pagos/*` llama a Mercado Pago — cortarlos a los 4s daba
+ *  errores falsos, y encima el reintento contra la otra URL base podía duplicar un POST. */
+const TIMEOUT_MS = {
+  rapido: 4000,
+  /** `/api/precios` y `/api/productos-seguidos/estado`: lotes de hasta 40 EANs. */
+  lote: 15000,
+  /** `/api/comparar`: puede ir a los supers en vivo (sonda + caché). */
+  comparar: 45000,
+  /** `/api/pagos/*`: el backend habla con Mercado Pago antes de responder. */
+  pagos: 30000,
+} as const;
 
 export class ErrorApi extends Error {
   constructor(message: string, readonly status?: number) {
@@ -177,17 +192,30 @@ export class ErrorApi extends Error {
   }
 }
 
-async function pedirA(urlBase: string, ruta: string, init?: RequestInit): Promise<Response> {
+type OpcionesPedido = {
+  method?: 'GET' | 'POST';
+  headers?: Record<string, string>;
+  body?: string;
+  timeoutMs?: number;
+  /** Si se puede repetir contra otra URL base cuando la primera no responde. Por defecto solo
+   *  GET. Un POST que cortamos por timeout pudo haber llegado igual al backend: repetirlo contra
+   *  la otra URL podía crear dos checkouts/suscripciones en Mercado Pago. Se marca `true` a mano
+   *  solo en los POST que son lecturas (comparar, precios, estado de seguidos). */
+  idempotente?: boolean;
+};
+
+async function pedirA(urlBase: string, ruta: string, opciones: OpcionesPedido): Promise<Response> {
   const controlador = new AbortController();
-  const timeout = setTimeout(() => controlador.abort(), TIMEOUT_MS);
+  const timeout = setTimeout(() => controlador.abort(), opciones.timeoutMs ?? TIMEOUT_MS.rapido);
   try {
     return await fetch(`${urlBase}${ruta}`, {
-      ...init,
+      method: opciones.method ?? 'GET',
+      body: opciones.body,
       signal: controlador.signal,
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
-        ...(init?.headers ?? {}),
+        ...(opciones.headers ?? {}),
       },
     });
   } finally {
@@ -195,16 +223,25 @@ async function pedirA(urlBase: string, ruta: string, init?: RequestInit): Promis
   }
 }
 
-async function pedir<T>(ruta: string, init?: RequestInit): Promise<T> {
+/** 403 de `requiereSesion.js` → `requierePlanActivo`: el claim `plan` del JWT dice `gratis`. */
+function esPlanVencido(status: number, mensaje: string) {
+  return status === 403 && /venci|suscrib/i.test(mensaje);
+}
+
+async function pedir<T>(ruta: string, opciones: OpcionesPedido = {}, yaRefresco = false): Promise<T> {
+  const idempotente = opciones.idempotente ?? (opciones.method ?? 'GET') === 'GET';
   let respuesta: Response | undefined;
-  const orden = [indiceUrlActiva, ...URLS_BASE.map((_, i) => i).filter((i) => i !== indiceUrlActiva)];
+  const orden = idempotente
+    ? [indiceUrlActiva, ...URLS_BASE.map((_, i) => i).filter((i) => i !== indiceUrlActiva)]
+    : [indiceUrlActiva];
   for (const i of orden) {
     try {
-      respuesta = await pedirA(URLS_BASE[i], ruta, init);
+      respuesta = await pedirA(URLS_BASE[i], ruta, opciones);
       indiceUrlActiva = i;
       break;
     } catch {
-      // Se prueba la siguiente URL candidata; si era la última, se cae al catch de abajo.
+      // Se prueba la siguiente URL candidata (solo si es idempotente); si era la última, se cae
+      // al throw de abajo.
     }
   }
 
@@ -221,6 +258,18 @@ async function pedir<T>(ruta: string, init?: RequestInit): Promise<T> {
       if (cuerpo?.error) detalle = cuerpo.error;
     } catch {
       /* la respuesta no era JSON: nos quedamos con el código */
+    }
+    // Plan recién pagado con un token viejo (auditoría 2026-09-24): se renueva la sesión una
+    // sola vez y se repite el pedido con el token nuevo. Es seguro aun para un POST de pagos:
+    // un 403 significa que el backend lo rechazó antes de hacer nada.
+    if (!yaRefresco && opciones.headers?.Authorization && esPlanVencido(respuesta.status, detalle)) {
+      const tokenNuevo = await refrescarSesionCompartida();
+      if (tokenNuevo) {
+        return pedir<T>(ruta, {
+          ...opciones,
+          headers: { ...opciones.headers, Authorization: `Bearer ${tokenNuevo}` },
+        }, true);
+      }
     }
     throw new ErrorApi(detalle, respuesta.status);
   }
@@ -286,6 +335,8 @@ export function comparar(
     method: 'POST',
     headers: conSesion(accessToken),
     body: JSON.stringify({ items, tarjetas, supers, tope }),
+    timeoutMs: TIMEOUT_MS.comparar,
+    idempotente: true,
   });
 }
 
@@ -297,6 +348,8 @@ export function precios(eans: string[], accessToken: string, supers?: SuperKey[]
     method: 'POST',
     headers: conSesion(accessToken),
     body: JSON.stringify({ eans, supers }),
+    timeoutMs: TIMEOUT_MS.lote,
+    idempotente: true,
   });
 }
 
@@ -316,6 +369,8 @@ export function estadoProductosSeguidos(eans: string[], accessToken: string) {
     method: 'POST',
     headers: conSesion(accessToken),
     body: JSON.stringify({ eans }),
+    timeoutMs: TIMEOUT_MS.lote,
+    idempotente: true,
   });
 }
 
@@ -341,7 +396,8 @@ export type Descuento = {
 export function misDescuentos(accessToken: string) {
   return pedir<{ generado: string; descuentos: Descuento[]; advertencias: string[] }>(
     '/api/mis-descuentos',
-    { headers: conSesion(accessToken) }
+    // Agrega promos bancarias en vivo: más margen que las lecturas de catálogo.
+    { headers: conSesion(accessToken), timeoutMs: TIMEOUT_MS.lote }
   );
 }
 
@@ -355,7 +411,7 @@ export function promosBancariasGrilla(tarjetas: string[], accessToken: string) {
   const params = tarjetas.length ? `?tarjetas=${encodeURIComponent(tarjetas.join(','))}` : '';
   return pedir<{ filas: FilaGrilla[]; generadoEl: string | null }>(
     `/api/promos-bancarias/grilla${params}`,
-    { headers: conSesion(accessToken) }
+    { headers: conSesion(accessToken), timeoutMs: TIMEOUT_MS.lote }
   );
 }
 
@@ -381,6 +437,7 @@ export function crearSuscripcion(
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}` },
     body: JSON.stringify({ tipoPlan, email }),
+    timeoutMs: TIMEOUT_MS.pagos,
   });
 }
 
@@ -392,6 +449,7 @@ export function crearPagoUnico(accessToken: string, email?: string) {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}` },
     body: JSON.stringify({ email }),
+    timeoutMs: TIMEOUT_MS.pagos,
   });
 }
 
@@ -399,6 +457,7 @@ export function cancelarSuscripcion(accessToken: string) {
   return pedir<{ plan: 'trial' | 'premium' | 'gratis' }>('/api/pagos/cancelar-suscripcion', {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}` },
+    timeoutMs: TIMEOUT_MS.pagos,
   });
 }
 
@@ -410,6 +469,9 @@ export function verificarPago(accessToken: string) {
   return pedir<{ plan: 'trial' | 'premium' | 'gratis' }>('/api/pagos/verificar', {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}` },
+    timeoutMs: TIMEOUT_MS.pagos,
+    // Solo consulta MP y actualiza la fila con lo que MP ya tiene: repetirlo no crea nada.
+    idempotente: true,
   });
 }
 
@@ -421,7 +483,7 @@ export function precioSuscripcion() {
     precioMensualArs: number | null;
     precioAnualArs: number | null;
     precioPermanenteArs: number | null;
-  }>('/api/pagos/precio');
+  }>('/api/pagos/precio', { timeoutMs: TIMEOUT_MS.pagos });
 }
 
 export const configApi = { get urlBase() { return URLS_BASE[indiceUrlActiva]; } };

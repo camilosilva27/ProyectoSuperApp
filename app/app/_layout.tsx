@@ -20,12 +20,12 @@ import { SpeedInsights } from '@vercel/speed-insights/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import { Image } from 'expo-image';
-import { Stack } from 'expo-router';
+import { Stack, type ErrorBoundaryProps } from 'expo-router';
 import Head from 'expo-router/head';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
-import { Platform, View } from 'react-native';
+import { Platform, Pressable, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '../src/auth';
 import { ProveedorCarrito } from '../src/carrito';
@@ -67,9 +67,55 @@ const cliente = new QueryClient({
   },
 });
 
+/**
+ * ErrorBoundary raíz (auditoría 2026-09-24): antes no había ninguno, y un error de render en
+ * cualquier pantalla dejaba la app en blanco sin salida. expo-router (v57) usa el
+ * `ErrorBoundary` exportado por un layout para envolver esa ruta y todo lo que cuelga de ella.
+ * Se renderiza EN LUGAR de `LayoutRaiz` (sin sus providers), por eso usa colores fijos y no
+ * hooks de la app. Ofrece reintentar el render y, en web, recargar la página entera (que es lo
+ * que realmente limpia un estado roto de los providers).
+ */
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  React.useEffect(() => {
+    // Si el error pasó antes de cargar las fuentes, el splash nativo seguiría tapando esto.
+    SplashScreen.hideAsync().catch(() => {});
+    console.error('[ErrorBoundary raíz]', error);
+  }, [error]);
+
+  const recargar = () => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') window.location.reload();
+    else retry();
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16 }}>
+      <Text style={{ fontSize: 20, fontWeight: '700', color: '#14161A', textAlign: 'center' }}>
+        Algo se rompió
+      </Text>
+      <Text style={{ fontSize: 15, color: '#4A4F57', textAlign: 'center', maxWidth: 360 }}>
+        La app encontró un error inesperado. Tu carrito y tus datos están guardados — recargá para seguir.
+      </Text>
+      <Pressable
+        onPress={recargar}
+        accessibilityRole="button"
+        style={{ backgroundColor: '#14161A', borderRadius: 10, paddingVertical: 14, paddingHorizontal: 28 }}
+      >
+        <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '600' }}>Recargar</Text>
+      </Pressable>
+      {Platform.OS === 'web' ? (
+        <Pressable onPress={() => { retry(); }} accessibilityRole="button">
+          <Text style={{ color: '#4A4F57', fontSize: 14, textDecorationLine: 'underline' }}>
+            Reintentar sin recargar
+          </Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
 export default function LayoutRaiz() {
   const { esquema, paleta } = useTema();
-  const [fuentesListas] = useFonts({
+  const [fuentesCargadas, errorFuentes] = useFonts({
     Archivo_400Regular,
     Archivo_500Medium,
     Archivo_600SemiBold,
@@ -78,6 +124,14 @@ export default function LayoutRaiz() {
     BarlowCondensed_700Bold,
     IBMPlexMono_400Regular,
   });
+
+  // Si falla alguna fuente (ej. red cortada en web), se sigue con la del sistema en vez de
+  // quedar para siempre en el splash (auditoría 2026-09-24): `useFonts` devuelve el error como
+  // segundo elemento y `fuentesCargadas` nunca pasa a true en ese caso.
+  const fuentesListas = fuentesCargadas || !!errorFuentes;
+  React.useEffect(() => {
+    if (errorFuentes) console.warn('[fuentes] no se pudieron cargar, se usa la del sistema', errorFuentes);
+  }, [errorFuentes]);
 
   React.useEffect(() => {
     if (fuentesListas) {
