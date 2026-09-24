@@ -12,6 +12,9 @@ Estado: los 6 críticos resueltos el 24/09; altos/medios/bajos pendientes salvo 
 - [x] **Packs "473mlx6" no detectados** — ✅ RESUELTO 24/09 (3 patrones en empaquetado.js + tests). — `AllPromos/core/empaquetado.js` (Brahma, Andes IPA).
 - [x] *(probable)* **Cuotas de suscripción tomadas como permanente** — ✅ RESUELTO 24/09 (prefijo perm:). — la suscripción usa el mismo `external_reference`; depende de si MP lo propaga a cada cobro.
 
+## Pendiente de verificación manual
+- [ ] **Probar un cambio de plan con pago real** (mensual → anual, idealmente con precios de prueba en la VM): confirmar que la mensual se cancela en MP recién cuando la anual queda autorizada, que llega un solo cobro por período y un solo recibo. Probar también abandonar el checkout de la anual (tiene que seguir la mensual intacta) y pasar de mensual a permanente. Los fixes de 0025/5bddeec solo están verificados con tests simulados (`backend/test/procesarPagoMercadoPago.test.js`).
+
 ## Alto
 - [x] ✅ RESUELTO 24/09 (0025). Trial eterno en backend si se abandona el checkout (0020 filtra `pasarela_suscripcion_id is null`). Los 22 preapprovals pending de prod son de la etapa de pruebas (confirmado por el usuario), así que baja prioridad; el bug de código sigue para checkouts futuros.
 - [ ] Reembolsos/contracargos no bajan el plan (`procesarPagoMercadoPago.js:22`); arrepentimiento solo manual.

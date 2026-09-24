@@ -271,6 +271,7 @@ Tres bugs críticos de la auditoría (`.claude/docs/AUDITORIA_2026-09-24.md`), m
 - **Pago único con `external_reference = "perm:<usuarioId>"`** (antes el usuarioId pelado, igual que la suscripción). `procesarPagoAprobado` solo acepta ese prefijo, así un cobro mensual nunca se toma como compra del permanente. Pagos del permanente viejos sin prefijo: solo existían 2 de prueba de $10 de la cuenta del dueño.
 - **Backend rechaza (409) comprar el permanente dos veces o el mismo plan recurrente que ya está activo.**
 - **Recibo duplicado:** la comparación de `next_payment_date` era por string (formato MP `-04:00` vs Postgres `+00:00`); ahora compara `getTime()`.
+- **⚠️ Pendiente:** probar el cambio de plan con un pago real (ver checklist en `AUDITORIA_2026-09-24.md`); hoy solo está verificado con tests simulados.
 - **Trial eterno por checkout abandonado:** `bajar_planes_vencidos()` ya no exige `pasarela_suscripcion_id is null` para bajar un trial vencido (un trial con ese campo es un checkout que nunca se autorizó). Al aplicarla no afectaba a nadie (0 filas).
 
 ## Chequeo de plan en el Express (para cuando exista una feature gateada) — ✅ el gate real ya se implementó (26/08)
