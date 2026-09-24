@@ -55,15 +55,54 @@ const NOMBRE_TARJETA_PROPIA = 'tarjeta carrefour';
  * scraper-promos-vea.js).
  */
 function entradasCencosud(sku, superNombre) {
-  const resultados = [{
+  const entrada = {
     super: superNombre, skuId: sku.skuId, sellerId: sku.seller ?? '1',
     productName: sku.productName, skuName: sku.skuName, ean: sku.ean,
     precioBase: sku.precioBase,
+    // Un `descuento` no numérico (ej. "Llevando 4" sin effectiveDiscount) ya no produce un
+    // pct_directo con NaN — interpretarPromoPorTexto devuelve null y el SKU se muestra sin
+    // promo, en vez de desaparecer del ranking con total NaN (auditoría 2026-09-24).
     promo: sku.promocion
       ? interpretarPromoPorTexto(sku.promocion.nombre, sku.promocion.descuento)
       : null,
-  }];
-  return resultados;
+  };
+  if (entrada.promo) {
+    const desdeMs = Date.parse(sku.promocion.vigenciaDesde ?? '');
+    const hastaMs = Date.parse(sku.promocion.vigenciaHasta ?? '');
+    if (Number.isFinite(desdeMs) || Number.isFinite(hastaMs)) {
+      vigenciaPorEntrada.set(entrada, { desdeMs, hastaMs });
+    }
+  }
+  return [entrada];
+}
+
+/**
+ * Vigencia de la promo de Vea/Jumbo/Disco (`promocion.vigenciaDesde/vigenciaHasta`, ISO con
+ * offset, ej. "2026-08-31T23:59:00-03:00" → instante absoluto, no depende de la zona de la
+ * VM). Antes se ignoraba (auditoría 2026-09-24): si el guardrail bloquea corridas, o el cron
+ * se atrasa, el catálogo viejo seguía aplicando promos ya vencidas y bajando el precio.
+ *
+ * Se evalúa al CONSULTAR, no al construir el índice: el índice solo se reconstruye cuando
+ * cambia algún catalogo-*.json — justamente lo que NO pasa cuando el guardrail bloquea —, así
+ * que filtrar al construir dejaría pasar una promo que vence entre dos reconstrucciones.
+ * WeakMap (no un campo en la entrada) para no cambiar la forma que devuelve precioPorEAN.
+ */
+const vigenciaPorEntrada = new WeakMap();
+
+function promoVigente(entrada, ahora) {
+  const v = vigenciaPorEntrada.get(entrada);
+  if (!v) return true;
+  if (Number.isFinite(v.desdeMs) && ahora < v.desdeMs) return false;
+  if (Number.isFinite(v.hastaMs) && ahora > v.hastaMs) return false;
+  return true;
+}
+
+/** Copia del grupo con las promos fuera de vigencia anuladas (el SKU queda, a precio base). */
+function aplicarVigencia(grupo, ahora = Date.now()) {
+  return Object.fromEntries(Object.entries(grupo).map(([key, entradas]) => [
+    key,
+    entradas.map(e => (e.promo && !promoVigente(e, ahora) ? { ...e, promo: null } : e)),
+  ]));
 }
 
 /**
@@ -206,7 +245,7 @@ function asegurarIndice() {
 function precioPorEAN(ean) {
   asegurarIndice();
   const grupo = indice.get(ean);
-  return grupo ? sanearPorEmpaquetado(grupo) : null;
+  return grupo ? sanearPorEmpaquetado(aplicarVigencia(grupo)) : null;
 }
 
 /** Fecha de generación de cada fuente — para /api/health, así se ve de un vistazo si el
@@ -237,8 +276,10 @@ function elegirProductosTour() {
   asegurarIndice();
   const candidatos = [];
 
-  for (const [ean, grupo] of indice) {
-    if (!SUPERS_TOUR.every(key => grupo[key]?.length)) continue;
+  const ahora = Date.now();
+  for (const [ean, grupoCrudo] of indice) {
+    if (!SUPERS_TOUR.every(key => grupoCrudo[key]?.length)) continue;
+    const grupo = aplicarVigencia(grupoCrudo, ahora);
     const opciones = calcularOpciones(grupo, 1, SUPERMERCADOS_TOUR);
     if (opciones.length < SUPERS_TOUR.length) continue;
 
@@ -255,4 +296,4 @@ function elegirProductosTour() {
   return candidatos.slice(0, CANTIDAD_PRODUCTOS_TOUR);
 }
 
-module.exports = { precioPorEAN, estadoFuentes, elegirProductosTour };
+module.exports = { precioPorEAN, estadoFuentes, elegirProductosTour, _test: { entradasCencosud, aplicarVigencia } };

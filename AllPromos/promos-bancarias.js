@@ -24,6 +24,7 @@
 
 const fs   = require('fs');
 const path = require('path');
+const { partesFechaArgentina, diaSemanaISOArgentina, fechaISOArgentina } = require('./core/fechaArgentina');
 
 // Reintento simple para errores de conexión (timeout, reset, DNS) — no para status HTTP, que
 // cada fetch*() ya trata como "fuente caída" (`fetch_failed`) sin reintentar, a propósito: son
@@ -189,8 +190,11 @@ function extraerMontoMinimo(texto) {
 }
 
 function diaISO(fecha) {
-  // JS: 0=domingo...6=sábado. Convención del proyecto (igual que el campo `days` de Vea): 1=lunes...7=domingo.
-  return ((fecha.getDay() + 6) % 7) + 1;
+  // Convención del proyecto (igual que el campo `days` de Vea): 1=lunes...7=domingo.
+  // En hora ARGENTINA, no con fecha.getDay() (corregido 2026-09-24): la VM corre en UTC, así
+  // que entre las 21 y las 24hs de Argentina getDay() ya devolvía el día siguiente y se
+  // aplicaban las promos bancarias de mañana. Ver core/fechaArgentina.js.
+  return diaSemanaISOArgentina(fecha);
 }
 
 function fmt(n) {
@@ -830,8 +834,10 @@ const NOMBRES_DIA = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sáb
 
 function formatearFecha(fecha, hoy) {
   const nombre = NOMBRES_DIA[diaISO(fecha) - 1];
-  const corta = `${String(fecha.getDate()).padStart(2, '0')}/${String(fecha.getMonth() + 1).padStart(2, '0')}`;
-  const esHoy = fecha.toDateString() === hoy.toDateString();
+  // Día/mes y "es hoy" en hora argentina, mismo motivo que diaISO() (2026-09-24).
+  const { dia: diaMes, mes } = partesFechaArgentina(fecha);
+  const corta = `${String(diaMes).padStart(2, '0')}/${String(mes).padStart(2, '0')}`;
+  const esHoy = fechaISOArgentina(fecha) === fechaISOArgentina(hoy);
   return `${esHoy ? 'hoy ' : ''}${nombre} ${corta}`;
 }
 
@@ -1122,6 +1128,7 @@ module.exports = {
   leerMisTarjetas,
   // exportado para poder testear sin red:
   resolverCanonicosDesdeNombre,
+  diaISO,
 };
 
 // ─── Auto-test manual (sin red) ────────────────────────────────────────────────

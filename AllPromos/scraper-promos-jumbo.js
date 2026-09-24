@@ -24,6 +24,7 @@
 
 const fs = require('fs');
 const { guardarCatalogoConGuardrail } = require('./core/guardrailCatalogo');
+const { fetchConReintentoHTTP, errorHTTP, esFinLegitimoDePaginacion } = require('./core/reintentoVTEX');
 
 // Seller interno compartido por toda la cuenta VTEX de Cencosud Argentina (Jumbo/Vea/Disco),
 // necesario para `_v/search-promotions` — no confundir con el "1" que sí aparece en `sellers[]`
@@ -38,26 +39,15 @@ const HEADERS = {
 };
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const avisarReintento = (msg) => process.stdout.write(msg);
 
-async function getCatalogPage(from, to, retries = 3) {
+async function getCatalogPage(from, to) {
   const url = `${BASE_URL}/api/catalog_system/pub/products/search?_from=${from}&_to=${to}`;
-  let res;
-  try {
-    res = await fetch(url, { headers: HEADERS });
-  } catch (err) {
-    if (retries > 0) {
-      process.stdout.write(' [error de red, esperando 10s]');
-      await sleep(10000);
-      return getCatalogPage(from, to, retries - 1);
-    }
-    throw err;
-  }
-  if ((res.status === 429 || res.status >= 500) && retries > 0) {
-    process.stdout.write(` [${res.status}, esperando 10s]`);
-    await sleep(10000);
-    return getCatalogPage(from, to, retries - 1);
-  }
-  if (!res.ok) throw new Error(`Catálogo falló: ${res.status} ${res.statusText}`);
+  // Retry por error de red/timeout y 429/5xx (3 intentos de 10s) — en core/reintentoVTEX.js
+  // desde 2026-09-24, antes copiado inline acá. `errorHTTP` adjunta el status para que el
+  // loop de paginación distinga el 400 del techo legítimo de VTEX de un error real.
+  const res = await fetchConReintentoHTTP(url, { headers: HEADERS }, { onReintento: avisarReintento });
+  if (!res.ok) throw errorHTTP('Catálogo falló', res);
 
   const products = await res.json();
   const skus = [];
@@ -82,15 +72,16 @@ async function getCatalogPage(from, to, retries = 3) {
 }
 
 async function getPromotionsForSkus(skuIds) {
-  const res = await fetch(`${BASE_URL}/_v/search-promotions`, {
+  // Con retry (2026-09-24, auditoría): antes un 429/5xx devolvía {} con un warn y el lote
+  // quedaba guardado SIN promo, en silencio — precio más caro que el real para esos 10 SKUs
+  // hasta la corrida siguiente. Ahora reintenta igual que la paginación y, si sigue fallando,
+  // lanza: la corrida termina con exit 1 y el catalogo-*.json anterior queda intacto.
+  const res = await fetchConReintentoHTTP(`${BASE_URL}/_v/search-promotions`, {
     method: 'POST',
     headers: HEADERS,
     body: JSON.stringify({ seller: PROMO_SELLER, skus: skuIds }),
-  });
-  if (!res.ok) {
-    console.warn(`  search-promotions falló para lote: ${res.status}`);
-    return {};
-  }
+  }, { onReintento: avisarReintento });
+  if (!res.ok) throw errorHTTP('search-promotions falló para lote', res);
   const data = await res.json();
   return data.promotions?.generic?.promotions || {};
 }
@@ -130,8 +121,15 @@ async function main() {
       from += PAGE_SIZE;
       await sleep(300);
     } catch (err) {
-      console.log(`\n  Fin de catálogo en página ${from}: ${err.message}`);
-      break;
+      // Solo el 400 del techo de ~2550 del endpoint legacy es fin legítimo. Cualquier otro
+      // error de página (429/5xx tras los reintentos, red, JSON roto) antes también hacía
+      // "break" y se guardaba un catálogo truncado; desde 2026-09-24 aborta la corrida
+      // (exit 1, visible en /api/health) y el catalogo-*.json anterior queda intacto.
+      if (esFinLegitimoDePaginacion(err, from)) {
+        console.log(`\n  Fin de catálogo en página ${from} (techo de paginación de VTEX): ${err.message}`);
+        break;
+      }
+      throw new Error(`Paginación abortada en página ${from} con ${allSkus.length} SKUs: ${err.message}`);
     }
   }
   console.log(`\n✅ Total SKUs: ${allSkus.length}\n`);

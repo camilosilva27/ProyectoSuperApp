@@ -80,9 +80,12 @@ function interpretarPromoPorTexto(nombrePromo, effectiveDiscount) {
   // --- X% directo ---
   const pct = nombre.match(/^(\d+)%/);
   if (pct || effectiveDiscount !== undefined) {
-    const desc = effectiveDiscount !== undefined
-      ? parseFloat(effectiveDiscount)
-      : parseInt(pct[1]) / 100;
+    // effectiveDiscount no numérico (null, "", texto): antes daba descuentoPct NaN → total NaN
+    // y el súper desaparecía del ranking. Ahora cae al % del nombre si lo hay, y si no, "sin
+    // promo detectable" (null) — mismo criterio de no adivinar (auditoría 2026-09-24).
+    const descCampo = effectiveDiscount !== undefined ? parseFloat(effectiveDiscount) : NaN;
+    const desc = Number.isFinite(descCampo) ? descCampo : (pct ? parseInt(pct[1]) / 100 : NaN);
+    if (!Number.isFinite(desc)) return null;
     return {
       tipo: 'pct_directo',
       descripcion: `${Math.round(desc * 100)}% de descuento`,
@@ -120,31 +123,36 @@ function interpretarPromoCarrefour(teaser) {
   const ndo = nombre.match(/(\d+)do al (\d+)%/i);
   // --- Nx$M: precio fijo total por N unidades, no un % (visto en Día, ej. "2x$1900") ---
   const precioFijo = nombre.match(/^(\d+)x\$(\d+(?:[.,]\d+)?)$/i);
+  // Tope de unidades con promo: "PROMO-2do al 50% Max 8 unidades Combinable ..." (Carrefour).
+  // Antes se ignoraba y la promo se aplicaba a cualquier cantidad (auditoría 2026-09-24).
+  const maxMatch = nombre.match(/\bmax\.?\s*(\d+)\s*u(?:nidades|nid|n)?\b/i);
+  const maxUnidades = maxMatch ? parseInt(maxMatch[1]) : null;
+  const conTope = (promo) => (maxUnidades ? { ...promo, maxUnidades } : promo);
 
   if (precioFijo) {
     const n = parseInt(precioFijo[1]);
     const total = parseFloat(precioFijo[2].replace(',', '.'));
-    return {
+    return conTope({
       tipo: 'oferta_precio_fijo',
       descripcion: `${n}x$${fmt(total)} (precio fijo cada ${n})`,
       cantidadMinima: n,
       nUnidades: n,
       precioFijoTotal: total,
       esOnline,
-    };
+    });
   }
 
   if (nxm) {
     const n = parseInt(nxm[1]);
     const m = parseInt(nxm[2]);
-    return {
+    return conTope({
       tipo: 'nxm',
       descripcion: `${n}x${m} (llevás ${n}, pagás ${m})`,
       cantidadMinima: n,
       nUnidades: n,
       pagaM: m,
       esOnline,
-    };
+    });
   }
 
   if (ndo && reg) {
@@ -152,37 +160,37 @@ function interpretarPromoCarrefour(teaser) {
     const descPct = parseInt(reg[2]) / 100;
 
     if (descPct === 1) {
-      return {
+      return conTope({
         tipo: 'nxm',
         descripcion: `${nUnidades}x${nUnidades - 1} (llevás ${nUnidades}, pagás ${nUnidades - 1})`,
         cantidadMinima: nUnidades,
         nUnidades,
         pagaM: nUnidades - 1,
         esOnline,
-      };
+      });
     }
 
-    return {
+    return conTope({
       tipo: 'ndo_al_pct',
       descripcion: `${nUnidades}° al ${Math.round(descPct * 100)}% de descuento`,
       cantidadMinima: nUnidades,
       nUnidades,
       descuentoSegunda: descPct,
       esOnline,
-    };
+    });
   }
 
   if (ndo) {
     const nUnidades = parseInt(ndo[1]);
     const descPct = parseInt(ndo[2]) / 100;
-    return {
+    return conTope({
       tipo: 'ndo_al_pct',
       descripcion: `${nUnidades}° al ${ndo[2]}% de descuento`,
       cantidadMinima: nUnidades,
       nUnidades,
       descuentoSegunda: descPct,
       esOnline,
-    };
+    });
   }
 
   return null;
@@ -215,6 +223,18 @@ function interpretarTeaserTarjetaPropia(teaser, nombreTarjeta) {
     esOnline: false,
     requiereTarjeta: nombreTarjeta,
   };
+}
+
+/**
+ * Grupos de la promo que efectivamente se activan y unidades que quedan a precio lleno,
+ * respetando `maxUnidades` si la promo lo trae (ej. "Max 8 unidades" de Carrefour: con un
+ * 2do al 50% y 10 unidades, se activan 4 grupos y 2 van a precio lleno).
+ */
+function gruposConTope(promo, cantidadDeseada) {
+  const { nUnidades } = promo;
+  const unidadesConPromo = promo.maxUnidades ? Math.min(cantidadDeseada, promo.maxUnidades) : cantidadDeseada;
+  const gruposCompletos = Math.floor(unidadesConPromo / nUnidades);
+  return { gruposCompletos, resto: cantidadDeseada - gruposCompletos * nUnidades };
 }
 
 /**
@@ -258,8 +278,7 @@ function calcularCosto(promo, precioUnitario, cantidadDeseada) {
       // Para N unidades: grupos completos + resto
       const { nUnidades, descuentoSegunda } = promo;
       const precioNdo = precioUnitario * (1 - descuentoSegunda);
-      const gruposCompletos = Math.floor(cantidadDeseada / nUnidades);
-      const resto = cantidadDeseada % nUnidades;
+      const { gruposCompletos, resto } = gruposConTope(promo, cantidadDeseada);
 
       if (gruposCompletos === 0) {
         // No alcanza para activar la promo
@@ -287,8 +306,7 @@ function calcularCosto(promo, precioUnitario, cantidadDeseada) {
     case 'nxm': {
       // Ej: "3x2" → cada 3 unidades pagás 2
       const { nUnidades, pagaM } = promo;
-      const gruposCompletos = Math.floor(cantidadDeseada / nUnidades);
-      const resto = cantidadDeseada % nUnidades;
+      const { gruposCompletos, resto } = gruposConTope(promo, cantidadDeseada);
 
       if (gruposCompletos === 0) {
         totalConPromo = totalSinPromo;
@@ -314,8 +332,7 @@ function calcularCosto(promo, precioUnitario, cantidadDeseada) {
     case 'oferta_precio_fijo': {
       // Ej: "2x$1900" → cada N unidades, precio TOTAL fijo (no una fracción del unitario)
       const { nUnidades, precioFijoTotal } = promo;
-      const gruposCompletos = Math.floor(cantidadDeseada / nUnidades);
-      const resto = cantidadDeseada % nUnidades;
+      const { gruposCompletos, resto } = gruposConTope(promo, cantidadDeseada);
 
       if (gruposCompletos === 0) {
         totalConPromo = totalSinPromo;

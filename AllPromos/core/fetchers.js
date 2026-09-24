@@ -56,6 +56,27 @@ const DIA_SELLER = '1';
 const COTO_KEY  = 'key_r6xzz4IAoTWcipni';
 const COTO_HOST = 'https://api.coto.com.ar/api/v1/ms-digital-sitio-bff-web/api/v1/products/search';
 
+// Timeout por request del fetch en vivo (auditoría 2026-09-24). Sin esto, un super colgado
+// retenía el request del usuario el default de undici (~300s) — y el fallback en vivo corre
+// detrás del semáforo global de 2 slots (backend/src/limitadorGlobal.js), así que un solo
+// super colgado bloqueaba el fallback de TODOS los usuarios. 15s sobra para una respuesta
+// normal (<2s); un timeout cuenta como error de ese super y se trata como "sin resultados".
+const TIMEOUT_EN_VIVO_MS = 15000;
+
+function fetchEnVivo(url, opts = {}) {
+  return fetch(url, { ...opts, signal: AbortSignal.timeout(TIMEOUT_EN_VIVO_MS) });
+}
+
+/**
+ * Un error (red, timeout, JSON roto) en UN super no tiene que tirar el resultado de los
+ * otros 6 (auditoría 2026-09-24: con Promise.all pelado, un fallo de Coto descartaba los 7
+ * supers para ese EAN). Mismo resultado que un super que no tiene el producto: [].
+ */
+async function sinRomperElResto(promesas) {
+  const resultados = await Promise.allSettled(promesas);
+  return resultados.map(r => (r.status === 'fulfilled' ? r.value : []));
+}
+
 const SUPERMERCADOS = [
   { key: 'vea',       nombre: 'Vea',        tag: '🟢' },
   { key: 'carr',      nombre: 'Carrefour',  tag: '🔵' },
@@ -68,6 +89,16 @@ const SUPERMERCADOS = [
 
 // ─── Live: Carrefour ──────────────────────────────────────────────────────────
 
+/**
+ * SKU sin stock o con precio ≤ 0: VTEX devuelve `IsAvailable: false` con `Price: 0`. Antes
+ * Carrefour/Chango Más/Día no lo revisaban en el fallback en vivo (los scrapers sí, desde el
+ * fix del 21/08): un Price 0 con ListPrice > 0 daba un "descuento directo" del 100% y los
+ * teasers usaban `precioBase: 0` → un $0 podía ganar el ranking (auditoría 2026-09-24).
+ */
+function skuVendible(offer, price) {
+  return offer.IsAvailable !== false && price > 0;
+}
+
 function parsearProductosCarrefour(products, { tarjetas = [] } = {}) {
   const resultados = [];
   for (const p of products) {
@@ -78,6 +109,7 @@ function parsearProductosCarrefour(products, { tarjetas = [] } = {}) {
       const sellerId = sku.sellers[0].sellerId;
       const price     = offer.Price     || 0;
       const listPrice = offer.ListPrice || 0;
+      if (!skuVendible(offer, price)) continue;
 
       if (listPrice > 0 && price < listPrice) {
         resultados.push({
@@ -143,7 +175,7 @@ function parsearProductosCarrefour(products, { tarjetas = [] } = {}) {
 }
 
 async function carrefourLiveEAN(ean, opciones = {}) {
-  const res = await fetch(
+  const res = await fetchEnVivo(
     `https://www.carrefour.com.ar/api/catalog_system/pub/products/search?fq=alternateIds_Ean:${ean}&sc=1`,
     { headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' } }
   );
@@ -151,7 +183,7 @@ async function carrefourLiveEAN(ean, opciones = {}) {
 }
 
 async function carrefourLiveNombre(nombre, opciones = {}) {
-  const res = await fetch(
+  const res = await fetchEnVivo(
     `https://www.carrefour.com.ar/api/catalog_system/pub/products/search?fq=productName:${encodeURIComponent(nombre)}&_from=0&_to=9&sc=1`,
     { headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' } }
   );
@@ -174,6 +206,7 @@ function parsearProductosChangoMas(products) {
       const sellerId = sellerInfo.sellerId;
       const price     = offer.Price     || 0;
       const listPrice = offer.ListPrice || 0;
+      if (!skuVendible(offer, price)) continue;
 
       if (listPrice > 0 && price < listPrice) {
         resultados.push({
@@ -215,7 +248,7 @@ function parsearProductosChangoMas(products) {
 }
 
 async function changoMasLiveEAN(ean) {
-  const res = await fetch(
+  const res = await fetchEnVivo(
     `${CHANGOMAS_HOST}/api/catalog_system/pub/products/search?fq=alternateIds_Ean:${ean}&sc=1`,
     { headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' } }
   );
@@ -223,7 +256,7 @@ async function changoMasLiveEAN(ean) {
 }
 
 async function changoMasLiveNombre(nombre) {
-  const res = await fetch(
+  const res = await fetchEnVivo(
     `${CHANGOMAS_HOST}/api/catalog_system/pub/products/search?fq=productName:${encodeURIComponent(nombre)}&_from=0&_to=9&sc=1`,
     { headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' } }
   );
@@ -255,7 +288,7 @@ async function parsearProductosVea(products) {
   for (const p of products) {
     for (const sku of p.items || []) {
       const sellerInfo = sku.sellers?.find(s => s.sellerId === VEA_SELLER) || sku.sellers?.[0];
-      if (!sellerInfo) continue;
+      if (!sellerInfo || sellerInfo.commertialOffer?.IsAvailable === false) continue;
       candidatos.push({
         skuId: sku.itemId,
         sellerId: sellerInfo.sellerId,
@@ -266,7 +299,7 @@ async function parsearProductosVea(products) {
   }
   if (!candidatos.length) return [];
 
-  const promoRes = await fetch('https://www.vea.com.ar/_v/search-promotions', {
+  const promoRes = await fetchEnVivo('https://www.vea.com.ar/_v/search-promotions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ seller: VEA_SELLER, skus: candidatos.map(s => s.skuId) }),
@@ -293,7 +326,7 @@ async function parsearProductosVea(products) {
  */
 async function veaLive(ean, skuIdVea = null) {
   const query = skuIdVea ? `fq=skuId:${skuIdVea}` : `fq=alternateIds_Ean:${ean}`;
-  const res = await fetch(
+  const res = await fetchEnVivo(
     `https://www.vea.com.ar/api/catalog_system/pub/products/search?${query}&sc=34`,
     { headers: { Accept: 'application/json' } }
   );
@@ -301,7 +334,7 @@ async function veaLive(ean, skuIdVea = null) {
 }
 
 async function veaLiveNombre(nombre) {
-  const res = await fetch(
+  const res = await fetchEnVivo(
     `https://www.vea.com.ar/api/catalog_system/pub/products/search?fq=productName:${encodeURIComponent(nombre)}&_from=0&_to=9&sc=34`,
     { headers: { Accept: 'application/json' } }
   );
@@ -320,7 +353,7 @@ async function parsearProductosCencosud(products, host) {
   for (const p of products) {
     for (const sku of p.items || []) {
       const sellerInfo = sku.sellers?.[0];
-      if (!sellerInfo) continue;
+      if (!sellerInfo || sellerInfo.commertialOffer?.IsAvailable === false) continue;
       candidatos.push({
         skuId: sku.itemId,
         sellerId: sellerInfo.sellerId,
@@ -331,7 +364,7 @@ async function parsearProductosCencosud(products, host) {
   }
   if (!candidatos.length) return [];
 
-  const promoRes = await fetch(`${host}/_v/search-promotions`, {
+  const promoRes = await fetchEnVivo(`${host}/_v/search-promotions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ seller: VEA_SELLER, skus: candidatos.map(s => s.skuId) }),
@@ -363,7 +396,7 @@ async function parsearProductosCencosud(products, host) {
  */
 async function jumboLive(ean, skuIdVea = null) {
   const query = skuIdVea ? `fq=skuId:${skuIdVea}` : `fq=alternateIds_Ean:${ean}`;
-  const res = await fetch(
+  const res = await fetchEnVivo(
     `${JUMBO_HOST}/api/catalog_system/pub/products/search?${query}`,
     { headers: { Accept: 'application/json' } }
   );
@@ -371,7 +404,7 @@ async function jumboLive(ean, skuIdVea = null) {
 }
 
 async function jumboLiveNombre(nombre) {
-  const res = await fetch(
+  const res = await fetchEnVivo(
     `${JUMBO_HOST}/api/catalog_system/pub/products/search?fq=productName:${encodeURIComponent(nombre)}&_from=0&_to=9`,
     { headers: { Accept: 'application/json' } }
   );
@@ -380,7 +413,7 @@ async function jumboLiveNombre(nombre) {
 
 async function discoLive(ean, skuIdVea = null) {
   const query = skuIdVea ? `fq=skuId:${skuIdVea}` : `fq=alternateIds_Ean:${ean}`;
-  const res = await fetch(
+  const res = await fetchEnVivo(
     `${DISCO_HOST}/api/catalog_system/pub/products/search?${query}`,
     { headers: { Accept: 'application/json' } }
   );
@@ -388,7 +421,7 @@ async function discoLive(ean, skuIdVea = null) {
 }
 
 async function discoLiveNombre(nombre) {
-  const res = await fetch(
+  const res = await fetchEnVivo(
     `${DISCO_HOST}/api/catalog_system/pub/products/search?fq=productName:${encodeURIComponent(nombre)}&_from=0&_to=9`,
     { headers: { Accept: 'application/json' } }
   );
@@ -411,6 +444,7 @@ function parsearProductosDia(products) {
       const sellerId = sellerInfo.sellerId;
       const price     = offer.Price     || 0;
       const listPrice = offer.ListPrice || 0;
+      if (!skuVendible(offer, price)) continue;
 
       if (listPrice > 0 && price < listPrice) {
         resultados.push({
@@ -452,7 +486,7 @@ function parsearProductosDia(products) {
 }
 
 async function diaLiveEAN(ean) {
-  const res = await fetch(
+  const res = await fetchEnVivo(
     `${DIA_HOST}/api/catalog_system/pub/products/search?fq=alternateIds_Ean:${ean}&sc=1`,
     { headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' } }
   );
@@ -460,7 +494,7 @@ async function diaLiveEAN(ean) {
 }
 
 async function diaLiveNombre(nombre) {
-  const res = await fetch(
+  const res = await fetchEnVivo(
     `${DIA_HOST}/api/catalog_system/pub/products/search?fq=productName:${encodeURIComponent(nombre)}&_from=0&_to=9&sc=1`,
     { headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' } }
   );
@@ -526,7 +560,7 @@ function parsearProductosCoto(results) {
 }
 
 async function cotoBuscar(termino) {
-  const res = await fetch(
+  const res = await fetchEnVivo(
     `${COTO_HOST}/${encodeURIComponent(termino)}?key=${COTO_KEY}&num_results_per_page=5`,
     { headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' } }
   );
@@ -595,7 +629,7 @@ function armarUrlCarrito(key, items) {
  */
 async function buscarPorEAN(ean, { tarjetas = [], skuIdVea } = {}) {
   const sku = skuIdVea === undefined ? skuIdVeaPorEAN(ean) : skuIdVea;
-  const [vea, carr, changomas, dia, coto, jumbo, disco] = await Promise.all([
+  const [vea, carr, changomas, dia, coto, jumbo, disco] = await sinRomperElResto([
     veaLive(ean, sku),
     carrefourLiveEAN(ean, { tarjetas }),
     changoMasLiveEAN(ean),
@@ -609,7 +643,7 @@ async function buscarPorEAN(ean, { tarjetas = [], skuIdVea } = {}) {
 
 /** Fallback: búsqueda por nombre directo en las APIs (menos confiable que por EAN). */
 async function buscarPorNombreEnVivo(nombre, { tarjetas = [] } = {}) {
-  const [vea, carr, changomas, dia, coto, jumbo, disco] = await Promise.all([
+  const [vea, carr, changomas, dia, coto, jumbo, disco] = await sinRomperElResto([
     veaLiveNombre(nombre),
     carrefourLiveNombre(nombre, { tarjetas }),
     changoMasLiveNombre(nombre),
@@ -632,6 +666,7 @@ module.exports = {
   COTO_HOST,
   COTO_KEY,
   SUPERMERCADOS,
+  TIMEOUT_EN_VIVO_MS,
   parsearProductosCarrefour,
   parsearProductosChangoMas,
   parsearProductosVea,
