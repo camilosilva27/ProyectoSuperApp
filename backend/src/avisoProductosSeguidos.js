@@ -27,7 +27,9 @@
  * sirve. Igual que con el interruptor apagado, a ese usuario NO se le actualiza la huella: si
  * paga más adelante, la promo que siga vigente le llega. El mail además exige mail confirmado
  * (`emailConfirmado`, mismo criterio que los demás crons); el push no (sin confirmar el mail no
- * hay forma de loguearse y suscribir push, así que en la práctica no pasa).
+ * hay forma de loguearse y suscribir push, así que en la práctica no pasa). Tampoco sale el mail
+ * (el push sí) si el usuario se dio de baja de mails no transaccionales
+ * (`mails_no_transaccionales = false`, migración 0027, routes/bajaMails.js).
  */
 
 const { clienteSupabaseAdmin } = require('./clienteSupabaseAdmin');
@@ -41,7 +43,7 @@ function formatoArs(monto) {
   return Number(monto).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
 }
 
-function armarHtml({ nombreUsuario, productos }) {
+function armarHtml({ nombreUsuario, productos, usuarioId }) {
   const saludo = nombreUsuario ? `Hola ${escaparHtml(nombreUsuario)},` : 'Hola,';
   const items = productos
     .map(p => {
@@ -68,6 +70,7 @@ function armarHtml({ nombreUsuario, productos }) {
     cta: { texto: 'Ver en SuperAhorro', url: `${URL_APP}/alertas` },
     footerTexto: 'Recibís este mail porque seguís productos en Alertas de SuperAhorro. Podés apagar los avisos desde la pestaña Alertas.',
     noTransaccional: true,
+    usuarioId,
   });
 }
 
@@ -148,7 +151,7 @@ async function avisarProductosSeguidos(estadoActualPromoPorEan) {
   const usuarioIds = [...new Set(seguidos.map(f => f.usuario_id))];
   const [{ data: perfiles, error: errorPerfiles }, listaUsuarios, suscripcionesPush] = await Promise.all([
     leerTodasLasFilas(() =>
-      cliente.from('perfil_usuario').select('id, nombre, alertas_activas, plan, trial_termina_en').in('id', usuarioIds).order('id')
+      cliente.from('perfil_usuario').select('id, nombre, alertas_activas, plan, trial_termina_en, mails_no_transaccionales').in('id', usuarioIds).order('id')
     ),
     listarTodosLosUsuarios(cliente).catch(err => {
       errores.push(`No se pudo listar usuarios: ${err.message}`);
@@ -188,13 +191,16 @@ async function avisarProductosSeguidos(estadoActualPromoPorEan) {
       errores.push(`Usuario ${usuarioId} sin mail en auth.users — omitido del mail (push sí se mandó)`);
     } else if (!confirmadoPorId.get(usuarioId)) {
       // Mail sin confirmar: no se le manda mail (ver fix-crons-mail-sin-confirmar); el push sí.
+    } else if (perfil?.mails_no_transaccionales === false) {
+      // Dado de baja de mails no transaccionales (routes/bajaMails.js): sin mail; el push sí.
     } else {
       const resultadoMail = await enviarMail({
         destinatarioEmail: email,
         destinatarioNombre: perfil?.nombre,
         asunto: productos.length === 1 ? '¡Nueva promoción en un producto que seguís!' : `¡${productos.length} nuevas promociones en productos que seguís!`,
-        html: armarHtml({ nombreUsuario: perfil?.nombre, productos }),
+        html: armarHtml({ nombreUsuario: perfil?.nombre, productos, usuarioId }),
         noTransaccional: true,
+        usuarioId,
       });
       // Se loguea el id, no el mail: este reporte termina en logs/archivos de la VM.
       if (!resultadoMail.ok) errores.push(`Mail a usuario ${usuarioId}: ${resultadoMail.error}`);

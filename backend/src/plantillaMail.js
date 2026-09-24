@@ -10,6 +10,9 @@
  * viejos (Outlook de escritorio, etc.), mismo criterio que ya usa confirm-signup.html.
  */
 
+const crypto = require('crypto');
+const config = require('./config');
+
 const COLOR_BANNER = '#14161A';
 const COLOR_TEXTO = '#14161A';
 const COLOR_TEXTO_SUAVE = '#3C444D';
@@ -23,15 +26,60 @@ const URL_APP = 'https://mi-superapp.com.ar';
 // Baja de mails NO transaccionales (auditoría 2026-09-24): resúmenes de ahorro, inactividad y
 // Alertas son mails "de marketing/aviso" que el usuario no pidió puntualmente, así que tienen que
 // decir cómo darse de baja (pie) y llevar el header `List-Unsubscribe` (Gmail/Outlook muestran el
-// botón "Anular suscripción" con él y penalizan menos al remitente). Por ahora la baja es a mano
-// por mail al contacto; cuando exista un endpoint de baja con token alcanza con sumar su URL acá
-// (header `<https://...>` + `List-Unsubscribe-Post`) y en `PIE_BAJA`, sin tocar cada cron.
+// botón "Anular suscripción" con él y penalizan menos al remitente).
+// Baja de un clic (2026-09-24): con BAJA_MAILS_SECRET configurado, el header y el pie llevan un
+// link https a GET/POST /api/mails/baja?u=<usuarioId>&t=<token> (routes/bajaMails.js), más
+// `List-Unsubscribe-Post: List-Unsubscribe=One-Click` (RFC 8058: Gmail/Yahoo hacen el POST solos
+// desde su botón). El mailto a contacto@ queda siempre como alternativa. Sin secreto o sin
+// usuarioId, solo el mailto (comportamiento anterior).
 // Recibo de pago, bienvenida y fin de trial son transaccionales: no llevan esto.
 const MAIL_CONTACTO = 'contacto@mi-superapp.com.ar';
-const HEADERS_NO_TRANSACCIONAL = {
-  'List-Unsubscribe': `<mailto:${MAIL_CONTACTO}?subject=baja>`,
-};
-const PIE_BAJA = `Si no querés recibir más estos mails, escribinos a <a href="mailto:${MAIL_CONTACTO}?subject=baja" style="color:${COLOR_TEXTO_FOOTER};">${MAIL_CONTACTO}</a> con el asunto "baja".`;
+const MAILTO_BAJA = `mailto:${MAIL_CONTACTO}?subject=baja`;
+
+/**
+ * Token de baja: HMAC-SHA256(BAJA_MAILS_SECRET, usuarioId) en base64url. Sin expiración a
+ * propósito (un mail de hace meses tiene que poder darse de baja). null si no hay secreto.
+ * Lee `config.bajaMailsSecret` en cada llamada (no destructurado) para poder testearlo.
+ */
+function tokenBaja(usuarioId) {
+  if (!config.bajaMailsSecret || !usuarioId) return null;
+  return crypto.createHmac('sha256', config.bajaMailsSecret).update(String(usuarioId)).digest('base64url');
+}
+
+// Comparación en tiempo constante (timingSafeEqual exige mismo largo: el largo del token
+// esperado es fijo y público, así que chequearlo antes no filtra nada del secreto).
+function tokenBajaValido(usuarioId, token) {
+  const esperado = tokenBaja(usuarioId);
+  if (!esperado || typeof token !== 'string' || !token) return false;
+  const a = Buffer.from(token);
+  const b = Buffer.from(esperado);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+/** URL https de baja de un clic para ese usuario, o null si no hay secreto/usuarioId. */
+function urlBaja(usuarioId) {
+  const token = tokenBaja(usuarioId);
+  if (!token) return null;
+  return `${config.urlPublicaBackend}/api/mails/baja?u=${encodeURIComponent(usuarioId)}&t=${encodeURIComponent(token)}`;
+}
+
+/** Headers extra (Brevo `headers`) de un mail no transaccional para ese usuario. */
+function HEADERS_NO_TRANSACCIONAL(usuarioId) {
+  const url = urlBaja(usuarioId);
+  if (!url) return { 'List-Unsubscribe': `<${MAILTO_BAJA}>` };
+  return {
+    'List-Unsubscribe': `<${url}>, <${MAILTO_BAJA}>`,
+    'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+  };
+}
+
+/** HTML del pie de baja (va dentro del pie de `armarMailBase`). */
+function PIE_BAJA(usuarioId) {
+  const url = urlBaja(usuarioId);
+  const mailto = `<a href="${MAILTO_BAJA}" style="color:${COLOR_TEXTO_FOOTER};">${MAIL_CONTACTO}</a>`;
+  if (!url) return `Si no querés recibir más estos mails, escribinos a ${mailto} con el asunto "baja".`;
+  return `Si no querés recibir más estos mails, <a href="${escaparHtml(url)}" style="color:${COLOR_TEXTO_FOOTER};">date de baja acá</a> (o escribinos a ${mailto} con el asunto "baja").`;
+}
 
 /**
  * Escapa texto para interpolarlo en HTML (contenido o atributo entre comillas). Usar en TODO
@@ -58,13 +106,15 @@ function escaparHtml(valor) {
  * @param {string} [footerTexto] - texto chico al pie, dentro de la misma tarjeta visual.
  * @param {boolean} [noTransaccional] - suma al pie cómo darse de baja (`PIE_BAJA`). Va junto con
  *   `noTransaccional: true` en `enviarMail` (clienteBrevo.js), que agrega el header List-Unsubscribe.
+ * @param {string} [usuarioId] - con `noTransaccional`, arma el link de baja de un clic de ese
+ *   usuario (sin él, el pie queda solo con el mailto).
  *
  * `preheader`, `titulo`, `cta.texto`/`cta.url` y `footerTexto` son TEXTO plano y se escapan acá;
  * `cuerpoHtml` es HTML ya armado — quien lo arma tiene que escapar sus datos con `escaparHtml`.
  */
-function armarMailBase({ preheader, titulo, cuerpoHtml, cta, footerTexto, noTransaccional }) {
+function armarMailBase({ preheader, titulo, cuerpoHtml, cta, footerTexto, noTransaccional, usuarioId }) {
   const pie = escaparHtml(footerTexto || 'Recibís este mail porque tenés una cuenta en SuperAhorro.')
-    + (noTransaccional ? `<br />${PIE_BAJA}` : '');
+    + (noTransaccional ? `<br />${PIE_BAJA(usuarioId)}` : '');
   const botonCta = cta
     ? `
               <table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px auto 8px auto;">
@@ -142,7 +192,14 @@ module.exports = {
   escaparHtml,
   HEADERS_NO_TRANSACCIONAL,
   PIE_BAJA,
+  tokenBaja,
+  tokenBajaValido,
+  urlBaja,
   MAIL_CONTACTO,
+  COLOR_BANNER,
+  COLOR_FONDO,
+  COLOR_TEXTO_SUAVE,
+  COLOR_TEXTO_FOOTER,
   COLOR_ACENTO,
   COLOR_ACENTO_SUAVE,
   COLOR_TEXTO,

@@ -102,6 +102,17 @@ module.exports = {
   brevoRemitenteEmail: process.env.BREVO_REMITENTE_EMAIL || 'no-reply@mi-superapp.com.ar',
   brevoRemitenteNombre: process.env.BREVO_REMITENTE_NOMBRE || 'SuperAhorro',
 
+  // Baja de un clic de los mails NO transaccionales (resúmenes, inactividad, Alertas — ver
+  // routes/bajaMails.js y `tokenBaja` en plantillaMail.js). El link lleva un HMAC-SHA256 del
+  // usuarioId firmado con este secreto (sin expiración: un link de baja viejo tiene que seguir
+  // andando). Sin la variable, los mails siguen saliendo solo con el mailto a contacto@ y el
+  // endpoint responde 503. Rotarlo invalida todos los links de mails ya enviados.
+  // Generar con: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+  bajaMailsSecret: process.env.BAJA_MAILS_SECRET || null,
+  // URL pública (https) del backend, para armar links que apuntan a él desde afuera (hoy: el de
+  // baja de mails). En producción es Caddy + nip.io sobre la IP estática de la VM.
+  urlPublicaBackend: (process.env.URL_PUBLICA_BACKEND || 'https://34.24.10.174.nip.io').replace(/\/+$/, ''),
+
   // Monitoreo de errores (Sentry) — sin esta variable, sentry.js no inicializa nada y el
   // server sigue funcionando exactamente igual que antes (mismo criterio "gracioso" que el
   // resto de las integraciones opcionales de este archivo).

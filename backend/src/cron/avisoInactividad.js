@@ -20,6 +20,9 @@
  * ok o algún push entregado). Antes solo se marcaba si el mail salía bien: con Brevo fallando, el
  * push salía igual todos los días (la referencia de 14 días nunca se movía).
  *
+ * Sin mail (el push sí) para quien se dio de baja de mails no transaccionales
+ * (`mails_no_transaccionales = false`, migración 0027, routes/bajaMails.js).
+ *
  * Uso: node src/cron/avisoInactividad.js   (o npm run aviso-inactividad)
  * Crontab sugerido en la VM (diario, 14:00 UTC = 11:00 Argentina):
  *   0 14 * * * cd /ruta/ProyectoSuperApp/backend && /usr/bin/node src/cron/avisoInactividad.js >> logs/cron-aviso-inactividad.log 2>&1
@@ -51,7 +54,7 @@ function esElegible(usuario, ahora) {
   return diasDesdeReferencia >= DIAS_DE_INACTIVIDAD;
 }
 
-function armarHtml({ nombre }) {
+function armarHtml({ nombre, usuarioId }) {
   const saludo = nombre ? `Hola ${escaparHtml(nombre)},` : 'Hola,';
   const cuerpo = `
     <p style="margin:0 0 16px 0;">${saludo}</p>
@@ -65,6 +68,7 @@ function armarHtml({ nombre }) {
     cuerpoHtml: cuerpo,
     cta: { texto: 'Abrir SuperAhorro', url: URL_APP },
     noTransaccional: true,
+    usuarioId,
   });
 }
 
@@ -75,6 +79,7 @@ async function avisoInactividad() {
   const errores = [];
   let enviados = 0;
   let enviadosPush = 0;
+  let omitidosBaja = 0;
 
   const cliente = clienteSupabaseAdmin();
   if (!cliente) {
@@ -87,7 +92,7 @@ async function avisoInactividad() {
         return [];
       }),
       leerTodasLasFilas(() =>
-        cliente.from('perfil_usuario').select('id, nombre, plan, trial_termina_en, aviso_inactividad_enviado_en').order('id')
+        cliente.from('perfil_usuario').select('id, nombre, plan, trial_termina_en, aviso_inactividad_enviado_en, mails_no_transaccionales').order('id')
       ),
       obtenerSuscripcionesPorUsuario(cliente).catch(err => {
         errores.push(`No se pudo leer push_suscripcion: ${err.message}`);
@@ -110,22 +115,33 @@ async function avisoInactividad() {
         );
         if (!elegible) continue;
         if (!usuario.emailConfirmado) continue;
-        if (!usuario.email) {
+        // Dado de baja de mails no transaccionales (routes/bajaMails.js): sin mail, el push sigue.
+        const quiereMail = perfil.mails_no_transaccionales !== false;
+        const suscripciones = suscripcionesPush.get(usuario.id) ?? [];
+        if (!quiereMail && suscripciones.length === 0) {
+          omitidosBaja++;
+          continue;
+        }
+        if (quiereMail && !usuario.email) {
           errores.push(`Usuario ${usuario.id} sin mail en auth.users — omitido`);
           continue;
         }
 
-        const resultado = await enviarMail({
-          destinatarioEmail: usuario.email,
-          destinatarioNombre: perfil.nombre,
-          asunto: 'Te extrañamos en SuperAhorro',
-          html: armarHtml({ nombre: perfil.nombre }),
-          noTransaccional: true,
-        });
+        const resultado = quiereMail
+          ? await enviarMail({
+            destinatarioEmail: usuario.email,
+            destinatarioNombre: perfil.nombre,
+            asunto: 'Te extrañamos en SuperAhorro',
+            html: armarHtml({ nombre: perfil.nombre, usuarioId: usuario.id }),
+            noTransaccional: true,
+            usuarioId: usuario.id,
+          })
+          : { ok: false, omitidoPorBaja: true };
         if (resultado.ok) enviados++;
+        else if (resultado.omitidoPorBaja) omitidosBaja++;
         else errores.push(`Falló el mail al usuario ${usuario.id}: ${resultado.error}`);
 
-        const resultadoPush = await enviarPush(cliente, suscripcionesPush.get(usuario.id) ?? [], {
+        const resultadoPush = await enviarPush(cliente, suscripciones, {
           title: 'SuperAhorro',
           body: 'Hace un tiempo que no comparás precios. Puede que esta semana haya alguna promo que te convenga.',
           url: URL_APP,
@@ -145,12 +161,12 @@ async function avisoInactividad() {
     }
   }
 
-  const reporte = { inicio: inicio.toISOString(), fin: new Date().toISOString(), enviados, enviadosPush, errores };
+  const reporte = { inicio: inicio.toISOString(), fin: new Date().toISOString(), enviados, enviadosPush, omitidosBaja, errores };
 
   fs.mkdirSync(rutaLogs, { recursive: true });
   fs.writeFileSync(path.join(rutaLogs, 'ultimo-aviso-inactividad.json'), JSON.stringify(reporte, null, 2));
 
-  console.log(`   ✅ ${enviados} mails, ${enviadosPush} push, ${errores.length} con error`);
+  console.log(`   ✅ ${enviados} mails, ${enviadosPush} push, ${omitidosBaja} mails omitidos (dados de baja), ${errores.length} con error`);
 
   return reporte;
 }

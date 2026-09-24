@@ -65,9 +65,11 @@ async function postBrevo(body) {
  * @param {boolean} [opciones.noTransaccional] - resúmenes/inactividad/Alertas: agrega el header
  *   `List-Unsubscribe` (ver `HEADERS_NO_TRANSACCIONAL` en plantillaMail.js). Usar junto con
  *   `armarMailBase({ noTransaccional: true })`, que suma el pie de baja.
+ * @param {string} [opciones.usuarioId] - con `noTransaccional`, el header lleva el link de baja
+ *   de un clic de ese usuario + `List-Unsubscribe-Post` (RFC 8058); sin él, solo el mailto.
  * @returns {Promise<{ok: true} | {ok: false, error: string}>} nunca lanza.
  */
-async function enviarMail({ destinatarioEmail, destinatarioNombre, asunto, html, noTransaccional = false }) {
+async function enviarMail({ destinatarioEmail, destinatarioNombre, asunto, html, noTransaccional = false, usuarioId }) {
   if (!brevoApiKey) {
     return { ok: false, error: 'Falta BREVO_API_KEY — no se pudo mandar el mail' };
   }
@@ -77,7 +79,7 @@ async function enviarMail({ destinatarioEmail, destinatarioNombre, asunto, html,
     to: [{ email: destinatarioEmail, name: destinatarioNombre || undefined }],
     subject: asunto,
     htmlContent: html,
-    ...(noTransaccional ? { headers: { ...HEADERS_NO_TRANSACCIONAL } } : {}),
+    ...(noTransaccional ? { headers: HEADERS_NO_TRANSACCIONAL(usuarioId) } : {}),
   };
 
   let resultado = await postBrevo(body);

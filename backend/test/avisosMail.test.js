@@ -199,7 +199,7 @@ describe('baja de mails no transaccionales', () => {
   });
 
   test('header List-Unsubscribe con mailto', () => {
-    assert.equal(HEADERS_NO_TRANSACCIONAL['List-Unsubscribe'], '<mailto:contacto@mi-superapp.com.ar?subject=baja>');
+    assert.equal(HEADERS_NO_TRANSACCIONAL()['List-Unsubscribe'], '<mailto:contacto@mi-superapp.com.ar?subject=baja>');
   });
 });
 
@@ -229,7 +229,7 @@ describe('clienteBrevo (fetch simulado)', () => {
     if (cuerpos.length === 0) return t.skip('sin BREVO_API_KEY en config (entorno sin .env)');
     assert.equal(r.ok, true);
     assert.equal(cuerpos.length, 2);
-    assert.equal(cuerpos[0].headers['List-Unsubscribe'], HEADERS_NO_TRANSACCIONAL['List-Unsubscribe']);
+    assert.equal(cuerpos[0].headers['List-Unsubscribe'], HEADERS_NO_TRANSACCIONAL()['List-Unsubscribe']);
   });
 });
 

@@ -15,7 +15,8 @@
  * auditoría 2026-09-24): antes, re-correr el cron duplicaba mails y push. Ver
  * `reclamarEnvio`/`liberarEnvio` abajo (los reusa también el resumen semanal). Las lecturas de
  * perfil_usuario y ahorro_registro van paginadas (PostgREST corta en 1000 filas sin avisar).
- * Mail NO transaccional: lleva header List-Unsubscribe + pie de baja.
+ * Mail NO transaccional: lleva header List-Unsubscribe + pie de baja; no se manda mail a quien se
+ * dio de baja (`mails_no_transaccionales = false`, migración 0027), el push sí.
  *
  * Uso: node src/cron/resumenMensualAhorro.js   (o npm run resumen-mensual-ahorro)
  * Crontab sugerido en la VM (día 1 de cada mes, 13:00 UTC = 10:00 Argentina):
@@ -69,7 +70,7 @@ function formatoArs(monto) {
   return monto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
 }
 
-function armarHtml({ nombre, nombreMes, monto, cantidad }) {
+function armarHtml({ nombre, nombreMes, monto, cantidad, usuarioId }) {
   const saludo = nombre ? `Hola ${escaparHtml(nombre)},` : 'Hola,';
   const cuerpo = `
     <p style="margin:0 0 16px 0;">${saludo}</p>
@@ -86,6 +87,7 @@ function armarHtml({ nombre, nombreMes, monto, cantidad }) {
     cuerpoHtml: cuerpo,
     cta: { texto: 'Ver mi historial de ahorro', url: `${URL_APP}/mis-ahorros` },
     noTransaccional: true,
+    usuarioId,
   });
 }
 
@@ -98,6 +100,7 @@ async function resumenMensualAhorro() {
   let enviadosPush = 0;
   let omitidos = 0;
   let omitidosYaEnviado = 0;
+  let omitidosBaja = 0;
 
   const cliente = clienteSupabaseAdmin();
   if (!cliente) {
@@ -125,7 +128,7 @@ async function resumenMensualAhorro() {
     const [{ data: perfiles, error: errorPerfiles }, { data: eventos, error: errorEventos }, usuarios, suscripcionesPush] =
       await Promise.all([
         leerTodasLasFilas(() =>
-          cliente.from('perfil_usuario').select('id, nombre, plan, plan_bajado_a_gratis_en').order('id')
+          cliente.from('perfil_usuario').select('id, nombre, plan, plan_bajado_a_gratis_en, mails_no_transaccionales').order('id')
         ),
         leerTodasLasFilas(() =>
           cliente
@@ -173,8 +176,16 @@ async function resumenMensualAhorro() {
           omitidos++;
           continue;
         }
+        // Dado de baja de mails no transaccionales (routes/bajaMails.js): no se le manda el mail,
+        // pero el push sigue (se maneja aparte). Sin push suscripto no hay nada que mandarle.
+        const quiereMail = perfil.mails_no_transaccionales !== false;
+        const suscripciones = suscripcionesPush.get(perfil.id) ?? [];
+        if (!quiereMail && suscripciones.length === 0) {
+          omitidosBaja++;
+          continue;
+        }
         const email = emailPorId.get(perfil.id);
-        if (!email) {
+        if (quiereMail && !email) {
           errores.push(`Usuario ${perfil.id} sin mail en auth.users — omitido`);
           continue;
         }
@@ -187,17 +198,21 @@ async function resumenMensualAhorro() {
           omitidosYaEnviado++;
           continue;
         }
-        const resultado = await enviarMail({
-          destinatarioEmail: email,
-          destinatarioNombre: perfil.nombre,
-          asunto: `Esto ahorraste en ${nombreMes} con SuperAhorro`,
-          html: armarHtml({ nombre: perfil.nombre, nombreMes, monto, cantidad }),
-          noTransaccional: true,
-        });
+        const resultado = quiereMail
+          ? await enviarMail({
+            destinatarioEmail: email,
+            destinatarioNombre: perfil.nombre,
+            asunto: `Esto ahorraste en ${nombreMes} con SuperAhorro`,
+            html: armarHtml({ nombre: perfil.nombre, nombreMes, monto, cantidad, usuarioId: perfil.id }),
+            noTransaccional: true,
+            usuarioId: perfil.id,
+          })
+          : { ok: false, omitidoPorBaja: true };
         if (resultado.ok) enviados++;
+        else if (resultado.omitidoPorBaja) omitidosBaja++;
         else errores.push(`Falló el mail al usuario ${perfil.id}: ${resultado.error}`);
 
-        const resultadoPush = await enviarPush(cliente, suscripcionesPush.get(perfil.id) ?? [], {
+        const resultadoPush = await enviarPush(cliente, suscripciones, {
           title: 'SuperAhorro',
           body: `Esto ahorraste en ${nombreMes}: ${formatoArs(monto)}`,
           url: `${URL_APP}/mis-ahorros`,
@@ -212,12 +227,12 @@ async function resumenMensualAhorro() {
     }
   }
 
-  const reporte = { inicio: inicio.toISOString(), fin: new Date().toISOString(), enviados, enviadosPush, omitidos, omitidosYaEnviado, errores };
+  const reporte = { inicio: inicio.toISOString(), fin: new Date().toISOString(), enviados, enviadosPush, omitidos, omitidosYaEnviado, omitidosBaja, errores };
 
   fs.mkdirSync(rutaLogs, { recursive: true });
   fs.writeFileSync(path.join(rutaLogs, 'ultimo-resumen-mensual-ahorro.json'), JSON.stringify(reporte, null, 2));
 
-  console.log(`   ✅ ${enviados} mails, ${enviadosPush} push, ${omitidos} omitidos (plan gratis hace +30 días, mail sin confirmar o sin ahorro), ${omitidosYaEnviado} ya enviados este período, ${errores.length} con error`);
+  console.log(`   ✅ ${enviados} mails, ${enviadosPush} push, ${omitidos} omitidos (plan gratis hace +30 días, mail sin confirmar o sin ahorro), ${omitidosYaEnviado} ya enviados este período, ${omitidosBaja} mails omitidos (dados de baja), ${errores.length} con error`);
 
   return reporte;
 }

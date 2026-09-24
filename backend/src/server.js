@@ -55,6 +55,7 @@ const productosSeguidosRouter = require('./routes/productosSeguidos');
 const pagosRouter = require('./routes/pagos');
 const webhookMercadoPagoRouter = require('./routes/webhookMercadoPago');
 const webhookAuthUsuariosRouter = require('./routes/webhookAuthUsuarios');
+const bajaMailsRouter = require('./routes/bajaMails');
 const sondaEnVivo = require('./sondaEnVivo');
 
 const app = express();
@@ -101,6 +102,17 @@ app.use('/api', healthRouter);
 // dentro de cada archivo. Ninguna dispara consultas a los 5 supers, así que el rate limit
 // global de acá abajo (120/min) alcanza.
 app.use('/api', pagosRouter, webhookMercadoPagoRouter, webhookAuthUsuariosRouter);
+
+// Baja de un clic de mails no transaccionales (GET = página de confirmación, POST = baja; ver
+// routes/bajaMails.js). Pública, autenticada por el token HMAC del link. Límite propio más
+// estricto que el global: un usuario real la abre una o dos veces, nunca decenas por minuto.
+app.use('/api/mails', rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: 'Demasiados intentos, probá de nuevo en unos minutos.',
+}), bajaMailsRouter);
 
 // Sin token: en una app web no hay dónde guardar un secreto (queda en el JS que descarga
 // cualquiera — ver la discusión en PLAN_FEATURES_APP.md). La única defensa real hoy es este
