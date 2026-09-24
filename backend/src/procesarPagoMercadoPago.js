@@ -65,6 +65,14 @@ async function procesarSuscripcion(suscripcion, dataId, supabaseAdmin) {
     .maybeSingle();
   if (!filaAnterior) return null;
 
+  // La suscripción se crea con external_reference = usuarioId (routes/pagos.js). Si no coincide
+  // con la fila que la tiene guardada, alguien apuntó su `pasarela_suscripcion_id` a la
+  // suscripción de otro usuario (auditoría 2026-09-24): no se aplica nada.
+  if (suscripcion.external_reference && suscripcion.external_reference !== filaAnterior.id) {
+    console.error(`Suscripción ${dataId} pertenece a otro usuario; se ignora para ${filaAnterior.id}`);
+    return null;
+  }
+
   if (nuevoPlan === 'premium') {
     cambios.plan = 'premium';
     cambios.siguiente_cobro_en = suscripcion.next_payment_date ?? null;
