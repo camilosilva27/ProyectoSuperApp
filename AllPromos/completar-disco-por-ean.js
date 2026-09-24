@@ -22,12 +22,17 @@
  */
 
 const fs = require('fs');
+const { promocionCatalogoCencosud } = require('./core/promoCencosud');
 const { escribirAtomico } = require('./core/escrituraAtomica');
 const https = require('https');
 const { leerCatalogo } = require('./core/catalogo');
 const { cargarCheckpoint, guardarCheckpoint, borrarCheckpoint } = require('./core/checkpointEAN');
 
-const PROMO_SELLER = 'discoargentinav700cordoba700';
+// Seller interno que hay que mandarle a `_v/search-promotions` — el MISMO que Vea/Jumbo y que
+// scraper-promos-disco.js (misma cuenta VTEX). Hasta 2026-09-24 decía
+// 'discoargentinav700cordoba700': con ese seller el endpoint responde 200 pero SIEMPRE vacío
+// (confirmado en vivo), así que los extras de Disco quedaban todos sin promo.
+const PROMO_SELLER = 'jumboargentinav700cordoba700';
 const BASE_URL = 'https://www.disco.com.ar';
 
 const HEADERS = {
@@ -240,8 +245,6 @@ async function main() {
 
   const nuevosConPromo = encontrados.map(sku => {
     const promo = promosNuevas[sku.skuId] || null;
-    const descuento = promo ? parseFloat(promo.effectiveDiscount) : NaN;
-    const tienePromoUsable = promo && Number.isFinite(descuento) && descuento > 0;
     return {
       skuId: sku.skuId,
       ean: sku.ean,
@@ -251,15 +254,10 @@ async function main() {
       seller: sku.seller,
       precioBase: sku.price,
       imagenUrl: sku.imagenUrl,
-      promocion: tienePromoUsable ? {
-        nombre: promo.name,
-        codigo: promo.code,
-        descuento: promo.effectiveDiscount,
-        descuentoPct: (descuento * 100).toFixed(0) + '%',
-        precioFinal: Math.round(sku.price * (1 - descuento) * 100) / 100,
-        vigenciaDesde: promo.start || null,
-        vigenciaHasta: promo.end || null,
-      } : null,
+      // Promo de search-promotions → `promocion` del catálogo (ver core/promoCencosud.js): los
+      // fixed_price ("OFERTA X") usan `value` como precio, no el effectiveDiscount de la campaña;
+      // sin % ni precio usable (ej. "Llevando n x") → sin promo, no se adivina.
+      promocion: promocionCatalogoCencosud(promo, sku.price),
     };
   });
 

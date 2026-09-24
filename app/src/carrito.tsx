@@ -48,6 +48,8 @@ export const TARJETAS_DISPONIBLES = [
   'Galicia', 'Galicia Modo', 'Banco Macro', 'HSBC', 'BBVA', 'ICBC',
   'Comafi', 'Naranja X', 'Credicoop', 'Banco Ciudad', 'Supervielle',
   'Banco Columbia', 'Banco Patagonia', 'Banco Nación', 'TCI',
+  // Sumado 2026-09-24 (auditoría de promos): mismo canónico que ALIAS_TARJETAS.
+  'Banco Hipotecario',
 ];
 
 // Vacío a propósito: no hace falta elegir tarjetas para comparar. Las promos de tarjeta

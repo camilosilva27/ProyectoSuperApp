@@ -119,13 +119,18 @@ const ALIAS_TARJETAS = {
   // Vea/Jumbo/Disco (Cencosud): "Banco Comafi", "Tarjeta Naranja X", "Banco Ciudad",
   // "supervielle", "Banco Columbia", "Banco Patagonia", "Nacion"/"banco Nacion".
   'Comafi':          ['comafi'],
-  'Naranja X':       ['naranja x'],
+  // 'naranjax' (sin espacio): así lo nombra Chango Más ("NaranjaX") — auditoría 2026-09-24.
+  'Naranja X':       ['naranja x', 'naranjax'],
   'Credicoop':       ['credicoop'],
   'Banco Ciudad':    ['banco ciudad'],
   'Supervielle':     ['supervielle'],
   'Banco Columbia':  ['banco columbia'],
   'Banco Patagonia': ['banco patagonia'],
   'Banco Nación':    ['banco nacion', 'nacion'],
+  // Sumado 2026-09-24 (auditoría de promos): "Banco Hipotecario" en Cencosud (25% martes,
+  // tope $15.000) e "Hipotecario_Modo" en Chango Más se descartaban por falta de alias. Ningún
+  // otro nombre de entidad de los 5 feeds contiene "hipotecario".
+  'Banco Hipotecario': ['hipotecario'],
   // Tarjeta propia de Coto, sin nombre de banco detrás — no apareció en el texto de
   // ningún otro super al verificar, se deja el alias igual por si alguno la suma después.
   'TCI':             ['tci'],
@@ -149,6 +154,9 @@ const EXCLUSIONES_ALIAS = {
   // "mi carrefour" con "credito" (o "prepaga", aunque hoy no exista ese nivel como entidad
   // propia en el feed — ver nota arriba), no tiene que contarse como el nivel Clásico.
   'Mi Carrefour': ['prepaga', 'credito'],
+  // "Club La Nación" (programa de beneficios del diario, Carrefour) matcheaba el alias 'nacion'
+  // y quedaba como si fuera Banco Nación (auditoría 2026-09-24).
+  'Banco Nación': ['club'],
 };
 
 const DIAS_SEMANA_KEYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -169,6 +177,60 @@ function resolverCanonicosDesdeNombre(nombre) {
   });
 }
 
+// ─── MODO + banco: la promo exige las DOS cosas (auditoría 2026-09-24) ─────────
+//
+// Nombres crudos como "ICBC Modo", "Banco Credicoop MODO", "Banco_Comafi_MODO" (Chango Más) o
+// la descripción de Coto "Pagando con MODO desde la app de Comafi" NO son "cualquier MODO": el
+// descuento es solo pagando con MODO Y con una tarjeta de ESE banco. Antes quedaban con
+// canonicosPosibles [MODO, Comafi] ("cualquiera de las dos"), así que un usuario con solo MODO
+// recibía el 30% de Comafi. Ahora esas promos llevan `requiereTodas: true` y el usuario tiene
+// que tener marcadas TODAS las tarjetas de canonicosPosibles (ver
+// filtrarPromosBancariasPorTarjetas). "Galicia Modo" es la excepción: ya es su propio canónico
+// (que implica MODO), así que queda como tarjeta única, igual que antes para quien la marca.
+// Un nombre "X MODO" cuyo banco X no tiene canónico (ej. "Yoy_MODO") se descarta: no se puede
+// exigir una tarjeta que la app no modela, y tratarla como MODO genérico era el bug.
+
+/** Para UN nombre crudo: { canonicos, requiereTodas } o null si hay que descartarlo. */
+function resolverTarjetasDeNombre(nombre) {
+  const canonicos = resolverCanonicosDesdeNombre(nombre);
+  if (!canonicos.includes('MODO')) return canonicos.length ? { canonicos, requiereTodas: false } : null;
+  if (canonicos.includes('Galicia Modo')) return { canonicos: ['Galicia Modo'], requiereTodas: false };
+  const otros = canonicos.filter(c => c !== 'MODO');
+  if (otros.length) return { canonicos: [...otros, 'MODO'], requiereTodas: true };
+  // Solo MODO: ¿el nombre es MODO a secas, o "<banco sin canónico> MODO"?
+  const resto = normalizar(nombre).replace(/modo|banco|app|[^a-z0-9]+/g, '');
+  return resto ? null : { canonicos: ['MODO'], requiereTodas: false };
+}
+
+/**
+ * Combina varios nombres crudos de UNA promo (Cencosud/Día listan varios bancos por entrada:
+ * vale cualquiera). El modelo es "cualquiera de" o "todas": no puede expresar "A, o bien
+ * (B y MODO)", así que si se mezclan se quedan solo los de "cualquiera" (conservador).
+ * @returns { canonicosPosibles, requiereTodas } — canonicosPosibles vacío = descartar.
+ */
+function resolverTarjetasPromo(nombres) {
+  const resueltos = nombres.map(resolverTarjetasDeNombre).filter(Boolean);
+  const cualquiera = [...new Set(resueltos.filter(r => !r.requiereTodas).flatMap(r => r.canonicos))];
+  if (cualquiera.length) return { canonicosPosibles: cualquiera, requiereTodas: false };
+  const todas = resueltos.filter(r => r.requiereTodas);
+  if (todas.length === 1) return { canonicosPosibles: todas[0].canonicos, requiereTodas: true };
+  return { canonicosPosibles: [], requiereTodas: false };
+}
+
+/** ¿El usuario con `tarjetas` puede usar esta promo? Único criterio de match tarjeta↔promo. */
+function promoAplicaATarjetas(promo, tarjetas) {
+  return promo.requiereTodas
+    ? promo.canonicosPosibles.every(c => tarjetas.includes(c))
+    : promo.canonicosPosibles.some(c => tarjetas.includes(c));
+}
+
+/** Nombre a mostrar ("Pagando con X"): ej. "Comafi (MODO)" para una promo de MODO + banco. */
+function etiquetaTarjetas(promo, tarjetas) {
+  if (!promo.requiereTodas) return promo.canonicosPosibles.find(c => tarjetas.includes(c)) ?? promo.canonicosPosibles[0];
+  const otros = promo.canonicosPosibles.filter(c => c !== 'MODO');
+  return otros.length < promo.canonicosPosibles.length ? `${otros.join(' + ')} (MODO)` : otros.join(' + ');
+}
+
 function extraerMonto(texto, patrones) {
   const t = normalizar(texto);
   for (const re of patrones) {
@@ -181,12 +243,81 @@ function extraerMonto(texto, patrones) {
 // Best-effort: si el regex no encuentra nada, tope/montoMinimo quedan en null (se trata
 // como "sin tope conocido", no como "sin tope real" — ver 4.5, el texto legal completo
 // siempre se muestra junto al número calculado para que se pueda verificar a ojo).
+function parsearMonto(s) {
+  return parseInt(s.replace(/\./g, '').replace(/,\d+$/, ''), 10);
+}
+
+// Topes que aparecen en el texto (auditoría 2026-09-24):
+//  - con "$" ("tope de reintegro $ 15.000") o SIN "$" pero con separador de miles ("TOPE 40.000
+//    POR VIGENCIA", Banco Patagonia en Cencosud) — sin "$" se exige el formato 40.000 para no
+//    confundir un teléfono (0810-...) o un año con un monto;
+//  - se ignoran los precedidos (≤40 chars) por "jubilad": Cuenta DNI en Carrefour dice "¡Sin
+//    Tope!" y después "Si sos jubilado tope de $5.000" — ese tope es de otro segmento.
+function topesEnTexto(t, prefijo) {
+  const valores = [];
+  const res = [
+    new RegExp(`(?:${prefijo})[^$]{0,40}\\$\\s?(\\d[\\d.,]*)`, 'g'),
+    new RegExp(`(?:${prefijo})[^$\\d]{0,40}?(\\d{1,3}(?:\\.\\d{3})+)(?!\\d)`, 'g'),
+  ];
+  for (const re of res) {
+    for (const m of t.matchAll(re)) {
+      const antes = t.slice(Math.max(0, m.index - 40), m.index + m[0].length - m[1].length);
+      if (/jubilad/.test(antes)) continue;
+      if (/\bsin\s*$/.test(t.slice(Math.max(0, m.index - 5), m.index))) continue; // "sin tope y con mínimo de $X"
+      // Monto mal formado ("tope de devolución de $10.00", typo real de BBVA en Cencosud): se
+      // ignora en vez de leerlo como $1.000.
+      const crudo = m[1].replace(/[.,]+$/, '');
+      if (!/^(?:\d{1,3}(?:\.\d{3})+|\d+)(?:,\d{1,2})?$/.test(crudo)) continue;
+      const v = parsearMonto(crudo);
+      if (v > 0) valores.push(v);
+    }
+  }
+  return valores;
+}
+
 function extraerTope(texto) {
-  return extraerMonto(texto, [/tope[^$]{0,40}\$\s?([\d.,]+)/, /reintegr[oa][^$]{0,40}\$\s?([\d.,]+)/]);
+  const t = normalizar(texto);
+  // Varios topes distintos (por transacción / por mes, cartera general / segmento): se usa el
+  // MENOR — nunca "sin tope", que sobreestimaría el ahorro.
+  const topes = topesEnTexto(t, 'tope');
+  if (topes.length) return Math.min(...topes);
+  // "¡Sin Tope!" sin ningún otro tope aplicable (ej. solo el de jubilados): null legítimo. Sin
+  // esto caía al patrón de "reintegro $X" y tomaba el ejemplo ilustrativo "recibirá un reintegro
+  // de $3.000" del legal de Cuenta DNI en Carrefour.
+  if (/\bsin\s+tope\b/.test(t)) return null;
+  const reintegros = topesEnTexto(t, 'reintegr[oa]');
+  return reintegros.length ? reintegros[0] : null;
+}
+
+/**
+ * Tope de una promo con un texto "principal" corto y específico (sub_title de Carrefour/Chango
+ * Más, `info` de Cencosud) y el legal completo, que suele listar topes de OTROS productos o
+ * segmentos (Patagonia Singular $15.000 en el subtítulo vs. $10.000 de Clásica en el legal).
+ * El principal manda: si trae topes se usa el menor de ESOS; si dice "sin tope", null; si no
+ * dice nada, recién ahí se mira el texto completo.
+ */
+function topeDePromo(principal, completo) {
+  const t = normalizar(principal);
+  const topes = topesEnTexto(t, 'tope');
+  if (topes.length) return Math.min(...topes);
+  if (/\bsin\s+tope\b/.test(t)) return null;
+  return extraerTope(completo);
 }
 
 function extraerMontoMinimo(texto) {
-  return extraerMonto(texto, [/compra minima[^$]{0,40}\$\s?([\d.,]+)/, /a partir de\s?\$\s?([\d.,]+)/]);
+  // Formas reales vistas en la auditoría de promos 2026-09-24:
+  //  "monto mayor o igual a $35.000" (MODO en Día), "compras mayor o iguales a $100.000" y
+  //  "compras iguales o superiores a $100.000" (MODO en Cencosud), "Mínimo de compra: $75.000" y
+  //  "Mínmo de compra $30.000" (typo real, MODO en Chango Más), "Mínimo de compra $15.000"
+  //  (Carrefour MP jueves / Cuenta DNI miércoles), "superiores a $100.000".
+  //  "SIN MÍNIMO DE COMPRA" no matchea (lookbehind).
+  return extraerMonto(texto, [
+    /compra minima[^$]{0,40}\$\s?([\d.,]+)/,
+    /(?<!sin\s)min(?:i)?mo\s+de\s+compra\s*:?\s*(?:de\s+)?\$\s?([\d.,]+)/,
+    /a partir de\s?\$\s?([\d.,]+)/,
+    /(?:monto|compras?)\s+(?:mayor(?:es)?|superior(?:es)?|igual(?:es)?)\s+o\s+(?:igual(?:es)?|superior(?:es)?|mayor(?:es)?)\s+a\s+(?:(?:un\s+)?total\s+de\s+)?\$\s?([\d.,]+)/,
+    /superiores\s+a\s+\$\s?([\d.,]+)/,
+  ]);
 }
 
 function diaISO(fecha) {
@@ -219,7 +350,36 @@ function leerMisTarjetas() {
 // cuotas, ej. "% y 3 cuotas sin interés"), el campo `discount` numérico es el % real.
 function esFinanciacionVea(discountText) {
   const t = (discountText || '').toLowerCase();
-  return t.includes('cuota') && !t.includes('%');
+  if (t.includes('cuota') && !t.includes('%')) return true;
+  // Auditoría 2026-09-24: `discountText` es la continuación de `discount` ("25" + "% y 3 cuotas"
+  // = "25% y 3 cuotas"). Si NO arranca con "%", el número de `discount` no es un porcentaje:
+  // Cencopay "18" + "CSI o 15% y 12CSI" son 18 cuotas (se leía como 18% de todo el ticket),
+  // "6" + "y 12" son 6 y 12 cuotas, Amex "100" + "mil $" es un monto fijo. Vacío = % real.
+  const resto = (discountText || '').trim();
+  return resto !== '' && !resto.startsWith('%');
+}
+
+// Auditoría 2026-09-24: promos atadas a UN local puntual (Cencopay 25% martes "PROMOCIÓN
+// VÁLIDA EN EL LOCAL DE JUMBO COMODORO", ICBC "válido en la sucursal de Venado Tuerto") se
+// aplicaban a cualquier compra del banner. Acotado a singular ("el local"/"la sucursal" + nombre):
+// "en los locales habilitados/adheridos" (el caso normal) no matchea.
+function esPromoDeLocalPuntual(textoNormalizado) {
+  return /\b(?:el\s+local|la\s+sucursal|sucursal)\s+(?:de\s+)?(?:jumbo|vea|disco)\s+(?!habilitad|adherid)[a-z]/.test(textoNormalizado)
+    || /\bsucursal\s+de\s+(?!jumbo|vea|disco)[a-z]{3,}/.test(textoNormalizado);
+}
+
+// Auditoría 2026-09-24: el campo `days` del feed de Cencosud trae solo 1..6 en las 202
+// entradas — nunca 7 (domingo). Promos cuyo texto dice "viernes, sábados y domingos" (Cencopay
+// Cuenta 40%) nunca aplicaban el domingo. Se agrega el 7 solo con una enumeración de días que
+// termina en domingo (no con "semana de lunes a domingo", que es la definición de un tope
+// semanal) o con "todos los días" sin día puntual detrás, cuando `days` ya trae lunes a sábado.
+function diasCencosud(days, textoNormalizado) {
+  const dias = (days || []).map(Number);
+  if (dias.includes(7)) return dias;
+  const enumeraDomingo = /\b(?:viernes|sabados?)\s*(?:,|\by\b)\s*domingos?\b/.test(textoNormalizado);
+  const todosLosDias = [1, 2, 3, 4, 5, 6].every(d => dias.includes(d))
+    && /\btodos\s+los\s+dias\b(?!\s+(?:lunes|martes|miercoles|jueves|viernes|sabados?|domingos?|habiles)\b)/.test(textoNormalizado);
+  return enumeraDomingo || todosLosDias ? [...dias, 7] : dias;
 }
 
 // Vea, Jumbo y Disco son la MISMA cuenta VTEX (ver AllPromos/core/fetchers.js) y este feed de
@@ -264,17 +424,20 @@ async function fetchCencosud(superNombre) {
       if (!(descuentoPct > 0)) continue;
 
       const nombresBanco = (e.banks || []).map(b => b.name);
-      const canonicosPosibles = [...new Set(nombresBanco.flatMap(resolverCanonicosDesdeNombre))];
+      const { canonicosPosibles, requiereTodas } = resolverTarjetasPromo(nombresBanco);
       if (!canonicosPosibles.length) continue;
 
       const texto = `${e.info || ''} ${e.legals || ''}`;
+      const textoNorm = normalizar(texto);
+      if (esPromoDeLocalPuntual(textoNorm)) continue;
       promos.push({
         canonicosPosibles,
+        requiereTodas,
         super: superNombre,
-        dias: (e.days || []).map(Number),
+        dias: diasCencosud(e.days, textoNorm),
         canales: null, // el feed no expone flags de canal, a diferencia de Carrefour/Chango Más
         descuentoPct,
-        tope: extraerTope(texto),
+        tope: topeDePromo(e.info || '', texto),
         montoMinimo: extraerMontoMinimo(texto),
         vigenciaDesde: new Date(Number(e.dateStart) * 1000),
         vigenciaHasta: new Date(Number(e.dateEnd) * 1000),
@@ -324,6 +487,25 @@ function canalesDesdeBooleanos(o) {
   return activos.length ? activos : null; // ninguno explícitamente true -> desconocido, no filtra en Fase 1
 }
 
+/**
+ * Canales normalizados al vocabulario de promoAplicaEnCanal ('ecommerce' = online, cualquier
+ * otro tag = local físico). Auditoría 2026-09-24:
+ *  - Chango Más: cada promo trae UN solo flag, y `express` significa presencial Y online (legales:
+ *    "tanto presencial como online"; MasClub 15% "Presencial y online") — se le suma 'ecommerce'.
+ *    `market` = solo tiendas, `ecommerce` = solo online.
+ *  - Carrefour: `maxi` es el formato mayorista (Maxi), que la app no modela — se saca. Una promo
+ *    que SOLO tenía `maxi` (Tarjeta Carrefour Crédito 15% lun/mar, MP 10% viernes, Cuenta DNI
+ *    miércoles, Cuenta Digital sáb/dom) devuelve [] = descartar: no aplica en tiendas comunes.
+ * @returns array de canales, null (desconocido: ambos) o [] (descartar)
+ */
+function canalesTicketVTEX(o, esCarrefour) {
+  const activos = canalesDesdeBooleanos(o);
+  if (!activos) return null;
+  if (esCarrefour) return activos.filter(c => c !== 'maxi');
+  if (activos.includes('express') && !activos.includes('ecommerce')) return [...activos, 'ecommerce'];
+  return activos;
+}
+
 /** Común a Carrefour y Chango Más: misma forma de API, distinto account/hashes. */
 async function fetchTicketBancoVTEX({ host, hashPromos, hashBanks, hashCards, operationPromos, account, isMasClubField }) {
   const ahoraISO = new Date().toISOString();
@@ -352,21 +534,26 @@ async function fetchTicketBancoVTEX({ host, hashPromos, hashBanks, hashCards, op
     if (!(descuentoPct > 0)) continue;
 
     const nombreBanco = nombrePorId.get(o.idBank) || nombrePorId.get(o.idCard);
-    const canonicosPosibles = nombreBanco ? resolverCanonicosDesdeNombre(nombreBanco) : [];
-    if (isMasClubField && o[isMasClubField] === 'true' && !canonicosPosibles.includes('MasClub')) {
+    const { canonicosPosibles, requiereTodas } = resolverTarjetasPromo(nombreBanco ? [nombreBanco] : []);
+    if (isMasClubField && o[isMasClubField] === 'true' && !canonicosPosibles.includes('MasClub') && !requiereTodas) {
       canonicosPosibles.push('MasClub');
     }
     if (!canonicosPosibles.length) continue;
+
+    const esCarrefour = host === CARREFOUR_HOST;
+    const canales = canalesTicketVTEX(o, esCarrefour);
+    if (canales && !canales.length) continue; // solo Maxi (Carrefour)
 
     const textoLegal = o.sub_title || o.legal || '';
     const textoParaMontos = `${o.sub_title || ''} ${o.legal || ''}`;
     promos.push({
       canonicosPosibles,
-      super: host === CARREFOUR_HOST ? 'Carrefour' : 'Chango Más',
+      requiereTodas,
+      super: esCarrefour ? 'Carrefour' : 'Chango Más',
       dias: diasDesdeBooleanos(o),
-      canales: canalesDesdeBooleanos(o),
+      canales,
       descuentoPct,
-      tope: extraerTope(textoParaMontos),
+      tope: topeDePromo(o.sub_title || '', textoParaMontos),
       montoMinimo: extraerMontoMinimo(textoParaMontos),
       vigenciaDesde: new Date(o.active_from),
       vigenciaHasta: new Date(o.active_to),
@@ -465,18 +652,16 @@ function canalesDesdeCardDia(availableOn) {
 //      $3.000" — el regex genérico confunde ese monto de ejemplo con el tope real, incluso
 //      cuando el mismo texto dice explícitamente "SIN TOPE DE REINTEGRO" (caso real: Cuenta
 //      DNI en Día). La negación explícita es un dato más confiable que el regex, gana siempre.
-//   2. Texto que describe DOS topes distintos para segmentos/carteras distintas sin decir
-//      cuál aplica (caso real: promo de Comafi en Coto, "cartera general tope $13.000, para
-//      Segmento Único tope $18.000") — no hay forma de saber cuál corresponde sin adivinar,
-//      así que se descarta en vez de elegir uno.
+//   2. Texto que describe DOS topes distintos para segmentos/carteras distintas (caso real:
+//      Comafi 30% online martes en Coto, "Cartera general con tope de reintegro $ 15.000 por
+//      transacción, para Segmento Unico tope de reintegro $ 25.000"). Antes se dejaba en null,
+//      que en el cálculo significa "sin tope" — el peor error posible (ahorro inflado). Desde
+//      la auditoría 2026-09-24 se usa el MENOR (el que seguro aplica a cualquier cliente).
 function extraerTopeTextoLibre(texto) {
   const t = normalizar(texto);
   if (/\bsin\s+(?:tope|limite)\b/.test(t)) return null;
-  const valores = new Set();
-  for (const m of t.matchAll(/(?:tope|limite)[^$]{0,40}\$\s?([\d.,]+)/g)) {
-    valores.add(parseInt(m[1].replace(/\./g, '').replace(/,\d+$/, ''), 10));
-  }
-  return valores.size === 1 ? [...valores][0] : null;
+  const topes = topesEnTexto(t, 'tope|limite');
+  return topes.length ? Math.min(...topes) : null;
 }
 
 async function fetchDia() {
@@ -509,11 +694,12 @@ async function fetchDia() {
       if (!(descuentoPct > 0)) continue;
 
       const nombresBanco = (card.associatedBanks || []).map(b => b.__editorItemTitle).filter(Boolean);
-      const canonicosPosibles = [...new Set(nombresBanco.flatMap(resolverCanonicosDesdeNombre))];
+      const { canonicosPosibles, requiereTodas } = resolverTarjetasPromo(nombresBanco);
       if (!canonicosPosibles.length) continue;
 
       promos.push({
         canonicosPosibles,
+        requiereTodas,
         super: 'Día',
         dias: diasDesdeCardDia(card.daysToShow),
         canales: canalesDesdeCardDia(card.availableOn),
@@ -601,6 +787,27 @@ const ICONO_BANCO_COTO = {
   'logo_mp2cuotas.png':            'Mercado Pago',
 };
 
+// Auditoría 2026-09-24: "Válido únicamente los lunes 07/09, 14/09 y 28/09" (Credicoop en Coto)
+// se aplicaba TODOS los lunes. Devuelve las fechas puntuales como 'MM-DD' (hora argentina, ver
+// promosAplicablesHoy), `null` si el texto no restringe a fechas puntuales, o `false` si las
+// menciona pero no se pueden leer con seguridad (fecha inválida, o que no cae en uno de los
+// `dias` de la promo en el año `anio`) — en ese caso la promo se descarta.
+function extraerFechasPuntuales(texto, dias, anio) {
+  const t = normalizar(texto);
+  if (!/\bunicamente\b[^.]{0,40}\d{1,2}\/\d{1,2}/.test(t)) return null;
+  const m = t.match(/\bunicamente\s+(?:el|los)?\s*(?:[a-z]+\s+)?((?:\d{1,2}\/\d{1,2}(?:\s*,\s*|\s+y\s+)?)+)/);
+  if (!m) return false;
+  const fechas = [];
+  for (const [, d, mes] of m[1].matchAll(/(\d{1,2})\/(\d{1,2})/g)) {
+    const dia = Number(d), mesN = Number(mes);
+    const f = new Date(Date.UTC(anio, mesN - 1, dia, 15)); // 12hs ART: mismo día en cualquier huso
+    if (f.getUTCMonth() !== mesN - 1 || f.getUTCDate() !== dia) return false;
+    if (dias.length && !dias.includes(diaSemanaISOArgentina(f))) return false;
+    fechas.push(`${String(mesN).padStart(2, '0')}-${String(dia).padStart(2, '0')}`);
+  }
+  return fechas.length ? fechas : false;
+}
+
 async function fetchCoto() {
   try {
     const res = await fetchConReintento(COTO_PROMOS_URL, { headers: { Accept: 'application/json' } });
@@ -626,15 +833,33 @@ async function fetchCoto() {
       // Comafi solo por ícono).
       const desdeTexto = resolverCanonicosDesdeNombre(p.descripcion || '');
       const desdeIcono = ICONO_BANCO_COTO[p.icono];
-      const canonicosPosibles = desdeIcono && !desdeTexto.includes(desdeIcono)
+      let canonicosPosibles = desdeIcono && !desdeTexto.includes(desdeIcono)
         ? [...desdeTexto, desdeIcono]
         : desdeTexto;
       if (!canonicosPosibles.length) continue;
+      // "Pagando con MODO desde la app de Comafi/Supervielle/Ciudad", "desde APP BANCA CREDICOOP
+      // con MODO": exige MODO Y ese banco (ver resolverTarjetasDeNombre). El banco puede venir
+      // solo por ícono (Ciudad: el texto dice "app de Ciudad", sin "banco").
+      let requiereTodas = false;
+      if (canonicosPosibles.includes('MODO') && canonicosPosibles.length > 1) {
+        canonicosPosibles = [...canonicosPosibles.filter(c => c !== 'MODO'), 'MODO'];
+        requiereTodas = true;
+      }
+
+      const dias = diasDesdeCoto(p.dias);
+      const textoCompleto = `${p.descripcion || ''} ${p.observacion || ''}`;
+      const fechasPuntuales = extraerFechasPuntuales(textoCompleto, dias, partesFechaArgentina(new Date()).anio);
+      if (fechasPuntuales === false) continue;
 
       promos.push({
         canonicosPosibles,
+        requiereTodas,
         super: 'Coto',
-        dias: diasDesdeCoto(p.dias),
+        dias,
+        ...(fechasPuntuales ? { fechasPuntuales } : {}),
+        // "Aplica en los productos sin oferta" (Banco Ciudad, MODO martes, Supervielle/Comafi
+        // con MODO): el % va solo sobre lo que no tiene promo de producto — ver mejorPromoTicket.
+        soloSinOferta: /productos\s+sin\s+oferta/.test(normalizar(textoCompleto)),
         canales: [p.isDigital ? 'ecommerce' : 'tienda'],
         descuentoPct,
         tope: extraerTopeTextoLibre(p.observacion || ''),
@@ -658,17 +883,25 @@ async function fetchCoto() {
 /** Filtra por día de la semana + ventana de vigencia. No filtra por canal (Fase 1, decisión confirmada). */
 function promosAplicablesHoy(promosNormalizadas, { fecha = new Date() } = {}) {
   const dia = diaISO(fecha);
+  const mesDia = fechaISOArgentina(fecha).slice(5); // 'MM-DD', para `fechasPuntuales` (Coto)
   return promosNormalizadas.filter(p =>
     p.dias.includes(dia) && fecha >= p.vigenciaDesde && fecha <= p.vigenciaHasta
+    && (!p.fechasPuntuales || p.fechasPuntuales.includes(mesDia))
   );
 }
 
-/** De las promos aplicables, la de mayor ahorro real sobre `subtotal` (aplicando tope y monto mínimo). */
-function mejorPromoTicket(promosAplicables, subtotal) {
+/**
+ * De las promos aplicables, la de mayor ahorro real sobre `subtotal` (aplicando tope y monto
+ * mínimo). `subtotalSinOferta` (opcional, default = subtotal): la parte del subtotal sin promo
+ * de producto — base de las promos `soloSinOferta` (Coto "Aplica en los productos sin
+ * oferta"). El monto mínimo se sigue mirando contra el ticket completo.
+ */
+function mejorPromoTicket(promosAplicables, subtotal, subtotalSinOferta = subtotal) {
   let mejor = null;
   for (const promo of promosAplicables) {
     if (promo.montoMinimo != null && subtotal < promo.montoMinimo) continue;
-    let descuento = subtotal * promo.descuentoPct;
+    const base = promo.soloSinOferta ? Math.min(subtotal, subtotalSinOferta) : subtotal;
+    let descuento = base * promo.descuentoPct;
     if (promo.tope != null) descuento = Math.min(descuento, promo.tope);
     if (descuento <= 0) continue;
     if (!mejor || descuento > mejor.descuento) mejor = { promo, descuento, totalConDescuento: subtotal - descuento };
@@ -700,13 +933,13 @@ function promoBancariaRequiereOnline(promo) {
  * `[{ fecha, mejor }]` (uno por día, `mejor` puede ser null) para poder testear o
  * inspeccionar cada día por separado antes de elegir el mejor con elegirMejorDia().
  */
-function mejoresDiasTicket(promosNormalizadas, subtotal, { desde = new Date(), dias = 7, canal = null } = {}) {
+function mejoresDiasTicket(promosNormalizadas, subtotal, { desde = new Date(), dias = 7, canal = null, subtotalSinOferta = subtotal } = {}) {
   const resultados = [];
   for (let i = 0; i < dias; i++) {
     const fecha = new Date(desde.getTime() + i * 86400000);
     let aplicables = promosAplicablesHoy(promosNormalizadas, { fecha });
     if (canal) aplicables = aplicables.filter(p => promoAplicaEnCanal(p, canal));
-    resultados.push({ fecha, mejor: mejorPromoTicket(aplicables, subtotal) });
+    resultados.push({ fecha, mejor: mejorPromoTicket(aplicables, subtotal, subtotalSinOferta) });
   }
   return resultados;
 }
@@ -755,9 +988,10 @@ async function obtenerTodasLasPromosBancarias() {
 function filtrarPromosBancariasPorTarjetas(datosPorSuper, tarjetas) {
   const filtrarPorTarjetasPropias = resultado => {
     if (resultado.error) return resultado;
+    // requiereTodas (MODO + banco): hace falta tener marcadas TODAS — ver promoAplicaATarjetas.
     const promos = resultado.promos
-      .filter(p => p.canonicosPosibles.some(c => tarjetas.includes(c)))
-      .map(p => ({ ...p, bancoCanonico: p.canonicosPosibles.find(c => tarjetas.includes(c)) }));
+      .filter(p => promoAplicaATarjetas(p, tarjetas))
+      .map(p => ({ ...p, bancoCanonico: etiquetaTarjetas(p, tarjetas) }));
     return { promos, error: null };
   };
   // Genérico sobre las keys que trae datosPorSuper (en vez de listarlas a mano) para que un
@@ -903,11 +1137,11 @@ function imprimirMejorDiaPorSuper(supermercados, datosPorSuper, subtotalesPorSup
  * de esta compra ya tiene una promo de producto exclusiva online, así que ir al local no
  * es una alternativa real (perdés ese descuento, casi siempre mayor que el bancario).
  */
-function mejorOportunidadTicket(promosNormalizadas, subtotal, { desde = new Date(), dias = 7, canalForzado = null } = {}) {
-  const online = elegirMejorDia(mejoresDiasTicket(promosNormalizadas, subtotal, { desde, dias, canal: 'online' }));
+function mejorOportunidadTicket(promosNormalizadas, subtotal, { desde = new Date(), dias = 7, canalForzado = null, subtotalSinOferta = subtotal } = {}) {
+  const online = elegirMejorDia(mejoresDiasTicket(promosNormalizadas, subtotal, { desde, dias, canal: 'online', subtotalSinOferta }));
   if (canalForzado === 'online') return online?.mejor ? { ...online, canal: 'online' } : null;
 
-  const fisico = elegirMejorDia(mejoresDiasTicket(promosNormalizadas, subtotal, { desde, dias, canal: 'fisico' }));
+  const fisico = elegirMejorDia(mejoresDiasTicket(promosNormalizadas, subtotal, { desde, dias, canal: 'fisico', subtotalSinOferta }));
   const ahorroOnline = online?.mejor?.descuento || 0;
   const ahorroFisico = fisico?.mejor?.descuento || 0;
   if (ahorroOnline === 0 && ahorroFisico === 0) return null;
@@ -986,11 +1220,14 @@ function elegirSuperMasBarato(item, oportunidadesPorSuper = {}) {
   return mejor ? mejor.superKey : null;
 }
 
-function calcularSubtotalesDesdeAsignacion(items, asignacion, supermercados) {
+function calcularSubtotalesDesdeAsignacion(items, asignacion, supermercados, { soloSinOferta = false } = {}) {
   const subtotales = Object.fromEntries(supermercados.map(s => [s.key, 0]));
   items.forEach((item, i) => {
     const superKey = asignacion[i];
-    if (superKey) subtotales[superKey] += item.preciosPorSuper[superKey];
+    if (!superKey) return;
+    // Sin `sinOfertaPorSuper` (CLI) no se sabe qué tuvo promo de producto: cuenta todo, como antes.
+    if (soloSinOferta && item.sinOfertaPorSuper && item.sinOfertaPorSuper[superKey] === false) return;
+    subtotales[superKey] += item.preciosPorSuper[superKey];
   });
   return subtotales;
 }
@@ -1011,7 +1248,9 @@ function mismaAsignacion(a, b) {
 
 /**
  * items: [{ id, preciosPorSuper: {vea,carr,changomas} (null si no está ahí),
- *           esOnlineExclusivoPorSuper: {...} }]
+ *           esOnlineExclusivoPorSuper: {...},
+ *           sinOfertaPorSuper?: {...} (false = ese ítem tiene promo de producto en ese super;
+ *             base de las promos `soloSinOferta`, ver mejorPromoTicket) }]
  * Devuelve { asignacion, subtotales, canalForzado, oportunidades, erroresPorSuper,
  *            total, totalSinReasignar, mejoro }.
  */
@@ -1020,6 +1259,7 @@ function reoptimizarAsignacion(items, datosPorSuper, supermercados, { hoy = new 
 
   function calcularResultado(asignacion) {
     const subtotales = calcularSubtotalesDesdeAsignacion(items, asignacion, supermercados);
+    const subtotalesSinOferta = calcularSubtotalesDesdeAsignacion(items, asignacion, supermercados, { soloSinOferta: true });
     const canalForzado = calcularCanalForzadoDesdeAsignacion(items, asignacion, supermercados);
     const oportunidades = {};
     const erroresPorSuper = {};
@@ -1029,7 +1269,7 @@ function reoptimizarAsignacion(items, datosPorSuper, supermercados, { hoy = new 
       const datos = datosPorSuper[key];
       erroresPorSuper[key] = datos?.error || null;
       const oportunidad = (subtotal && datos && !datos.error)
-        ? mejorOportunidadTicket(datos.promos, subtotal, { desde: hoy, canalForzado: canalForzado[key] })
+        ? mejorOportunidadTicket(datos.promos, subtotal, { desde: hoy, canalForzado: canalForzado[key], subtotalSinOferta: subtotalesSinOferta[key] })
         : null;
       oportunidades[key] = oportunidad;
       total += subtotal - (oportunidad ? oportunidad.mejor.descuento : 0);
@@ -1129,6 +1369,23 @@ module.exports = {
   // exportado para poder testear sin red:
   resolverCanonicosDesdeNombre,
   diaISO,
+  // Auditoría de promos 2026-09-24 (exportados para tests y para el resto del backend):
+  resolverTarjetasPromo,
+  promoAplicaATarjetas,
+  etiquetaTarjetas,
+  extraerTope,
+  topeDePromo,
+  extraerTopeTextoLibre,
+  extraerMontoMinimo,
+  extraerFechasPuntuales,
+  esFinanciacionVea,
+  esPromoDeLocalPuntual,
+  diasCencosud,
+  fetchVea,
+  fetchJumbo,
+  fetchCarrefour,
+  fetchChangoMas,
+  fetchCoto,
 };
 
 // ─── Auto-test manual (sin red) ────────────────────────────────────────────────

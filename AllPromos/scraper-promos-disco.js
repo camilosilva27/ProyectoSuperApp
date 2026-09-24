@@ -23,6 +23,7 @@
  */
 
 const fs = require('fs');
+const { promocionCatalogoCencosud } = require('./core/promoCencosud');
 const { guardarCatalogoConGuardrail } = require('./core/guardrailCatalogo');
 const { fetchConReintentoHTTP, errorHTTP, esFinLegitimoDePaginacion } = require('./core/reintentoVTEX');
 
@@ -152,11 +153,6 @@ async function main() {
   console.log('🔍 Paso 3: Cruzando datos...');
   const catalogo = allSkus.map(sku => {
     const promo = allPromos[sku.skuId] || null;
-    // Algunas promos (ej. categoryType "Llevando n x") no traen `effectiveDiscount` numérico
-    // — se tratan como "sin descuento detectable" en vez de calcular NaN, mismo criterio del
-    // proyecto de no adivinar ante ambigüedad (ver AllPromos/CLAUDE.md).
-    const descuento = promo ? parseFloat(promo.effectiveDiscount) : NaN;
-    const tienePromoUsable = promo && Number.isFinite(descuento) && descuento > 0;
     return {
       skuId: sku.skuId,
       ean: sku.ean,
@@ -166,15 +162,10 @@ async function main() {
       seller: sku.seller,
       precioBase: sku.price,
       imagenUrl: sku.imagenUrl,
-      promocion: tienePromoUsable ? {
-        nombre: promo.name,
-        codigo: promo.code,
-        descuento: promo.effectiveDiscount,
-        descuentoPct: (descuento * 100).toFixed(0) + '%',
-        precioFinal: Math.round(sku.price * (1 - descuento) * 100) / 100,
-        vigenciaDesde: promo.start || null,
-        vigenciaHasta: promo.end || null,
-      } : null,
+      // Promo de search-promotions → `promocion` del catálogo (ver core/promoCencosud.js): los
+      // fixed_price ("OFERTA X") usan `value` como precio, no el effectiveDiscount de la campaña;
+      // sin % ni precio usable (ej. "Llevando n x") → sin promo, no se adivina.
+      promocion: promocionCatalogoCencosud(promo, sku.price),
     };
   });
 

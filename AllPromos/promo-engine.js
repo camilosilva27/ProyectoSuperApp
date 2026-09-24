@@ -48,7 +48,8 @@ function interpretarPromoPorTexto(nombrePromo, effectiveDiscount) {
   }
 
   // --- 2do al X% (o Ndo al X%) ---
-  const ndo = nombre.match(/(\d+)do al (\d+)%/i);
+  // "2do" o "2da" (Chango Más escribe "2da al 70%").
+  const ndo = nombre.match(/(\d+)d[oa] al (\d+)%/i);
   if (ndo) {
     const nUnidades = parseInt(ndo[1]);
     const descPct = parseInt(ndo[2]) / 100;
@@ -110,6 +111,30 @@ function interpretarPromoPorTexto(nombrePromo, effectiveDiscount) {
   return null;
 }
 
+/**
+ * % directo de Coto ("X%Dto"), con la cantidad mínima de "Llevando N" si la hay.
+ * `descuento` es la fracción (0.35). Devuelve null si no es un número válido.
+ */
+function promoDescuentoCoto(descuento, cantidadMinima = 1) {
+  const promo = interpretarPromoPorTexto('', descuento);
+  if (!promo || !(cantidadMinima > 1)) return promo;
+  return {
+    ...promo,
+    descripcion: `${Math.round(promo.descuentoPct * 100)}% llevando ${cantidadMinima}`,
+    cantidadMinima,
+  };
+}
+
+/**
+ * Textos de promo de producto de Coto que NO deben interpretarse como descuento para todos:
+ * "15%" suelto, "+5%", "1 Pago 10%" son de Comunidad Coto / medio de pago (auditoría de promos
+ * 2026-09-24: el "15%" suelto se aplicaba a cualquier usuario).
+ */
+function esPromoCotoCondicionada(texto) {
+  const t = String(texto || '').trim();
+  return /^\d+(?:[.,]\d+)?\s*%$/.test(t) || /^\+\s*\d/.test(t) || /^\d+\s*pago/i.test(t);
+}
+
 function interpretarPromoCarrefour(teaser) {
   const nombre = (teaser?.nombre || '').trim();
   const esOnline = ONLINE_RE.test(nombre);
@@ -120,18 +145,39 @@ function interpretarPromoCarrefour(teaser) {
 
   // También parsear el texto para la descripción legible
   const nxm = nombre.match(/(\d+)x(\d+)/i);
-  const ndo = nombre.match(/(\d+)do al (\d+)%/i);
+  const ndo = nombre.match(/(\d+)d[oa] al (\d+)%/i);
   // --- Nx$M: precio fijo total por N unidades, no un % (visto en Día, ej. "2x$1900") ---
-  const precioFijo = nombre.match(/^(\d+)x\$(\d+(?:[.,]\d+)?)$/i);
+  // Sin ancla final: Chango Más agrega la descripción después ("2x$2499 ALFAJOR TRIPLE ...").
+  const precioFijo = nombre.match(/^(\d+)x\$\s?(\d[\d.,]*)(?![\d])/i);
+  // --- "Llevando 2 a $950 c/u": precio fijo POR UNIDAD al llevar N (visto en Día, 2026-09-24).
+  // Equivale a Nx$(N×X). Antes no matcheaba ningún patrón y la promo se perdía.
+  const llevandoAPrecio = nombre.match(/^llevando\s+(\d+)\s+a\s+\$\s?([\d.,]+)\s*c\/u/i);
   // Tope de unidades con promo: "PROMO-2do al 50% Max 8 unidades Combinable ..." (Carrefour).
   // Antes se ignoraba y la promo se aplicaba a cualquier cantidad (auditoría 2026-09-24).
   const maxMatch = nombre.match(/\bmax\.?\s*(\d+)\s*u(?:nidades|nid|n)?\b/i);
   const maxUnidades = maxMatch ? parseInt(maxMatch[1]) : null;
   const conTope = (promo) => (maxUnidades ? { ...promo, maxUnidades } : promo);
 
+  if (llevandoAPrecio) {
+    const n = parseInt(llevandoAPrecio[1]);
+    const unitario = parsearMontoAR(llevandoAPrecio[2]);
+    if (n >= 2 && unitario > 0) {
+      const total = Math.round(n * unitario * 100) / 100;
+      return conTope({
+        tipo: 'oferta_precio_fijo',
+        descripcion: `Llevando ${n}, $${fmt(unitario)} c/u`,
+        cantidadMinima: n,
+        nUnidades: n,
+        precioFijoTotal: total,
+        esOnline,
+      });
+    }
+  }
+
   if (precioFijo) {
     const n = parseInt(precioFijo[1]);
-    const total = parseFloat(precioFijo[2].replace(',', '.'));
+    const total = parsearMontoAR(precioFijo[2]);
+    if (!(total > 0)) return null;
     return conTope({
       tipo: 'oferta_precio_fijo',
       descripcion: `${n}x$${fmt(total)} (precio fijo cada ${n})`,
@@ -155,7 +201,8 @@ function interpretarPromoCarrefour(teaser) {
     });
   }
 
-  if (ndo && reg) {
+  // El código Reg-N-M alcanza solo (Chango Más: "PromoVolumen - LLEVANDO 2 - 2da al 70% - Reg-2-70").
+  if (reg) {
     const nUnidades = parseInt(reg[1]);
     const descPct = parseInt(reg[2]) / 100;
 
@@ -245,6 +292,17 @@ function interpretarTeaserTarjetaPropia(teaser, nombreTarjeta) {
 }
 
 /**
+ * Tarjetas propias de Carrefour con las que vale el teaser "Tarjeta Carrefour X%": siempre la de
+ * Crédito; también Cuenta Digital si el nombre lo dice ("35% Off Tarjeta Carrefour o Cuenta
+ * digital", confirmado con la simulación de checkout el 2026-09-24).
+ */
+function tarjetasDelTeaserPropio(nombreTeaser) {
+  const tarjetas = ['Tarjeta Carrefour Crédito'];
+  if (/cuenta\s+digital/i.test(nombreTeaser || '')) tarjetas.push('Cuenta Digital Carrefour');
+  return tarjetas;
+}
+
+/**
  * Grupos de la promo que efectivamente se activan y unidades que quedan a precio lleno,
  * respetando `maxUnidades` si la promo lo trae (ej. "Max 8 unidades" de Carrefour: con un
  * 2do al 50% y 10 unidades, se activan 4 grupos y 2 van a precio lleno).
@@ -287,6 +345,17 @@ function calcularCosto(promo, precioUnitario, cantidadDeseada) {
   switch (promo.tipo) {
     case 'pct_directo': {
       const precioConDesc = precioUnitario * (1 - promo.descuentoPct);
+      if (promo.cantidadMinima > 1) {
+        // Coto "Llevando N": el % vale por cada grupo de N; lo que sobra va a precio lleno.
+        const n = promo.cantidadMinima;
+        const conDesc = Math.floor(cantidadDeseada / n) * n;
+        const resto = cantidadDeseada - conDesc;
+        totalConPromo = precioConDesc * conDesc + precioUnitario * resto;
+        detalle = conDesc
+          ? `${conDesc} × $${fmt(precioConDesc)}${resto ? ` + ${resto} × $${fmt(precioUnitario)}` : ''} = $${fmt(totalConPromo)}`
+          : `${cantidadDeseada} × $${fmt(precioUnitario)} = $${fmt(totalConPromo)} (necesitás ${n} para activar la promo)`;
+        break;
+      }
       totalConPromo = precioConDesc * cantidadDeseada;
       detalle = `${cantidadDeseada} × $${fmt(precioConDesc)} = $${fmt(totalConPromo)}`;
       break;
@@ -390,11 +459,20 @@ function calcularCosto(promo, precioUnitario, cantidadDeseada) {
   return { totalSinPromo, totalConPromo, ahorro, reporte, convieneMas };
 }
 
+// Monto en formato argentino: "1.250" = 1250, "950,50" = 950.5, "1.250,5" = 1250.5.
+function parsearMontoAR(texto) {
+  const limpio = String(texto).trim().replace(/[.,]$/, '');
+  const m = limpio.match(/^(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d{1,2}))?$/);
+  if (!m) return NaN;
+  return parseFloat(m[1].replace(/\./g, '') + (m[2] ? '.' + m[2] : ''));
+}
+
 function fmt(n) {
   return Number(n).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 module.exports = {
+  promoDescuentoCoto, esPromoCotoCondicionada, tarjetasDelTeaserPropio,
   interpretarPromoPorTexto, interpretarPromoCarrefour, interpretarTeaserTarjetaPropia, calcularCosto,
   esTeaserBancario,
 };

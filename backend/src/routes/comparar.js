@@ -34,6 +34,7 @@ const { calcularCosto } = require('../../../AllPromos/promo-engine');
 const { esEANvalido } = require('../../../AllPromos/core/catalogo');
 const {
   filtrarPromosBancariasPorTarjetas, promosAplicablesHoy, reoptimizarAsignacion,
+  promoBancariaRequiereOnline,
 } = require('../../../AllPromos/promos-bancarias');
 const catalogoUnificado = require('../catalogoUnificado');
 const precioCache = require('../precioCache');
@@ -71,7 +72,8 @@ function filtrarSupermercados(supers) {
 // ver interpretarTeaserTarjetaPropia en promo-engine.js). Cencopay (Vea) se investigó y se
 // descartó — ver "Cerrado, no implementar" en CONTEXTO_TECNICO.md: la fuente de datos está
 // abandonada por Vea (0 ofertas vigentes, la última hace 9 meses).
-const TARJETAS_QUE_AFECTAN_PRODUCTO = ['Tarjeta Carrefour Crédito'];
+// Cuenta Digital: el teaser "35% Off Tarjeta Carrefour o Cuenta digital" vale con las dos (2026-09-24).
+const TARJETAS_QUE_AFECTAN_PRODUCTO = ['Tarjeta Carrefour Crédito', 'Cuenta Digital Carrefour'];
 
 const MAX_ITEMS = 60;
 // Carrefour y Chango Más rate-limitean (429 en Carrefour, 429 y 502 intermitentes en Chango
@@ -264,7 +266,17 @@ function datosBancariosDeHoy(tarjetasSeleccionadas, advertencias) {
 function aplicarPromosBancarias(resumen, supermercados, tarjetasSeleccionadas, datosDeHoy, advertencias) {
   if (!datosDeHoy) return null;
 
-  const itemsReopt = itemsReoptimizarDesdeFinal(resumen.items, supermercados);
+  // `sinOfertaPorSuper`: qué ítems NO tienen promo de producto en cada super — base de las
+  // promos bancarias `soloSinOferta` (Coto "Aplica en los productos sin oferta", auditoría
+  // 2026-09-24). Sale de `sinOferta`, que el handler marca en cada `_mejores[key]` y
+  // calcularResumenFinal copia a `disponibles` (mismo orden: itemsReoptimizarDesdeFinal es un .map).
+  const itemsReopt = itemsReoptimizarDesdeFinal(resumen.items, supermercados).map((it, i) => ({
+    ...it,
+    sinOfertaPorSuper: Object.fromEntries(supermercados.map(s => {
+      const d = resumen.items[i].disponibles.find(x => x.key === s.key);
+      return [s.key, d ? d.sinOferta !== false : true];
+    })),
+  }));
   const resultado = reoptimizarAsignacion(itemsReopt, datosDeHoy, supermercados, { hoy: new Date() });
 
   const hayAlgoAplicable = Object.values(resultado.oportunidades).some(o => o?.mejor);
@@ -272,8 +284,15 @@ function aplicarPromosBancarias(resumen, supermercados, tarjetasSeleccionadas, d
 
   resumen.comprasPorSuper = comprasPorSuperDesdeAsignacion(resumen.items, resultado.asignacion, supermercados);
   resumen.subtotalAsignadoPorSuper = resultado.subtotales;
+  // Online obligatorio si algún producto tiene promo exclusiva web (canalForzado) O si la promo
+  // bancaria elegida solo vale online (ej. Tarjeta Carrefour Crédito 20% jueves, "NO VÁLIDO EN
+  // LAS TIENDAS" — auditoría 2026-09-24: antes no se avisaba). La app ya muestra "REQUIERE
+  // COMPRAR ONLINE" por super y el badge ONLINE por fila (repartirDescuentoBancarioEntreFilas).
   resumen.requiereOnlinePorSuper = Object.fromEntries(
-    supermercados.map(s => [s.key, !!resultado.canalForzado[s.key]])
+    supermercados.map(s => {
+      const promo = resultado.oportunidades[s.key]?.mejor?.promo;
+      return [s.key, !!resultado.canalForzado[s.key] || !!(promo && promoBancariaRequiereOnline(promo))];
+    })
   );
   resumen.totalOptimo = resultado.total;
 
@@ -288,6 +307,8 @@ function aplicarPromosBancarias(resumen, supermercados, tarjetasSeleccionadas, d
       descuentoPct: promo.descuentoPct,
       tope: promo.tope,
       topeDetectado: promo.tope != null,
+      soloOnline: promoBancariaRequiereOnline(promo),
+      soloSinOferta: !!promo.soloSinOferta,
       descuento: Math.round(descuento * 100) / 100,
       subtotalFinal: Math.round((resultado.subtotales[s.key] - descuento) * 100) / 100,
     };
@@ -340,12 +361,18 @@ function repartirDescuentoBancarioEntreFilas(items, resumen, bancario, supermerc
     const ahorro = bancario.porSuper[s.key];
     if (!ahorro || ahorro.descuento <= 0) continue;
 
-    const entradas = (resumen.comprasPorSuper[s.key] || [])
+    const todas = (resumen.comprasPorSuper[s.key] || [])
       .map(c => ({ ean: c.ean, opcion: itemPorEan.get(c.ean)?.opciones.find(o => o.key === s.key) }))
       .filter(e => e.opcion);
+    // Promo "solo productos sin oferta" (Coto): el descuento se reparte solo entre las filas sin
+    // promo de producto — mismo criterio que `sinOferta` en el handler (total == precio de lista).
+    const sinOferta = todas.filter(e => e.opcion.total >= e.opcion.totalSinPromo - 0.005);
+    const entradas = ahorro.soloSinOferta && sinOferta.length ? sinOferta : todas;
     // Suma de las filas de este super ANTES del descuento de ticket — es la misma base que
     // usó aplicarPromosBancarias para calcular `ahorro.descuento`, así que reparte exacto.
-    const subtotalBase = resumen.subtotalAsignadoPorSuper[s.key];
+    const subtotalBase = entradas === todas
+      ? resumen.subtotalAsignadoPorSuper[s.key]
+      : redondear(entradas.reduce((acc, e) => acc + e.opcion.total, 0));
     if (!(subtotalBase > 0)) continue;
 
     const pctEfectivo = Math.round((ahorro.descuento / subtotalBase) * 100);
@@ -447,6 +474,11 @@ router.post('/comparar', requiereSesion, requierePlanActivo, async (req, res) =>
       // super) — se calcula una sola vez más abajo, después de fijar esa asignación, y se
       // reparte entre las filas (ver repartirDescuentoBancarioEntreFilas).
       const opcionesPublicas = opciones.map(o => serializarOpcion(o, cantidad, tarjetasSeleccionadas, precioListaPorKey[o.key]));
+      // Promo bancaria "solo productos sin oferta" (Coto): marca si este producto tiene alguna
+      // promo de producto aplicada en cada super (total por debajo del precio de lista).
+      for (const op of opcionesPublicas) {
+        if (mejores[op.key]) mejores[op.key].sinOferta = op.total >= op.totalSinPromo - 0.005;
+      }
 
       return {
         ean,
@@ -651,3 +683,6 @@ router.post('/precios', requiereSesion, requierePlanActivo, async (req, res) => 
 });
 
 module.exports = router;
+// Solo para tests (AllPromos/core/bancarias-auditoria-promos.test.js): la parte bancaria es
+// pura sobre `resumen`/`items`, se puede probar sin levantar el server.
+module.exports._test = { aplicarPromosBancarias, repartirDescuentoBancarioEntreFilas };

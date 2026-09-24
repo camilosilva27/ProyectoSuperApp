@@ -25,6 +25,7 @@ const fs = require('fs');
 const { esTeaserBancario } = require('./promo-engine');
 const { escribirAtomico } = require('./core/escrituraAtomica');
 const { buscarPorSkuIds } = require('./core/batchPorSkuId');
+const { extrasDescuentoDirecto, esExclusivoOnline } = require('./core/datosPromoVtex');
 
 const BASE_URL = 'https://www.carrefour.com.ar';
 const SC = 1;
@@ -75,6 +76,7 @@ function parsearProductos(productos, skuIdsPedidos) {
             precioFinal: price,
             descuentoPct: ((1 - price / listPrice) * 100).toFixed(0) + '%',
             descuento: ((1 - price / listPrice)).toFixed(4),
+            ...extrasDescuentoDirecto(offer),
           }
         : null;
       const teasersInternos = teasers.filter(t => !t.esBancaria);
@@ -92,6 +94,7 @@ function parsearProductos(productos, skuIdsPedidos) {
         descuentoDirecto,
         promosInternas: teasersInternos.length ? teasersInternos : null,
         promosBancarias: teasersBancarios.length ? teasersBancarios : null,
+        ...(esExclusivoOnline(product) ? { exclusivoOnline: true } : {}),
         imagenUrl: sku.images?.[0]?.imageUrl || null,
       });
     }

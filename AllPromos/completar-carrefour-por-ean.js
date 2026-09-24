@@ -33,6 +33,7 @@ const { escribirAtomico } = require('./core/escrituraAtomica');
 const https = require('https');
 const { leerCatalogo } = require('./core/catalogo');
 const { cargarCheckpoint, guardarCheckpoint, borrarCheckpoint } = require('./core/checkpointEAN');
+const { extrasDescuentoDirecto, esExclusivoOnline } = require('./core/datosPromoVtex');
 
 const BASE_URL = 'https://www.carrefour.com.ar';
 const SC = 1;
@@ -129,6 +130,7 @@ async function buscarPorEAN(ean) {
             precioFinal: price,
             descuentoPct: ((1 - price / listPrice) * 100).toFixed(0) + '%',
             descuento: ((1 - price / listPrice)).toFixed(4),
+            ...extrasDescuentoDirecto(offer),
           }
         : null;
       const teasersInternos = teasers.filter(t => !t.esBancaria);
@@ -146,6 +148,7 @@ async function buscarPorEAN(ean) {
         descuentoDirecto,
         promosInternas: teasersInternos.length ? teasersInternos : null,
         promosBancarias: teasersBancarios.length ? teasersBancarios : null,
+        ...(esExclusivoOnline(product) ? { exclusivoOnline: true } : {}),
         imagenUrl: sku.images?.[0]?.imageUrl || null,
       });
     }

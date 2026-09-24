@@ -47,3 +47,22 @@ Ver el reporte. Los más baratos: `www` sin certificado en Vercel, headers de se
 
 ## Confirmado OK en prod (24/09)
 VM sana (RAM 251/958MB, sin OOM, NRestarts=0), catálogos del día, crontab = docs, pg_cron 14/14, RLS en las 8 tablas, migraciones 0001–0023 aplicadas, MP con token de producción y precios 8000/80000/160000, sin secretos en repo ni historial, Vercel apunta a la API de prod por HTTPS, snapshots diarios.
+
+## Auditoría de PROMOS por súper (24/09, segunda parte)
+5 subagentes (Vea/Jumbo/Disco, Carrefour, Chango Más, Día, Coto) compararon lo que publica cada súper hoy (y su simulación de checkout) contra catálogo de prod + `/api/comparar`. Detalle técnico de cada regla en CONTEXTO_TECNICO.md ("Motor de promos" y "Promos bancarias por ticket").
+
+Resueltos:
+- [x] Chango Más: promos por cantidad (2x1, 2da al X%, 2x$) solo existen en la simulación de checkout → nueva pasada `core/simulacionChangoMas.js` (~15% de SKUs con promo, antes 0).
+- [x] Vea/Jumbo/Disco: precio fijo "OFERTA X" usaba un % promedio → usa `value` (Jumbo 193 y Disco 166 SKUs con error >2% → 0). Extras de Disco con seller equivocado (0 promos) → corregido.
+- [x] Carrefour/Día: descuento directo + teaser se acumulaban → base ListPrice si el directo es promo VTEX. Teaser "Tarjeta Carrefour o Cuenta digital" habilitado para Cuenta Digital. "Exclusivo online" marcado.
+- [x] Coto: "Llevando N" + X%Dto aplicado desde la 1ra unidad (38 SKUs); "15%" de Comunidad aplicado a todos.
+- [x] Día: "Llevando N a $X c/u" no se interpretaba; fallback en vivo hacía desaparecer el súper con teaser desconocido.
+- [x] Bancarias: mínimos de compra no leídos (MODO, MP, Cuenta DNI), topes múltiples/sin $/de jubilados, MODO+banco exigía solo una tarjeta, NaranjaX/Hipotecario sin alias, Club La Nación como Banco Nación, canal express (Chango) y Maxi (Carrefour), promo bancaria solo online sin aviso, domingo perdido en Cencosud, local puntual (Jumbo Comodoro), cuotas leídas como %, Coto "solo productos sin oferta", Coto fechas puntuales.
+
+Decisiones de negocio pendientes (no se tocaron):
+- [ ] Niveles de una misma tarjeta (Naranja X Épico/Turbo/Inicial, Patagonia Clásica/Plus/Singular — Patagonia sin alias en Carrefour/Chango por esto) y promos de segmento (jubilados/ANSES, plan sueldo, Supervielle Identité, Mi Carrefour 10% ANSES/+60): hoy cualquiera con la tarjeta recibe el nivel máximo.
+- [ ] Teasers/descuentos "Mi Crf": la simulación anónima los aplica (online valen para todos; en el local piden DNI de Mi Carrefour Clásico). Si se condicionan, condicionar también los descuentos directos "Mi Crf".
+- [ ] Promos bancarias "no acumulables" con la de producto, y limitadas a categorías (Cencopay 25%/40%).
+- [ ] Promos sin banco: "Billeteras Virtuales" (Chango, QR de MP), "10% todos los medios online" (Carrefour), 15% cualquier crédito viernes y Visa débito NFC (Coto), Comunidad Coto (~1.045 SKUs), MasGO exclusivas.
+- [ ] Topes semanales/mensuales tratados como por ticket.
+Dudosos sin confirmar: "Max N unidades" de Carrefour (online aplica a todas), Coca-Cola 6x4 vs 6x5 en Coto, promos por sucursal de Coto, "Ofertas Trafico" de Vea como solo online, seller que usan Jumbo/Disco en su tienda, carne picada de Chango Más (checkout más barato que catálogo), vigencia de las bancarias de Día (legales vencidos pero promos renovadas).

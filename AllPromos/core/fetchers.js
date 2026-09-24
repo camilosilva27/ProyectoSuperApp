@@ -14,9 +14,20 @@ const {
   interpretarPromoCarrefour,
   interpretarTeaserTarjetaPropia,
   esTeaserBancario,
+  promoDescuentoCoto,
+  esPromoCotoCondicionada,
+  tarjetasDelTeaserPropio,
 } = require('../promo-engine');
+const { extrasDescuentoDirecto, esExclusivoOnline, precioBaseTeasersOffer } = require('./datosPromoVtex');
+
+/** Marca la promo como solo online si el nombre del descuento o el badge dicen "Exclusivo online". */
+function marcarExclusivoOnline(promo, nombreDescuento, exclusivoOnline = false) {
+  if (!promo) return promo;
+  return exclusivoOnline || /exclusivo\s+online/i.test(nombreDescuento || '') ? { ...promo, esOnline: true } : promo;
+}
 const { skuIdVeaPorEAN } = require('./catalogo');
 const { sanearPorEmpaquetado } = require('./empaquetado');
+const { promoMotorDesdeCrudaCencosud } = require('./promoCencosud');
 
 const VEA_SELLER = 'jumboargentinav700cordoba700';
 
@@ -104,6 +115,7 @@ function parsearProductosCarrefour(products, { tarjetas = [] } = {}) {
   const resultados = [];
   for (const p of products) {
     for (const sku of p.items || []) {
+      const inicioSku = resultados.length;
       const offer = sku.sellers?.[0]?.commertialOffer;
       if (!offer) continue;
       const skuId    = sku.itemId;
@@ -118,10 +130,16 @@ function parsearProductosCarrefour(products, { tarjetas = [] } = {}) {
           skuId, sellerId,
           productName: p.productName, skuName: sku.name, ean: sku.ean,
           precioBase: listPrice,
-          promo: interpretarPromoPorTexto('', (1 - price / listPrice).toFixed(4)),
+          promo: marcarExclusivoOnline(
+            interpretarPromoPorTexto('', (1 - price / listPrice).toFixed(4)),
+            extrasDescuentoDirecto(offer).nombre,
+          ),
         });
       }
 
+      // Base de los teasers: ListPrice si el descuento directo es una promo (no se acumula), ver
+      // core/datosPromoVtex.js.
+      const baseTeasers = precioBaseTeasersOffer(offer);
       const teasersInternos = (offer.Teasers || [])
         .filter(t => !esTeaserBancario(t['<Name>k__BackingField']));
 
@@ -132,7 +150,7 @@ function parsearProductosCarrefour(products, { tarjetas = [] } = {}) {
             super: 'Carrefour',
             skuId, sellerId,
             productName: p.productName, skuName: sku.name, ean: sku.ean,
-            precioBase: price, promo,
+            precioBase: baseTeasers, promo,
           });
         }
       }
@@ -144,23 +162,27 @@ function parsearProductosCarrefour(products, { tarjetas = [] } = {}) {
       // CRÉDITO Mi Carrefour, no al nivel Clásico (solo DNI, sin tarjeta): antes este código
       // lo etiquetaba mal como "Mi Carrefour" a secas, lo cual sobreestimaba el descuento
       // para quien solo tiene el nivel Clásico. Solo se agrega como candidato si el usuario
-      // tiene "Tarjeta Carrefour Crédito" entre sus tarjetas — si no, ni se calcula (4.1).
-      if (tarjetas.includes('Tarjeta Carrefour Crédito')) {
-        const teaserTarjetaPropia = (offer.Teasers || []).find(t =>
-          (t['<Name>k__BackingField'] || '').toLowerCase().includes('tarjeta carrefour')
-        );
-        const promo = teaserTarjetaPropia && interpretarTeaserTarjetaPropia(teaserTarjetaPropia, 'Tarjeta Carrefour Crédito');
+      // tiene esa tarjeta entre sus tarjetas — si no, ni se calcula (4.1). "o Cuenta digital" en
+      // el nombre: vale también con Cuenta Digital Carrefour (tarjetasDelTeaserPropio).
+      const teaserTarjetaPropia = (offer.Teasers || []).find(t =>
+        (t['<Name>k__BackingField'] || '').toLowerCase().includes('tarjeta carrefour')
+      );
+      const tarjetasTeaser = teaserTarjetaPropia
+        ? tarjetasDelTeaserPropio(teaserTarjetaPropia['<Name>k__BackingField']).filter(t => tarjetas.includes(t))
+        : [];
+      for (const tarjeta of tarjetasTeaser) {
+        const promo = interpretarTeaserTarjetaPropia(teaserTarjetaPropia, tarjeta);
         if (promo) {
           resultados.push({
             super: 'Carrefour',
             skuId, sellerId,
             productName: p.productName, skuName: sku.name, ean: sku.ean,
-            precioBase: price, promo,
+            precioBase: baseTeasers, promo,
           });
         }
       }
 
-      if (price > 0 && (!listPrice || price >= listPrice) && teasersInternos.length === 0) {
+      if (price > 0 && resultados.length === inicioSku) {
         resultados.push({
           super: 'Carrefour',
           skuId, sellerId,
@@ -198,6 +220,7 @@ function parsearProductosChangoMas(products) {
   const resultados = [];
   for (const p of products) {
     for (const sku of p.items || []) {
+      const inicioSku = resultados.length;
       const sellerInfo = sku.sellers?.find(s => s.sellerId === CHANGOMAS_SELLER) || sku.sellers?.[0];
       const offer = sellerInfo?.commertialOffer;
       if (!offer) continue;
@@ -213,7 +236,10 @@ function parsearProductosChangoMas(products) {
           skuId, sellerId,
           productName: p.productName, skuName: sku.name, ean: sku.ean,
           precioBase: listPrice,
-          promo: interpretarPromoPorTexto('', (1 - price / listPrice).toFixed(4)),
+          promo: marcarExclusivoOnline(
+            interpretarPromoPorTexto('', (1 - price / listPrice).toFixed(4)),
+            extrasDescuentoDirecto(offer).nombre, esExclusivoOnline(p),
+          ),
         });
       }
 
@@ -228,12 +254,12 @@ function parsearProductosChangoMas(products) {
             super: 'Chango Más',
             skuId, sellerId,
             productName: p.productName, skuName: sku.name, ean: sku.ean,
-            precioBase: price, promo,
+            precioBase: precioBaseTeasersOffer(offer), promo: marcarExclusivoOnline(promo, null, esExclusivoOnline(p)),
           });
         }
       }
 
-      if (price > 0 && (!listPrice || price >= listPrice) && teasersInternos.length === 0) {
+      if (price > 0 && resultados.length === inicioSku) {
         resultados.push({
           super: 'Chango Más',
           skuId, sellerId,
@@ -314,7 +340,8 @@ async function parsearProductosVea(products) {
       skuId: s.skuId, sellerId: s.sellerId,
       productName: s.productName, skuName: s.skuName, ean: s.ean,
       precioBase: s.price,
-      promo: promo ? interpretarPromoPorTexto(promo.name, promo.effectiveDiscount) : null,
+      // Mismo criterio que el catálogo (core/promoCencosud.js): fixed_price usa `value`.
+      promo: promoMotorDesdeCrudaCencosud(promo, s.price),
     };
   });
 }
@@ -346,7 +373,8 @@ async function veaLiveNombre(nombre) {
 // Teasers/PromotionTeasers embebidos como Día/Chango Más/Carrefour) — confirmado en vivo
 // escaneando ~2500 SKUs de cada sitio. Algunas promos (categoryType "Llevando n x") no traen
 // `effectiveDiscount` numérico; se ignoran en vez de adivinar, mismo criterio que ya usa el
-// proyecto ante ambigüedad.
+// proyecto ante ambigüedad. Las "fixed_price" ("OFERTA X") usan `value` (precio unitario), no
+// effectiveDiscount — ver core/promoCencosud.js.
 async function parsearProductosCencosud(products, host) {
   const candidatos = [];
   for (const p of products) {
@@ -375,15 +403,13 @@ async function parsearProductosCencosud(products, host) {
   const nombreSuper = host === JUMBO_HOST ? 'Jumbo' : 'Disco';
   return candidatos.filter(s => s.price > 0).map(s => {
     const promo = promos[s.skuId];
-    const descuento = promo ? parseFloat(promo.effectiveDiscount) : NaN;
     return {
       super: nombreSuper,
       skuId: s.skuId, sellerId: s.sellerId,
       productName: s.productName, skuName: s.skuName, ean: s.ean,
       precioBase: s.price,
-      promo: Number.isFinite(descuento) && descuento > 0
-        ? interpretarPromoPorTexto(promo.name, promo.effectiveDiscount)
-        : null,
+      // Mismo criterio que el catálogo (core/promoCencosud.js): fixed_price usa `value`.
+      promo: promoMotorDesdeCrudaCencosud(promo, s.price),
     };
   });
 }
@@ -429,13 +455,13 @@ async function discoLiveNombre(nombre) {
 
 // ─── Live: Día ────────────────────────────────────────────────────────────────
 // Misma forma que Chango Más: descuento directo embebido + Teasers/PromotionTeasers
-// filtrando promos bancarias. Existe además un formato "2x$X" (precio fijo, no %) que
-// interpretarPromoCarrefour() todavía no interpreta — queda sin promo en vez de romper
-// (mismo comportamiento que un teaser desconocido de cualquier otro super).
+// filtrando promos bancarias. Los formatos de precio fijo ("2x$X", "Llevando N a $X c/u") los
+// interpreta interpretarPromoCarrefour(); un teaser desconocido queda sin promo en vez de romper.
 function parsearProductosDia(products) {
   const resultados = [];
   for (const p of products) {
     for (const sku of p.items || []) {
+      const inicioSku = resultados.length;
       const sellerInfo = sku.sellers?.find(s => s.sellerId === DIA_SELLER) || sku.sellers?.[0];
       const offer = sellerInfo?.commertialOffer;
       if (!offer) continue;
@@ -451,7 +477,10 @@ function parsearProductosDia(products) {
           skuId, sellerId,
           productName: p.productName, skuName: sku.name, ean: sku.ean,
           precioBase: listPrice,
-          promo: interpretarPromoPorTexto('', (1 - price / listPrice).toFixed(4)),
+          promo: marcarExclusivoOnline(
+            interpretarPromoPorTexto('', (1 - price / listPrice).toFixed(4)),
+            extrasDescuentoDirecto(offer).nombre, esExclusivoOnline(p),
+          ),
         });
       }
 
@@ -466,12 +495,12 @@ function parsearProductosDia(products) {
             super: 'Día',
             skuId, sellerId,
             productName: p.productName, skuName: sku.name, ean: sku.ean,
-            precioBase: price, promo,
+            precioBase: precioBaseTeasersOffer(offer), promo: marcarExclusivoOnline(promo, null, esExclusivoOnline(p)),
           });
         }
       }
 
-      if (price > 0 && (!listPrice || price >= listPrice) && teasersInternos.length === 0) {
+      if (price > 0 && resultados.length === inicioSku) {
         resultados.push({
           super: 'Día',
           skuId, sellerId,
@@ -539,12 +568,16 @@ function parsearProductosCoto(results) {
         resultados.push({
           super: 'Coto', productName, skuName: null, ean,
           precioBase,
-          promo: interpretarPromoPorTexto('', (1 - precioFinal / precioBase).toFixed(4)),
+          promo: promoDescuentoCoto(
+            (1 - precioFinal / precioBase).toFixed(4),
+            parseInt((String(percentual.takingText || '').match(/llevando\s+(\d+)/i) || [])[1] || '1', 10),
+          ),
         });
       }
     }
 
     for (const disc of otros) {
+      if (esPromoCotoCondicionada(disc.discountText)) continue;
       const promo = interpretarPromoPorTexto(disc.discountText || '');
       if (promo) {
         resultados.push({ super: 'Coto', productName, skuName: null, ean, precioBase, promo });

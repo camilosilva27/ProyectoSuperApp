@@ -16,6 +16,7 @@
 
 const express = require('express');
 const { leerPromosBancariasCache, fechaGeneracionPromosBancarias } = require('../promosBancariasCache');
+const { promoAplicaATarjetas } = require('../../../AllPromos/promos-bancarias');
 const { requiereSesion, requierePlanActivo } = require('../middleware/requiereSesion');
 
 const router = express.Router();
@@ -33,8 +34,10 @@ function elegirPromosDelDia(promos, dia, tarjetasPropias) {
   const candidatas = vigentes.length ? vigentes : delDia.filter(p => p.dias.length);
   if (!candidatas.length) return [];
 
-  const esPropia = p => p.canonicosPosibles.some(c => tarjetasPropias.includes(c));
-  const bancoDe = p => p.canonicosPosibles.find(c => tarjetasPropias.includes(c)) ?? p.canonicosPosibles[0];
+  // requiereTodas (MODO + banco, auditoría 2026-09-24): propia solo si tiene TODAS; el logo es
+  // el del banco (canonicosPosibles[0]), no el de MODO.
+  const esPropia = p => promoAplicaATarjetas(p, tarjetasPropias);
+  const bancoDe = p => (p.requiereTodas ? null : p.canonicosPosibles.find(c => tarjetasPropias.includes(c))) ?? p.canonicosPosibles[0];
 
   // Una sola promo por banco (la de mayor % entre las que le corresponden a ese banco ese día).
   const mejorPorBanco = new Map();

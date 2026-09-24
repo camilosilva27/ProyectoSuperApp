@@ -53,6 +53,10 @@ function calcularDescuentos(datosPorSuper) {
       if (resultado.error) continue;
       for (const promo of resultado.promos) {
         if (!promo.canonicosPosibles.includes(nombre)) continue;
+        // MODO + banco (requiereTodas, auditoría 2026-09-24): es un beneficio del banco que
+        // exige pagar con MODO — se lista bajo el banco (canonicosPosibles[0]), no bajo "MODO",
+        // donde parecería que alcanza con tener MODO.
+        if (promo.requiereTodas && nombre !== promo.canonicosPosibles[0]) continue;
         const conSuper = { ...promo, superKey };
         todas.push(conSuper);
         if (ahora >= promo.vigenciaDesde && ahora <= promo.vigenciaHasta) vigentes.push(conSuper);

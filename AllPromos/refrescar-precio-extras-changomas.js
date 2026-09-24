@@ -9,6 +9,8 @@
 const fs = require('fs');
 const { esTeaserBancario } = require('./promo-engine');
 const { escribirAtomico } = require('./core/escrituraAtomica');
+const { completarPromosPorSimulacion } = require('./core/simulacionChangoMas');
+const { extrasDescuentoDirecto } = require('./core/datosPromoVtex');
 const { buscarPorSkuIds } = require('./core/batchPorSkuId');
 
 const BASE_URL = 'https://www.masonline.com.ar';
@@ -57,6 +59,10 @@ function parsearProductos(productos, skuIdsPedidos) {
             precioFinal: price,
             descuentoPct: ((1 - price / listPrice) * 100).toFixed(0) + '%',
             descuento: ((1 - price / listPrice)).toFixed(4),
+            // precioSinDescuento (PriceWithoutDiscount) + nombre (DiscountHighLight): mismo helper
+            // que Carrefour/Día. En Chango Más PriceWithoutDiscount == Price casi siempre (ver
+            // CONTEXTO_TECNICO.md § "API de Chango Más").
+            ...extrasDescuentoDirecto(offer),
           }
         : null;
       const teasersInternos = teasers.filter(t => !t.esBancaria);
@@ -106,6 +112,16 @@ async function main() {
   const productos = await buscarPorSkuIds(BASE_URL, skuIds, { sc: SC, headers: HEADERS });
   const skuIdsPedidos = new Set(skuIds);
   const refrescados = parsearProductos(productos, skuIdsPedidos);
+
+  // Promos por cantidad (solo visibles en la simulación de checkout, ver
+  // core/simulacionChangoMas.js). Tope de tiempo más corto que el scraper: este script corre con
+  // timeout de 5 min en refrescarCatalogos.js. Nunca lanza.
+  console.log('🛒 Simulando carritos (cantidades 2 y 3) para detectar promos por cantidad...');
+  const simulacion = await completarPromosPorSimulacion([...refrescados.values()], {
+    baseUrl: BASE_URL, sc: SC, seller: SELLER, headers: HEADERS, tiempoMaximoMs: 180 * 1000,
+    onReintento: (msg) => process.stdout.write(msg),
+  });
+  console.log(simulacion.resumen);
 
   const nuevosExtras = [];
   let caidos = 0;

@@ -18,6 +18,8 @@
 const fs = require('fs');
 const { esTeaserBancario } = require('./promo-engine');
 const { escribirAtomico } = require('./core/escrituraAtomica');
+const { completarPromosPorSimulacion } = require('./core/simulacionChangoMas');
+const { extrasDescuentoDirecto } = require('./core/datosPromoVtex');
 const https = require('https');
 const { leerCatalogo } = require('./core/catalogo');
 const { cargarCheckpoint, guardarCheckpoint, borrarCheckpoint } = require('./core/checkpointEAN');
@@ -108,6 +110,10 @@ async function buscarPorEAN(ean) {
             precioFinal: price,
             descuentoPct: ((1 - price / listPrice) * 100).toFixed(0) + '%',
             descuento: ((1 - price / listPrice)).toFixed(4),
+            // precioSinDescuento (PriceWithoutDiscount) + nombre (DiscountHighLight): mismo helper
+            // que Carrefour/Día. En Chango Más PriceWithoutDiscount == Price casi siempre (ver
+            // CONTEXTO_TECNICO.md § "API de Chango Más").
+            ...extrasDescuentoDirecto(offer),
           }
         : null;
       const teasersInternos = teasers.filter(t => !t.esBancaria);
@@ -210,6 +216,16 @@ async function main() {
     borrarCheckpoint(NOMBRE_CHECKPOINT);
     return;
   }
+
+  // Promos por cantidad de los SKUs nuevos (solo visibles en la simulación de checkout, ver
+  // core/simulacionChangoMas.js). Los extras ya existentes no se re-simulan acá: sus promos las
+  // mantiene al día refrescar-precio-extras-changomas.js cada 2hs. Nunca lanza.
+  console.log('\n🛒 Simulando carritos (cantidades 2 y 3) de los SKUs nuevos para detectar promos por cantidad...');
+  const simulacion = await completarPromosPorSimulacion(encontrados, {
+    baseUrl: BASE_URL, sc: SC, seller: SELLER, headers: HEADERS,
+    onReintento: (msg) => process.stdout.write(msg),
+  });
+  console.log(simulacion.resumen);
 
   // Extras existentes (archivo aparte del catalogo-changomas.json que reescribe el scraper
   // normal — ver completador_catalogos.md § 6): se le suman los nuevos hits de esta corrida.

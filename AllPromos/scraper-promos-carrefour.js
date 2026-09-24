@@ -14,6 +14,7 @@ const fs = require('fs');
 const { esTeaserBancario } = require('./promo-engine');
 const { guardarCatalogoConGuardrail } = require('./core/guardrailCatalogo');
 const { fetchConReintentoHTTP, errorHTTP, esFinLegitimoDePaginacion } = require('./core/reintentoVTEX');
+const { extrasDescuentoDirecto, esExclusivoOnline } = require('./core/datosPromoVtex');
 
 const BASE_URL = 'https://www.carrefour.com.ar';
 const SC = 1;
@@ -71,6 +72,7 @@ async function getCatalogPage(from, to) {
             precioFinal: price,
             descuentoPct: ((1 - price / listPrice) * 100).toFixed(0) + '%',
             descuento: ((1 - price / listPrice)).toFixed(4),
+            ...extrasDescuentoDirecto(offer),
           }
         : null;
 
@@ -89,6 +91,7 @@ async function getCatalogPage(from, to) {
         descuentoDirecto,
         promosInternas: teasersInternos.length ? teasersInternos : null,
         promosBancarias: teasersBancarios.length ? teasersBancarios : null,
+        ...(esExclusivoOnline(product) ? { exclusivoOnline: true } : {}),
         // Ya viene en la misma respuesta que el precio — no hace falta un scrape aparte.
         imagenUrl: sku.images?.[0]?.imageUrl || null,
       });

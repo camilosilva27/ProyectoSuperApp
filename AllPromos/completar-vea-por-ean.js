@@ -30,6 +30,7 @@
  */
 
 const fs = require('fs');
+const { promocionCatalogoCencosud } = require('./core/promoCencosud');
 const { escribirAtomico } = require('./core/escrituraAtomica');
 const path = require('path');
 const https = require('https');
@@ -282,15 +283,10 @@ async function main() {
       seller: sku.seller,
       precioBase: sku.price,
       imagenUrl: sku.imagenUrl,
-      promocion: promo ? {
-        nombre: promo.name,
-        codigo: promo.code,
-        descuento: promo.effectiveDiscount,
-        descuentoPct: (parseFloat(promo.effectiveDiscount) * 100).toFixed(0) + '%',
-        precioFinal: Math.round(sku.price * (1 - parseFloat(promo.effectiveDiscount)) * 100) / 100,
-        vigenciaDesde: promo.start || null,
-        vigenciaHasta: promo.end || null,
-      } : null,
+      // Promo de search-promotions → `promocion` del catálogo (ver core/promoCencosud.js): los
+      // fixed_price ("OFERTA X") usan `value` como precio, no el effectiveDiscount de la campaña;
+      // sin % ni precio usable (ej. "Llevando n x") → sin promo, no se adivina.
+      promocion: promocionCatalogoCencosud(promo, sku.price),
     };
   });
 

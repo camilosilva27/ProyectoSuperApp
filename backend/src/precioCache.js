@@ -26,8 +26,11 @@
 const { leerCatalogo } = require('../../AllPromos/core/catalogo');
 const {
   interpretarPromoPorTexto, interpretarPromoCarrefour, interpretarTeaserTarjetaPropia, esTeaserBancario,
+  promoDescuentoCoto, esPromoCotoCondicionada, tarjetasDelTeaserPropio,
 } = require('../../AllPromos/promo-engine');
 const { sanearPorEmpaquetado } = require('../../AllPromos/core/empaquetado');
+const { promoMotorCencosud } = require('../../AllPromos/core/promoCencosud');
+const { precioBaseTeasers } = require('../../AllPromos/core/datosPromoVtex');
 const { calcularOpciones } = require('../../AllPromos/core/comparador');
 const { SUPERMERCADOS } = require('../../AllPromos/core/fetchers');
 
@@ -62,9 +65,10 @@ function entradasCencosud(sku, superNombre) {
     // Un `descuento` no numérico (ej. "Llevando 4" sin effectiveDiscount) ya no produce un
     // pct_directo con NaN — interpretarPromoPorTexto devuelve null y el SKU se muestra sin
     // promo, en vez de desaparecer del ranking con total NaN (auditoría 2026-09-24).
-    promo: sku.promocion
-      ? interpretarPromoPorTexto(sku.promocion.nombre, sku.promocion.descuento)
-      : null,
+    // `categoryType: "fixed_price"` ("OFERTA X") → oferta_precio_fijo con `value` como precio
+    // unitario, no el effectiveDiscount de la campaña (bug real 2026-09-24, ver
+    // AllPromos/core/promoCencosud.js). Catálogos viejos sin categoryType: igual que antes.
+    promo: promoMotorCencosud(sku.promocion, sku.precioBase),
   };
   if (entrada.promo) {
     const desdeMs = Date.parse(sku.promocion.vigenciaDesde ?? '');
@@ -117,13 +121,25 @@ function entradasVtexConTeasers(sku, superNombre, { conTarjetaPropia = false } =
     productName: sku.productName, skuName: sku.skuName, ean: sku.ean,
   };
 
+  // "Exclusivo online": en el nombre del descuento directo (DiscountHighLight, Carrefour) o en el
+  // badge del producto (clusterHighlights, Día). Antes se mostraban como válidos en el local.
+  const soloOnline = (promo) => (promo && sku.exclusivoOnline ? { ...promo, esOnline: true } : promo);
+
   if (sku.descuentoDirecto) {
+    const promo = interpretarPromoPorTexto('', sku.descuentoDirecto.descuento);
+    if (promo && /exclusivo\s+online/i.test(sku.descuentoDirecto.nombre || '')) promo.esOnline = true;
     resultados.push({
       ...base,
       precioBase: sku.descuentoDirecto.precioBase,
-      promo: interpretarPromoPorTexto('', sku.descuentoDirecto.descuento),
+      promo: soloOnline(promo),
     });
   }
+
+  // Base de los teasers: el precio de lista si el descuento directo es una promo de VTEX (el
+  // súper aplica una sola promo sobre ListPrice, no la acumula), el actual si es precio de
+  // tabla. Ver core/datosPromoVtex.js (auditoría de promos 2026-09-24: Coca Zero 2,25 L x2
+  // en Carrefour salía $6.637 y el súper cobra $8.850).
+  const baseTeasers = precioBaseTeasers(sku);
 
   // Se reclasifica al leer con esTeaserBancario (el mismo criterio del fallback en vivo) en vez
   // de confiar en el split promosInternas/promosBancarias guardado por el scraper: los
@@ -138,7 +154,7 @@ function entradasVtexConTeasers(sku, superNombre, { conTarjetaPropia = false } =
 
   for (const t of internos) {
     const promo = interpretarPromoCarrefour({ nombre: t.nombre });
-    if (promo) resultados.push({ ...base, precioBase: sku.precioActual, promo });
+    if (promo) resultados.push({ ...base, precioBase: baseTeasers, promo: soloOnline(promo) });
   }
 
   if (conTarjetaPropia) {
@@ -147,14 +163,19 @@ function entradasVtexConTeasers(sku, superNombre, { conTarjetaPropia = false } =
     if (teaserTarjeta) {
       // Reconstruye el mismo teaser crudo que espera interpretarTeaserTarjetaPropia, con el
       // único dato que necesita (el % ya extraído por el scraper) — no duplica su lógica.
-      const promo = interpretarTeaserTarjetaPropia({
+      const teaserCrudo = {
         '<Effects>k__BackingField': {
           '<Parameters>k__BackingField': [
             { '<Name>k__BackingField': 'PercentualDiscount', '<Value>k__BackingField': teaserTarjeta.descuentoPct },
           ],
         },
-      }, 'Tarjeta Carrefour Crédito');
-      if (promo) resultados.push({ ...base, precioBase: sku.precioActual, promo });
+      };
+      // "35% Off Tarjeta Carrefour o Cuenta digital": vale con cualquiera de las dos → una
+      // entrada por tarjeta (mejorOpcion toma la que el usuario tenga activa).
+      for (const tarjeta of tarjetasDelTeaserPropio(teaserTarjeta.nombre)) {
+        const promo = interpretarTeaserTarjetaPropia(teaserCrudo, tarjeta);
+        if (promo) resultados.push({ ...base, precioBase: baseTeasers, promo: soloOnline(promo) });
+      }
     }
   }
 
@@ -178,11 +199,12 @@ function entradasCoto(sku) {
     resultados.push({
       ...base,
       precioBase: sku.descuentoDirecto.precioBase,
-      promo: interpretarPromoPorTexto('', sku.descuentoDirecto.descuento),
+      promo: promoDescuentoCoto(sku.descuentoDirecto.descuento, sku.descuentoDirecto.cantidadMinima),
     });
   }
 
   for (const t of sku.promosInternas || []) {
+    if (esPromoCotoCondicionada(t.nombre)) continue;
     const promo = interpretarPromoPorTexto(t.nombre);
     if (promo) resultados.push({ ...base, precioBase: sku.precioBase, promo });
   }

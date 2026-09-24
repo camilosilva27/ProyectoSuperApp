@@ -34,7 +34,7 @@ Al leer el código fuente noté un par de cosas que `CONTEXTO_TECNICO.md` no men
 
 - **El host real es `masonline.com.ar`**, no `changomas.com.ar` (que redirige con 301 — Chango Más rebrandeó su web). `CHANGOMAS_HOST` en `buscar-promos.js` y `BASE_URL` en `scraper-promos-changomas.js` apuntan a masonline.com.ar a propósito. El nombre "Chango Más" se mantiene en el código/UI porque es como el usuario conoce la marca.
 - **No confirmado que sea precio de sucursal puntual** — es precio nacional único, igual que Carrefour y Vea (los 3 dieron el mismo resultado al comparar regiones). Probamos con `regionId` de Luján vs. una ciudad lejana y el precio de un mismo skuId fue idéntico bajo `sc=1`/seller `"1"`. No inventar lógica de regionalización para esto sin evidencia nueva.
-- **Teasers/PromotionTeasers sin verificar.** El parseo de promos condicionales (NxM, Ndo al X%) está implementado por simetría con Carrefour, pero se escanearon ~450 productos reales y nunca apareció un teaser poblado. Si vas a debuggear "por qué no detecta esta promo de Chango Más", empezá por confirmar que el campo realmente tiene datos con `console.log` antes de asumir que el regex está mal.
+- **Teasers/PromotionTeasers siempre vacíos; las promos por cantidad salen de la simulación de checkout** (desde 2026-09-24, `core/simulacionChangoMas.js`, dos pasadas a cantidad 2 y 3, ~270 s por corrida del scraper). Si "no detecta una promo de Chango Más", mirá primero el log de la pasada de simulación (lotes fallidos / cortada) y si el nombre del beneficio pasa `esBeneficioDeProducto`. Detalle en `CONTEXTO_TECNICO.md` § "API de Chango Más".
 - **Límite de ~2.550 ítems en el endpoint legacy de VTEX** (`_from`/`_to` acumulado > ~2550 → 400). Esto no es un bug del scraper: Vea (378k reales) y Carrefour (104k reales) tienen el mismo techo y sus catálogos locales también son un recorte parcial, solo que es menos notorio porque sus catálogos totales visibles son más chicos. No "arreglar" esto con reintentos o backoff — es un límite duro de la API, no un rate limit.
 
 ## Comandos
@@ -52,7 +52,7 @@ node buscar-promos.js --lista compras-prueba.txt    # lista de prueba (10 ítems
 # el usuario, no es inocuo)
 node scraper-promos-vea.js           # ~5 min
 node scraper-promos-carrefour.js     # ~10 min
-node scraper-promos-changomas.js     # ~2 min (tope de ~2550 SKUs, no ~10 min a pesar de que el catálogo real es más grande)
+node scraper-promos-changomas.js     # ~6 min: ~2 de catálogo (tope de ~2550 SKUs) + ~4.5 de simulación de checkout para promos por cantidad
 ```
 
 No hay test suite. Para validar un cambio, correlo contra `compras-prueba.txt` y revisá manualmente que los totales y promos calculados tengan sentido (comparar contra `COMO_FUNCIONA.md` para ver el formato esperado del resumen).

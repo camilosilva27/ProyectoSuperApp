@@ -130,6 +130,12 @@ export type RespuestaComparar = {
         /** `true` solo cuando `tope` es un número — hoy la app la usa únicamente para decidir
          *  si mostrar el monto del tope junto al descuento, no para avisar nada. */
         topeDetectado: boolean;
+        /** true si la promo bancaria solo vale comprando online (ya refleja
+         *  `requiereOnlinePorSuper`). Auditoría 2026-09-24. */
+        soloOnline?: boolean;
+        /** true si el % se aplica solo sobre los productos sin promo de producto (Coto
+         *  "Aplica en los productos sin oferta"); `descuento` ya lo refleja. */
+        soloSinOferta?: boolean;
         descuento: number;
         subtotalFinal: number;
       } | null>;

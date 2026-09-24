@@ -66,7 +66,11 @@ function huellaIdentidadPromo(sku) {
   let identidad;
   if (sku.promocion !== undefined) {
     const p = sku.promocion || {};
-    identidad = { t: 'teaser', nombre: p.nombre ?? null, codigo: p.codigo ?? null, pct: pctNormalizado(p.descuentoPct) };
+    // Precio fijo de Cencosud (categoryType fixed_price, 2026-09-24): la identidad es el precio de
+    // oferta (`value`), no el %, que se mueve con cada cambio del precio de lista y re-avisaría.
+    identidad = p.categoryType === 'fixed_price'
+      ? { t: 'teaser', nombre: p.nombre ?? null, codigo: p.codigo ?? null, valor: p.value ?? null }
+      : { t: 'teaser', nombre: p.nombre ?? null, codigo: p.codigo ?? null, pct: pctNormalizado(p.descuentoPct) };
   } else {
     const dd = sku.descuentoDirecto;
     const internas = (sku.promosInternas ?? [])

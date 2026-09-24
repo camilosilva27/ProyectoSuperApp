@@ -1,0 +1,164 @@
+{
+  "items": [
+    {
+      "id": "221488",
+      "requestIndex": 0,
+      "quantity": 2,
+      "seller": "1",
+      "price": 122900,
+      "listPrice": 122900,
+      "sellingPrice": 122900,
+      "priceTags": [],
+      "availability": "available",
+      "priceDefinition": {
+        "total": 245800
+      }
+    },
+    {
+      "id": "166672",
+      "requestIndex": 5,
+      "quantity": 2,
+      "seller": "1",
+      "price": 283900,
+      "listPrice": 283900,
+      "sellingPrice": 184535,
+      "priceTags": [
+        {
+          "name": "discount@price-16b84313-6c7b-4b65-b907-491442fe423e#4eb2d52c-de26-4014-8361-46494f688cdc",
+          "value": -198730,
+          "rawValue": -1987.3,
+          "isPercentual": false,
+          "identifier": null,
+          "owner": "masonlineprod"
+        }
+      ],
+      "availability": "available",
+      "priceDefinition": {
+        "total": 369070
+      }
+    },
+    {
+      "id": "222792",
+      "requestIndex": 12,
+      "quantity": 2,
+      "seller": "1",
+      "price": 274900,
+      "listPrice": 274900,
+      "sellingPrice": 206175,
+      "priceTags": [
+        {
+          "name": "discount@price-17a20d36-27e6-4154-a862-041c44cce693#392a9e17-93a9-45fd-b39b-6fc61defde98",
+          "value": -137450,
+          "rawValue": -1374.5,
+          "isPercentual": false,
+          "identifier": null,
+          "owner": "masonlineprod"
+        }
+      ],
+      "availability": "available",
+      "priceDefinition": {
+        "total": 412350
+      }
+    },
+    {
+      "id": "204538",
+      "requestIndex": 22,
+      "quantity": 2,
+      "seller": "1",
+      "price": 269900,
+      "listPrice": 269900,
+      "sellingPrice": 169900,
+      "priceTags": [
+        {
+          "name": "discount@price-bc9c3c96-0201-4256-9cfe-05881267dd7f#cc3d8ed4-4df1-4401-94ec-9bcd42bf9eec",
+          "value": -200000,
+          "rawValue": -2000,
+          "isPercentual": false,
+          "identifier": null,
+          "owner": "masonlineprod"
+        }
+      ],
+      "availability": "available",
+      "priceDefinition": {
+        "total": 339800
+      }
+    },
+    {
+      "id": "178497",
+      "requestIndex": 28,
+      "quantity": 2,
+      "seller": "1",
+      "price": null,
+      "listPrice": null,
+      "sellingPrice": null,
+      "priceTags": [],
+      "availability": "withoutPriceFulfillment",
+      "priceDefinition": null
+    }
+  ],
+  "ratesAndBenefitsData": {
+    "rateAndBenefitsIdentifiers": [
+      {
+        "id": "16b84313-6c7b-4b65-b907-491442fe423e",
+        "name": "PromoVolumen - LLEVANDO 2 - 2da al 70% - Reg-2-70 - SURTIDO FLASH ANIVERSARIO",
+        "featured": false,
+        "description": "FLASH ANIVERSARIO \n24 AL 29 ",
+        "matchedParameters": {
+          "forThePriceOf@Marketing": "166672,236782,215672,192441,166669,11858",
+          "forThePriceOfMatchedItemsWithQuantity@Marketing": "166672-5-2,236782-8-2,215672-18-2,192441-26-2,166669-33-2,11858-46-2",
+          "usedItemsInPromotion@Marketing": "166672,236782,215672,192441,166669,11858"
+        }
+      },
+      {
+        "id": "17a20d36-27e6-4154-a862-041c44cce693",
+        "name": "PromoVolumen - LLEVANDO 2 - 2da al 50% - Reg-2-50 - SURTIDO FLASH ANIVERSARIO",
+        "featured": false,
+        "description": "FLASH ANIVERSARIO \n24 AL 29",
+        "matchedParameters": {
+          "forThePriceOf@Marketing": "222792,245975",
+          "forThePriceOfMatchedItemsWithQuantity@Marketing": "222792-12-2,245975-47-2",
+          "usedItemsInPromotion@Marketing": "222792,245975"
+        }
+      },
+      {
+        "id": "93784153-9ccc-4ec6-a98f-0eb90febc501",
+        "name": "PromoVolumen - LLEVANDO 2 - 2da al 80% - Reg-2-80 - SURTIDO FLASH ANIVERSARIO",
+        "featured": false,
+        "description": "FLASH ANIVERSARIO \n24 AL 29 ",
+        "matchedParameters": {
+          "forThePriceOf@Marketing": "222170,220364",
+          "forThePriceOfMatchedItemsWithQuantity@Marketing": "222170-13-2,220364-15-2",
+          "usedItemsInPromotion@Marketing": "222170,220364"
+        }
+      },
+      {
+        "id": "bc9c3c96-0201-4256-9cfe-05881267dd7f",
+        "name": "Promo Banana $1699 23/09",
+        "featured": false,
+        "description": null,
+        "matchedParameters": {}
+      }
+    ],
+    "teaser": []
+  },
+  "messages": [
+    {
+      "code": "withoutPriceFulfillment",
+      "text": "El ítem Fideos Aliada Tirabuzón 500 G no está disponible",
+      "status": "error",
+      "fields": {
+        "ean": "7798270245124",
+        "itemIndex": "37",
+        "skuName": "Fideos Aliada Tirabuzón 500 G"
+      }
+    },
+    {
+      "code": "ORD027",
+      "text": "Ítem 99999999 no encontrado o no disponible",
+      "status": "error",
+      "fields": {
+        "id": "99999999"
+      }
+    }
+  ]
+}

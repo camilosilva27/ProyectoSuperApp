@@ -5,9 +5,11 @@
  * Es VTEX igual que Vea y Carrefour. Igual que Carrefour, embebe las promos en el catálogo:
  *   - Price < ListPrice → descuento directo ya aplicado (confirmado en vivo)
  *   - Teasers / PromotionTeasers → promos condicionales (NxM, Ndo al X%, etc.)
- *     NO se encontró ningún ejemplo real de esto al escanear ~450 productos de
- *     categorías comunes — se captura igual por si aparece en scrapes futuros,
- *     pero no está verificado en producción.
+ *     Chango Más NUNCA los puebla (0 en ~3600 SKUs revisados) — se captura igual por simetría.
+ *   - Promos por cantidad reales (2x1, "2da al X%", "2x$precio"): solo aparecen en la
+ *     simulación de checkout. Desde 2026-09-24 hay una pasada de simulación por lotes al final
+ *     (core/simulacionChangoMas.js) que las agrega a `promosInternas`. Si falla, el catálogo
+ *     se guarda igual sin esas promos (nunca rompe el scraper).
  *
  * No requiere cookie ni región: el mismo skuId devolvió el mismo precio para
  * distintos regionId de prueba bajo sc=1/seller "1" (ver CONTEXTO_TECNICO.md).
@@ -28,6 +30,8 @@ const fs = require('fs');
 const { esTeaserBancario } = require('./promo-engine');
 const { guardarCatalogoConGuardrail } = require('./core/guardrailCatalogo');
 const { fetchConReintentoHTTP, errorHTTP, esFinLegitimoDePaginacion } = require('./core/reintentoVTEX');
+const { completarPromosPorSimulacion } = require('./core/simulacionChangoMas');
+const { extrasDescuentoDirecto } = require('./core/datosPromoVtex');
 
 const BASE_URL = 'https://www.masonline.com.ar';
 const SC = 1;
@@ -83,6 +87,10 @@ async function getCatalogPage(from, to) {
             precioFinal: price,
             descuentoPct: ((1 - price / listPrice) * 100).toFixed(0) + '%',
             descuento: ((1 - price / listPrice)).toFixed(4),
+            // precioSinDescuento (PriceWithoutDiscount) + nombre (DiscountHighLight): mismo helper
+            // que Carrefour/Día. En Chango Más PriceWithoutDiscount == Price casi siempre (ver
+            // CONTEXTO_TECNICO.md § "API de Chango Más").
+            ...extrasDescuentoDirecto(offer),
           }
         : null;
 
@@ -155,6 +163,15 @@ async function main() {
     }
   }
   console.log(`\n✅ Total SKUs capturados: ${allSkus.length} (el catálogo real de Chango Más es mucho más grande; ver nota de escala arriba)\n`);
+
+  // Promos por cantidad (solo visibles en la simulación de checkout). Nunca lanza: si falla,
+  // se sigue con el catálogo tal cual (ver core/simulacionChangoMas.js).
+  console.log('🛒 Simulando carritos (cantidades 2 y 3) para detectar promos por cantidad...');
+  const simulacion = await completarPromosPorSimulacion(allSkus, {
+    baseUrl: BASE_URL, sc: SC, seller: SELLER, headers: HEADERS, onReintento: avisarReintento,
+    onLote: (n, total) => process.stdout.write(`\r  lote ${n}/${total}`),
+  });
+  console.log(`\n${simulacion.resumen}\n`);
 
   const conPromo = allSkus.filter(s => s.descuentoDirecto || s.promosInternas);
   conPromo.sort((a, b) => {

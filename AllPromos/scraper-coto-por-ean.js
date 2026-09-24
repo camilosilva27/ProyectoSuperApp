@@ -146,6 +146,11 @@ function categoriaMasEspecifica(groups = []) {
   return [...ancestros, masEspecifico.display_name].join(' > ');
 }
 
+function cantidadMinimaCoto(takingText) {
+  const m = String(takingText || '').match(/llevando\s+(\d+)/i);
+  return m ? parseInt(m[1], 10) : 1;
+}
+
 function interpretarDescuentos(discounts = [], precioBase) {
   const percentuales = [];
   const otros = [];
@@ -165,6 +170,11 @@ function interpretarDescuentos(discounts = [], precioBase) {
         descuentoPct: ((1 - precioFinal / precioBase) * 100).toFixed(0) + '%',
         descuento: (1 - precioFinal / precioBase).toFixed(4),
       };
+      // "Llevando 2" (campo takingText): el % solo vale comprando de a N (leches, cremas,
+      // yogures...). Antes se ignoraba y el descuento se aplicaba desde la 1ra unidad
+      // (auditoría de promos 2026-09-24).
+      const minimo = cantidadMinimaCoto(percentuales[0].takingText);
+      if (minimo > 1) descuentoDirecto.cantidadMinima = minimo;
     }
   }
   const promosInternas = otros.length
