@@ -29,7 +29,7 @@ SuperAhorro es operada por Camilo Silva, persona física (no hay una empresa/raz
 - Para calcular tu historial de ahorro dentro de la App.
 - Para detectar y corregir errores y mejorar el rendimiento de la App (reportes de errores y métricas agregadas).
 
-**Cómo darte de baja de estos avisos**: las alertas (por mail y push) se apagan desde la App con el interruptor "Recibir notificaciones"; las notificaciones push también se pueden bloquear desde la configuración de tu navegador. Para dejar de recibir los resúmenes de ahorro o el aviso de inactividad, escribinos a contacto@mi-superapp.com.ar con el asunto "baja". Los mails operativos (confirmación, recibos, avisos del plan) se siguen mandando mientras tengas cuenta, porque son parte del servicio.
+**Cómo darte de baja de estos avisos**: las alertas (por mail y push) se apagan desde la App con el interruptor "Recibir notificaciones"; las notificaciones push también se pueden bloquear desde la configuración de tu navegador. Para dejar de recibir los resúmenes de ahorro, el aviso de inactividad o las alertas por mail, usá el link "date de baja acá" que viene al pie de cada uno de esos mails, o escribinos a contacto@mi-superapp.com.ar con el asunto "baja". Los mails operativos (confirmación, recibos, avisos del plan) se siguen mandando mientras tengas cuenta, porque son parte del servicio.
 
 No usamos tus datos para publicidad ni los vendemos a terceros.
 

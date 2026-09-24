@@ -17,7 +17,7 @@ Estado: los 6 críticos resueltos el 24/09; altos/medios/bajos pendientes salvo 
 
 ## Alto
 - [x] ✅ RESUELTO 24/09 (0025). Trial eterno en backend si se abandona el checkout (0020 filtra `pasarela_suscripcion_id is null`). Los 22 preapprovals pending de prod son de la etapa de pruebas (confirmado por el usuario), así que baja prioridad; el bug de código sigue para checkouts futuros.
-- [ ] Reembolsos/contracargos no bajan el plan (`procesarPagoMercadoPago.js:22`); arrepentimiento solo manual.
+- [x] ✅ RESUELTO 24/09 (tanda 2). Reembolsos/contracargos no bajan el plan (`procesarPagoMercadoPago.js:22`); arrepentimiento solo manual.
 - [x] ✅ RESUELTO 24/09. Tras pagar, 403 hasta ~1h: la app no llama `refreshSession()` (`flujoDePago.ts`).
 - [x] ✅ RESUELTO 24/09. Promos bancarias por día en UTC (`promos-bancarias.js:193`, VM en UTC).
 - [x] ✅ RESUELTO 24/09. Guardrail de catálogo relativo a la corrida anterior, deja bajar escalonado (`guardrailCatalogo.js:28`).
@@ -33,9 +33,10 @@ Estado: los 6 críticos resueltos el 24/09; altos/medios/bajos pendientes salvo 
 
 ## Medio / bajo
 Resueltos el 24/09 (ver sección "Correcciones de la auditoría" en CONTEXTO_TECNICO.md): webhooks/async en Express, deploy con rollback, escrituras atómicas, search-promotions con retry, vigencia de promos, fallback en vivo ($0, Promise.all, timeouts), baja de mails (List-Unsubscribe + pie, sin endpoint con token todavía), HTML escapado, resúmenes paginados e idempotentes, Brevo con timeout, Política de Privacidad y ToS de la app actualizados, `www` con redirect, headers de seguridad, gate/carreras/ErrorBoundary en la app, contraseñas (mín. 8 + mayúscula), tests e2e arreglados.
-Pendientes: reembolsos/contracargos que no quitan acceso (alto), webhooks de otros tópicos que dan 500 y suscripción con cobros rechazados (medios), `StrictHostKeyChecking=no` en scripts de CI (requiere secret con el fingerprint), captcha (descartado por ahora), endpoint de baja con token.
+Tanda 2 (24/09, resueltos): reembolsos/contracargos, webhooks por tópico, bug "Combinable", baja de mails con link (0027), permisos de anon y search_path (0028), huella SSH fija en CI, regla RDP borrada, permisos de .env en la VM.
+Pendientes: suscripción con cobros rechazados sigue premium hasta que MP la pause (se acepta), captcha (descartado por ahora), decidir si los teasers "Mi Crf" exigen la tarjeta Mi Carrefour, prueba de cambio de plan con pago real.
 
-**Bug nuevo encontrado 24/09, sin tocar (decisión de producto):** los scrapers de Carrefour y Día marcan como bancaria cualquier teaser cuyo nombre contenga `'bin'`, y "Com**bin**able" lo contiene → ~561 SKUs de Carrefour pierden su "2do al 50%"/"2x1" en el camino cacheado (el fallback en vivo sí los aplica). Arreglarlo baja precios en masa y hay teasers "Mi Crf" que exigen Mi Carrefour y habría que tratar aparte.
+**Bug "Combinable" — ✅ RESUELTO 24/09 (tanda 2), ver CONTEXTO_TECNICO.md.** Descripción original: los scrapers de Carrefour y Día marcan como bancaria cualquier teaser cuyo nombre contenga `'bin'`, y "Com**bin**able" lo contiene → ~561 SKUs de Carrefour pierden su "2do al 50%"/"2x1" en el camino cacheado (el fallback en vivo sí los aplica). Arreglarlo baja precios en masa y hay teasers "Mi Crf" que exigen Mi Carrefour y habría que tratar aparte.
 
 Detalle original:
 Ver el reporte. Los más baratos: `www` sin certificado en Vercel, headers de seguridad en `app/vercel.json`, HIBP/min password en Supabase Auth, tests e2e rotos (401), escapar HTML en mails, List-Unsubscribe, Política de Privacidad sin Sentry/GCP/Vercel/ImprovMX, docs desactualizados (`opciones_planes.md` precios de VM, `ALERTAS-notificaciones-plan.md` "no se pusheó").

@@ -51,7 +51,7 @@ Se decidió armar una pantalla de selección de plan (todavía sin diseñar) en 
 
 ## Validado end-to-end con pago real (2026-08-24)
 
-- **VM temporalmente en Producción**: se cambió `MERCADOPAGO_ACCESS_TOKEN` de la VM de TEST a Producción real para poder probar (con credenciales TEST, Mercado Pago nunca deja pagar a una cuenta real, sin importar el monto — no es un tema de precio). **Se dejó así a propósito** (no se revirtió a TEST), mientras se sigue probando esta fase. Precios bajados temporalmente en la VM para las pruebas: mensual sigue en $1000 (leftover de una prueba anterior, no es el precio real decidido de $8000 — pendiente corregir), anual en $20, permanente en $10.
+- **VM temporalmente en Producción**: se cambió `MERCADOPAGO_ACCESS_TOKEN` de la VM de TEST a Producción real para poder probar (con credenciales TEST, Mercado Pago nunca deja pagar a una cuenta real, sin importar el monto — no es un tema de precio). **Se dejó así a propósito** (no se revirtió a TEST), mientras se sigue probando esta fase. Precios bajados temporalmente en la VM para las pruebas (**ya revertidos a los reales, ver abajo**): mensual sigue en $1000 (leftover de una prueba anterior, no es el precio real decidido de $8000 — pendiente corregir), anual en $20, permanente en $10.
 - **Bug real encontrado: `MERCADOPAGO_PRECIO_ANUAL_ARS=10` rechazado por MP** — `Cannot pay an amount lower than $ 15.00` (mínimo de `PreApproval`). Subido a $20 para destrabar la prueba. Anotar este mínimo si en algún momento se vuelve a bajar un precio para testear.
 - **Pago único (permanente) confirmado con plata real**: pago de $10 ARS aprobado y acreditado (`payment.status: 'approved'`, `external_reference` = uuid del usuario correcto), confirmado consultando directo la API de Mercado Pago (`/v1/payments/search` y `/v1/payments/{id}`).
 - **Gotcha real encontrado: el checkbox "Pagos" del panel de Webhooks estaba destildado.** La URL de notificaciones para Producción ya estaba bien cargada, pero el panel de MP deja elegir por checkbox QUÉ eventos notificar (Pagos / Suscripciones / etc.) — con solo "Suscripciones" tildado, un pago único real nunca dispara ningún webhook, sin ningún error visible del lado del servidor (la request simplemente nunca llega). Activado el checkbox de "Pagos" — pendiente confirmar con un pago nuevo que ahora sí llegue solo.
@@ -71,8 +71,8 @@ Segundo pago real de $10 aprobado, y esta vez **el webhook llegó solo** (sin re
   - **Decisión (2026-08-24): por ahora no se implementa, queda anotado.** Al usuario no le cierra sumar fricción (un input más) para un caso que probablemente coincide para la mayoría (mismo mail en todos lados). Revisar esto cuando el diseño de la pantalla de selección de planes (pedido a Claude Design) esté listo — puede ser un buen lugar natural para meter ese campo sin que se sienta como un paso extra, si hace falta.
 - Confirmar con un pago único nuevo (sin reenviar el webhook a mano) que ahora, con el checkbox de "Pagos" activado, MP notifica solo.
 - Completar un pago real del anual para confirmar que la primera cobranza efectivamente se agenda a 12 meses (`next_payment_date`), no antes.
-- Decidir cuándo volver la VM a TEST (o directamente dejarla en Producción de forma permanente y ajustar los precios a los reales: mensual $8000, anual $80000, permanente $160000 — hoy están en valores de prueba).
-- Corregir `MERCADOPAGO_PRECIO_MENSUAL_ARS` en la VM: sigue en $1000 (de una prueba de fase 2 anterior), no en el $8000 ya decidido.
+- ~~Decidir cuándo volver la VM a TEST / ajustar precios~~ — **resuelto (verificado 2026-09-24):** la VM quedó en Producción con los precios reales: mensual $8000, anual $80000, permanente $160000 (`/api/pagos/precio`).
+- Desde 2026-09-24 el pago único usa `external_reference = "perm:<uuid>"` (ver Plan_Usuarios_y_cobros.md § Cambio de plan), no el uuid pelado como en la prueba de arriba.
 
 ## Estado
 
