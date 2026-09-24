@@ -7,6 +7,9 @@
  *
  * Idempotente vía `aviso_fin_trial_enviado` (migración 0013): el trial se fija una sola vez
  * por usuario, así que un boolean simple alcanza — no hace falta lógica de "volver a mandar".
+ * Se marca si el aviso llegó por AL MENOS un canal (mail ok o algún push entregado) — antes
+ * solo con el mail ok, así que si Brevo fallaba el push se repetía todos los días hasta el fin
+ * del trial (auditoría 2026-09-24). Mail transaccional (aviso de la cuenta): sin pie de baja.
  *
  * Uso: node src/cron/avisoFinTrial.js   (o npm run aviso-fin-trial)
  * Crontab sugerido en la VM (diario, 12:00 UTC = 9:00 Argentina — antes del downgrade de las
@@ -21,13 +24,13 @@ const { rutaLogs } = require('../config');
 const { clienteSupabaseAdmin } = require('../clienteSupabaseAdmin');
 const { listarTodosLosUsuarios } = require('../usuariosAuth');
 const { enviarMail } = require('../clienteBrevo');
-const { armarMailBase, URL_APP } = require('../plantillaMail');
+const { armarMailBase, escaparHtml, URL_APP } = require('../plantillaMail');
 const { obtenerSuscripcionesPorUsuario, enviarPush } = require('../clientePush');
 
 const DIAS_DE_AVISO = 3;
 
 function armarHtml({ nombre, diasRestantes }) {
-  const saludo = nombre ? `Hola ${nombre},` : 'Hola,';
+  const saludo = nombre ? `Hola ${escaparHtml(nombre)},` : 'Hola,';
   const cuando = diasRestantes <= 0 ? 'hoy' : `en ${diasRestantes} día${diasRestantes === 1 ? '' : 's'}`;
   const cuerpo = `
     <p style="margin:0 0 16px 0;">${saludo}</p>
@@ -97,22 +100,23 @@ async function avisoFinTrial() {
           asunto: 'Tu prueba de SuperAhorro está por terminar',
           html: armarHtml({ nombre: perfil.nombre, diasRestantes }),
         });
-        if (resultado.ok) {
-          enviados++;
-          const { error: errorUpdate } = await cliente
-            .from('perfil_usuario')
-            .update({ aviso_fin_trial_enviado: true })
-            .eq('id', perfil.id);
-          if (errorUpdate) errores.push(`Mail a ${email} enviado pero no se pudo marcar como avisado: ${errorUpdate.message}`);
-        } else {
-          errores.push(`Falló el mail a ${email}: ${resultado.error}`);
-        }
+        if (resultado.ok) enviados++;
+        else errores.push(`Falló el mail al usuario ${perfil.id}: ${resultado.error}`);
 
         const resultadoPush = await enviarPush(cliente, suscripcionesPush.get(perfil.id) ?? [], {
           title: 'SuperAhorro',
           body: `Tu prueba gratis termina ${diasRestantes <= 0 ? 'hoy' : `en ${diasRestantes} día${diasRestantes === 1 ? '' : 's'}`}. Suscribite desde Ajustes.`,
           url: `${URL_APP}/ajustes`,
         });
+
+        // Marca si llegó por algún canal — ver comentario de cabecera (evita push diario si Brevo falla).
+        if (resultado.ok || resultadoPush.enviados > 0) {
+          const { error: errorUpdate } = await cliente
+            .from('perfil_usuario')
+            .update({ aviso_fin_trial_enviado: true })
+            .eq('id', perfil.id);
+          if (errorUpdate) errores.push(`Aviso al usuario ${perfil.id} enviado pero no se pudo marcar como avisado: ${errorUpdate.message}`);
+        }
         enviadosPush += resultadoPush.enviados;
         errores.push(...resultadoPush.errores);
       }

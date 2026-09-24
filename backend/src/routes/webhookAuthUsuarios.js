@@ -15,6 +15,7 @@
  * el body como sí lo hace Mercado Pago.
  */
 
+const crypto = require('crypto');
 const express = require('express');
 const { clienteSupabaseAdmin } = require('../clienteSupabaseAdmin');
 const { authWebhookSecret } = require('../config');
@@ -22,13 +23,23 @@ const { enviarBienvenida } = require('../mailBienvenida');
 
 const router = express.Router();
 
+// Comparación en tiempo constante (auditoría 2026-09-24): `!==` corta en el primer byte distinto
+// y filtra por timing cuánto del secreto se adivinó. timingSafeEqual exige mismo largo, así que
+// se comparan los SHA-256 (32 bytes siempre) — no filtra ni el largo del secreto.
+function secretoValido(recibido, esperado) {
+  if (typeof recibido !== 'string' || !recibido) return false;
+  const a = crypto.createHash('sha256').update(recibido).digest();
+  const b = crypto.createHash('sha256').update(esperado).digest();
+  return crypto.timingSafeEqual(a, b);
+}
+
 router.post('/webhooks/auth-usuarios', async (req, res) => {
   if (!authWebhookSecret) {
     console.error('Webhook de auth.users recibido pero AUTH_WEBHOOK_SECRET no está configurado');
     return res.status(503).end();
   }
 
-  if (req.get('x-webhook-secret') !== authWebhookSecret) {
+  if (!secretoValido(req.get('x-webhook-secret'), authWebhookSecret)) {
     console.error('Secreto inválido en webhook de auth.users');
     return res.status(401).end();
   }
@@ -51,12 +62,19 @@ router.post('/webhooks/auth-usuarios', async (req, res) => {
     if (errorLectura) throw errorLectura;
     if (!fila || fila.mail_bienvenida_enviado) return res.status(200).end();
 
-    const { error: errorUpdate } = await supabaseAdmin
+    // `.select()` devuelve las filas que el UPDATE efectivamente cambió: si dos entregas del
+    // webhook llegan a la vez, ambas pasan la lectura de arriba, pero solo UNA cambia la fila
+    // (la guarda `mail_bienvenida_enviado = false` es atómica en Postgres). La otra recibe []
+    // y no manda nada — antes no se miraba el resultado y salían dos bienvenidas (auditoría
+    // 2026-09-24).
+    const { data: filasCambiadas, error: errorUpdate } = await supabaseAdmin
       .from('perfil_usuario')
       .update({ mail_bienvenida_enviado: true })
       .eq('id', record.id)
-      .eq('mail_bienvenida_enviado', false);
+      .eq('mail_bienvenida_enviado', false)
+      .select('id');
     if (errorUpdate) throw errorUpdate;
+    if (!filasCambiadas?.length) return res.status(200).end();
 
     const resultado = await enviarBienvenida(record.id, { nombre: fila.nombre });
     if (!resultado.ok) console.error('No se pudo mandar el mail de bienvenida:', resultado.error);
@@ -69,3 +87,4 @@ router.post('/webhooks/auth-usuarios', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.secretoValido = secretoValido;

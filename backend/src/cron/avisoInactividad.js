@@ -10,6 +10,16 @@
  * último login y el último aviso mandado — si el usuario nunca vuelve, le sigue llegando un
  * mail cada 14 días; si vuelve a loguearse, el reloj arranca de nuevo desde ese login.
  *
+ * Solo a usuarios con plan activo (premium o trial vigente, `tienePlanActivo`) — decidido en la
+ * auditoría 2026-09-24. Antes no filtraba por plan: a quien estaba en 'gratis' / trial vencido le
+ * llegaba "Te extrañamos, date una vuelta" cada 14 días PARA SIEMPRE, invitándolo a una app que
+ * al abrirla lo frena en el paywall (no hay plan gratis). Convencer a un ex-usuario de pagar es
+ * otro mensaje (tipo "volvé a suscribirte"), no este; si se quiere, es un mail aparte.
+ *
+ * La marca `aviso_inactividad_enviado_en` se guarda si el aviso llegó por AL MENOS un canal (mail
+ * ok o algún push entregado). Antes solo se marcaba si el mail salía bien: con Brevo fallando, el
+ * push salía igual todos los días (la referencia de 14 días nunca se movía).
+ *
  * Uso: node src/cron/avisoInactividad.js   (o npm run aviso-inactividad)
  * Crontab sugerido en la VM (diario, 14:00 UTC = 11:00 Argentina):
  *   0 14 * * * cd /ruta/ProyectoSuperApp/backend && /usr/bin/node src/cron/avisoInactividad.js >> logs/cron-aviso-inactividad.log 2>&1
@@ -20,15 +30,17 @@ const fs = require('fs');
 const path = require('path');
 const { rutaLogs } = require('../config');
 const { clienteSupabaseAdmin } = require('../clienteSupabaseAdmin');
-const { listarTodosLosUsuarios } = require('../usuariosAuth');
+const { listarTodosLosUsuarios, tienePlanActivo, leerTodasLasFilas } = require('../usuariosAuth');
 const { enviarMail } = require('../clienteBrevo');
-const { armarMailBase, URL_APP } = require('../plantillaMail');
+const { armarMailBase, escaparHtml, URL_APP } = require('../plantillaMail');
 const { obtenerSuscripcionesPorUsuario, enviarPush } = require('../clientePush');
 
 const DIAS_DE_INACTIVIDAD = 14;
 
 // Separado para poder testear la elegibilidad sin pegarle a la red.
+// `usuario.perfil` (opcional) es la fila de perfil_usuario: sin plan activo no es elegible.
 function esElegible(usuario, ahora) {
+  if (usuario.perfil !== undefined && !tienePlanActivo(usuario.perfil, ahora)) return false;
   if (!usuario.ultimoLogin) return false; // nunca hizo login real (no debería pasar, pero no hay de qué avisar)
   const ultimoLoginMs = new Date(usuario.ultimoLogin).getTime();
   const ultimoAvisoMs = usuario.avisoInactividadEnviadoEn ? new Date(usuario.avisoInactividadEnviadoEn).getTime() : null;
@@ -40,7 +52,7 @@ function esElegible(usuario, ahora) {
 }
 
 function armarHtml({ nombre }) {
-  const saludo = nombre ? `Hola ${nombre},` : 'Hola,';
+  const saludo = nombre ? `Hola ${escaparHtml(nombre)},` : 'Hola,';
   const cuerpo = `
     <p style="margin:0 0 16px 0;">${saludo}</p>
     <p style="margin:0 0 16px 0;">Hace un tiempo que no comparás precios con SuperAhorro.</p>
@@ -52,6 +64,7 @@ function armarHtml({ nombre }) {
     titulo: 'Te extrañamos',
     cuerpoHtml: cuerpo,
     cta: { texto: 'Abrir SuperAhorro', url: URL_APP },
+    noTransaccional: true,
   });
 }
 
@@ -73,7 +86,9 @@ async function avisoInactividad() {
         errores.push(`No se pudo listar usuarios: ${err.message}`);
         return [];
       }),
-      cliente.from('perfil_usuario').select('id, nombre, aviso_inactividad_enviado_en'),
+      leerTodasLasFilas(() =>
+        cliente.from('perfil_usuario').select('id, nombre, plan, trial_termina_en, aviso_inactividad_enviado_en').order('id')
+      ),
       obtenerSuscripcionesPorUsuario(cliente).catch(err => {
         errores.push(`No se pudo leer push_suscripcion: ${err.message}`);
         return new Map();
@@ -90,7 +105,7 @@ async function avisoInactividad() {
         if (!perfil) continue; // no debería pasar (trigger crea el perfil al registrarse)
 
         const elegible = esElegible(
-          { ...usuario, avisoInactividadEnviadoEn: perfil.aviso_inactividad_enviado_en },
+          { ...usuario, perfil, avisoInactividadEnviadoEn: perfil.aviso_inactividad_enviado_en },
           inicio.getTime()
         );
         if (!elegible) continue;
@@ -105,23 +120,25 @@ async function avisoInactividad() {
           destinatarioNombre: perfil.nombre,
           asunto: 'Te extrañamos en SuperAhorro',
           html: armarHtml({ nombre: perfil.nombre }),
+          noTransaccional: true,
         });
-        if (resultado.ok) {
-          enviados++;
-          const { error: errorUpdate } = await cliente
-            .from('perfil_usuario')
-            .update({ aviso_inactividad_enviado_en: inicio.toISOString() })
-            .eq('id', usuario.id);
-          if (errorUpdate) errores.push(`Mail a ${usuario.email} enviado pero no se pudo marcar: ${errorUpdate.message}`);
-        } else {
-          errores.push(`Falló el mail a ${usuario.email}: ${resultado.error}`);
-        }
+        if (resultado.ok) enviados++;
+        else errores.push(`Falló el mail al usuario ${usuario.id}: ${resultado.error}`);
 
         const resultadoPush = await enviarPush(cliente, suscripcionesPush.get(usuario.id) ?? [], {
           title: 'SuperAhorro',
           body: 'Hace un tiempo que no comparás precios. Puede que esta semana haya alguna promo que te convenga.',
           url: URL_APP,
         });
+
+        // Marca si llegó por algún canal — ver comentario de cabecera (evita push diario si Brevo falla).
+        if (resultado.ok || resultadoPush.enviados > 0) {
+          const { error: errorUpdate } = await cliente
+            .from('perfil_usuario')
+            .update({ aviso_inactividad_enviado_en: inicio.toISOString() })
+            .eq('id', usuario.id);
+          if (errorUpdate) errores.push(`Aviso al usuario ${usuario.id} enviado pero no se pudo marcar: ${errorUpdate.message}`);
+        }
         enviadosPush += resultadoPush.enviados;
         errores.push(...resultadoPush.errores);
       }

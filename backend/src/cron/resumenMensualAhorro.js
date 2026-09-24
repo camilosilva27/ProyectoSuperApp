@@ -11,6 +11,12 @@
  * sentido que reciba el resumen de lo que ahorró mientras tuvo acceso; alguien bloqueado hace
  * meses, no). Ver la columna `plan_bajado_a_gratis_en` (migración 0013) y su trigger.
  *
+ * Idempotente por (usuario, mes) vía la tabla `envio_mail_periodico` (migración 0026,
+ * auditoría 2026-09-24): antes, re-correr el cron duplicaba mails y push. Ver
+ * `reclamarEnvio`/`liberarEnvio` abajo (los reusa también el resumen semanal). Las lecturas de
+ * perfil_usuario y ahorro_registro van paginadas (PostgREST corta en 1000 filas sin avisar).
+ * Mail NO transaccional: lleva header List-Unsubscribe + pie de baja.
+ *
  * Uso: node src/cron/resumenMensualAhorro.js   (o npm run resumen-mensual-ahorro)
  * Crontab sugerido en la VM (día 1 de cada mes, 13:00 UTC = 10:00 Argentina):
  *   0 13 1 * * cd /ruta/ProyectoSuperApp/backend && /usr/bin/node src/cron/resumenMensualAhorro.js >> logs/cron-resumen-mensual-ahorro.log 2>&1
@@ -21,9 +27,9 @@ const fs = require('fs');
 const path = require('path');
 const { rutaLogs } = require('../config');
 const { clienteSupabaseAdmin } = require('../clienteSupabaseAdmin');
-const { listarTodosLosUsuarios } = require('../usuariosAuth');
+const { listarTodosLosUsuarios, leerTodasLasFilas } = require('../usuariosAuth');
 const { enviarMail } = require('../clienteBrevo');
-const { armarMailBase, COLOR_ACENTO, COLOR_ACENTO_SUAVE, COLOR_TEXTO, URL_APP } = require('../plantillaMail');
+const { armarMailBase, escaparHtml, COLOR_ACENTO, COLOR_ACENTO_SUAVE, COLOR_TEXTO, URL_APP } = require('../plantillaMail');
 const { obtenerSuscripcionesPorUsuario, enviarPush } = require('../clientePush');
 
 const TREINTA_DIAS_MS = 30 * 24 * 60 * 60 * 1000;
@@ -35,19 +41,43 @@ function esElegible(perfil, ahora) {
   return ahora - new Date(perfil.plan_bajado_a_gratis_en).getTime() < TREINTA_DIAS_MS;
 }
 
+/**
+ * "Reclama" el envío de (usuario, tipo, periodo) insertando en envio_mail_periodico ANTES de
+ * mandar. Si la fila ya existía (23505 = unique_violation), otro run ya lo mandó → false.
+ * @returns {Promise<{reclamado: boolean, error?: string}>}
+ */
+async function reclamarEnvio(cliente, usuarioId, tipo, periodo) {
+  const { error } = await cliente.from('envio_mail_periodico').insert({ usuario_id: usuarioId, tipo, periodo });
+  if (!error) return { reclamado: true };
+  if (error.code === '23505') return { reclamado: false };
+  return { reclamado: false, error: error.message };
+}
+
+// Si el resumen no llegó por NINGÚN canal (mail falló y 0 push entregados), se suelta el reclamo
+// para que una re-corrida lo reintente; si llegó por alguno, queda marcado (no se duplica).
+async function liberarEnvio(cliente, usuarioId, tipo, periodo) {
+  const { error } = await cliente
+    .from('envio_mail_periodico')
+    .delete()
+    .eq('usuario_id', usuarioId)
+    .eq('tipo', tipo)
+    .eq('periodo', periodo);
+  return error ? error.message : null;
+}
+
 function formatoArs(monto) {
   return monto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
 }
 
 function armarHtml({ nombre, nombreMes, monto, cantidad }) {
-  const saludo = nombre ? `Hola ${nombre},` : 'Hola,';
+  const saludo = nombre ? `Hola ${escaparHtml(nombre)},` : 'Hola,';
   const cuerpo = `
     <p style="margin:0 0 16px 0;">${saludo}</p>
-    <p style="margin:0 0 16px 0;">Esto ahorraste en <strong>${nombreMes}</strong> con SuperAhorro:</p>
+    <p style="margin:0 0 16px 0;">Esto ahorraste en <strong>${escaparHtml(nombreMes)}</strong> con SuperAhorro:</p>
     <p style="margin:0 0 16px 0; text-align:center;">
       <span style="display:inline-block; background:${COLOR_ACENTO_SUAVE}; border:2px solid ${COLOR_ACENTO}; color:${COLOR_TEXTO}; padding:6px 16px; border-radius:8px; font-size:1.5em; font-weight:700;">${formatoArs(monto)}</span>
     </p>
-    <p style="margin:0 0 16px 0;">ahorrados en ${cantidad} comparaci${cantidad === 1 ? 'ón' : 'ones'} de precios.</p>
+    <p style="margin:0 0 16px 0;">ahorrados en ${escaparHtml(cantidad)} comparaci${cantidad === 1 ? 'ón' : 'ones'} de precios.</p>
     <p style="margin:0;">Seguí usando SuperAhorro para seguir ahorrando!</p>
   `;
   return armarMailBase({
@@ -55,6 +85,7 @@ function armarHtml({ nombre, nombreMes, monto, cantidad }) {
     titulo: 'Tu resumen del mes',
     cuerpoHtml: cuerpo,
     cta: { texto: 'Ver mi historial de ahorro', url: `${URL_APP}/mis-ahorros` },
+    noTransaccional: true,
   });
 }
 
@@ -66,6 +97,7 @@ async function resumenMensualAhorro() {
   let enviados = 0;
   let enviadosPush = 0;
   let omitidos = 0;
+  let omitidosYaEnviado = 0;
 
   const cliente = clienteSupabaseAdmin();
   if (!cliente) {
@@ -86,16 +118,23 @@ async function resumenMensualAhorro() {
     const inicioMesActual = inicioDeMesArgentina(ahoraEnArgentina.getUTCFullYear(), ahoraEnArgentina.getUTCMonth());
     const inicioMesAnterior = inicioDeMesArgentina(ahoraEnArgentina.getUTCFullYear(), ahoraEnArgentina.getUTCMonth() - 1);
     // "agosto 2026", sin el "de" que agrega el formato largo de Intl por default.
+    // Clave de idempotencia: el mes RESUMIDO ('2026-08'), no el de la corrida.
+    const periodo = `${inicioMesAnterior.getUTCFullYear()}-${String(inicioMesAnterior.getUTCMonth() + 1).padStart(2, '0')}`;
     const nombreMes = `${inicioMesAnterior.toLocaleString('es-AR', { month: 'long', timeZone: 'America/Argentina/Buenos_Aires' })} ${inicioMesAnterior.getUTCFullYear()}`;
 
     const [{ data: perfiles, error: errorPerfiles }, { data: eventos, error: errorEventos }, usuarios, suscripcionesPush] =
       await Promise.all([
-        cliente.from('perfil_usuario').select('id, nombre, plan, plan_bajado_a_gratis_en'),
-        cliente
-          .from('ahorro_registro')
-          .select('usuario_id, monto')
-          .gte('fecha', inicioMesAnterior.toISOString())
-          .lt('fecha', inicioMesActual.toISOString()),
+        leerTodasLasFilas(() =>
+          cliente.from('perfil_usuario').select('id, nombre, plan, plan_bajado_a_gratis_en').order('id')
+        ),
+        leerTodasLasFilas(() =>
+          cliente
+            .from('ahorro_registro')
+            .select('usuario_id, monto')
+            .gte('fecha', inicioMesAnterior.toISOString())
+            .lt('fecha', inicioMesActual.toISOString())
+            .order('id')
+        ),
         listarTodosLosUsuarios(cliente).catch(err => {
           errores.push(`No se pudo listar usuarios: ${err.message}`);
           return [];
@@ -139,32 +178,46 @@ async function resumenMensualAhorro() {
           errores.push(`Usuario ${perfil.id} sin mail en auth.users — omitido`);
           continue;
         }
+        const reclamo = await reclamarEnvio(cliente, perfil.id, 'resumen_mensual', periodo);
+        if (reclamo.error) {
+          errores.push(`No se pudo marcar el resumen del usuario ${perfil.id}: ${reclamo.error} — omitido`);
+          continue;
+        }
+        if (!reclamo.reclamado) {
+          omitidosYaEnviado++;
+          continue;
+        }
         const resultado = await enviarMail({
           destinatarioEmail: email,
           destinatarioNombre: perfil.nombre,
           asunto: `Esto ahorraste en ${nombreMes} con SuperAhorro`,
           html: armarHtml({ nombre: perfil.nombre, nombreMes, monto, cantidad }),
+          noTransaccional: true,
         });
         if (resultado.ok) enviados++;
-        else errores.push(`Falló el mail a ${email}: ${resultado.error}`);
+        else errores.push(`Falló el mail al usuario ${perfil.id}: ${resultado.error}`);
 
         const resultadoPush = await enviarPush(cliente, suscripcionesPush.get(perfil.id) ?? [], {
           title: 'SuperAhorro',
           body: `Esto ahorraste en ${nombreMes}: ${formatoArs(monto)}`,
           url: `${URL_APP}/mis-ahorros`,
         });
+        if (!resultado.ok && resultadoPush.enviados === 0) {
+          const errorLiberar = await liberarEnvio(cliente, perfil.id, 'resumen_mensual', periodo);
+          if (errorLiberar) errores.push(`No se pudo liberar el reclamo del usuario ${perfil.id}: ${errorLiberar}`);
+        }
         enviadosPush += resultadoPush.enviados;
         errores.push(...resultadoPush.errores);
       }
     }
   }
 
-  const reporte = { inicio: inicio.toISOString(), fin: new Date().toISOString(), enviados, enviadosPush, omitidos, errores };
+  const reporte = { inicio: inicio.toISOString(), fin: new Date().toISOString(), enviados, enviadosPush, omitidos, omitidosYaEnviado, errores };
 
   fs.mkdirSync(rutaLogs, { recursive: true });
   fs.writeFileSync(path.join(rutaLogs, 'ultimo-resumen-mensual-ahorro.json'), JSON.stringify(reporte, null, 2));
 
-  console.log(`   ✅ ${enviados} mails, ${enviadosPush} push, ${omitidos} omitidos (plan gratis hace +30 días, mail sin confirmar o sin ahorro), ${errores.length} con error`);
+  console.log(`   ✅ ${enviados} mails, ${enviadosPush} push, ${omitidos} omitidos (plan gratis hace +30 días, mail sin confirmar o sin ahorro), ${omitidosYaEnviado} ya enviados este período, ${errores.length} con error`);
 
   return reporte;
 }
@@ -178,4 +231,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { resumenMensualAhorro, esElegible, armarHtml };
+module.exports = { resumenMensualAhorro, esElegible, armarHtml, reclamarEnvio, liberarEnvio };

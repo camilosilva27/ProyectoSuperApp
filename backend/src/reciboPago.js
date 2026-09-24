@@ -9,7 +9,7 @@
 
 const { clienteSupabaseAdmin } = require('./clienteSupabaseAdmin');
 const { enviarMail } = require('./clienteBrevo');
-const { armarMailBase, COLOR_ACENTO, COLOR_ACENTO_SUAVE, COLOR_TEXTO, URL_APP } = require('./plantillaMail');
+const { armarMailBase, escaparHtml, COLOR_ACENTO, COLOR_ACENTO_SUAVE, COLOR_TEXTO, URL_APP } = require('./plantillaMail');
 const { obtenerSuscripcionesDeUsuario, enviarPush } = require('./clientePush');
 
 function formatoArs(monto) {
@@ -23,17 +23,18 @@ function formatoFecha(iso) {
 const NOMBRE_PLAN = { mensual: 'mensual', anual: 'anual', permanente: 'permanente' };
 
 function armarHtml({ nombre, tipoPlan, monto, siguienteCobroEn }) {
-  const saludo = nombre ? `Hola ${nombre},` : 'Hola,';
+  // Datos de usuario/DB escapados antes de interpolar en HTML (auditoría 2026-09-24).
+  const saludo = nombre ? `Hola ${escaparHtml(nombre)},` : 'Hola,';
   const nombrePlan = NOMBRE_PLAN[tipoPlan] || tipoPlan;
   const lineaProximoCobro = siguienteCobroEn
-    ? `<p style="margin:0;">Tu próximo cobro es el <strong>${formatoFecha(siguienteCobroEn)}</strong>.</p>`
+    ? `<p style="margin:0;">Tu próximo cobro es el <strong>${escaparHtml(formatoFecha(siguienteCobroEn))}</strong>.</p>`
     : `<p style="margin:0;">Tu acceso a SuperAhorro ya es permanente — no vas a recibir más cobros por este plan.</p>`;
 
   const cuerpo = `
     <p style="margin:0 0 16px 0;">${saludo}</p>
-    <p style="margin:0 0 16px 0;">Tu pago del plan <strong>${nombrePlan}</strong> de SuperAhorro se acreditó correctamente:</p>
+    <p style="margin:0 0 16px 0;">Tu pago del plan <strong>${escaparHtml(nombrePlan)}</strong> de SuperAhorro se acreditó correctamente:</p>
     <p style="margin:0 0 16px 0; text-align:center;">
-      <span style="display:inline-block; background:${COLOR_ACENTO_SUAVE}; border:2px solid ${COLOR_ACENTO}; color:${COLOR_TEXTO}; padding:6px 16px; border-radius:8px; font-size:1.5em; font-weight:700;">${formatoArs(monto)}</span>
+      <span style="display:inline-block; background:${COLOR_ACENTO_SUAVE}; border:2px solid ${COLOR_ACENTO}; color:${COLOR_TEXTO}; padding:6px 16px; border-radius:8px; font-size:1.5em; font-weight:700;">${escaparHtml(formatoArs(monto))}</span>
     </p>
     ${lineaProximoCobro}
   `;

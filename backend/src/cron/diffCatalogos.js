@@ -31,6 +31,63 @@ function huellaPromoSku(sku) {
   });
 }
 
+// Huella de IDENTIDAD de la promo de producto de un SKU — la que usa Alertas
+// (producto_seguido.huella_promo_avisada) para decidir "¿ya le avisé a este usuario de ESTA
+// promo?". Distinta a propósito de `huellaPromoSku` (que sigue siendo la de monitoreo de
+// scraper_diffs, donde SÍ interesa contar cambios de precio/bancarias).
+//
+// Bug real (auditoría 2026-09-24): Alertas usaba `huellaPromoSku`, que mete el JSON entero de
+// `promocion`/`descuentoDirecto` (con `precioFinal`, `precioBase`, vigencias) y en
+// Día/Carrefour/Chango Más/Coto también `promosBancarias`. Si cambiaba el precio de lista, se
+// extendía la vigencia o rotaba una bancaria, la huella cambiaba y se re-avisaba "¡Nueva
+// promoción!" por la MISMA oferta. Acá solo entra lo que identifica a la promo:
+//   - teaser VTEX (`promocion`, Vea/Jumbo/Disco): nombre + código + % (sin precioFinal ni vigencia).
+//   - `descuentoDirecto`: tipo + % (sin precioBase/precioFinal).
+//   - `promosInternas` (NxM, 2do al X%): nombre + % + cantidad mínima, sin las marcadas
+//     `esBancaria`, ordenadas (el orden del array no es identidad).
+//   - `promosBancarias`: NO cuentan (no son promo del producto, mismo criterio que
+//     `tienePromoDeProducto`).
+// El % se normaliza a número redondeado ("41%" y 41 son lo mismo). Ojo: en `descuentoDirecto`
+// el % lo deriva el scraper de precioBase/precioFinal, así que un cambio de precio que mueva el
+// % redondeado SÍ re-avisa — es a propósito: "30% off" → "40% off" es una oferta distinta.
+//
+// Versionada con el prefijo `v2:` — las huellas guardadas antes de este cambio (formato de
+// `huellaPromoSku`, sin prefijo) nunca coinciden con una v2. avisoProductosSeguidos.js detecta
+// una guardada del formato viejo (`esHuellaVigente`) y la reescribe SIN avisar, para que el
+// primer deploy no dispare un aluvión de "nueva promoción" a todos los que ya estaban avisados.
+const PREFIJO_HUELLA_ALERTAS = 'v2:';
+
+function pctNormalizado(valor) {
+  const n = typeof valor === 'string' ? parseFloat(valor) : valor;
+  return Number.isFinite(n) ? Math.round(n) : null;
+}
+
+function huellaIdentidadPromo(sku) {
+  let identidad;
+  if (sku.promocion !== undefined) {
+    const p = sku.promocion || {};
+    identidad = { t: 'teaser', nombre: p.nombre ?? null, codigo: p.codigo ?? null, pct: pctNormalizado(p.descuentoPct) };
+  } else {
+    const dd = sku.descuentoDirecto;
+    const internas = (sku.promosInternas ?? [])
+      .filter(p => p && !p.esBancaria)
+      .map(p => ({ nombre: p.nombre ?? null, pct: pctNormalizado(p.descuentoPct), min: p.cantidadMinima ?? null }))
+      .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+    identidad = {
+      t: 'estructurada',
+      directo: dd ? { tipo: dd.tipo ?? null, pct: pctNormalizado(dd.descuentoPct) } : null,
+      internas,
+    };
+  }
+  return PREFIJO_HUELLA_ALERTAS + JSON.stringify(identidad);
+}
+
+// ¿La huella guardada en producto_seguido es del formato actual? (null no cuenta: significa
+// "no hay nada avisado", no "formato viejo").
+function esHuellaVigente(huella) {
+  return typeof huella === 'string' && huella.startsWith(PREFIJO_HUELLA_ALERTAS);
+}
+
 // Si un SKU tiene promo de PRODUCTO activa ahora mismo — a propósito NO cuenta
 // `promosBancarias` (promo de tarjeta/banco, no del producto en sí; ver
 // aviso-promo-sin-aplicar-solo-si-gana en la memoria del proyecto, es un mecanismo aparte) para
@@ -77,8 +134,8 @@ function descuentoDeProducto(sku) {
 // diff global de "sin promo a con promo" se pierde el caso de alguien que empieza a seguir un
 // producto que YA tenía promo activa — esa transición ya pasó antes de que existiera el
 // seguimiento, así que nunca volvería a dispararse y el usuario se quedaría sin avisar para
-// siempre. En cambio, acá se expone el estado actual con su `huella` (mismo formato que
-// `huellaPromoSku`) y es `avisoProductosSeguidos.js` quien decide, por CADA fila de
+// siempre. En cambio, acá se expone el estado actual con su `huella` (de identidad, ver
+// `huellaIdentidadPromo` — sin precio ni bancarias) y es `avisoProductosSeguidos.js` quien decide, por CADA fila de
 // `producto_seguido`, si la huella actual difiere de la última que se le avisó a ese usuario —
 // eso cubre tanto "la promo recién se prendió" como "recién empecé a seguir algo que ya tenía
 // promo" con la misma comparación.
@@ -94,7 +151,7 @@ function estadoPromoPorEan(catalogo, superNombre) {
       nombre: sku.productName || sku.skuName || sku.nombre || '(sin nombre)',
       categoria: sku.categoria || null,
       super: superNombre,
-      huella: huellaPromoSku(sku),
+      huella: huellaIdentidadPromo(sku),
       ...descuentoDeProducto(sku),
     });
   }
@@ -228,4 +285,13 @@ async function registrarError(fila) {
   console.error(`   ⚠️  No se pudo registrar el error de ${fila.super} (${fila.etapa}) tras ${REINTENTOS + 1} intentos: ${ultimoError.message}`);
 }
 
-module.exports = { leerJSON, diffProductos, diffPromosSuper, registrarDiff, registrarError, estadoPromoPorEan };
+module.exports = {
+  leerJSON,
+  diffProductos,
+  diffPromosSuper,
+  registrarDiff,
+  registrarError,
+  estadoPromoPorEan,
+  huellaIdentidadPromo,
+  esHuellaVigente,
+};

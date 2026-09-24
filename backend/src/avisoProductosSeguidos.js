@@ -20,12 +20,21 @@
  * primera corrida después de seguirlo ya dispara el aviso, aunque a nivel global esa promo no
  * sea "nueva". Si la promo se apaga, se resetea a null para que la próxima vez que se prenda
  * vuelva a avisar.
+ *
+ * Elegibilidad (auditoría 2026-09-24 — antes no filtraba nada): solo se avisa a quien tiene la
+ * app habilitada (`tienePlanActivo`: premium o trial vigente), tanto por push como por mail; un
+ * usuario en 'gratis' / trial vencido no puede abrir la app sin pagar, así que el aviso no le
+ * sirve. Igual que con el interruptor apagado, a ese usuario NO se le actualiza la huella: si
+ * paga más adelante, la promo que siga vigente le llega. El mail además exige mail confirmado
+ * (`emailConfirmado`, mismo criterio que los demás crons); el push no (sin confirmar el mail no
+ * hay forma de loguearse y suscribir push, así que en la práctica no pasa).
  */
 
 const { clienteSupabaseAdmin } = require('./clienteSupabaseAdmin');
-const { listarTodosLosUsuarios } = require('./usuariosAuth');
+const { listarTodosLosUsuarios, tienePlanActivo, leerTodasLasFilas } = require('./usuariosAuth');
 const { enviarMail } = require('./clienteBrevo');
-const { armarMailBase, URL_APP } = require('./plantillaMail');
+const { armarMailBase, escaparHtml, URL_APP } = require('./plantillaMail');
+const { esHuellaVigente } = require('./cron/diffCatalogos');
 const { obtenerSuscripcionesPorUsuario, enviarPush } = require('./clientePush');
 
 function formatoArs(monto) {
@@ -33,14 +42,15 @@ function formatoArs(monto) {
 }
 
 function armarHtml({ nombreUsuario, productos }) {
-  const saludo = nombreUsuario ? `Hola ${nombreUsuario},` : 'Hola,';
+  const saludo = nombreUsuario ? `Hola ${escaparHtml(nombreUsuario)},` : 'Hola,';
   const items = productos
     .map(p => {
       const chip = p.descuentoPct
-        ? `<span style="display:inline-block; background:#FFD400; color:#14161A; font-weight:700; padding:2px 8px; border-radius:5px; font-size:13px;">${p.descuentoPct}%</span> `
+        ? `<span style="display:inline-block; background:#FFD400; color:#14161A; font-weight:700; padding:2px 8px; border-radius:5px; font-size:13px;">${escaparHtml(p.descuentoPct)}%</span> `
         : '';
       const precio = p.precioFinal ? formatoArs(p.precioFinal) : '';
-      return `<li style="margin-bottom:8px;">${p.nombre} — <strong>${p.super}</strong>${chip || precio ? ` · ${chip}${precio}` : ''}</li>`;
+      // nombre viene scrapeado del super (y super es nuestro, pero se escapa igual por las dudas).
+      return `<li style="margin-bottom:8px;">${escaparHtml(p.nombre)} — <strong>${escaparHtml(p.super)}</strong>${chip || precio ? ` · ${chip}${precio}` : ''}</li>`;
     })
     .join('');
 
@@ -56,6 +66,8 @@ function armarHtml({ nombreUsuario, productos }) {
     titulo: productos.length === 1 ? '¡Nueva promoción!' : `¡${productos.length} nuevas promociones!`,
     cuerpoHtml: cuerpo,
     cta: { texto: 'Ver en SuperAhorro', url: `${URL_APP}/alertas` },
+    footerTexto: 'Recibís este mail porque seguís productos en Alertas de SuperAhorro. Podés apagar los avisos desde la pestaña Alertas.',
+    noTransaccional: true,
   });
 }
 
@@ -76,35 +88,10 @@ function armarPush(productos) {
 }
 
 /**
- * @param {Map<string, {ean: string, nombre: string, categoria: string|null, super: string, huella: string, descuentoPct: number|null, precioFinal: number|null}>} estadoActualPromoPorEan -
- *   estado ACTUAL (no un diff) de qué EAN tienen promo de producto en esta corrida, ver
- *   `estadoPromoPorEan` en cron/diffCatalogos.js.
+ * Decide, por cada fila de producto_seguido, si hay que avisar y qué huella guardar. Pura (sin
+ * red) para poder testearla — ver backend/test/avisosMail.test.js.
  */
-async function avisarProductosSeguidos(estadoActualPromoPorEan) {
-  const cliente = clienteSupabaseAdmin();
-  if (!cliente) return { avisados: 0, errores: ['Falta SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY'] };
-
-  const { data: seguidos, error } = await cliente
-    .from('producto_seguido')
-    .select('id, usuario_id, ean, huella_promo_avisada');
-  if (error) return { avisados: 0, errores: [`No se pudo leer producto_seguido: ${error.message}`] };
-  if (!seguidos?.length) return { avisados: 0, errores: [] };
-
-  const errores = [];
-  const usuarioIds = [...new Set(seguidos.map(f => f.usuario_id))];
-  const [{ data: perfiles, error: errorPerfiles }, listaUsuarios, suscripcionesPush] = await Promise.all([
-    cliente.from('perfil_usuario').select('id, nombre, alertas_activas').in('id', usuarioIds),
-    listarTodosLosUsuarios(cliente).catch(err => {
-      errores.push(`No se pudo listar usuarios: ${err.message}`);
-      return [];
-    }),
-    obtenerSuscripcionesPorUsuario(cliente).catch(() => new Map()),
-  ]);
-  if (errorPerfiles) return { avisados: 0, errores: [...errores, `No se pudo leer perfil_usuario: ${errorPerfiles.message}`] };
-
-  const emailPorId = new Map(listaUsuarios.map(u => [u.id, u.email]));
-  const perfilPorId = new Map((perfiles ?? []).map(p => [p.id, p]));
-
+function clasificarSeguidos(seguidos, estadoActualPromoPorEan, perfilPorId, ahora = Date.now()) {
   const porUsuario = new Map(); // usuarioId -> productos a avisar en esta corrida
   const actualizacionesHuella = []; // { id, huella_promo_avisada }
 
@@ -112,9 +99,19 @@ async function avisarProductosSeguidos(estadoActualPromoPorEan) {
     const actual = estadoActualPromoPorEan.get(fila.ean);
     if (actual) {
       if (actual.huella === fila.huella_promo_avisada) continue; // ya se avisó de esta misma promo
-      // Con el interruptor apagado no se marca como avisado — si el usuario lo reactiva más
-      // adelante, la promo que siga vigente en ese momento todavía le tiene que llegar.
-      if (perfilPorId.get(fila.usuario_id)?.alertas_activas === false) continue;
+      // Huella guardada con el formato viejo (pre-auditoría 2026-09-24, incluía precio y
+      // bancarias): ya se le avisó de ALGO en este producto y la promo sigue activa. Se reescribe
+      // al formato nuevo sin avisar — si no, el primer deploy re-avisaba a todos de golpe. Costo
+      // aceptado: si justo esa promo vieja fue reemplazada por otra distinta, esa se pierde una vez.
+      if (fila.huella_promo_avisada !== null && !esHuellaVigente(fila.huella_promo_avisada)) {
+        actualizacionesHuella.push({ id: fila.id, huella_promo_avisada: actual.huella });
+        continue;
+      }
+      const perfil = perfilPorId.get(fila.usuario_id);
+      // Con el interruptor apagado o sin plan activo no se marca como avisado — si el usuario lo
+      // reactiva / paga más adelante, la promo que siga vigente en ese momento le tiene que llegar.
+      if (perfil?.alertas_activas === false) continue;
+      if (!tienePlanActivo(perfil, ahora)) continue;
       const lista = porUsuario.get(fila.usuario_id) ?? [];
       lista.push(actual);
       porUsuario.set(fila.usuario_id, lista);
@@ -126,6 +123,47 @@ async function avisarProductosSeguidos(estadoActualPromoPorEan) {
       actualizacionesHuella.push({ id: fila.id, huella_promo_avisada: null });
     }
   }
+
+  return { porUsuario, actualizacionesHuella };
+}
+
+/**
+ * @param {Map<string, {ean: string, nombre: string, categoria: string|null, super: string, huella: string, descuentoPct: number|null, precioFinal: number|null}>} estadoActualPromoPorEan -
+ *   estado ACTUAL (no un diff) de qué EAN tienen promo de producto en esta corrida, ver
+ *   `estadoPromoPorEan` en cron/diffCatalogos.js.
+ */
+async function avisarProductosSeguidos(estadoActualPromoPorEan) {
+  const cliente = clienteSupabaseAdmin();
+  if (!cliente) return { avisados: 0, errores: ['Falta SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY'] };
+
+  // Paginado: tope de 20 por usuario, pero con 50+ usuarios ya se pasa de las 1000 filas que
+  // devuelve PostgREST por respuesta.
+  const { data: seguidos, error } = await leerTodasLasFilas(() =>
+    cliente.from('producto_seguido').select('id, usuario_id, ean, huella_promo_avisada').order('id')
+  );
+  if (error) return { avisados: 0, errores: [`No se pudo leer producto_seguido: ${error.message}`] };
+  if (!seguidos?.length) return { avisados: 0, errores: [] };
+
+  const errores = [];
+  const usuarioIds = [...new Set(seguidos.map(f => f.usuario_id))];
+  const [{ data: perfiles, error: errorPerfiles }, listaUsuarios, suscripcionesPush] = await Promise.all([
+    leerTodasLasFilas(() =>
+      cliente.from('perfil_usuario').select('id, nombre, alertas_activas, plan, trial_termina_en').in('id', usuarioIds).order('id')
+    ),
+    listarTodosLosUsuarios(cliente).catch(err => {
+      errores.push(`No se pudo listar usuarios: ${err.message}`);
+      return [];
+    }),
+    obtenerSuscripcionesPorUsuario(cliente).catch(() => new Map()),
+  ]);
+  if (errorPerfiles) return { avisados: 0, errores: [...errores, `No se pudo leer perfil_usuario: ${errorPerfiles.message}`] };
+
+  const emailPorId = new Map(listaUsuarios.map(u => [u.id, u.email]));
+  const confirmadoPorId = new Map(listaUsuarios.map(u => [u.id, u.emailConfirmado]));
+  const ahora = Date.now();
+  const perfilPorId = new Map((perfiles ?? []).map(p => [p.id, p]));
+
+  const { porUsuario, actualizacionesHuella } = clasificarSeguidos(seguidos, estadoActualPromoPorEan, perfilPorId, ahora);
 
   // Guarda el estado ANTES de mandar mail/push: si el envío falla a mitad de camino, es mejor
   // perder un aviso puntual que reenviar el mismo para siempre en cada corrida.
@@ -148,14 +186,18 @@ async function avisarProductosSeguidos(estadoActualPromoPorEan) {
     const email = emailPorId.get(usuarioId);
     if (!email) {
       errores.push(`Usuario ${usuarioId} sin mail en auth.users — omitido del mail (push sí se mandó)`);
+    } else if (!confirmadoPorId.get(usuarioId)) {
+      // Mail sin confirmar: no se le manda mail (ver fix-crons-mail-sin-confirmar); el push sí.
     } else {
       const resultadoMail = await enviarMail({
         destinatarioEmail: email,
         destinatarioNombre: perfil?.nombre,
         asunto: productos.length === 1 ? '¡Nueva promoción en un producto que seguís!' : `¡${productos.length} nuevas promociones en productos que seguís!`,
         html: armarHtml({ nombreUsuario: perfil?.nombre, productos }),
+        noTransaccional: true,
       });
-      if (!resultadoMail.ok) errores.push(`Mail a ${email}: ${resultadoMail.error}`);
+      // Se loguea el id, no el mail: este reporte termina en logs/archivos de la VM.
+      if (!resultadoMail.ok) errores.push(`Mail a usuario ${usuarioId}: ${resultadoMail.error}`);
     }
 
     avisados++;
@@ -164,4 +206,4 @@ async function avisarProductosSeguidos(estadoActualPromoPorEan) {
   return { avisados, errores };
 }
 
-module.exports = { avisarProductosSeguidos };
+module.exports = { avisarProductosSeguidos, clasificarSeguidos, armarHtml };

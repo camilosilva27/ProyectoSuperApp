@@ -10,6 +10,10 @@
  * Misma elegibilidad que el mensual (excluye plan 'gratis' hace +30 días) — reusada de ahí, no
  * duplicada.
  *
+ * Idempotente por (usuario, semana ISO de la corrida en hora Argentina) vía `envio_mail_periodico`
+ * (migración 0026, auditoría 2026-09-24) — re-correrlo la misma semana no duplica mails/push.
+ * Lecturas paginadas (PostgREST corta en 1000 filas). Mail NO transaccional (List-Unsubscribe + pie).
+ *
  * Uso: node src/cron/resumenSemanalAhorro.js   (o npm run resumen-semanal-ahorro)
  * Crontab sugerido en la VM (lunes, 15:00 UTC = 12:00 Argentina — distinto de
  * recordatorioSemanal, que ya usa los lunes 13:00 UTC):
@@ -21,27 +25,39 @@ const fs = require('fs');
 const path = require('path');
 const { rutaLogs } = require('../config');
 const { clienteSupabaseAdmin } = require('../clienteSupabaseAdmin');
-const { listarTodosLosUsuarios } = require('../usuariosAuth');
+const { listarTodosLosUsuarios, leerTodasLasFilas } = require('../usuariosAuth');
 const { enviarMail } = require('../clienteBrevo');
-const { armarMailBase, COLOR_ACENTO, COLOR_ACENTO_SUAVE, COLOR_TEXTO, URL_APP } = require('../plantillaMail');
-const { esElegible } = require('./resumenMensualAhorro');
+const { armarMailBase, escaparHtml, COLOR_ACENTO, COLOR_ACENTO_SUAVE, COLOR_TEXTO, URL_APP } = require('../plantillaMail');
+const { esElegible, reclamarEnvio, liberarEnvio } = require('./resumenMensualAhorro');
 const { obtenerSuscripcionesPorUsuario, enviarPush } = require('../clientePush');
 
 const SIETE_DIAS_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Semana ISO ('2026-W39') de un instante, en hora Argentina (UTC-3 fijo, sin horario de verano —
+// mismo criterio que el mensual). Es la clave de idempotencia del semanal.
+function semanaIsoArgentina(fecha) {
+  const d = new Date(fecha.getTime() - 3 * 60 * 60 * 1000);
+  const dia = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const diaSemana = dia.getUTCDay() || 7; // lunes=1 ... domingo=7
+  dia.setUTCDate(dia.getUTCDate() + 4 - diaSemana); // jueves de esa semana define el año ISO
+  const inicioAnio = new Date(Date.UTC(dia.getUTCFullYear(), 0, 1));
+  const semana = Math.ceil(((dia - inicioAnio) / 86400000 + 1) / 7);
+  return `${dia.getUTCFullYear()}-W${String(semana).padStart(2, '0')}`;
+}
 
 function formatoArs(monto) {
   return monto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
 }
 
 function armarHtml({ nombre, monto, cantidad }) {
-  const saludo = nombre ? `Hola ${nombre},` : 'Hola,';
+  const saludo = nombre ? `Hola ${escaparHtml(nombre)},` : 'Hola,';
   const cuerpo = `
     <p style="margin:0 0 16px 0;">${saludo}</p>
     <p style="margin:0 0 16px 0;">Esto ahorraste esta semana con SuperAhorro:</p>
     <p style="margin:0 0 16px 0; text-align:center;">
       <span style="display:inline-block; background:${COLOR_ACENTO_SUAVE}; border:2px solid ${COLOR_ACENTO}; color:${COLOR_TEXTO}; padding:6px 16px; border-radius:8px; font-size:1.5em; font-weight:700;">${formatoArs(monto)}</span>
     </p>
-    <p style="margin:0 0 16px 0;">ahorrados en ${cantidad} comparaci${cantidad === 1 ? 'ón' : 'ones'} de precios.</p>
+    <p style="margin:0 0 16px 0;">ahorrados en ${escaparHtml(cantidad)} comparaci${cantidad === 1 ? 'ón' : 'ones'} de precios.</p>
     <p style="margin:0;">Seguí usando SuperAhorro para seguir ahorrando!</p>
   `;
   return armarMailBase({
@@ -49,6 +65,7 @@ function armarHtml({ nombre, monto, cantidad }) {
     titulo: 'Tu resumen de la semana',
     cuerpoHtml: cuerpo,
     cta: { texto: 'Ver mi historial de ahorro', url: `${URL_APP}/mis-ahorros` },
+    noTransaccional: true,
   });
 }
 
@@ -62,6 +79,7 @@ async function resumenSemanalAhorro() {
   let omitidosSinAhorro = 0;
   let omitidosPlan = 0;
   let omitidosSinConfirmar = 0;
+  let omitidosYaEnviado = 0;
 
   const cliente = clienteSupabaseAdmin();
   if (!cliente) {
@@ -69,11 +87,16 @@ async function resumenSemanalAhorro() {
     console.error(`   ❌ ${errores[0]}`);
   } else {
     const haceUnaSemana = new Date(inicio.getTime() - SIETE_DIAS_MS);
+    const periodo = semanaIsoArgentina(inicio);
 
     const [{ data: perfiles, error: errorPerfiles }, { data: eventos, error: errorEventos }, usuarios, suscripcionesPush] =
       await Promise.all([
-        cliente.from('perfil_usuario').select('id, nombre, plan, plan_bajado_a_gratis_en'),
-        cliente.from('ahorro_registro').select('usuario_id, monto').gte('fecha', haceUnaSemana.toISOString()),
+        leerTodasLasFilas(() =>
+          cliente.from('perfil_usuario').select('id, nombre, plan, plan_bajado_a_gratis_en').order('id')
+        ),
+        leerTodasLasFilas(() =>
+          cliente.from('ahorro_registro').select('usuario_id, monto').gte('fecha', haceUnaSemana.toISOString()).order('id')
+        ),
         listarTodosLosUsuarios(cliente).catch(err => {
           errores.push(`No se pudo listar usuarios: ${err.message}`);
           return [];
@@ -117,32 +140,47 @@ async function resumenSemanalAhorro() {
           errores.push(`Usuario ${perfil.id} sin mail en auth.users — omitido`);
           continue;
         }
+        const reclamo = await reclamarEnvio(cliente, perfil.id, 'resumen_semanal', periodo);
+        if (reclamo.error) {
+          errores.push(`No se pudo marcar el resumen del usuario ${perfil.id}: ${reclamo.error} — omitido`);
+          continue;
+        }
+        if (!reclamo.reclamado) {
+          omitidosYaEnviado++;
+          continue;
+        }
         const resultado = await enviarMail({
           destinatarioEmail: email,
           destinatarioNombre: perfil.nombre,
           asunto: 'Esto ahorraste esta semana con SuperAhorro',
           html: armarHtml({ nombre: perfil.nombre, monto, cantidad }),
+          noTransaccional: true,
         });
+        // Id, no mail, en el log (auditoría 2026-09-24).
         if (resultado.ok) enviados++;
-        else errores.push(`Falló el mail a ${email}: ${resultado.error}`);
+        else errores.push(`Falló el mail al usuario ${perfil.id}: ${resultado.error}`);
 
         const resultadoPush = await enviarPush(cliente, suscripcionesPush.get(perfil.id) ?? [], {
           title: 'SuperAhorro',
           body: `Esto ahorraste esta semana: ${formatoArs(monto)}`,
           url: `${URL_APP}/mis-ahorros`,
         });
+        if (!resultado.ok && resultadoPush.enviados === 0) {
+          const errorLiberar = await liberarEnvio(cliente, perfil.id, 'resumen_semanal', periodo);
+          if (errorLiberar) errores.push(`No se pudo liberar el reclamo del usuario ${perfil.id}: ${errorLiberar}`);
+        }
         enviadosPush += resultadoPush.enviados;
         errores.push(...resultadoPush.errores);
       }
     }
   }
 
-  const reporte = { inicio: inicio.toISOString(), fin: new Date().toISOString(), enviados, enviadosPush, omitidosSinAhorro, omitidosPlan, omitidosSinConfirmar, errores };
+  const reporte = { inicio: inicio.toISOString(), fin: new Date().toISOString(), enviados, enviadosPush, omitidosSinAhorro, omitidosPlan, omitidosSinConfirmar, omitidosYaEnviado, errores };
 
   fs.mkdirSync(rutaLogs, { recursive: true });
   fs.writeFileSync(path.join(rutaLogs, 'ultimo-resumen-semanal-ahorro.json'), JSON.stringify(reporte, null, 2));
 
-  console.log(`   ✅ ${enviados} mails, ${enviadosPush} push, ${omitidosSinAhorro} omitidos (sin ahorro), ${omitidosPlan} omitidos (plan gratis hace +30 días), ${omitidosSinConfirmar} omitidos (mail sin confirmar), ${errores.length} con error`);
+  console.log(`   ✅ ${enviados} mails, ${enviadosPush} push, ${omitidosSinAhorro} omitidos (sin ahorro), ${omitidosPlan} omitidos (plan gratis hace +30 días), ${omitidosSinConfirmar} omitidos (mail sin confirmar), ${omitidosYaEnviado} ya enviados esta semana, ${errores.length} con error`);
 
   return reporte;
 }
@@ -156,4 +194,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { resumenSemanalAhorro, armarHtml };
+module.exports = { resumenSemanalAhorro, armarHtml, semanaIsoArgentina };

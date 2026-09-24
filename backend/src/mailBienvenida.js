@@ -12,14 +12,15 @@
 
 const { clienteSupabaseAdmin } = require('./clienteSupabaseAdmin');
 const { enviarMail } = require('./clienteBrevo');
-const { armarMailBase, URL_APP } = require('./plantillaMail');
+const { armarMailBase, escaparHtml, URL_APP } = require('./plantillaMail');
 const { obtenerSuscripcionesDeUsuario, enviarPush } = require('./clientePush');
 
 // Sin CTA a propósito: el remitente es no-reply@mi-superapp.com.ar (ver clienteBrevo.js), una
 // respuesta directa al mail no llegaría a ningún lado — por eso se deriva al mail de contacto
 // real, el mismo que ya figura en Ajustes (app/app/(tabs)/ajustes.tsx).
 function armarHtml({ nombre }) {
-  const saludo = nombre ? `Hola ${nombre},` : 'Hola,';
+  // `nombre` lo escribe el usuario al registrarse: escapado (auditoría 2026-09-24).
+  const saludo = nombre ? `Hola ${escaparHtml(nombre)},` : 'Hola,';
 
   const cuerpo = `
     <p style="margin:0 0 16px 0;">${saludo}</p>

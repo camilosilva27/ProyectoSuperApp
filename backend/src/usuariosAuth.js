@@ -38,4 +38,49 @@ async function listarTodosLosUsuarios(clienteAdmin) {
   return usuarios;
 }
 
-module.exports = { listarTodosLosUsuarios };
+/**
+ * ¿El usuario tiene la app habilitada ahora mismo? Mismo criterio que el cliente
+ * (GatePaywallFinTrial.tsx): premium, o trial cuyo `trial_termina_en` todavía no pasó (o es
+ * null, igual que en el cliente). NO se confía solo en `plan`: el downgrade trial → gratis
+ * (`bajar_planes_vencidos`, pg_cron diario 3:00 UTC) puede tardar hasta 24hs, y en ese hueco
+ * `plan` sigue diciendo 'trial' con el trial ya vencido.
+ *
+ * Nació en la auditoría 2026-09-24: Alertas e inactividad le mandaban avisos a usuarios en
+ * 'gratis' / trial vencido, que no pueden usar la app sin pagar (paywall sin plan gratis).
+ *
+ * @param {{plan?: string|null, trial_termina_en?: string|null}|undefined} perfil - fila de perfil_usuario.
+ * @param {number} [ahora] - ms epoch (inyectable para tests).
+ */
+function tienePlanActivo(perfil, ahora = Date.now()) {
+  if (!perfil) return false;
+  if (perfil.plan === 'premium') return true;
+  if (perfil.plan !== 'trial') return false;
+  if (!perfil.trial_termina_en) return true;
+  return new Date(perfil.trial_termina_en).getTime() > ahora;
+}
+
+/**
+ * Lee TODAS las filas de un select de PostgREST paginando con `.range()` — PostgREST corta cada
+ * respuesta en 1000 filas (max-rows de Supabase) SIN avisar, así que un `select()` suelto sobre
+ * perfil_usuario / ahorro_registro / producto_seguido dejaba afuera en silencio a todo lo que
+ * pasara de la fila 1000 (auditoría 2026-09-24). Vive acá, junto a `listarTodosLosUsuarios`,
+ * porque es el mismo problema ("los crons necesitan la lista completa, no una página").
+ *
+ * @param {() => object} armarQuery - devuelve un query builder NUEVO en cada llamada, con un
+ *   `.order()` por una columna única (sin orden estable, la paginación puede repetir/saltear filas).
+ * @returns {Promise<{data: Array, error: object|null}>} misma forma que un select de supabase-js.
+ */
+async function leerTodasLasFilas(armarQuery, tamanioPagina = 1000) {
+  const filas = [];
+  // Tope de seguridad contra un loop infinito (1000 páginas × 1000 filas = 1M filas).
+  for (let pagina = 0; pagina < 1000; pagina++) {
+    const desde = pagina * tamanioPagina;
+    const { data, error } = await armarQuery().range(desde, desde + tamanioPagina - 1);
+    if (error) return { data: null, error };
+    filas.push(...(data ?? []));
+    if (!data || data.length < tamanioPagina) break;
+  }
+  return { data: filas, error: null };
+}
+
+module.exports = { listarTodosLosUsuarios, tienePlanActivo, leerTodasLasFilas };
