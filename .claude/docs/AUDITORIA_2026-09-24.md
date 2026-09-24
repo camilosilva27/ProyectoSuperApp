@@ -2,18 +2,18 @@
 
 Revisión solo lectura de código (pagos, auth/Supabase, backend, motor AllPromos, app, mails/alertas, seguridad) + producción (VM, Vercel, Supabase, Mercado Pago) sobre el commit `de7337d`. Nada se modificó. Reporte interactivo (con casillas): https://claude.ai/artifact/DXE1t4jDWLGrAC5uq7qLNS
 
-Estado: resuelto el crítico de autopromoción; el resto pendiente. Al arreglar uno, marcarlo acá.
+Estado: los 6 críticos resueltos el 24/09; altos/medios/bajos pendientes salvo los marcados. Al arreglar uno, marcarlo acá.
 
 ## Crítico
 - [x] **Autopromoción a premium** — ✅ RESUELTO 24/09: migración `0024` aplicada en prod + chequeo de `external_reference` en `procesarSuscripcion`; verificado con la cuenta de prueba (403 en plan/premium_manual/trial/nombre, 204 en tour_visto). Detalle original: `authenticated` tenía UPDATE sobre las 25 columnas de `perfil_usuario` (confirmado en prod con `has_column_privilege`). La policy de 0002 solo limita la fila. Fix: revoke update + grant update por columna (carrito_items, carrito_tarjetas, supers_activos, tope_supers, tour_visto, alertas_activas, nombre). También validar en `procesarPagoMercadoPago.js` que la suscripción de MP sea del usuario.
-- [ ] **Cambio de plan cobra doble** — `routes/pagos.js:84-109,125-176` pisa `pasarela_suscripcion_id` sin cancelar la suscripción vieja en MP.
-- [ ] **Permanente puede perder acceso** — `procesarPagoAprobado` no limpia `pasarela_suscripcion_id`/`suscripcion_estado`/`acceso_premium_hasta`; `bajar_planes_vencidos` no excluye `tipo_plan='permanente'`.
+- [x] **Cambio de plan cobra doble** — ✅ RESUELTO 24/09 (0025 + anterior_id, ver Plan_Usuarios_y_cobros.md). — `routes/pagos.js:84-109,125-176` pisa `pasarela_suscripcion_id` sin cancelar la suscripción vieja en MP.
+- [x] **Permanente puede perder acceso** — ✅ RESUELTO 24/09. — `procesarPagoAprobado` no limpia `pasarela_suscripcion_id`/`suscripcion_estado`/`acceso_premium_hasta`; `bajar_planes_vencidos` no excluye `tipo_plan='permanente'`.
 - [x] **2x1 como 50% por unidad** — ✅ RESUELTO 24/09 (trim en promo-engine + tests). — `AllPromos/promo-engine.js:32` regex `^(\d+)x` falla con nombres que empiezan con espacio (Vea/Jumbo/Disco, ~85 SKUs).
 - [x] **Packs "473mlx6" no detectados** — ✅ RESUELTO 24/09 (3 patrones en empaquetado.js + tests). — `AllPromos/core/empaquetado.js` (Brahma, Andes IPA).
-- [ ] *(probable)* **Cuotas de suscripción tomadas como permanente** — la suscripción usa el mismo `external_reference`; depende de si MP lo propaga a cada cobro.
+- [x] *(probable)* **Cuotas de suscripción tomadas como permanente** — ✅ RESUELTO 24/09 (prefijo perm:). — la suscripción usa el mismo `external_reference`; depende de si MP lo propaga a cada cobro.
 
 ## Alto
-- [ ] Trial eterno en backend si se abandona el checkout (0020 filtra `pasarela_suscripcion_id is null`). Los 22 preapprovals pending de prod son de la etapa de pruebas (confirmado por el usuario), así que baja prioridad; el bug de código sigue para checkouts futuros.
+- [x] ✅ RESUELTO 24/09 (0025). Trial eterno en backend si se abandona el checkout (0020 filtra `pasarela_suscripcion_id is null`). Los 22 preapprovals pending de prod son de la etapa de pruebas (confirmado por el usuario), así que baja prioridad; el bug de código sigue para checkouts futuros.
 - [ ] Reembolsos/contracargos no bajan el plan (`procesarPagoMercadoPago.js:22`); arrepentimiento solo manual.
 - [ ] Tras pagar, 403 hasta ~1h: la app no llama `refreshSession()` (`flujoDePago.ts`).
 - [ ] Promos bancarias por día en UTC (`promos-bancarias.js:193`, VM en UTC).
@@ -21,7 +21,7 @@ Estado: resuelto el crítico de autopromoción; el resto pendiente. Al arreglar 
 - [ ] Caché sin límite de antigüedad + fallos de scrapers GHA no llegan a `/api/health`.
 - [ ] `schedule` de `scrapers.yml` sigue activo además del disparo de la VM, sin `concurrency` (4 corridas extra/día en prod).
 - [ ] Cola sin tope y fetch sin timeout en el fallback en vivo de `/api/comparar`.
-- [ ] Recibo de pago duplicado: guarda compara fechas como string (`procesarPagoMercadoPago.js:102`).
+- [x] ✅ RESUELTO 24/09. Recibo de pago duplicado: guarda compara fechas como string (`procesarPagoMercadoPago.js:102`).
 - [ ] Huella de Alertas incluye precio y bancarias (`diffCatalogos.js:25-32`) → re-avisos.
 - [ ] Alertas sin filtro de plan/emailConfirmado (`avisoProductosSeguidos.js`).
 - [ ] Carrito puede pisarse con vacío si falla la lectura (`sincronizacionPersistente.ts:81-109`).

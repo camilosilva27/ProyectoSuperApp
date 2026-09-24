@@ -64,9 +64,9 @@ router.post('/webhooks/mercadopago', async (req, res) => {
     // `type=payment` es el único caso de pago único (permanente); cualquier otro valor
     // (incluido el legado, sin `type`) se trata como evento de suscripción — mismo
     // comportamiento que tenía este endpoint antes de sumar el plan permanente. Un cargo
-    // recurrente de suscripción también llega acá como type=payment, pero sin
-    // external_reference (eso solo lo setea pagos.js para el plan permanente) —
-    // `procesarPagoAprobado` lo ignora en ese caso, la suscripción ya se reconcilia sola por
+    // recurrente de suscripción también llega acá como type=payment —
+    // `procesarPagoAprobado` solo acepta external_reference con prefijo "perm:" (el que pone
+    // pagos.js al pago único), así que lo ignora; la suscripción ya se reconcilia sola por
     // `next_payment_date` en la otra rama.
     if (req.query.type === 'payment') {
       const payment = new Payment(client);

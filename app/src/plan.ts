@@ -89,12 +89,10 @@ export type EstadoSuscripcionPlan = {
 };
 
 /**
- * `tipo_plan` se guarda al CREAR una suscripción/pago en Mercado Pago (`pagos.js`), antes de
- * que el usuario termine de pagar — es así a propósito para trackear qué está intentando pagar
- * (opciones_planes.md, Fase 3). Por eso `tipoPlan` sigue teniendo un valor aunque el usuario
- * cancele el checkout sin pagar nada: solo `plan === 'premium'` confirma que se cobró de verdad
- * (lo pone el webhook). Sin este chequeo, `PlanSelect` mostraba la tarjeta del plan intentado
- * como "tu plan actual" (colapsada, sin precio ni CTA) incluso cuando el usuario canceló en MP.
+ * Desde la auditoría 2026-09-24, `tipo_plan` se escribe recién cuando MP confirma el pago
+ * (procesarPagoMercadoPago.js), no al abrir el checkout — así un cambio de plan abandonado no
+ * muestra el plan intentado como si fuera el actual. Igual se exige `plan === 'premium'`: una
+ * fila vieja o un plan en período de gracia pueden tener `tipo_plan` sin estar cobrando.
  */
 export function estadoSuscripcionActiva(info: InfoPlan | null): EstadoSuscripcionPlan {
   if (info?.plan !== 'premium') return { planId: null, renuevaEl: null, pagadoEl: null };

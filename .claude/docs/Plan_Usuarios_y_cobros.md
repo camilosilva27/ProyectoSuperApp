@@ -261,6 +261,18 @@ Se evaluó sumar Stripe como segunda opción de cobro con tarjeta, además de Me
 
 **Cuenta real afectada restaurada a mano** (mismo día): `plan` vuelto a `'trial'`, `suscripcion_estado`/`pasarela_suscripcion_id` limpiados para no dejar rastro de la suscripción abandonada. Su `trial_termina_en` (ventana extendida por la pausa de fase de pruebas, ver arriba) quedó intacto.
 
+## Cambio de plan, permanente y cobros de suscripción — corregido 2026-09-24 (auditoría)
+
+Tres bugs críticos de la auditoría (`.claude/docs/AUDITORIA_2026-09-24.md`), migración `0025` + `procesarPagoMercadoPago.js` + `routes/pagos.js`. Tests con Supabase/MP simulados en `backend/test/procesarPagoMercadoPago.test.js` (12 casos).
+
+- **Cambio de plan (mensual ↔ anual, o a permanente):** antes `/pagos/suscripcion` pisaba `pasarela_suscripcion_id` sin cancelar la vieja → MP cobraba las dos. **Decisión del usuario: la vieja se cancela recién cuando MP confirma la nueva** (si abandona el checkout no pierde nada). Al abrir el checkout, la que estaba `authorized` se guarda en `pasarela_suscripcion_anterior_id`; cuando la nueva llega `authorized`, `procesarSuscripcion` la cancela en MP y limpia la columna. Si la nueva se cancela (abandono), la anterior vuelve a `pasarela_suscripcion_id`. Mientras dure el cambio, los eventos de la anterior se siguen procesando (un `cancelled` suyo aplica la gracia normal). "Cancelar suscripción" con un cambio en curso cancela las dos. `reintentarPagosPendientes` también revisa premium con cambio en curso.
+- **`tipo_plan` se escribe al confirmar, no al abrir el checkout** (se deriva de `auto_recurring.frequency`: 12 → anual).
+- **Permanente:** `procesarPagoAprobado` ahora limpia `pasarela_suscripcion_id`, `…_anterior_id`, `suscripcion_estado`, `siguiente_cobro_en` y `acceso_premium_hasta`, y cancela en MP cualquier suscripción que quedara. Antes un `cancelled` de una suscripción vieja podía bajarlo a gratis. `bajar_planes_vencidos()` además nunca baja `tipo_plan='permanente'`.
+- **Pago único con `external_reference = "perm:<usuarioId>"`** (antes el usuarioId pelado, igual que la suscripción). `procesarPagoAprobado` solo acepta ese prefijo, así un cobro mensual nunca se toma como compra del permanente. Pagos del permanente viejos sin prefijo: solo existían 2 de prueba de $10 de la cuenta del dueño.
+- **Backend rechaza (409) comprar el permanente dos veces o el mismo plan recurrente que ya está activo.**
+- **Recibo duplicado:** la comparación de `next_payment_date` era por string (formato MP `-04:00` vs Postgres `+00:00`); ahora compara `getTime()`.
+- **Trial eterno por checkout abandonado:** `bajar_planes_vencidos()` ya no exige `pasarela_suscripcion_id is null` para bajar un trial vencido (un trial con ese campo es un checkout que nunca se autorizó). Al aplicarla no afectaba a nadie (0 filas).
+
 ## Chequeo de plan en el Express (para cuando exista una feature gateada) — ✅ el gate real ya se implementó (26/08)
 
 **Actualizado 2026-08-29: esta sección describía solo la mecánica (JWT con `plan`), sin gate real todavía — eso ya cambió.** El commit `ae1cd96` (2026-08-26) agregó `requierePlanActivo` en `backend/src/middleware/requiereSesion.js`, aplicado en `/api/comparar`, `/api/precios`, `/api/catalogo/*` y `/api/mis-descuentos`. El hueco de "cualquiera puede usar el backend como proxy gratis" que se menciona más abajo como riesgo aceptado ya está cerrado. El resto de esta sección queda como registro de cómo se armó la mecánica del JWT antes de ese commit.

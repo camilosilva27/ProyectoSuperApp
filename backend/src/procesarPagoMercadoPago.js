@@ -8,6 +8,11 @@
  *
  * Ambas funciones son idempotentes por diseño (comparan el estado ANTES de escribir), así que
  * da lo mismo si el webhook y la verificación activa procesan el mismo pago dos veces.
+ *
+ * Cambio de plan (auditoría 2026-09-24): al abrir el checkout de otro plan, la suscripción que
+ * estaba activa se guarda en `pasarela_suscripcion_anterior_id` (ver routes/pagos.js) y recién
+ * se cancela en MP cuando el pago nuevo se confirma — acá, en `procesarSuscripcion` (plan
+ * recurrente nuevo autorizado) o en `procesarPagoAprobado` (permanente aprobado).
  */
 
 const { MercadoPagoConfig, PreApproval, Payment } = require('mercadopago');
@@ -15,29 +20,74 @@ const { planSegunEstado } = require('./planSegunEstadoSuscripcion');
 const { enviarRecibo } = require('./reciboPago');
 const { mercadopagoAccessToken } = require('./config');
 
-// Pago único del plan permanente: `pago.external_reference` es el usuarioId (seteado al crear
-// la Preference en pagos.js). Devuelve el plan resultante, o null si no había nada que aplicar
-// (pago no aprobado, o ya estaba aplicado antes).
+// El pago único del permanente se crea con external_reference = "perm:<usuarioId>" (routes/
+// pagos.js). El prefijo lo distingue de los cobros de una suscripción, que se crean con el
+// usuarioId pelado: sin él, si MP copiaba ese external_reference a cada cuota, un cobro mensual
+// se tomaba como compra del permanente (auditoría 2026-09-24).
+const PREFIJO_PERMANENTE = 'perm:';
+
+function referenciaPermanente(usuarioId) {
+  return `${PREFIJO_PERMANENTE}${usuarioId}`;
+}
+
+function usuarioDeReferenciaPermanente(externalReference) {
+  if (typeof externalReference !== 'string' || !externalReference.startsWith(PREFIJO_PERMANENTE)) return null;
+  return externalReference.slice(PREFIJO_PERMANENTE.length) || null;
+}
+
+/** Cancela suscripciones en MP. No lanza: una que ya estaba cancelada o nunca se autorizó puede
+ *  fallar y no importa; si falla una que sí cobraba, queda en el log para revisarla a mano. */
+async function cancelarSuscripcionesEnMP(ids) {
+  const pendientes = [...new Set(ids.filter(Boolean))];
+  if (!pendientes.length || !mercadopagoAccessToken) return;
+  const preApproval = new PreApproval(new MercadoPagoConfig({ accessToken: mercadopagoAccessToken }));
+  for (const id of pendientes) {
+    try {
+      await preApproval.update({ id, body: { status: 'cancelled' } });
+    } catch (err) {
+      console.error(`No se pudo cancelar la suscripción ${id} en MP (revisar a mano si seguía cobrando):`, err?.message ?? err);
+    }
+  }
+}
+
+// Pago único del plan permanente. Devuelve el plan resultante, o null si no había nada que
+// aplicar (pago no aprobado, no es del permanente, o ya estaba aplicado antes).
 async function procesarPagoAprobado(pago, supabaseAdmin) {
-  if (pago.status !== 'approved' || !pago.external_reference) return null;
+  if (pago.status !== 'approved') return null;
+  const usuarioId = usuarioDeReferenciaPermanente(pago.external_reference);
+  if (!usuarioId) return null;
 
   const { data: filaAnterior } = await supabaseAdmin
     .from('perfil_usuario')
-    .select('nombre, pagado_en')
-    .eq('id', pago.external_reference)
+    .select('nombre, pagado_en, pasarela_suscripcion_id, pasarela_suscripcion_anterior_id')
+    .eq('id', usuarioId)
     .eq('premium_manual', false)
     .maybeSingle();
   if (!filaAnterior) return null;
 
+  // Se limpia todo rastro de suscripción: si quedaba un id viejo, un 'cancelled' posterior de
+  // esa suscripción (o el botón "Cancelar suscripción", que se muestra si hay id) podía bajar a
+  // gratis a alguien que pagó el permanente (auditoría 2026-09-24).
   const { error } = await supabaseAdmin
     .from('perfil_usuario')
-    .update({ plan: 'premium', tipo_plan: 'permanente', pagado_en: pago.date_approved ?? null })
-    .eq('id', pago.external_reference)
+    .update({
+      plan: 'premium',
+      tipo_plan: 'permanente',
+      pagado_en: pago.date_approved ?? null,
+      pasarela_suscripcion_id: null,
+      pasarela_suscripcion_anterior_id: null,
+      suscripcion_estado: null,
+      siguiente_cobro_en: null,
+      acceso_premium_hasta: null,
+    })
+    .eq('id', usuarioId)
     .eq('premium_manual', false);
   if (error) throw error;
 
+  await cancelarSuscripcionesEnMP([filaAnterior.pasarela_suscripcion_id, filaAnterior.pasarela_suscripcion_anterior_id]);
+
   if (!filaAnterior.pagado_en) {
-    const resultado = await enviarRecibo(pago.external_reference, {
+    const resultado = await enviarRecibo(usuarioId, {
       tipoPlan: 'permanente',
       monto: pago.transaction_amount,
       siguienteCobroEn: null,
@@ -49,18 +99,26 @@ async function procesarPagoAprobado(pago, supabaseAdmin) {
   return 'premium';
 }
 
-// Suscripción (mensual/anual): `dataId` es el id de la suscripción en MP
-// (`perfil_usuario.pasarela_suscripcion_id`). Devuelve el plan resultante si cambió en la fila,
-// o null si no hubo cambio de plan (incluye el caso de gracia post-cancelación, ver abajo) o si
-// no había ningún usuario con esa suscripción (o ya estaba con premium manual).
+function tipoPlanSegunFrecuencia(suscripcion) {
+  return suscripcion.auto_recurring?.frequency === 12 ? 'anual' : 'mensual';
+}
+
+// Suscripción (mensual/anual): `dataId` es el id de la suscripción en MP. Puede ser la vigente
+// (`pasarela_suscripcion_id`) o la anterior de un cambio de plan todavía no confirmado
+// (`pasarela_suscripcion_anterior_id`, que hasta entonces sigue siendo la que da acceso).
+// Devuelve el plan resultante si cambió en la fila, o null si no hubo cambio de plan (incluye
+// el caso de gracia post-cancelación, ver abajo) o si no había ningún usuario con esa
+// suscripción (o ya estaba con premium manual).
 async function procesarSuscripcion(suscripcion, dataId, supabaseAdmin) {
   const nuevoPlan = planSegunEstado(suscripcion.status);
-  const cambios = { suscripcion_estado: suscripcion.status };
+  // dataId va interpolado en el filtro .or() de abajo: los ids de preapproval de MP son
+  // alfanuméricos, cualquier otra cosa se descarta antes de armar el filtro.
+  if (typeof dataId !== 'string' || !/^[A-Za-z0-9_-]+$/.test(dataId)) return null;
 
   const { data: filaAnterior } = await supabaseAdmin
     .from('perfil_usuario')
-    .select('id, plan, nombre, tipo_plan, siguiente_cobro_en')
-    .eq('pasarela_suscripcion_id', dataId)
+    .select('id, plan, nombre, tipo_plan, siguiente_cobro_en, pasarela_suscripcion_id, pasarela_suscripcion_anterior_id')
+    .or(`pasarela_suscripcion_id.eq.${dataId},pasarela_suscripcion_anterior_id.eq.${dataId}`)
     .eq('premium_manual', false)
     .maybeSingle();
   if (!filaAnterior) return null;
@@ -73,25 +131,57 @@ async function procesarSuscripcion(suscripcion, dataId, supabaseAdmin) {
     return null;
   }
 
+  const esLaAnterior = filaAnterior.pasarela_suscripcion_anterior_id === dataId
+    && filaAnterior.pasarela_suscripcion_id !== dataId;
+  const cambios = {};
+  let cancelarAnterior = null;
+
+  if (esLaAnterior) {
+    // Evento de la suscripción vieja mientras el cambio de plan no se confirmó: sigue siendo
+    // la que da acceso. Si se cancela o pausa por su lado, se trata como una cancelación normal
+    // (con gracia) y deja de ser "anterior".
+    if (nuevoPlan === 'premium') return null;
+    cambios.pasarela_suscripcion_anterior_id = null;
+  } else {
+    cambios.suscripcion_estado = suscripcion.status;
+  }
+
   if (nuevoPlan === 'premium') {
     cambios.plan = 'premium';
+    cambios.tipo_plan = tipoPlanSegunFrecuencia(suscripcion);
     cambios.siguiente_cobro_en = suscripcion.next_payment_date ?? null;
     cambios.acceso_premium_hasta = null;
+    if (filaAnterior.pasarela_suscripcion_anterior_id) {
+      cancelarAnterior = filaAnterior.pasarela_suscripcion_anterior_id;
+      cambios.pasarela_suscripcion_anterior_id = null;
+    }
   } else if (nuevoPlan === 'gratis' && filaAnterior.plan === 'premium') {
     // Cancelada o pausada: no se corta el acceso ya pagado de una. `siguiente_cobro_en` (la
     // fecha del próximo cobro que ya no va a pasar) es justo el límite de lo ya pagado, así
     // que el plan queda en premium hasta ahí — recién `bajar_planes_vencidos()` (migración
-    // 0020) lo baja de verdad cuando esa fecha pasa. Si no hay `siguiente_cobro_en` (nunca
-    // llegó a cobrarse ni una vez), no hay nada "ya pagado" que honrar: se baja ya.
-    const yaVencido = filaAnterior.siguiente_cobro_en
-      && new Date(filaAnterior.siguiente_cobro_en) <= new Date();
-    if (filaAnterior.siguiente_cobro_en && !yaVencido) {
-      cambios.acceso_premium_hasta = filaAnterior.siguiente_cobro_en;
+    // 0020/0025) lo baja de verdad cuando esa fecha pasa. Si no hay `siguiente_cobro_en`
+    // (nunca llegó a cobrarse ni una vez), no hay nada "ya pagado" que honrar: se baja ya.
+    //
+    // Si hay un cambio de plan en curso y la que se cancela es la NUEVA (checkout abandonado),
+    // no se toca el plan: el acceso lo sigue dando la anterior.
+    const cancelaLaNuevaConAnteriorViva = !esLaAnterior && !!filaAnterior.pasarela_suscripcion_anterior_id;
+    if (cancelaLaNuevaConAnteriorViva) {
+      // La anterior vuelve a ser la vigente, así "Cancelar suscripción" y los webhooks
+      // siguientes apuntan a la que de verdad cobra.
+      cambios.pasarela_suscripcion_id = filaAnterior.pasarela_suscripcion_anterior_id;
+      cambios.pasarela_suscripcion_anterior_id = null;
+      cambios.suscripcion_estado = 'authorized';
     } else {
-      cambios.plan = 'gratis';
-      cambios.tipo_plan = null;
-      cambios.siguiente_cobro_en = null;
-      cambios.acceso_premium_hasta = null;
+      const yaVencido = filaAnterior.siguiente_cobro_en
+        && new Date(filaAnterior.siguiente_cobro_en) <= new Date();
+      if (filaAnterior.siguiente_cobro_en && !yaVencido) {
+        cambios.acceso_premium_hasta = filaAnterior.siguiente_cobro_en;
+      } else {
+        cambios.plan = 'gratis';
+        cambios.tipo_plan = null;
+        cambios.siguiente_cobro_en = null;
+        cambios.acceso_premium_hasta = null;
+      }
     }
   }
   // Si nuevoPlan === 'gratis' pero filaAnterior.plan no era 'premium' (ej. 'trial'), esta
@@ -103,14 +193,20 @@ async function procesarSuscripcion(suscripcion, dataId, supabaseAdmin) {
   const { error } = await supabaseAdmin
     .from('perfil_usuario')
     .update(cambios)
-    .eq('pasarela_suscripcion_id', dataId)
+    .eq('id', filaAnterior.id)
     .eq('premium_manual', false);
   if (error) throw error;
 
-  const huboCobroNuevo = nuevoPlan === 'premium' && cambios.siguiente_cobro_en !== (filaAnterior.siguiente_cobro_en ?? null);
+  // Se cancela después de escribir la fila: así el webhook 'cancelled' de la vieja ya no la
+  // encuentra como anterior y no dispara la lógica de gracia sobre el plan nuevo.
+  if (cancelarAnterior) await cancelarSuscripcionesEnMP([cancelarAnterior]);
+
+  const fechaAntes = filaAnterior.siguiente_cobro_en ? new Date(filaAnterior.siguiente_cobro_en).getTime() : null;
+  const fechaAhora = cambios.siguiente_cobro_en ? new Date(cambios.siguiente_cobro_en).getTime() : null;
+  const huboCobroNuevo = nuevoPlan === 'premium' && !esLaAnterior && fechaAhora !== fechaAntes;
   if (huboCobroNuevo) {
     const resultado = await enviarRecibo(filaAnterior.id, {
-      tipoPlan: filaAnterior.tipo_plan || 'mensual',
+      tipoPlan: cambios.tipo_plan,
       monto: suscripcion.auto_recurring?.transaction_amount,
       siguienteCobroEn: cambios.siguiente_cobro_en,
       nombre: filaAnterior.nombre,
@@ -129,43 +225,50 @@ async function procesarSuscripcion(suscripcion, dataId, supabaseAdmin) {
 async function verificarYAplicarPago(usuarioId, supabaseAdmin) {
   const { data: perfil, error: errorPerfil } = await supabaseAdmin
     .from('perfil_usuario')
-    .select('plan, pasarela_suscripcion_id, premium_manual')
+    .select('plan, tipo_plan, pasarela_suscripcion_id, pasarela_suscripcion_anterior_id, premium_manual')
     .eq('id', usuarioId)
     .single();
   if (errorPerfil) throw errorPerfil;
 
-  if (perfil.plan === 'premium' || perfil.premium_manual) return perfil.plan;
+  if (perfil.premium_manual) return perfil.plan;
+  // Premium sin cambio de plan en curso: no hay nada que verificar. Con un cambio en curso
+  // (hay anterior), sí: hay que ver si el plan nuevo ya se confirmó para cancelar el viejo.
+  if (perfil.plan === 'premium' && !perfil.pasarela_suscripcion_anterior_id) return perfil.plan;
+  if (perfil.plan === 'premium' && perfil.tipo_plan === 'permanente') return perfil.plan;
   if (!mercadopagoAccessToken) return perfil.plan;
 
   const client = new MercadoPagoConfig({ accessToken: mercadopagoAccessToken });
+  const huboCambioEnCurso = !!perfil.pasarela_suscripcion_anterior_id;
 
-  // `pasarela_suscripcion_id` NO se limpia cuando alguien abandona una suscripción a medio
-  // camino y termina pagando el plan permanente (bug real encontrado probando esto en vivo,
-  // 2026-09-11) — así que su sola presencia no confirma que la suscripción sea el intento
-  // vigente. En vez de adivinar la rama por otro campo (que puede estar igual de
-  // desactualizado), se prueban las dos fuentes y gana la que confirme premium: es la única
-  // forma de no depender de que ningún campo guardado refleje bien "cuál fue el último intento
-  // real". Ambas siguen siendo idempotentes, así que no hay downside en consultar de más.
+  // `pasarela_suscripcion_id` puede ser un intento viejo que nunca se autorizó (checkout
+  // abandonado y después pago del permanente, bug real 2026-09-11) — así que se prueban las dos
+  // fuentes y gana la que confirme premium. Ambas son idempotentes.
   let plan = perfil.plan;
 
   if (perfil.pasarela_suscripcion_id) {
     const preApproval = new PreApproval(client);
     const suscripcion = await preApproval.get({ id: perfil.pasarela_suscripcion_id });
-    plan = (await procesarSuscripcion(suscripcion, perfil.pasarela_suscripcion_id, supabaseAdmin)) ?? plan;
-    if (plan === 'premium') return plan;
+    const resultado = await procesarSuscripcion(suscripcion, perfil.pasarela_suscripcion_id, supabaseAdmin);
+    plan = resultado ?? plan;
+    if (resultado === 'premium') return plan;
   }
 
-  // Plan permanente: el pago se busca por external_reference (seteado al crear la Preference
-  // en /pagos/pago-unico) — se revisa siempre que la rama de arriba no haya confirmado premium,
-  // sin importar si hay o no una suscripción vieja colgada.
   const payment = new Payment(client);
   const { results } = await payment.search({
-    options: { external_reference: usuarioId, sort: 'date_approved', criteria: 'desc' },
+    options: { external_reference: referenciaPermanente(usuarioId), sort: 'date_approved', criteria: 'desc' },
   });
   const pagoAprobado = results?.find((p) => p.status === 'approved');
   if (!pagoAprobado) return plan;
 
-  return (await procesarPagoAprobado(pagoAprobado, supabaseAdmin)) ?? plan;
+  // Con un cambio en curso el usuario ya es premium por la anterior: procesarPagoAprobado
+  // igual corre (idempotente) para pasarlo a permanente y cancelar lo viejo.
+  if (huboCambioEnCurso || plan !== 'premium') {
+    return (await procesarPagoAprobado(pagoAprobado, supabaseAdmin)) ?? plan;
+  }
+  return plan;
 }
 
-module.exports = { procesarPagoAprobado, procesarSuscripcion, verificarYAplicarPago };
+module.exports = {
+  procesarPagoAprobado, procesarSuscripcion, verificarYAplicarPago, referenciaPermanente,
+  cancelarSuscripcionesEnMP,
+};

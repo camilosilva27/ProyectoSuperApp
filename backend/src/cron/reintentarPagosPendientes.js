@@ -43,7 +43,9 @@ async function consultarCandidatosConReintento(cliente, limiteVentana) {
     const { data, error } = await cliente
       .from('perfil_usuario')
       .select('id, plan')
-      .neq('plan', 'premium')
+      // Premium con un cambio de plan en curso también: hay que ver si el plan nuevo ya se
+      // confirmó para cancelar la suscripción vieja (auditoría 2026-09-24).
+      .or('plan.neq.premium,pasarela_suscripcion_anterior_id.not.is.null')
       .eq('premium_manual', false)
       .not('intento_pago_en', 'is', null)
       .gte('intento_pago_en', limiteVentana.toISOString());

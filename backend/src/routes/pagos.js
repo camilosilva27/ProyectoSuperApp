@@ -17,7 +17,9 @@ const {
 } = require('mercadopago');
 const { requiereSesion } = require('../middleware/requiereSesion');
 const { clienteSupabaseAdmin } = require('../clienteSupabaseAdmin');
-const { procesarSuscripcion, verificarYAplicarPago } = require('../procesarPagoMercadoPago');
+const {
+  procesarSuscripcion, verificarYAplicarPago, referenciaPermanente, cancelarSuscripcionesEnMP,
+} = require('../procesarPagoMercadoPago');
 const {
   mercadopagoAccessToken, precioMensualArs, precioAnualArs, precioPermanenteArs,
   urlVueltaCheckoutMP,
@@ -36,6 +38,15 @@ function resolverEmailPago(req) {
   const emailBody = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
   if (emailBody && REGEX_EMAIL.test(emailBody)) return emailBody;
   return req.usuarioEmail;
+}
+
+const COLUMNAS_PAGO = 'plan, tipo_plan, premium_manual, pasarela_suscripcion_id, pasarela_suscripcion_anterior_id, suscripcion_estado';
+
+async function leerPerfilPago(supabaseAdmin, usuarioId) {
+  const { data, error } = await supabaseAdmin
+    .from('perfil_usuario').select(COLUMNAS_PAGO).eq('id', usuarioId).single();
+  if (error) throw error;
+  return data;
 }
 
 // Fase 3 (opciones_planes.md): mensual y anual son ambos PreApproval (suscripción recurrente
@@ -78,6 +89,26 @@ router.post('/pagos/suscripcion', requiereSesion, async (req, res) => {
   const emailPago = resolverEmailPago(req);
 
   try {
+    const perfil = await leerPerfilPago(supabaseAdmin, req.usuarioId);
+    if (perfil.plan === 'premium' && perfil.tipo_plan === 'permanente') {
+      return res.status(409).json({ error: 'Ya tenés el plan permanente' });
+    }
+    const tieneEsePlanActivo = perfil.plan === 'premium' && perfil.tipo_plan === tipoPlan
+      && perfil.suscripcion_estado === 'authorized' && !perfil.pasarela_suscripcion_anterior_id;
+    if (tieneEsePlanActivo) {
+      return res.status(409).json({ error: `Ya tenés el plan ${tipoPlan}` });
+    }
+
+    // Cambio de plan (auditoría 2026-09-24, decisión del usuario): la suscripción que hoy da
+    // acceso NO se cancela acá — se guarda como anterior y recién se cancela cuando MP confirma
+    // la nueva (procesarPagoMercadoPago.js). Si el usuario abandona el checkout, no pierde nada.
+    // Un intento previo que nunca se autorizó (checkout abandonado) sí se cancela: no da
+    // acceso y así no puede autorizarse más tarde por un link viejo sin que nadie lo registre.
+    const anterior = perfil.pasarela_suscripcion_anterior_id
+      ?? (perfil.suscripcion_estado === 'authorized' ? perfil.pasarela_suscripcion_id : null);
+    const intentoAbandonado = perfil.pasarela_suscripcion_id && perfil.pasarela_suscripcion_id !== anterior
+      ? perfil.pasarela_suscripcion_id : null;
+
     const client = new MercadoPagoConfig({ accessToken: mercadopagoAccessToken });
     const preApproval = new PreApproval(client);
 
@@ -101,13 +132,17 @@ router.post('/pagos/suscripcion', requiereSesion, async (req, res) => {
       .update({
         pasarela_pago: 'mercadopago',
         pasarela_suscripcion_id: suscripcion.id,
-        suscripcion_estado: suscripcion.status ?? 'pending',
-        tipo_plan: tipoPlan,
+        pasarela_suscripcion_anterior_id: anterior,
+        // Con un cambio en curso, suscripcion_estado describe la que da acceso (la anterior)
+        // hasta que la nueva se confirme; tipo_plan se escribe recién al confirmarse.
+        suscripcion_estado: anterior ? 'authorized' : (suscripcion.status ?? 'pending'),
         mail_mercado_pago: emailPago,
         intento_pago_en: new Date().toISOString(),
       })
       .eq('id', req.usuarioId);
     if (error) throw error;
+
+    if (intentoAbandonado) await cancelarSuscripcionesEnMP([intentoAbandonado]);
 
     res.json({ initPoint: suscripcion.init_point });
   } catch (err) {
@@ -137,6 +172,11 @@ router.post('/pagos/pago-unico', requiereSesion, async (req, res) => {
   const emailPago = resolverEmailPago(req);
 
   try {
+    const perfil = await leerPerfilPago(supabaseAdmin, req.usuarioId);
+    if (perfil.plan === 'premium' && perfil.tipo_plan === 'permanente') {
+      return res.status(409).json({ error: 'Ya tenés el plan permanente' });
+    }
+
     const client = new MercadoPagoConfig({ accessToken: mercadopagoAccessToken });
     const preference = new Preference(client);
 
@@ -149,7 +189,10 @@ router.post('/pagos/pago-unico', requiereSesion, async (req, res) => {
           unit_price: precioPermanenteArs,
           currency_id: 'ARS',
         }],
-        external_reference: req.usuarioId,
+        // Prefijo "perm:" para no confundirlo con los cobros de una suscripción, que llevan el
+        // usuarioId pelado (ver referenciaPermanente en procesarPagoMercadoPago.js). Si el
+        // usuario tiene una suscripción activa, se cancela cuando este pago se aprueba.
+        external_reference: referenciaPermanente(req.usuarioId),
         payer: { email: emailPago },
         back_urls: {
           success: urlVueltaCheckoutMP,
@@ -193,7 +236,7 @@ router.post('/pagos/cancelar-suscripcion', requiereSesion, async (req, res) => {
 
   const { data: perfil, error: errorPerfil } = await supabaseAdmin
     .from('perfil_usuario')
-    .select('pasarela_suscripcion_id')
+    .select('pasarela_suscripcion_id, pasarela_suscripcion_anterior_id')
     .eq('id', req.usuarioId)
     .single();
   if (errorPerfil || !perfil?.pasarela_suscripcion_id) {
@@ -201,14 +244,27 @@ router.post('/pagos/cancelar-suscripcion', requiereSesion, async (req, res) => {
   }
 
   try {
+    // Con un cambio de plan en curso, la que cobra es la anterior; la nueva todavía no se
+    // autorizó. Se cancela la nueva y se deja la anterior como vigente antes de cancelarla
+    // (así el 'cancelled' de la nueva ya no encuentra la fila y no la confunde).
+    const vigente = perfil.pasarela_suscripcion_anterior_id ?? perfil.pasarela_suscripcion_id;
+    if (perfil.pasarela_suscripcion_anterior_id) {
+      const { error: errorNormalizar } = await supabaseAdmin
+        .from('perfil_usuario')
+        .update({ pasarela_suscripcion_id: vigente, pasarela_suscripcion_anterior_id: null, suscripcion_estado: 'authorized' })
+        .eq('id', req.usuarioId);
+      if (errorNormalizar) throw errorNormalizar;
+      await cancelarSuscripcionesEnMP([perfil.pasarela_suscripcion_id]);
+    }
+
     const client = new MercadoPagoConfig({ accessToken: mercadopagoAccessToken });
     const preApproval = new PreApproval(client);
     const suscripcion = await preApproval.update({
-      id: perfil.pasarela_suscripcion_id,
+      id: vigente,
       body: { status: 'cancelled' },
     });
 
-    await procesarSuscripcion(suscripcion, perfil.pasarela_suscripcion_id, supabaseAdmin);
+    await procesarSuscripcion(suscripcion, vigente, supabaseAdmin);
 
     const { data: perfilActualizado, error: errorLectura } = await supabaseAdmin
       .from('perfil_usuario')
