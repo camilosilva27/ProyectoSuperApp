@@ -2,7 +2,8 @@
  * Tests de procesarPagoMercadoPago.js con Supabase y Mercado Pago simulados en memoria:
  * cambio de plan (la suscripción vieja se cancela recién al confirmarse la nueva), permanente
  * que limpia suscripciones viejas, cobros de suscripción que no se confunden con el permanente,
- * y recibo que no se duplica. Nacieron de la auditoría 2026-09-24.
+ * recibo que no se duplica, y reembolsos/contracargos que quitan el permanente. Nacieron de la
+ * auditoría 2026-09-24.
  *
  * Correr con: node --test backend/test/procesarPagoMercadoPago.test.js
  */
@@ -34,7 +35,7 @@ stub(path.join(__dirname, '../src/reciboPago.js'), {
   enviarRecibo: async (usuarioId, detalles) => { recibos.push({ usuarioId, ...detalles }); return { ok: true }; },
 });
 
-const { procesarSuscripcion, procesarPagoAprobado } = require('../src/procesarPagoMercadoPago');
+const { procesarSuscripcion, procesarPagoAprobado, procesarPagoUnico } = require('../src/procesarPagoMercadoPago');
 
 // --- Supabase en memoria: solo lo que usa el módulo -----------------------------------------
 function crearSupabase(filas) {
@@ -201,5 +202,70 @@ describe('otros', () => {
   test('un id con caracteres raros no llega al filtro', async () => {
     const plan = await procesarSuscripcion(suscripcion('x', 'authorized'), 'a,plan.eq.premium', supabase);
     assert.equal(plan, null);
+  });
+});
+
+describe('reembolsos y contracargos', () => {
+  const aprobado = { id: 900, status: 'approved', external_reference: `perm:${USUARIO}`, date_approved: '2026-09-24T12:00:00.000-04:00', transaction_amount: 160000 };
+
+  test('permanente reembolsado → gratis', async () => {
+    await procesarPagoUnico(aprobado, supabase);
+    assert.equal(fila.tipo_plan, 'permanente');
+    const plan = await procesarPagoUnico({ ...aprobado, status: 'refunded' }, supabase);
+    assert.equal(plan, 'gratis');
+    assert.equal(fila.plan, 'gratis');
+    assert.equal(fila.tipo_plan, null);
+    assert.equal(fila.pagado_en, null);
+  });
+
+  test('permanente contracargado → gratis (fecha en otro formato igual matchea)', async () => {
+    await procesarPagoUnico(aprobado, supabase);
+    fila.pagado_en = '2026-09-24T16:00:00+00:00';
+    const plan = await procesarPagoUnico({ ...aprobado, status: 'charged_back' }, supabase);
+    assert.equal(plan, 'gratis');
+    assert.equal(fila.plan, 'gratis');
+  });
+
+  test('disputa abierta (in_mediation) no toca nada', async () => {
+    await procesarPagoUnico(aprobado, supabase);
+    const plan = await procesarPagoUnico({ ...aprobado, status: 'in_mediation' }, supabase);
+    assert.equal(plan, null);
+    assert.equal(fila.tipo_plan, 'permanente');
+  });
+
+  test('reembolso de un cobro de suscripción no toca el plan', async () => {
+    const plan = await procesarPagoUnico({ ...aprobado, status: 'refunded', external_reference: USUARIO }, supabase);
+    assert.equal(plan, null);
+    assert.equal(fila.plan, 'premium');
+    assert.equal(fila.tipo_plan, 'mensual');
+  });
+
+  test('premium_manual no se toca', async () => {
+    Object.assign(fila, { tipo_plan: 'permanente', pagado_en: aprobado.date_approved, premium_manual: true });
+    const plan = await procesarPagoUnico({ ...aprobado, status: 'refunded' }, supabase);
+    assert.equal(plan, null);
+    assert.equal(fila.plan, 'premium');
+    assert.equal(fila.tipo_plan, 'permanente');
+  });
+
+  test('reembolso del permanente cuando ya no es permanente (pasó a mensual) no toca nada', async () => {
+    const plan = await procesarPagoUnico({ ...aprobado, status: 'refunded' }, supabase);
+    assert.equal(plan, null);
+    assert.equal(fila.tipo_plan, 'mensual');
+  });
+
+  test('contracargo tardío de un pago viejo no baja un permanente comprado con otro pago', async () => {
+    await procesarPagoUnico(aprobado, supabase);
+    const viejo = { ...aprobado, id: 800, status: 'charged_back', date_approved: '2026-09-01T12:00:00Z' };
+    const plan = await procesarPagoUnico(viejo, supabase);
+    assert.equal(plan, null);
+    assert.equal(fila.tipo_plan, 'permanente');
+  });
+
+  test('un pago cancelado que nunca se aprobó no baja nada', async () => {
+    await procesarPagoUnico(aprobado, supabase);
+    const plan = await procesarPagoUnico({ ...aprobado, status: 'cancelled', date_approved: null }, supabase);
+    assert.equal(plan, null);
+    assert.equal(fila.tipo_plan, 'permanente');
   });
 });

@@ -99,6 +99,71 @@ async function procesarPagoAprobado(pago, supabaseAdmin) {
   return 'premium';
 }
 
+// Estados de un pago que deshacen una compra ya aprobada (auditoría 2026-09-24): antes solo se
+// miraba 'approved', así que un permanente reembolsado o contracargado conservaba el plan.
+// 'cancelled' entra por las dudas (MP lo usa sobre todo para pagos que nunca se aprobaron, ej. un
+// ticket vencido — ver el chequeo de `date_approved` abajo). 'in_mediation' (disputa abierta)
+// NO: todavía puede resolverse a favor nuestro; recién 'charged_back' es la pérdida.
+const ESTADOS_PAGO_REVERTIDO = new Set(['refunded', 'charged_back', 'cancelled']);
+
+function mismoInstante(a, b) {
+  return new Date(a).getTime() === new Date(b).getTime();
+}
+
+// Pago único del permanente reembolsado / contracargado / cancelado: baja a gratis. Devuelve
+// 'gratis' si bajó el plan, o null si no había nada que deshacer.
+async function procesarPagoRevertido(pago, supabaseAdmin) {
+  if (!ESTADOS_PAGO_REVERTIDO.has(pago.status)) return null;
+  const usuarioId = usuarioDeReferenciaPermanente(pago.external_reference);
+  if (!usuarioId) {
+    // Cobro de una suscripción (external_reference = usuarioId pelado) reembolsado o
+    // contracargado: no se toca el plan por el pago. La suscripción se reconcilia por su propio
+    // estado (procesarSuscripcion); si hace falta cortarle el acceso, es cancelarla a mano en MP.
+    if (pago.external_reference) {
+      console.warn(`Pago ${pago.id} de suscripción (ref ${pago.external_reference}) quedó '${pago.status}'; no se toca el plan por el pago`);
+    }
+    return null;
+  }
+  // Un pago que nunca se aprobó (ej. 'cancelled' de un ticket vencido) no dio acceso: nada que deshacer.
+  if (!pago.date_approved) return null;
+
+  const { data: fila } = await supabaseAdmin
+    .from('perfil_usuario')
+    .select('pagado_en')
+    .eq('id', usuarioId)
+    .eq('premium_manual', false)
+    .eq('tipo_plan', 'permanente')
+    .maybeSingle();
+  if (!fila) return null;
+
+  // Si el permanente vigente vino de OTRO pago (ej. compró de nuevo después de un reembolso y
+  // llega tarde el contracargo del primero), este evento no le corresponde.
+  if (fila.pagado_en && !mismoInstante(fila.pagado_en, pago.date_approved)) {
+    console.warn(`Pago ${pago.id} del permanente quedó '${pago.status}' pero el plan de ${usuarioId} viene de otro pago; no se toca`);
+    return null;
+  }
+
+  const { error } = await supabaseAdmin
+    .from('perfil_usuario')
+    .update({ plan: 'gratis', tipo_plan: null, pagado_en: null })
+    .eq('id', usuarioId)
+    .eq('premium_manual', false)
+    .eq('tipo_plan', 'permanente');
+  if (error) throw error;
+
+  console.warn(`Permanente de ${usuarioId} revertido a gratis: pago ${pago.id} quedó '${pago.status}'`);
+  return 'gratis';
+}
+
+// Punto de entrada para cualquier evento de un pago (webhook type=payment, contracargos): aplica
+// el permanente si se aprobó o lo deshace si se revirtió. Cualquier otro estado ('pending',
+// 'in_process', 'in_mediation', 'rejected'…) no toca nada.
+async function procesarPagoUnico(pago, supabaseAdmin) {
+  if (pago.status === 'approved') return procesarPagoAprobado(pago, supabaseAdmin);
+  if (ESTADOS_PAGO_REVERTIDO.has(pago.status)) return procesarPagoRevertido(pago, supabaseAdmin);
+  return null;
+}
+
 function tipoPlanSegunFrecuencia(suscripcion) {
   return suscripcion.auto_recurring?.frequency === 12 ? 'anual' : 'mensual';
 }
@@ -269,6 +334,6 @@ async function verificarYAplicarPago(usuarioId, supabaseAdmin) {
 }
 
 module.exports = {
-  procesarPagoAprobado, procesarSuscripcion, verificarYAplicarPago, referenciaPermanente,
-  cancelarSuscripcionesEnMP,
+  procesarPagoAprobado, procesarPagoRevertido, procesarPagoUnico, procesarSuscripcion,
+  verificarYAplicarPago, referenciaPermanente, cancelarSuscripcionesEnMP,
 };

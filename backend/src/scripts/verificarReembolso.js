@@ -14,6 +14,11 @@
  * - Plan mensual/anual: `date_created` de la suscripción, consultado en vivo contra la API de
  *   Mercado Pago (no hay ninguna columna que guarde la fecha de alta real de la suscripción en
  *   `perfil_usuario` — `siguiente_cobro_en` es la fecha del PRÓXIMO cobro, no la de contratación).
+ *
+ * Correr esto ANTES de devolver la plata: una vez hecho el reembolso del permanente en MP, el
+ * webhook (procesarPagoRevertido, auditoría 2026-09-24) baja el plan a gratis y limpia
+ * `pagado_en`, así que después el script ya no encuentra la fecha. El reembolso de una cuota de
+ * suscripción no baja el plan: hay que cancelar además la suscripción.
  */
 
 const { MercadoPagoConfig, PreApproval } = require('mercadopago');
