@@ -28,12 +28,12 @@ Estado: los 6 críticos resueltos el 24/09; altos/medios/bajos pendientes salvo 
 - [x] ✅ RESUELTO 24/09. Huella de Alertas incluye precio y bancarias (`diffCatalogos.js:25-32`) → re-avisos.
 - [x] ✅ RESUELTO 24/09. Alertas sin filtro de plan/emailConfirmado (`avisoProductosSeguidos.js`).
 - [x] ✅ RESUELTO 24/09. Carrito puede pisarse con vacío si falla la lectura (`sincronizacionPersistente.ts:81-109`).
-- [ ] (en curso 24/09) Mails de 2 usuarios reales en `Plan_Usuarios_y_cobros.md:165` (repo público, commit 000b48d).
+- [x] ✅ RESUELTO 24/09: reemplazados en el archivo y en TODO el historial con `git filter-repo --replace-text` + force-push (el repo tiene que seguir público). La VM se alineó con `git fetch && git reset --hard origin/master`; cualquier otro clon viejo necesita lo mismo. Mails de 2 usuarios reales en `Plan_Usuarios_y_cobros.md:165` (repo público, commit 000b48d).
 - [x] ✅ RESUELTO 24/09. Timeout único de 4s en `app/src/api.ts` + retry puede duplicar POST de pago.
 
 ## Medio / bajo
 Resueltos el 24/09 (ver sección "Correcciones de la auditoría" en CONTEXTO_TECNICO.md): webhooks/async en Express, deploy con rollback, escrituras atómicas, search-promotions con retry, vigencia de promos, fallback en vivo ($0, Promise.all, timeouts), baja de mails (List-Unsubscribe + pie, sin endpoint con token todavía), HTML escapado, resúmenes paginados e idempotentes, Brevo con timeout, Política de Privacidad y ToS de la app actualizados, `www` con redirect, headers de seguridad, gate/carreras/ErrorBoundary en la app, contraseñas (mín. 8 + mayúscula), tests e2e arreglados.
-Pendientes: `StrictHostKeyChecking=no` en scripts de CI (requiere secret con el fingerprint), captcha (descartado por ahora), endpoint de baja con token.
+Pendientes: reembolsos/contracargos que no quitan acceso (alto), webhooks de otros tópicos que dan 500 y suscripción con cobros rechazados (medios), `StrictHostKeyChecking=no` en scripts de CI (requiere secret con el fingerprint), captcha (descartado por ahora), endpoint de baja con token.
 
 **Bug nuevo encontrado 24/09, sin tocar (decisión de producto):** los scrapers de Carrefour y Día marcan como bancaria cualquier teaser cuyo nombre contenga `'bin'`, y "Com**bin**able" lo contiene → ~561 SKUs de Carrefour pierden su "2do al 50%"/"2x1" en el camino cacheado (el fallback en vivo sí los aplica). Arreglarlo baja precios en masa y hay teasers "Mi Crf" que exigen Mi Carrefour y habría que tratar aparte.
 
