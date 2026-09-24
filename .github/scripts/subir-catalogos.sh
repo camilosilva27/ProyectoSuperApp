@@ -15,7 +15,7 @@ cd AllPromos
 # todo extraído OK se mueve archivo por archivo. Si la extracción falla, los catálogos vivos
 # quedan intactos. El temporal empieza con punto para que ningún glob catalogo-*.json lo vea.
 tar czf - catalogo-*.json \
-  | ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no "$VM_USER@$VM_HOST" \
+  | ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=yes "$VM_USER@$VM_HOST" \
     'set -euo pipefail
      cd ~/ProyectoSuperApp/AllPromos
      TMP=$(mktemp -d .subida-catalogos-XXXXXX)
@@ -28,5 +28,5 @@ tar czf - catalogo-*.json \
 cd ..
 
 echo "--- catálogos subidos, disparando post-proceso en la VM (corrida_en=$CORRIDA_EN) ---"
-ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no "$VM_USER@$VM_HOST" \
+ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=yes "$VM_USER@$VM_HOST" \
   "cd ~/ProyectoSuperApp/backend && CORRIDA_EN='$CORRIDA_EN' node src/cron/postProcesarCatalogos.js"

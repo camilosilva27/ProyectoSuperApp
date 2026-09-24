@@ -9,9 +9,12 @@ set -euo pipefail
 mkdir -p ~/.ssh
 echo "$VM_SSH_KEY" > ~/.ssh/vm_key
 chmod 600 ~/.ssh/vm_key
-ssh-keyscan -H "$VM_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+# Huella fija de la VM (secret VM_HOST_KEY, auditoría 2026-09-24): antes se aceptaba cualquier
+# servidor (ssh-keyscan + StrictHostKeyChecking=no), lo que permitía un MITM sobre la subida de
+# catálogos. Si se recrea la VM, actualizar el secret con /etc/ssh/ssh_host_ed25519_key.pub.
+echo "$VM_HOST $VM_HOST_KEY" > ~/.ssh/known_hosts
 
-ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no "$VM_USER@$VM_HOST" \
+ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=yes "$VM_USER@$VM_HOST" \
   'cd ~/ProyectoSuperApp/AllPromos && shopt -s nullglob && archivos=(catalogo-*.json) && if [ ${#archivos[@]} -gt 0 ]; then tar czf - "${archivos[@]}"; else tar czf - --files-from=/dev/null; fi' \
   | tar xzf - -C AllPromos/
 

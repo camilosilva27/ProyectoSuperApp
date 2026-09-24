@@ -28,6 +28,7 @@ jobs:
       VM_HOST: ${{ secrets.VM_HOST }}
       VM_USER: ${{ secrets.VM_USER }}
       VM_SSH_KEY: ${{ secrets.VM_SSH_KEY }}
+      VM_HOST_KEY: ${{ secrets.VM_HOST_KEY }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
     steps:
