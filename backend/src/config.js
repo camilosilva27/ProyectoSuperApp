@@ -92,7 +92,7 @@ module.exports = {
   // misma clave que ya usa el navegador para suscribirse.
   vapidPublicKey: process.env.VAPID_PUBLIC_KEY,
   vapidPrivateKey: process.env.VAPID_PRIVATE_KEY,
-  vapidSubject: process.env.VAPID_SUBJECT || 'mailto:camilosilva28@gmail.com',
+  vapidSubject: process.env.VAPID_SUBJECT || 'mailto:contacto@mi-superapp.com.ar',
 
   // Mails propios (recibo de pago, resúmenes de ahorro, avisos de trial, re-engagement — ver
   // clienteBrevo.js y .claude/docs/mails_y_notificaciones.md). Misma cuenta de Brevo que el SMTP
