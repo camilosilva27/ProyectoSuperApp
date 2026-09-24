@@ -17,8 +17,35 @@ module.exports = {
   // src/cron/descargarImagenes.js) y servidas desde acá — no se hotlinkea al super en cada
   // request de la app, ni se vuelve a descargar una imagen que ya está en disco.
   rutaImagenes: path.join(RAIZ_BACKEND, 'imagenes'),
-  // Cuántos días puede tener un catálogo antes de considerarse vencido (mismo umbral que el CLI).
-  diasMaximoCatalogo: 30,
+  // Cuántas horas puede tener un catálogo antes de que /api/health lo marque como problema.
+  // Antes era `diasMaximoCatalogo: 30` (mismo umbral que el CLI), pero desde que precioCache.js
+  // sirve el precio de la app desde estos catalogo-*.json (y los scrapers corren cada 2hs), un
+  // catálogo de 3 días ya es un precio viejo servido como vigente, y health seguía en ok:true
+  // (auditoría 2026-09-24). 12hs = ~6 corridas seguidas sin actualizar ese super: tolera un par
+  // de fallos puntuales (429 de Carrefour, runner lento) sin despertar a UptimeRobot, pero no
+  // medio día de precios congelados.
+  horasMaximoCatalogo: 12,
+  // Ventana en la que /api/health mira `scraper_errores` (Supabase, la escriben los scrapers en
+  // GitHub Actions vía registrarError — nunca llegan a logs/ultimo-refresco.json, que lo pisa
+  // el post-proceso de la VM solo con SUS errores). 6hs = las últimas ~3 corridas.
+  horasVentanaErroresScrapers: 6,
+  // Cuántas corridas fallidas seguidas de un mismo scraper/extra (sin una exitosa en el medio)
+  // hacen falta para que health pase a ok:false. Un fallo aislado (un 429 de Carrefour) se
+  // muestra en `avisos` pero no despierta a UptimeRobot; dos seguidos ya son ~4hs sin precio
+  // nuevo de ese super.
+  corridasFallidasParaAlerta: 2,
+  // Token opcional para ver el detalle interno completo de /api/health (?token=... o header
+  // x-health-token). Sin él, la respuesta pública no expone mensajes de error crudos.
+  healthToken: process.env.HEALTH_TOKEN || null,
+  // Tope de búsquedas en vivo (fallback de /api/comparar y /api/precios) esperando turno detrás
+  // del semáforo global — sin tope, un pico de EANs no cacheados encolaba sin límite.
+  maxColaFallbackEnVivo: 20,
+  // Host en el que escucha Express (2026-09-24). En producción, Caddy corre en la misma VM y
+  // proxya por loopback (la IP del socket que ve Express es siempre 127.0.0.1, ver `trust proxy`
+  // en server.js), así que no hace falta exponer el puerto 3000 hacia afuera — antes escuchaba
+  // en todas las interfaces. En desarrollo se sigue escuchando en todas: la app en el teléfono
+  // real le pega a la IP de la LAN de la Mac (EXPO_PUBLIC_API_URL), no a localhost.
+  host: process.env.HOST || ((process.env.NODE_ENV || 'development') === 'production' ? '127.0.0.1' : '0.0.0.0'),
   // El cache de promos bancarias se refresca cada 2hs (cron); a diferencia de los catálogos
   // (que cambian poco), estas promos son día-específicas (ej. "solo miércoles y jueves"), así
   // que un cache viejo por unas pocas horas ya puede estar mostrando el día equivocado.

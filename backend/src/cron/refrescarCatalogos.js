@@ -135,11 +135,20 @@ async function refrescarPromosBancarias() {
       }
     }
 
+    // Atómico (tmp + rename, 2026-09-24): el server lee este archivo en cada /api/comparar
+    // (promosBancariasCache.js) — con writeFileSync directo, un request justo durante la
+    // escritura veía un JSON truncado. Nombre de tmp único (pid + timestamp) para que dos
+    // corridas solapadas no compartan el mismo archivo intermedio.
     fs.mkdirSync(rutaLogs, { recursive: true });
-    fs.writeFileSync(
-      path.join(rutaLogs, 'promos-bancarias.json'),
-      JSON.stringify({ generado: new Date().toISOString(), datosPorSuper }, null, 2)
-    );
+    const rutaDestino = path.join(rutaLogs, 'promos-bancarias.json');
+    const rutaTmp = `${rutaDestino}.${process.pid}.${Date.now()}.tmp`;
+    try {
+      fs.writeFileSync(rutaTmp, JSON.stringify({ generado: new Date().toISOString(), datosPorSuper }, null, 2));
+      fs.renameSync(rutaTmp, rutaDestino);
+    } catch (err) {
+      fs.rmSync(rutaTmp, { force: true });
+      throw err;
+    }
 
     return { ok: errores.length === 0, errores };
   } catch (err) {

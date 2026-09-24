@@ -4,12 +4,21 @@ name: Scraping de catálogos
 # CONTEXTO_TECNICO.md § "VM: limpieza de RAM/CPU y migración de crons a GitHub Actions").
 # El repo es público, así que este cron corre gratis sin límite de minutos.
 #
-# `workflow_dispatch` primero para probar a mano; el `schedule` se activa recién cuando esté
-# validado en producción (y ahí se saca refrescarCatalogos.js del crontab de la VM).
+# Lo dispara SOLO el cron de la VM (backend/scripts/disparar-scrapers.sh, cada 2hs, vía la API
+# de workflow_dispatch) — o a mano desde la pestaña Actions. Se sacó el `schedule` nativo
+# (auditoría 2026-09-24): quedaba activo EN PARALELO al disparo de la VM y, cuando GitHub sí lo
+# corría, duplicaba la corrida (4 corridas extra por día en prod, doble tráfico a los supers y
+# dos subidas de catálogos pisándose en la VM). Se había dejado de usar por poco confiable, ver
+# backend/README.md § "Cron".
 on:
   workflow_dispatch: {}
-  schedule:
-    - cron: '0 */2 * * *'
+
+# Una sola corrida a la vez: si un disparo llega mientras otra sigue (ej. Carrefour lento),
+# queda en espera en vez de correr en paralelo. Sin cancelar la que está en curso: cortarla a
+# mitad de `subir-catalogos.sh` dejaría el post-proceso sin correr.
+concurrency:
+  group: scrapers
+  cancel-in-progress: false
 
 jobs:
   scrapear:

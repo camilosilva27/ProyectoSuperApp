@@ -8,9 +8,23 @@ set -euo pipefail
 CORRIDA_EN=$(cat AllPromos/.corrida-en)
 
 cd AllPromos
+# Extracción atómica (auditoría 2026-09-24): antes era `tar xzf -` directo sobre los
+# catalogo-*.json vivos, así que el server (precioCache.js, catalogo.js) podía leer un JSON a
+# medio escribir durante la subida. Ahora se extrae a un directorio temporal DENTRO de
+# AllPromos/ (mismo filesystem, requisito para que `mv` sea un rename atómico) y recién con
+# todo extraído OK se mueve archivo por archivo. Si la extracción falla, los catálogos vivos
+# quedan intactos. El temporal empieza con punto para que ningún glob catalogo-*.json lo vea.
 tar czf - catalogo-*.json \
   | ssh -i ~/.ssh/vm_key -o StrictHostKeyChecking=no "$VM_USER@$VM_HOST" \
-    'cd ~/ProyectoSuperApp/AllPromos && tar xzf -'
+    'set -euo pipefail
+     cd ~/ProyectoSuperApp/AllPromos
+     TMP=$(mktemp -d .subida-catalogos-XXXXXX)
+     trap "rm -rf \"$TMP\"" EXIT
+     tar xzf - -C "$TMP"
+     for f in "$TMP"/catalogo-*.json; do
+       [ -e "$f" ] || continue
+       mv -f "$f" "./$(basename "$f")"
+     done'
 cd ..
 
 echo "--- catálogos subidos, disparando post-proceso en la VM (corrida_en=$CORRIDA_EN) ---"

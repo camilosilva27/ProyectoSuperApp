@@ -34,26 +34,67 @@ const { test, describe, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const http = require('node:http');
 const { combinaciones } = require('../../AllPromos/core/comparador');
 
 let server;
 let base;
+let servidorJwks;
+let tokenSesion;
 
-before(() => {
+// Sesión de prueba (2026-09-24): desde que /comparar exige sesión (middleware/requiereSesion.js)
+// los 22 tests daban 401. En vez de meter un "modo test" en el middleware (que sería un bypass
+// posible en producción), el test ejercita el middleware REAL: genera un par de claves ES256
+// propio, sirve su JWKS desde un HTTP local (misma ruta que Supabase:
+// /auth/v1/.well-known/jwks.json) y apunta SUPABASE_URL ahí ANTES de cargar config.js — dotenv
+// no pisa variables ya definidas en process.env. Firma un JWT con audience 'authenticated' y
+// plan 'trial', igual que el Auth Hook real. Sin ninguna llamada de red a Supabase.
+before(async () => {
+  const { generateKeyPair, exportJWK, SignJWT } = await import('jose');
+  const { publicKey, privateKey } = await generateKeyPair('ES256');
+  const jwk = { ...(await exportJWK(publicKey)), kid: 'test', alg: 'ES256', use: 'sig' };
+
+  servidorJwks = http.createServer((req, res) => {
+    if (req.url === '/auth/v1/.well-known/jwks.json') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ keys: [jwk] }));
+    } else {
+      res.writeHead(404).end();
+    }
+  });
+  await new Promise(resolve => servidorJwks.listen(0, '127.0.0.1', resolve));
+  process.env.SUPABASE_URL = `http://127.0.0.1:${servidorJwks.address().port}`;
+  // Sin service role real: nada de este test debe escribir/leer Supabase de verdad.
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-sin-supabase';
+
+  tokenSesion = await new SignJWT({ email: 'test@example.com', plan: 'trial' })
+    .setProtectedHeader({ alg: 'ES256', kid: 'test' })
+    .setSubject('00000000-0000-0000-0000-000000000000')
+    .setAudience('authenticated')
+    .setIssuedAt()
+    .setExpirationTime('1h')
+    .sign(privateKey);
+
   // eslint-disable-next-line global-require -- requerido recién acá para que config.js lea
-  // el .env real del proyecto en vez de uno mockeado, y para no arrancar sondaEnVivo (solo la
+  // las variables de arriba (y el resto del .env real), y para no arrancar sondaEnVivo (solo la
   // dispara arrancar(), que no llamamos: levantamos el listener nosotros, en un puerto libre).
   const { app } = require('../src/server');
   server = app.listen(0);
   base = `http://127.0.0.1:${server.address().port}`;
 });
 
-after(() => new Promise(resolve => server.close(resolve)));
+after(async () => {
+  await new Promise(resolve => server.close(resolve));
+  await new Promise(resolve => servidorJwks.close(resolve));
+});
 
-async function postComparar(body) {
+async function postComparar(body, { token = tokenSesion } = {}) {
   const res = await fetch(`${base}/api/comparar`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify(body),
   });
   const json = await res.json();
@@ -299,5 +340,25 @@ describe('POST /api/comparar — "qué comprar y dónde" es consistente (sin top
     for (const it of json.items) {
       if (it.mejor) assert.ok(it.mejor.total > 0, `${it.ean} tiene precio ${it.mejor.total}`);
     }
+  });
+});
+
+// --- sesión: el middleware real sigue cortando sin token / con token inválido ----------------
+
+describe('POST /api/comparar — sesión', () => {
+  test('sin Authorization → 401', async () => {
+    const { status } = await postComparar({ items: CARRITO }, { token: null });
+    assert.equal(status, 401);
+  });
+
+  test('token firmado con otra clave → 401', async () => {
+    const { generateKeyPair, SignJWT } = await import('jose');
+    const { privateKey } = await generateKeyPair('ES256');
+    const falso = await new SignJWT({ plan: 'trial' })
+      .setProtectedHeader({ alg: 'ES256', kid: 'test' })
+      .setSubject('x').setAudience('authenticated').setExpirationTime('1h')
+      .sign(privateKey);
+    const { status } = await postComparar({ items: CARRITO }, { token: falso });
+    assert.equal(status, 401);
   });
 });

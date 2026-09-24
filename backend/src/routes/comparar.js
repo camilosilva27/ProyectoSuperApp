@@ -40,6 +40,7 @@ const precioCache = require('../precioCache');
 const { requiereSesion, requierePlanActivo } = require('../middleware/requiereSesion');
 const { crearLimitador } = require('../limitadorGlobal');
 const { leerPromosBancariasCache } = require('../promosBancariasCache');
+const { maxColaFallbackEnVivo } = require('../config');
 
 const router = express.Router();
 
@@ -90,14 +91,33 @@ const ITEMS_EN_PARALELO = 4;
 // cacheEnVivo evita, además, que dos requests casi simultáneos para el mismo EAN no cacheado
 // disparen dos fetches en vez de compartir uno.
 const CACHE_TTL_MS = 3 * 60 * 1000;
+// Tope de entradas de cacheEnVivo (2026-09-24, auditoría): antes el Map nunca borraba nada
+// vencido — solo se pisaba si el mismo EAN se volvía a pedir —, así que cada EAN distinto no
+// cacheado que alguna vez se consultó quedaba en memoria para siempre (con su resultado
+// completo de 7 supers adentro). En una e2-micro eso es una fuga lenta pero real.
+const MAX_ENTRADAS_CACHE_EN_VIVO = 500;
 const cacheEnVivo = new Map(); // ean → { expira, promise }
+
+/** Borra lo vencido y, si igual se pasa del tope, lo más viejo (Map conserva orden de inserción). */
+function podarCacheEnVivo(ahora) {
+  for (const [ean, entrada] of cacheEnVivo) {
+    if (entrada.expira <= ahora) cacheEnVivo.delete(ean);
+  }
+  while (cacheEnVivo.size > MAX_ENTRADAS_CACHE_EN_VIVO) {
+    cacheEnVivo.delete(cacheEnVivo.keys().next().value);
+  }
+}
 
 // Mismo ritmo que ya usan los scrapers contra estas APIs sin romper nada (ver
 // scraper-promos-carrefour.js/changomas.js: 500-800ms entre requests, nunca en paralelo) — acá
 // se traduce a "como mucho 2 búsquedas del fallback en vuelo a la vez", en vez de un delay fijo,
 // porque el volumen esperado en este camino es mucho más bajo (solo EANs no cacheados).
+//
+// La cola de espera tiene tope (maxColaFallbackEnVivo, ver config.js y limitadorGlobal.js):
+// lo que no entra se rechaza con ColaLlenaError y el ítem sale como advertencia ("no se pudo
+// consultar este EAN ahora") en vez de dejar el request colgado detrás de cientos de búsquedas.
 const MAX_FALLBACK_CONCURRENTE = 2;
-const limitadorFallback = crearLimitador(MAX_FALLBACK_CONCURRENTE);
+const limitadorFallback = crearLimitador(MAX_FALLBACK_CONCURRENTE, { maxCola: maxColaFallbackEnVivo });
 
 function buscarPorEANFallback(ean, opciones) {
   const ahora = Date.now();
@@ -105,9 +125,16 @@ function buscarPorEANFallback(ean, opciones) {
   if (entrada && entrada.expira > ahora) return entrada.promise;
 
   const promise = limitadorFallback(() => buscarPorEAN(ean, opciones));
+  // delete + set: así un EAN re-consultado pasa al final del orden de inserción (el que poda
+  // podarCacheEnVivo es siempre el menos reciente).
+  cacheEnVivo.delete(ean);
   cacheEnVivo.set(ean, { expira: ahora + CACHE_TTL_MS, promise });
-  // Si falla, no dejar la promesa rota cacheada — la próxima consulta reintenta en vivo.
-  promise.catch(() => cacheEnVivo.delete(ean));
+  if (cacheEnVivo.size > MAX_ENTRADAS_CACHE_EN_VIVO) podarCacheEnVivo(ahora);
+  // Si falla (incluida la cola llena), no dejar la promesa rota cacheada — la próxima consulta
+  // reintenta en vivo. Solo se borra si sigue siendo ESTA entrada (no una más nueva del mismo EAN).
+  promise.catch(() => {
+    if (cacheEnVivo.get(ean)?.promise === promise) cacheEnVivo.delete(ean);
+  });
   return promise;
 }
 

@@ -99,10 +99,19 @@ function construirCatalogoUnificado() {
  * mientras el cron lo regenera.
  */
 function escribirAtomico(ruta, contenido) {
-  const tmp = `${ruta}.tmp`;
+  // Nombre de tmp único por proceso y momento (2026-09-24, auditoría): con un `.tmp` fijo, dos
+  // corridas solapadas (post-proceso de GitHub Actions + un `npm run unificar` a mano, o dos
+  // workflows) escribían el MISMO archivo intermedio y una podía renombrar el JSON a medio
+  // escribir de la otra.
+  const tmp = `${ruta}.${process.pid}.${Date.now()}.tmp`;
   fs.mkdirSync(path.dirname(ruta), { recursive: true });
-  fs.writeFileSync(tmp, contenido);
-  fs.renameSync(tmp, ruta);
+  try {
+    fs.writeFileSync(tmp, contenido);
+    fs.renameSync(tmp, ruta);
+  } catch (err) {
+    fs.rmSync(tmp, { force: true });
+    throw err;
+  }
 }
 
 async function unificar({ silencioso = false } = {}) {

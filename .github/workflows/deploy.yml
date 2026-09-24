@@ -1,25 +1,85 @@
 name: Deploy backend a la VM
 
+# Solo lo que el backend carga en runtime (auditoría 2026-09-24): backend/** (server + crons +
+# scripts de la VM) y AllPromos/** (el backend hace require de AllPromos/core, promo-engine.js,
+# promos-bancarias.js, y el post-proceso usa sus scrapers/catálogos). Antes cualquier push —
+# un cambio en app/ (Vercel) o en docs — reiniciaba el backend de producción sin motivo.
 on:
   push:
     branches: [master]
+    paths:
+      - 'backend/**'
+      - 'AllPromos/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch: {}
+
+# Nunca dos deploys a la vez sobre la misma VM (dos `npm ci` pisándose node_modules). Sin
+# cancelar el que está en curso: cortarlo a mitad de `npm ci` deja node_modules roto.
+concurrency:
+  group: deploy-vm
+  cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - name: Conectar por SSH y actualizar
+      - name: Conectar por SSH, actualizar y verificar (con rollback)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
+          command_timeout: 12m
           script: |
-            set -e
+            set -eu
             cd ~/ProyectoSuperApp
-            git pull
-            cd backend
-            npm install
-            sudo systemctl restart allpromos-backend
-            sleep 2
-            sudo systemctl is-active allpromos-backend
+            PREVIO=$(git rev-parse HEAD)
+            PUERTO=$(grep -E '^PORT=' backend/.env 2>/dev/null | cut -d= -f2- || true)
+            PUERTO=${PUERTO:-3000}
+
+            # Health check real: el server tiene que responder /api/health con un JSON que
+            # tenga el campo "ok". No se exige "ok":true a propósito — eso depende de datos
+            # (catálogo viejo, un scraper caído, la sonda en vivo) que no tienen nada que ver
+            # con el código recién deployado, y bloquearía todos los deploys mientras dure.
+            # Acá se verifica "el proceso nuevo arrancó y sirve requests".
+            verificar() {
+              for i in $(seq 1 15); do
+                if curl -sf --max-time 5 "http://127.0.0.1:${PUERTO}/api/health" | grep -q '"ok":'; then
+                  echo "health OK (intento $i)"
+                  return 0
+                fi
+                sleep 2
+              done
+              return 1
+            }
+
+            desplegar() {
+              cd ~/ProyectoSuperApp/backend
+              # npm ci: instala exactamente lo del package-lock.json (versionado), sin
+              # reescribirlo — `npm install` podía subir versiones solo en la VM.
+              # `|| return 1` explícito: dentro de un `if`, bash ignora `set -e` en funciones.
+              npm ci --no-audit --no-fund || return 1
+              sudo systemctl restart allpromos-backend || return 1
+            }
+
+            git pull --ff-only
+            NUEVO=$(git rev-parse HEAD)
+            echo "deploy $PREVIO -> $NUEVO"
+
+            if desplegar && verificar; then
+              echo "Deploy OK en $NUEVO"
+              exit 0
+            fi
+
+            echo "::error::El backend no pasó el health check en $NUEVO — volviendo a $PREVIO"
+            sudo journalctl -u allpromos-backend -n 40 --no-pager || true
+            cd ~/ProyectoSuperApp
+            git reset --hard "$PREVIO"
+            if desplegar && verificar; then
+              echo "Rollback a $PREVIO OK (el backend sigue en la versión anterior)"
+            else
+              echo "::error::El rollback a $PREVIO TAMPOCO pasó el health check — revisar la VM a mano"
+            fi
+            # El job falla igual: el commit nuevo NO quedó deployado y hay que enterarse.
+            exit 1

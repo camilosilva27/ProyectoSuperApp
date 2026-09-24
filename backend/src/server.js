@@ -18,9 +18,34 @@ inicializarSentry();
 
 const express = require('express');
 const cors = require('cors');
+
+// Express 4 no atrapa promesas rechazadas de handlers `async`: si uno tira después de un
+// `await`, el request queda colgado hasta el timeout del cliente y el rechazo sale como
+// `unhandledRejection` (auditoría 2026-09-24 — ej. POST /api/comparar, y lo mismo en pagos,
+// mis-descuentos, productos seguidos). En vez de envolver cada handler de cada router a mano
+// (y depender de que nadie se olvide en el próximo), se hace una sola vez acá, en el punto por
+// el que pasa TODO handler de Express 4 (Layer#handle_request): si devuelve una promesa, su
+// rechazo se manda a next(err) → Sentry + el handler final de abajo (500 genérico). Es lo mismo
+// que hace el paquete `express-async-errors`, sin sumar la dependencia. Express 5 ya hace esto
+// de fábrica — al migrar, este bloque se borra.
+(function atraparRechazosDeHandlersAsync() {
+  const Layer = require('express/lib/router/layer');
+  if (Layer.prototype.__rechazosAsyncAtrapados) return;
+  Layer.prototype.handle_request = function handle(req, res, next) {
+    const fn = this.handle;
+    if (fn.length > 3) return next(); // middleware de error: no aplica acá
+    try {
+      const resultado = fn(req, res, next);
+      if (resultado && typeof resultado.then === 'function') resultado.then(null, next);
+    } catch (err) {
+      next(err);
+    }
+  };
+  Layer.prototype.__rechazosAsyncAtrapados = true;
+})();
 const rateLimit = require('express-rate-limit');
 
-const { puerto, entorno, rutaImagenes } = require('./config');
+const { puerto, host, entorno, rutaImagenes } = require('./config');
 const healthRouter = require('./routes/health');
 const catalogoRouter = require('./routes/catalogo');
 const compararRouter = require('./routes/comparar');
@@ -102,12 +127,35 @@ Sentry.setupExpressErrorHandler(app);
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
   console.error('Error no manejado:', err);
+  // Si el handler ya empezó a responder antes de tirar, no se puede mandar otro status: se le
+  // deja al handler default de Express, que corta la conexión.
+  if (res.headersSent) return next(err);
   res.status(500).json({ error: 'Error interno del servidor' });
 });
 
+// Red de seguridad a nivel proceso (2026-09-24): un rechazo sin capturar fuera de un request
+// (ej. un timer de sondaEnVivo, un fetch disparado sin await) hoy se loguea y se reporta a
+// Sentry, pero NO tumba el proceso — desde Node 15 el default de `unhandledRejection` es
+// crashear, y un rechazo aislado no justifica cortar /api/comparar para todos hasta que systemd
+// lo reinicie. `uncaughtException` es distinto: ahí el estado del proceso puede quedar
+// corrupto, así que se reporta y se sale (systemd lo levanta de nuevo).
+function instalarHandlersDeProceso() {
+  process.on('unhandledRejection', razon => {
+    console.error('unhandledRejection (no se tumba el proceso):', razon);
+    try { Sentry.captureException(razon); } catch { /* Sentry no inicializado: no-op */ }
+  });
+  process.on('uncaughtException', err => {
+    console.error('uncaughtException — saliendo para que systemd reinicie:', err);
+    try { Sentry.captureException(err); } catch { /* idem */ }
+    // Darle a Sentry un momento para mandar el evento antes de salir (no-op sin DSN).
+    Promise.resolve(Sentry.flush?.(2000)).finally(() => process.exit(1));
+  });
+}
+
 function arrancar() {
-  app.listen(puerto, () => {
-    console.log(`🚀 AllPromos backend escuchando en http://localhost:${puerto} (${entorno})`);
+  instalarHandlersDeProceso();
+  app.listen(puerto, host, () => {
+    console.log(`🚀 AllPromos backend escuchando en http://${host}:${puerto} (${entorno})`);
     console.log(`   Probá: curl -s http://localhost:${puerto}/api/health`);
   });
   sondaEnVivo.iniciar();
