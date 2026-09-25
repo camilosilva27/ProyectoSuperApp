@@ -167,7 +167,7 @@ En la práctica, todas las promos de Vea que detectamos son online (porque venim
 
 ## Promos bancarias: aparte del precio del producto
 
-Además del precio y la promo de cada producto, la herramienta calcula por separado los **descuentos por pagar con una tarjeta o billetera** (Mi Carrefour, MasClub, Santander, Mercado Pago, Cuenta DNI, Banco Provincia, MODO, Galicia, Galicia Modo, Banco Macro, HSBC, BBVA, ICBC, Comafi, Naranja X, Credicoop, Banco Ciudad, Supervielle, Banco Columbia, Banco Patagonia, Banco Nación, TCI, entre otros). A diferencia de las promos de arriba, estas no dependen de qué productos comprás: son un % sobre **todo el ticket**, atado a un día de la semana y a veces con un tope de reintegro.
+Además del precio y la promo de cada producto, la herramienta calcula por separado los **descuentos por pagar con una tarjeta o billetera** (Mi Carrefour, MasClub, Santander, Mercado Pago, Cuenta DNI, Banco Provincia, MODO, Galicia, Banco Macro, HSBC, BBVA, ICBC, Comafi, Naranja X, Credicoop, Banco Ciudad, Supervielle, Banco Columbia, Banco Patagonia, Banco Nación, TCI, entre otros). A diferencia de las promos de arriba, estas no dependen de qué productos comprás: son un % sobre **todo el ticket**, atado a un día de la semana y a veces con un tope de reintegro.
 
 Vos le decís a la herramienta qué tarjetas tenés (en la CLI, editando `mis-tarjetas.json`; en la app, marcándolas en el carrito o en "Mis descuentos"), y solo te muestra las promos de esas tarjetas — no te avisa de una promo de un banco que no tenés. Con esa info, la herramienta te puede decir además **qué día conviene ir a cada super** en los próximos 7 días, combinando la promo del producto con la mejor promo bancaria de ese día.
 

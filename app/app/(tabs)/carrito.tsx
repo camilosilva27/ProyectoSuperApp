@@ -23,7 +23,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-n
 // el único import que existe hoy para este hook.
 import { useBottomTabBarHeight } from 'expo-router/build/react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { TARJETAS_DISPONIBLES, useCarrito } from '../../src/carrito';
+import { TARJETAS_DISPONIBLES, etiquetaOpcionDescuento, useCarrito } from '../../src/carrito';
 import { useCarritosGuardados, type CarritoGuardado } from '../../src/carritosGuardados';
 import { ConfirmacionModal, IconoTacho } from '../../src/componentes/Confirmacion';
 import { BotonPrincipal, Stepper, Vacio } from '../../src/componentes/comunes';
@@ -222,7 +222,7 @@ export default function PantallaCarrito() {
                       ]}
                     >
                       <Text style={[texto.etiqueta, { color: activa ? paleta.superficie : paleta.tintaSuave }]}>
-                        {tarjeta}
+                        {etiquetaOpcionDescuento(tarjeta)}
                       </Text>
                     </Pressable>
                   );

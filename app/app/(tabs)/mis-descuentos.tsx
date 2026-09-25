@@ -23,7 +23,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ErrorApi, misDescuentos } from '../../src/api';
 import { useAuth } from '../../src/auth';
-import { useCarrito } from '../../src/carrito';
+import { etiquetaOpcionDescuento, useCarrito } from '../../src/carrito';
 import { Cargando, FilaToggleAnimada, Problema } from '../../src/componentes/comunes';
 import { HeaderNegro, TituloHeader } from '../../src/componentes/HeaderNegro';
 import { espacio, radio, texto } from '../../src/theme';
@@ -205,7 +205,7 @@ export default function PantallaMisDescuentos() {
                     key={d.nombre}
                     paleta={paleta}
                     filaRef={d.nombre === NOMBRE_TARJETA_TOUR ? refMercadoPago : undefined}
-                    nombre={d.nombre}
+                    nombre={etiquetaOpcionDescuento(d.nombre)}
                     activa={activa}
                     onCambiar={valor => {
                       // Durante el tour, tocar la fila de Mercado Pago cuenta como el toque

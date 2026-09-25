@@ -16,7 +16,7 @@
 
 const express = require('express');
 const { leerPromosBancariasCache, fechaGeneracionPromosBancarias } = require('../promosBancariasCache');
-const { promoAplicaATarjetas } = require('../../../AllPromos/promos-bancarias');
+const { promoAplicaATarjetas, normalizarTarjetasUsuario } = require('../../../AllPromos/promos-bancarias');
 const { requiereSesion, requierePlanActivo } = require('../middleware/requiereSesion');
 
 const router = express.Router();
@@ -35,10 +35,12 @@ function elegirPromosDelDia(promos, dia, tarjetasPropias) {
   if (!candidatas.length) return [];
 
   // Propia = el usuario la puede usar (tarjeta Y requisitos, ver promoAplicaATarjetas). El logo es
-  // el de la tarjeta ("ICBC Modo" → logo de ICBC en LogoBanco.tsx); sin tarjeta, el requisito
-  // ("Jubilado", "Comunidad Coto") o "Todos los medios de pago" (fallback de iniciales).
-  const esPropia = p => promoAplicaATarjetas(p, tarjetasPropias);
-  const bancoDe = p => p.canonicosPosibles.find(c => tarjetasPropias.includes(c))
+  // el de la tarjeta (ICBC + MODO → logo de ICBC); sin tarjeta, el requisito ("Jubilado",
+  // "Comunidad Coto") o "Todos los medios de pago" (fallback de iniciales). Las tarjetas se
+  // normalizan por si llega una opción vieja "<Banco> Modo" (ver normalizarTarjetasUsuario).
+  const propias = normalizarTarjetasUsuario(tarjetasPropias);
+  const esPropia = p => promoAplicaATarjetas(p, propias);
+  const bancoDe = p => p.canonicosPosibles.find(c => propias.includes(c))
     ?? p.canonicosPosibles[0]
     ?? ((p.requisitos || []).join(' + ') || 'Todos los medios de pago');
   // Prioridad (2026-09-24): primero las que el usuario puede usar; entre las que no, las que no

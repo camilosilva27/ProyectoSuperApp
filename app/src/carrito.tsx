@@ -42,21 +42,47 @@ type Accion =
  *  Digital / tarjeta de Crédito) — confirmado en vivo el 2026-09-04 que son cosas distintas,
  *  no la misma cosa con otro nombre (la Tarjeta Prepaga en sí no da descuento de súper, solo
  *  la Cuenta Digital que Carrefour Banco publicita junto con ella). */
+/** Texto a mostrar de una opción de Mis descuentos (el valor guardado no cambia). Plan sueldo y
+ *  Empleado público tienen muy pocas promos (decisión del usuario 2026-09-24: aclararlo). */
+const ACLARACION_OPCION: Record<string, string> = {
+  'Plan sueldo': 'Promos en algunos supermercados',
+  'Empleado público': 'Promos en algunos supermercados',
+};
+export function etiquetaOpcionDescuento(nombre: string): string {
+  const aclaracion = ACLARACION_OPCION[nombre];
+  return aclaracion ? `${nombre} (${aclaracion})` : nombre;
+}
+
 export const TARJETAS_DISPONIBLES = [
   'Mi Carrefour', 'Cuenta Digital Carrefour', 'Tarjeta Carrefour Crédito', 'MasClub', 'Cencopay',
-  'Santander', 'Santander Modo', 'MODO', 'Mercado Pago', 'Cuenta DNI', 'Banco Provincia',
-  'Galicia', 'Galicia Modo', 'Banco Macro', 'Banco Macro Modo', 'HSBC', 'BBVA', 'BBVA Modo',
-  'ICBC', 'ICBC Modo', 'Comafi', 'Comafi Modo', 'Naranja X', 'Credicoop', 'Credicoop Modo',
-  'Banco Ciudad', 'Banco Ciudad Modo', 'Supervielle', 'Supervielle Modo',
-  'Banco Columbia', 'Banco Patagonia', 'Banco Nación', 'Banco Nación Modo', 'TCI',
+  'Santander', 'MODO', 'Mercado Pago', 'Cuenta DNI', 'Banco Provincia',
+  'Galicia', 'Banco Macro', 'HSBC', 'BBVA',
+  'ICBC', 'Comafi', 'Naranja X', 'Credicoop',
+  'Banco Ciudad', 'Supervielle',
+  'Banco Columbia', 'Banco Patagonia', 'Banco Nación', 'TCI',
   // Sumado 2026-09-24 (auditoría de promos): mismo canónico que ALIAS_TARJETAS.
-  'Banco Hipotecario', 'Hipotecario Modo', 'Yoy Modo',
-  // 2026-09-24: "<Banco> Modo" es su propia opción (como "Galicia Modo"): la promo exige pagar con
-  // MODO desde ese banco, no alcanza con tener MODO ni la tarjeta. Y al final, segmentos del
-  // cliente y programas/tiendas, que funcionan como cualquier otro descuento propio (ver
+  'Banco Hipotecario',
+  // Promos "banco + MODO" (ICBC Modo, Comafi MODO...): no son una opción aparte, alcanza con marcar
+  // el banco ("ICBC vía MODO"); "MODO" es solo para las de MODO a secas (decisión del usuario 2026-09-24). Al final, segmentos del cliente y
+  // programas/tiendas, que funcionan como cualquier otro descuento propio (ver
   // SEGMENTOS/PROGRAMAS en AllPromos/promos-bancarias.js). Strings idénticos a TARJETAS_CONOCIDAS.
   'Jubilado', 'Plan sueldo', 'Empleado público', 'Supervielle Identité', 'MasGO', 'Comunidad Coto',
 ];
+
+/** Opciones viejas "<Banco> Modo" (Galicia Modo desde 2026-08-25; el resto, unas horas del
+ *  2026-09-24) → el banco + MODO, que es como se modelan ahora. Mismo criterio que
+ *  normalizarTarjetasUsuario en AllPromos/promos-bancarias.js. */
+export function migrarTarjetasModo(tarjetas: string[]): string[] {
+  const salida = new Set<string>();
+  for (const t of tarjetas) {
+    const m = /^(.+) Modo$/.exec(t);
+    if (!m) { salida.add(t); continue; }
+    const banco = m[1] === 'Hipotecario' ? 'Banco Hipotecario' : m[1];
+    if (TARJETAS_DISPONIBLES.includes(banco)) salida.add(banco);
+    salida.add('MODO');
+  }
+  return [...salida];
+}
 
 // Vacío a propósito: no hace falta elegir tarjetas para comparar. Las promos de tarjeta
 // propia se muestran igual como aviso (ver BarraDiferencia) y se activan tocándolas ahí, o
@@ -66,8 +92,10 @@ const CLAVE = 'allpromos:carrito:v1';
 
 function reducir(estado: Estado, accion: Accion): Estado {
   switch (accion.tipo) {
-    case 'hidratar':
-      return { ...estado, ...accion.estado, cargado: true };
+    case 'hidratar': {
+      const cargado = { ...estado, ...accion.estado, cargado: true };
+      return { ...cargado, tarjetas: migrarTarjetasModo(cargado.tarjetas ?? []) };
+    }
 
     case 'agregar': {
       const existe = estado.items.find(i => i.ean === accion.producto.ean);

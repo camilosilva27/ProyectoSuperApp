@@ -28,6 +28,20 @@ function nombresDeDias(numerosDeDia) {
   return [...new Set(numerosDeDia)].sort((a, b) => a - b).map(d => NOMBRES_DIA[d - 1]);
 }
 
+/** La promo que da el % destacado de una opción. Prioridad: 1) las que se usan con SOLO esta
+ *  opción (ICBC vía MODO bajo "ICBC" antes que ICBC + Plan sueldo); 2) las que la tienen como
+ *  tarjeta aunque pidan otro requisito (MasClub + MasGO bajo "MasClub" si no hay otra);
+ *  3) cualquiera (Supervielle + Jubilado bajo "Jubilado"). Las banco vía MODO (`viaModo`) no
+ *  nombran a "MODO", así que nunca dan el % de esa opción. */
+function mejorPromoDeOpcion(promos, nombre) {
+  const requisitosOtros = p => (p.requisitos || []).filter(r => r !== nombre);
+  const esTarjeta = p => p.canonicosPosibles.includes(nombre);
+  const soloConEsta = promos.filter(p => !requisitosOtros(p).length && (esTarjeta(p) || !p.canonicosPosibles.length));
+  const comoTarjeta = promos.filter(esTarjeta);
+  const candidatas = soloConEsta.length ? soloConEsta : comoTarjeta.length ? comoTarjeta : promos;
+  return candidatas.reduce((a, b) => (b.descuentoPct > a.descuentoPct ? b : a));
+}
+
 /** Entre las promos vigentes de una tarjeta, la de mayor % — mismo criterio simple que usa
  *  la CLI para "mejor promo" (ver mejorPromoTicket), pero acá sin un subtotal: esta pantalla
  *  es informativa ("qué existe"), no un cálculo sobre el carrito actual.
@@ -52,9 +66,8 @@ function calcularDescuentos(datosPorSuper) {
     for (const [superKey, resultado] of Object.entries(datosPorSuper)) {
       if (resultado.error) continue;
       for (const promo of resultado.promos) {
-        // Bajo cada opción: las promos que la nombran como tarjeta ("ICBC Modo" es su propio
-        // canónico, no se lista bajo "MODO" ni bajo "ICBC") o como requisito ("Jubilado",
-        // "MasGO", "Comunidad Coto" — 2026-09-24).
+        // Bajo cada opción: las promos que la nombran como tarjeta o como requisito ("Jubilado",
+        // "MasGO", "Comunidad Coto" — 2026-09-24). Una banco vía MODO va solo bajo su banco.
         if (!promo.canonicosPosibles.includes(nombre) && !(promo.requisitos || []).includes(nombre)) continue;
         const conSuper = { ...promo, superKey };
         todas.push(conSuper);
@@ -63,7 +76,7 @@ function calcularDescuentos(datosPorSuper) {
     }
 
     if (vigentes.length) {
-      const mejor = vigentes.reduce((a, b) => (b.descuentoPct > a.descuentoPct ? b : a));
+      const mejor = mejorPromoDeOpcion(vigentes, nombre);
       return {
         nombre,
         disponible: true,
@@ -76,7 +89,7 @@ function calcularDescuentos(datosPorSuper) {
 
     const periodicas = todas.filter(p => p.dias.length);
     if (periodicas.length) {
-      const mejor = periodicas.reduce((a, b) => (b.descuentoPct > a.descuentoPct ? b : a));
+      const mejor = mejorPromoDeOpcion(periodicas, nombre);
       return {
         nombre,
         disponible: false,

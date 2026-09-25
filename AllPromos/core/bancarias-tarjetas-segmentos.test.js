@@ -902,39 +902,44 @@ const mockDia = () => {
 
 const VIGENCIA = { vigenciaDesde: new Date('2020-01-01'), vigenciaHasta: new Date('2099-01-01') };
 const TODOS_LOS_DIAS = [1, 2, 3, 4, 5, 6, 7];
-const resumen = p => `${p.canonicosPosibles.join('+') || '-'}${p.requisitos.length ? ` [${p.requisitos.join('+')}]` : ''}`;
+const resumen = p => `${p.canonicosPosibles.join('+') || '-'}${p.viaModo ? ' vía MODO' : ''}${p.requisitos.length ? ` [${p.requisitos.join('+')}]` : ''}`;
 const hoyTodos = p => ({ ...p, dias: TODOS_LOS_DIAS, ...VIGENCIA });
 
-// ─── 1. "<Banco> Modo" ───────────────────────────────────────────────────────
-describe('1. "<Banco> Modo" es su propio canónico', () => {
+// ─── 1. Banco + MODO ─────────────────────────────────────────────────────────
+// Decisión final del usuario (2026-09-24): en Mis descuentos solo existen "MODO" y el banco por
+// separado. Una promo "<Banco> Modo" queda { canonicosPosibles: [banco], viaModo: true } y aplica
+// con SOLO el banco marcado; `viaModo` solo cambia la etiqueta ("ICBC vía MODO"). La opción "MODO"
+// queda para las promos de MODO a secas.
+describe('1. "<Banco> Modo" = el banco, vía MODO', () => {
   const nombres = [
-    ['ICBC Modo', 'ICBC Modo'],
-    ['Banco Credicoop MODO', 'Credicoop Modo'],
-    ['Hipotecario_Modo', 'Hipotecario Modo'],
-    ['Yoy_MODO', 'Yoy Modo'],
-    ['Banco_Comafi_MODO', 'Comafi Modo'],
-    ['BNA+MODO', 'Banco Nación Modo'],
-    ['Supervielle Modo', 'Supervielle Modo'],
-    ['Galicia Modo', 'Galicia Modo'],
+    ['ICBC Modo', 'ICBC'],
+    ['Banco Credicoop MODO', 'Credicoop'],
+    ['Hipotecario_Modo', 'Banco Hipotecario'],
+    ['Banco_Comafi_MODO', 'Comafi'],
+    ['BNA+MODO', 'Banco Nación'],
+    ['Supervielle Modo', 'Supervielle'],
+    ['Galicia Modo', 'Galicia'],
+    ['Yoy_MODO', null], // banco sin canónico: se descarta (no se puede preguntar por Yoy)
     ['Macro Modo', null], // "Macro" a secas no es alias de Banco Macro (queda como estaba)
     ['Banco San Juan MODO', null],
     ['Semana_MODO', null],
     ['Yoy', null], // Yoy a secas no tiene canónico
   ];
   for (const [nombre, esperado] of nombres) {
-    test(`"${nombre}" → ${esperado ?? 'descartada'}`, () => {
-      assert.deepEqual(pb.resolverTarjetasPromo([nombre]).canonicosPosibles, esperado ? [esperado] : []);
+    test(`"${nombre}" → ${esperado ? `${esperado} vía MODO` : 'descartada'}`, () => {
+      assert.deepEqual(pb.resolverTarjetasPromo([nombre]), { canonicosPosibles: esperado ? [esperado] : [], modo: !!esperado });
     });
   }
 
-  test('Día "Modo|BNA" (dos nombres en la misma entrada) → "Banco Nación Modo", no "MODO o Banco Nación"', () => {
-    assert.deepEqual(pb.resolverTarjetasPromo(['Modo', 'BNA']).canonicosPosibles, ['Banco Nación Modo']);
+  test('Día "Modo|BNA" (dos nombres en la misma entrada) → Banco Nación vía MODO, no "MODO o Banco Nación"', () => {
+    assert.deepEqual(pb.resolverTarjetasPromo(['Modo', 'BNA']), { canonicosPosibles: ['Banco Nación'], modo: true });
+    assert.deepEqual(pb.clasificarPromo(['Modo', 'BNA'], ''), { canonicosPosibles: ['Banco Nación'], requisitos: [], viaModo: true });
   });
 
-  test('texto corto que exige MODO convierte el banco (Carrefour BNA, Cencosud Galicia/Hipotecario)', () => {
-    assert.deepEqual(pb.resolverTarjetasPromo(['Banco_Nacion'], CARR.promos[1].title).canonicosPosibles, ['Banco Nación Modo']);
-    assert.deepEqual(pb.resolverTarjetasPromo(['Galicia'], CENCOSUD.galicia20.info).canonicosPosibles, ['Galicia Modo']);
-    assert.deepEqual(pb.resolverTarjetasPromo(['Banco Hipotecario'], CENCOSUD.hipotecario.info).canonicosPosibles, ['Hipotecario Modo']);
+  test('texto corto que exige MODO marca viaModo (Carrefour BNA, Cencosud Galicia/Hipotecario)', () => {
+    assert.deepEqual(pb.resolverTarjetasPromo(['Banco_Nacion'], CARR.promos[1].title), { canonicosPosibles: ['Banco Nación'], modo: true });
+    assert.deepEqual(pb.resolverTarjetasPromo(['Galicia'], CENCOSUD.galicia20.info), { canonicosPosibles: ['Galicia'], modo: true });
+    assert.deepEqual(pb.resolverTarjetasPromo(['Banco Hipotecario'], CENCOSUD.hipotecario.info), { canonicosPosibles: ['Banco Hipotecario'], modo: true });
   });
 
   test('menciones de MODO de pasada no convierten ("acumulable … pagando con MODO", "no aplica … modo")', () => {
@@ -943,35 +948,52 @@ describe('1. "<Banco> Modo" es su propio canónico', () => {
     assert.equal(pb.textoExigeModo('Con tarjetas de Crédito Visa y MasterCard'), false);
   });
 
-  test('match: "ICBC Modo" solo para quien marca "ICBC Modo" (ni MODO, ni ICBC, ni los dos)', async () => {
+  test('match: ICBC vía MODO aplica con solo ICBC marcado; con solo MODO no', async () => {
     mockVTEX(CM);
     const datos = { changomas: await pb.fetchChangoMas() };
-    const conIcbcModo = p => p.canonicosPosibles.includes('ICBC Modo');
-    for (const tarjetas of [['MODO'], ['ICBC'], ['MODO', 'ICBC']]) {
-      assert.equal(pb.filtrarPromosBancariasPorTarjetas(datos, tarjetas).changomas.promos.filter(conIcbcModo).length, 0, tarjetas.join());
+    const esIcbcModo = p => p.canonicosPosibles.join() === 'ICBC' && p.viaModo;
+    assert.equal(pb.filtrarPromosBancariasPorTarjetas(datos, ['MODO']).changomas.promos.filter(esIcbcModo).length, 0);
+    for (const tarjetas of [['ICBC'], ['ICBC', 'MODO']]) {
+      const propias = pb.filtrarPromosBancariasPorTarjetas(datos, tarjetas).changomas.promos.filter(esIcbcModo);
+      assert.deepEqual(propias.map(p => p.bancoCanonico), ['ICBC vía MODO'], tarjetas.join());
+      assert.equal(propias[0].descuentoPct, 0.2);
     }
-    const propias = pb.filtrarPromosBancariasPorTarjetas(datos, ['ICBC Modo']).changomas.promos;
-    assert.deepEqual(propias.map(p => p.bancoCanonico), ['ICBC Modo']);
-    assert.equal(propias[0].descuentoPct, 0.2);
   });
 
-  test('Chango Más: todas las MODO + banco del feed quedan como "<Banco> Modo"', async () => {
+  test('Chango Más: todas las MODO + banco del feed quedan como "banco vía MODO"; Yoy_MODO se descarta', async () => {
     mockVTEX(CM);
     const { promos } = await pb.fetchChangoMas();
-    const modos = promos.map(p => p.canonicosPosibles.join('+')).filter(c => /modo/i.test(c)).sort();
-    assert.deepEqual(modos, ['Comafi Modo', 'Hipotecario Modo', 'ICBC Modo', 'MODO', 'Yoy Modo']);
+    const conModo = promos.filter(p => p.canonicosPosibles.includes('MODO') || p.viaModo).map(resumen).sort();
+    assert.deepEqual(conModo, ['Banco Hipotecario vía MODO', 'Comafi vía MODO', 'ICBC vía MODO', 'MODO [MasGO]']);
     assert.ok(!promos.some(p => 'requiereTodas' in p), 'ya no existe requiereTodas');
+    assert.ok(!promos.some(p => p.requisitos.includes('MODO')), 'MODO nunca es requisito');
+    assert.ok(!promos.some(p => p.canonicosPosibles.some(c => / Modo$/.test(c))), 'ningún canónico "<Banco> Modo"');
   });
 
-  test('Cencosud: Galicia 20% "QR de Modo desde app Galicia" → Galicia Modo (antes: cualquier Galicia)', async () => {
+  test('Cencosud: Galicia 20% "QR de Modo desde app Galicia" → Galicia vía MODO', async () => {
     mockCencosud([CENCOSUD.galicia20, CENCOSUD.hipotecario]);
     const { promos } = await pb.fetchJumbo();
-    assert.deepEqual(promos.map(resumen), ['Galicia Modo', 'Hipotecario Modo']);
+    assert.deepEqual(promos.map(resumen), ['Galicia vía MODO', 'Banco Hipotecario vía MODO']);
   });
 
-  test('Galicia Modo sigue siendo el mismo string (hay usuarios que lo tienen guardado)', () => {
-    assert.ok(pb.TARJETAS_CONOCIDAS.includes('Galicia Modo'));
-    assert.equal(pb.TARJETAS_CONOCIDAS.indexOf('Galicia Modo'), pb.TARJETAS_CONOCIDAS.indexOf('Galicia') + 1);
+  test('normalizarTarjetasUsuario: opciones viejas "<Banco> Modo" → banco + MODO', () => {
+    assert.deepEqual(pb.normalizarTarjetasUsuario(['Galicia Modo']).sort(), ['Galicia', 'MODO']);
+    assert.deepEqual(pb.normalizarTarjetasUsuario(['Hipotecario Modo']).sort(), ['Banco Hipotecario', 'MODO']);
+    assert.deepEqual(pb.normalizarTarjetasUsuario(['Banco Nación Modo', 'Jubilado']).sort(), ['Banco Nación', 'Jubilado', 'MODO']);
+    // Sin duplicados si ya tenía el banco y/o MODO; sin banco inventado para "Yoy Modo"
+    assert.deepEqual(pb.normalizarTarjetasUsuario(['Galicia', 'MODO', 'Galicia Modo', 'ICBC Modo']).sort(), ['Galicia', 'ICBC', 'MODO']);
+    assert.deepEqual(pb.normalizarTarjetasUsuario(['Yoy Modo']), ['MODO']);
+    assert.deepEqual(pb.normalizarTarjetasUsuario(['Santander', 'MODO', 'Jubilado']), ['Santander', 'MODO', 'Jubilado']);
+    assert.deepEqual(pb.normalizarTarjetasUsuario(), []);
+  });
+
+  test('Galicia Modo ya no es una opción, pero quien lo tenía guardado sigue recibiendo la promo', () => {
+    assert.ok(!pb.TARJETAS_CONOCIDAS.includes('Galicia Modo'));
+    const promo = hoyTodos({ ...pb.clasificarPromo(['Galicia Modo'], ''), descuentoPct: 0.2 });
+    assert.equal(pb.promoAplicaATarjetas(promo, ['Galicia Modo']), true);
+    assert.equal(pb.etiquetaTarjetas(promo, ['Galicia Modo']), 'Galicia vía MODO');
+    assert.equal(pb.promoAplicaATarjetas(promo, ['Galicia']), true);
+    assert.equal(pb.promoAplicaATarjetas(promo, ['MODO']), false);
   });
 });
 
@@ -1018,7 +1040,7 @@ describe('2. segmentos del cliente (solo campos cortos)', () => {
     const { promos } = await pb.fetchCarrefour();
     const r = promos.map(resumen);
     assert.ok(r.includes('Mi Carrefour [Jubilado]'));
-    assert.ok(r.includes('Banco Nación Modo [Jubilado]'));
+    assert.ok(r.includes('Banco Nación vía MODO [Jubilado]'));
     assert.ok(r.includes('- [Empleado público]'));
     assert.ok(r.includes('Cuenta DNI'));
     // Patagonia "plan sueldo" sigue sin alias (decisión pendiente por niveles) → no aparece
@@ -1028,7 +1050,7 @@ describe('2. segmentos del cliente (solo campos cortos)', () => {
   test('Chango Más: Supervielle jubilados, ICBC_Sueldos, Anses y Empleados Públicos', async () => {
     mockVTEX(CM);
     const r = (await pb.fetchChangoMas()).promos.map(resumen);
-    for (const esperado of ['Supervielle [Jubilado]', 'ICBC [Plan sueldo]', '- [Jubilado]', '- [Empleado público]', 'Hipotecario Modo']) {
+    for (const esperado of ['Supervielle [Jubilado]', 'ICBC [Plan sueldo]', '- [Jubilado]', '- [Empleado público]', 'Banco Hipotecario vía MODO']) {
       assert.ok(r.includes(esperado), esperado);
     }
   });
@@ -1037,17 +1059,17 @@ describe('2. segmentos del cliente (solo campos cortos)', () => {
     mockCoto();
     const r = (await pb.fetchCoto()).promos.map(p => `${resumen(p)}/${p.canales[0]}/${Math.round(p.descuentoPct * 100)}`);
     for (const esperado of ['- [Jubilado]/tienda/15', '- [Jubilado]/tienda/10', 'ICBC [Plan sueldo]/ecommerce/30',
-      'Supervielle [Supervielle Identité]/ecommerce/25', 'Supervielle/ecommerce/20', 'Supervielle Modo/tienda/25']) {
+      'Supervielle [Supervielle Identité]/ecommerce/25', 'Supervielle/ecommerce/20', 'Supervielle vía MODO/tienda/25']) {
       assert.ok(r.includes(esperado), esperado);
     }
     assert.equal(r.filter(x => x.startsWith('- ')).length, 4, 'jubilados + 2 ANSES + comunidad; sin ciudadanía porteña');
   });
 
-  test('Día: BNA 5% jubilados ("Modo|BNA", % del título) → Banco Nación Modo + Jubilado; Anses sin % sigue afuera', async () => {
+  test('Día: BNA 5% jubilados ("Modo|BNA", % del título) → Banco Nación vía MODO + Jubilado; Anses sin % sigue afuera', async () => {
     mockDia();
     const { promos } = await pb.fetchDia();
     const r = promos.map(p => `${resumen(p)}/${Math.round(p.descuentoPct * 100)}`);
-    assert.deepEqual(r.sort(), ['Banco Nación Modo [Jubilado]/5', 'MODO/20']);
+    assert.deepEqual(r.sort(), ['Banco Nación vía MODO [Jubilado]/5', 'MODO/20']);
   });
 
   test('Cencosud: "Medios de Pago" jubilados (Vea) solo exige Jubilado; Supervielle "MARTES JUBILADOS" exige las dos', async () => {
@@ -1148,28 +1170,46 @@ describe('3-6. match por tarjetas + requisitos', () => {
 
 // ─── Mis descuentos / grilla / opciones ──────────────────────────────────────
 describe('opciones de Mis descuentos, grilla y compatibilidad', () => {
-  test('TARJETAS_CONOCIDAS: "<Banco> Modo" después de su banco, segmentos y programas al final, sin duplicados', () => {
+  test('TARJETAS_CONOCIDAS: sin opciones "<Banco> Modo", segmentos y programas al final, sin duplicados', () => {
     const t = pb.TARJETAS_CONOCIDAS;
     assert.equal(new Set(t).size, t.length);
-    for (const nombre of ['ICBC Modo', 'Comafi Modo', 'Credicoop Modo', 'Hipotecario Modo', 'Supervielle Modo', 'Banco Ciudad Modo', 'Yoy Modo', 'Banco Nación Modo',
+    for (const nombre of ['MODO', 'ICBC', 'Comafi', 'Credicoop', 'Banco Hipotecario', 'Supervielle', 'Banco Ciudad', 'Banco Nación', 'Galicia',
       'Jubilado', 'Plan sueldo', 'Empleado público', 'Supervielle Identité', 'MasGO', 'Comunidad Coto']) {
       assert.ok(t.includes(nombre), nombre);
     }
-    assert.equal(t.indexOf('ICBC Modo'), t.indexOf('ICBC') + 1);
+    assert.ok(!t.some(x => / Modo$/.test(x)), 'ningún "<Banco> Modo"');
+    assert.equal(pb.TARJETAS_MODO, undefined, 'ya no se exporta TARJETAS_MODO');
     assert.deepEqual(t.slice(-6), ['Jubilado', 'Plan sueldo', 'Empleado público', 'Supervielle Identité', 'MasGO', 'Comunidad Coto']);
   });
 
-  test('misDescuentos lista las promos bajo su tarjeta Y bajo su requisito (ICBC Modo no aparece bajo MODO)', async () => {
+  test('misDescuentos lista las promos bajo su tarjeta Y bajo su requisito (ICBC vía MODO bajo ICBC, no bajo MODO)', async () => {
     mockVTEX(CM);
     const datos = { changomas: await pb.fetchChangoMas() };
     const { descuentos } = misDescuentosTest.calcularDescuentos(datos);
     const de = nombre => descuentos.find(d => d.nombre === nombre);
-    assert.equal(de('ICBC Modo').descuentoPct, 0.2);
     assert.equal(de('MasGO').descuentoPct, 0.35);
     assert.equal(de('Empleado público').descuentoPct, 0.1);
-    assert.equal(de('MODO').descuentoPct, 0.2); // MODO genérico (lunes / domingo MasGO), no el 30% de Credicoop Modo
-    assert.equal(de('Comafi Modo').descuentoPct, 0.2);
-    assert.equal(de('Comafi').descuentoPct, null, 'Comafi Modo no se lista bajo Comafi');
+    // ICBC: vía MODO 20% (sin otro requisito) gana sobre el 30% plan sueldo (pide "Plan sueldo").
+    assert.equal(de('ICBC').descuentoPct, 0.2);
+    assert.equal(de('Comafi').descuentoPct, 0.2);
+    assert.equal(de('Banco Hipotecario').descuentoPct, 0.25);
+    // MODO: el MODO genérico (domingo MasGO 20%), NO el 25% de Banco Hipotecario vía MODO.
+    assert.equal(de('MODO').descuentoPct, 0.2);
+    assert.ok(!descuentos.some(d => / Modo$/.test(d.nombre)));
+  });
+
+  test('misDescuentos: el % de "MODO" nunca sale de una promo banco vía MODO', () => {
+    const datos = { coto: { error: null, promos: [
+      hoyTodos({ canonicosPosibles: ['MODO'], requisitos: [], descuentoPct: 0.2, tope: null }),
+      hoyTodos({ canonicosPosibles: ['Comafi'], requisitos: [], viaModo: true, descuentoPct: 0.3, tope: 15000 }),
+      hoyTodos({ canonicosPosibles: ['Credicoop'], requisitos: [], viaModo: true, descuentoPct: 0.3, tope: 15000 }),
+    ] } };
+    const de = (d, nombre) => misDescuentosTest.calcularDescuentos(d).descuentos.find(x => x.nombre === nombre);
+    assert.deepEqual([de(datos, 'MODO').descuentoPct, de(datos, 'MODO').tope], [0.2, null]);
+    assert.equal(de(datos, 'Comafi').descuentoPct, 0.3);
+    // Sin MODO a secas, "MODO" queda vacío: las banco vía MODO no se listan bajo MODO.
+    const soloBancoModo = { coto: { error: null, promos: datos.coto.promos.slice(1) } };
+    assert.equal(de(soloBancoModo, 'MODO').descuentoPct, null);
   });
 
   test('grilla: propias primero; entre las ajenas, las sin requisito antes (MasClub 15% general antes que 20% MasGO)', () => {
@@ -1180,6 +1220,17 @@ describe('opciones de Mis descuentos, grilla y compatibilidad', () => {
     ];
     assert.deepEqual(grillaTest.elegirPromosDelDia(promos, 3, []), [{ banco: 'MasClub', pct: 0.15 }, { banco: 'Jubilado', pct: 0.1 }]);
     assert.deepEqual(grillaTest.elegirPromosDelDia(promos, 3, ['MasClub', 'MasGO', 'Jubilado']), [{ banco: 'MasClub', pct: 0.2 }, { banco: 'Jubilado', pct: 0.1 }]);
+  });
+
+  test('grilla: banco vía MODO es propia con solo el banco (o con la opción vieja "Galicia Modo"), no con solo MODO', () => {
+    const promos = [
+      hoyTodos({ canonicosPosibles: ['Galicia'], requisitos: [], viaModo: true, descuentoPct: 0.2 }),
+      hoyTodos({ canonicosPosibles: ['MasClub'], requisitos: [], descuentoPct: 0.3 }),
+    ];
+    const primera = tarjetas => grillaTest.elegirPromosDelDia(promos, 3, tarjetas)[0];
+    assert.deepEqual(primera(['MODO']), { banco: 'MasClub', pct: 0.3 });
+    assert.deepEqual(primera(['Galicia']), { banco: 'Galicia', pct: 0.2 });
+    assert.deepEqual(primera(['Galicia Modo']), { banco: 'Galicia', pct: 0.2 });
   });
 
   test('compatibilidad con un cache viejo (MODO + banco con requiereTodas) hasta que corra el cron', () => {
