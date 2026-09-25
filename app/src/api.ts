@@ -136,6 +136,12 @@ export type RespuestaComparar = {
         /** true si el % se aplica solo sobre los productos sin promo de producto (Coto
          *  "Aplica en los productos sin oferta"); `descuento` ya lo refleja. */
         soloSinOferta?: boolean;
+        /** true si la promo dice "no acumulable con otras promociones": va solo sobre lo que no
+         *  tiene promo de producto (ya reflejado en `descuento`). 2026-09-24. */
+        noAcumulable?: boolean;
+        /** Promo limitada a categorías ("galletitas, bebidas sin alcohol, perfumería y limpieza");
+         *  `descuento` ya va solo sobre esos productos. null = todo el ticket. 2026-09-24. */
+        categorias?: string | null;
         descuento: number;
         subtotalFinal: number;
       } | null>;
@@ -410,7 +416,12 @@ export function misDescuentos(accessToken: string) {
 /** Una celda de la grilla de promos por super×día (turno 17): hasta 3 promos, una por banco —
  *  primero las de las tarjetas propias del usuario, completando con las de mayor % hasta 3
  *  (ver backend/src/routes/promosBancariasGrilla.js). `tiene: false` es "sin promo ese día". */
-export type CeldaGrilla = { tiene: boolean; promos: { banco: string; pct: number }[] };
+export type CeldaGrilla = {
+  tiene: boolean;
+  /** `categorias`: la promo vale solo en algunos rubros ("galletitas, cervezas…") — la celda marca
+   *  el % con un asterisco. 2026-09-24. */
+  promos: { banco: string; pct: number; categorias?: string | null }[];
+};
 export type FilaGrilla = { superKey: SuperKey; celdas: CeldaGrilla[] };
 
 export function promosBancariasGrilla(tarjetas: string[], accessToken: string) {

@@ -34,8 +34,11 @@ const { calcularCosto } = require('../../../AllPromos/promo-engine');
 const { esEANvalido } = require('../../../AllPromos/core/catalogo');
 const {
   filtrarPromosBancariasPorTarjetas, promosAplicablesHoy, reoptimizarAsignacion,
-  promoBancariaRequiereOnline,
+  promoBancariaRequiereOnline, lineaDeItem,
 } = require('../../../AllPromos/promos-bancarias');
+const {
+  categoriasDeProducto, lineaCumplePromo, promoRestringeProductos, textoCategorias,
+} = require('../../../AllPromos/core/categoriasPromo');
 const catalogoUnificado = require('../catalogoUnificado');
 const precioCache = require('../precioCache');
 const { requiereSesion, requierePlanActivo } = require('../middleware/requiereSesion');
@@ -275,17 +278,43 @@ function aplicarPromosBancarias(resumen, supermercados, tarjetasSeleccionadas, d
   // promos bancarias `soloSinOferta` (Coto "Aplica en los productos sin oferta", auditoría
   // 2026-09-24). Sale de `sinOferta`, que el handler marca en cada `_mejores[key]` y
   // calcularResumenFinal copia a `disponibles` (mismo orden: itemsReoptimizarDesdeFinal es un .map).
-  const itemsReopt = itemsReoptimizarDesdeFinal(resumen.items, supermercados).map((it, i) => ({
-    ...it,
-    sinOfertaPorSuper: Object.fromEntries(supermercados.map(s => {
-      const d = resumen.items[i].disponibles.find(x => x.key === s.key);
-      return [s.key, d ? d.sinOferta !== false : true];
-    })),
-  }));
+  //
+  // `categoriasPorSuper` + `nombre` (2026-09-24): base de las promos limitadas a categorías
+  // (Cencopay 25% jueves "galletitas, bebidas sin alcohol, perfumería y limpieza") o con marcas
+  // excluidas — el handler marca `categorias` (etiquetas de core/categoriasPromo.js, según la
+  // categoría del catálogo de ESE súper) y `nombreProducto` en cada `_mejores[key]`.
+  const itemsReopt = itemsReoptimizarDesdeFinal(resumen.items, supermercados).map((it, i) => {
+    const dispo = key => resumen.items[i].disponibles.find(x => x.key === key);
+    return {
+      ...it,
+      sinOfertaPorSuper: Object.fromEntries(supermercados.map(s => {
+        const d = dispo(s.key);
+        return [s.key, d ? d.sinOferta !== false : true];
+      })),
+      categoriasPorSuper: Object.fromEntries(supermercados.map(s => [s.key, dispo(s.key)?.categorias ?? null])),
+      nombre: resumen.items[i].disponibles.find(d => d.nombreProducto)?.nombreProducto ?? null,
+    };
+  });
   const resultado = reoptimizarAsignacion(itemsReopt, datosDeHoy, supermercados, { hoy: new Date() });
 
   const hayAlgoAplicable = Object.values(resultado.oportunidades).some(o => o?.mejor);
   if (!hayAlgoAplicable) return null;
+
+  // Qué productos forman la base de la promo elegida en cada súper, cuando la promo no va sobre el
+  // ticket entero — repartirDescuentoBancarioEntreFilas reparte el descuento SOLO entre esas filas.
+  // Interno (no viaja en la respuesta: el handler arma `resumen` público campo por campo).
+  resumen._basePromoBancaria = {};
+  for (const s of supermercados) {
+    const promo = resultado.oportunidades[s.key]?.mejor?.promo;
+    if (!promo || !promoRestringeProductos(promo)) continue;
+    resumen._basePromoBancaria[s.key] = new Set(
+      itemsReopt
+        .map((it, i) => (resultado.asignacion[i] === s.key && lineaCumplePromo(promo, lineaDeItem(it, s.key))
+          ? resumen.items[i].disponibles.find(d => d.key === s.key)?.ean
+          : null))
+        .filter(Boolean)
+    );
+  }
 
   resumen.comprasPorSuper = comprasPorSuperDesdeAsignacion(resumen.items, resultado.asignacion, supermercados);
   resumen.subtotalAsignadoPorSuper = resultado.subtotales;
@@ -314,6 +343,11 @@ function aplicarPromosBancarias(resumen, supermercados, tarjetasSeleccionadas, d
       topeDetectado: promo.tope != null,
       soloOnline: promoBancariaRequiereOnline(promo),
       soloSinOferta: !!promo.soloSinOferta,
+      // "no acumulable con otras promociones" (va solo sobre lo que no tiene promo de producto).
+      noAcumulable: !!promo.noAcumulable,
+      // Promo limitada a categorías: "galletitas, bebidas sin alcohol, perfumería y limpieza" (la
+      // app muestra "· solo en …"); null = todo el ticket (salvo exclusiones/sin oferta).
+      categorias: promo.categoriasIncluidas ? textoCategorias(promo.categoriasIncluidas) : null,
       descuento: Math.round(descuento * 100) / 100,
       subtotalFinal: Math.round((resultado.subtotales[s.key] - descuento) * 100) / 100,
     };
@@ -369,10 +403,12 @@ function repartirDescuentoBancarioEntreFilas(items, resumen, bancario, supermerc
     const todas = (resumen.comprasPorSuper[s.key] || [])
       .map(c => ({ ean: c.ean, opcion: itemPorEan.get(c.ean)?.opciones.find(o => o.key === s.key) }))
       .filter(e => e.opcion);
-    // Promo "solo productos sin oferta" (Coto): el descuento se reparte solo entre las filas sin
-    // promo de producto — mismo criterio que `sinOferta` en el handler (total == precio de lista).
-    const sinOferta = todas.filter(e => e.opcion.total >= e.opcion.totalSinPromo - 0.005);
-    const entradas = ahorro.soloSinOferta && sinOferta.length ? sinOferta : todas;
+    // Promo que no va sobre el ticket entero (Coto "solo productos sin oferta", "no acumulable",
+    // limitada a categorías o con exclusiones): el descuento se reparte solo entre las filas que
+    // formaron su base — las mismas que eligió aplicarPromosBancarias con lineaCumplePromo.
+    const base = resumen._basePromoBancaria?.[s.key];
+    const enBase = base ? todas.filter(e => base.has(e.ean)) : todas;
+    const entradas = enBase.length ? enBase : todas;
     // Suma de las filas de este super ANTES del descuento de ticket — es la misma base que
     // usó aplicarPromosBancarias para calcular `ahorro.descuento`, así que reparte exacto.
     const subtotalBase = entradas === todas
@@ -483,6 +519,16 @@ router.post('/comparar', requiereSesion, requierePlanActivo, async (req, res) =>
       // promo de producto aplicada en cada super (total por debajo del precio de lista).
       for (const op of opcionesPublicas) {
         if (mejores[op.key]) mejores[op.key].sinOferta = op.total >= op.totalSinPromo - 0.005;
+      }
+      // Promos bancarias limitadas a categorías / con marcas excluidas (2026-09-24): la categoría del
+      // catálogo de CADA súper (el mismo EAN tiene una ruta distinta en cada árbol), mapeada al
+      // vocabulario de core/categoriasPromo.js. Si ese súper no lo tiene en su catálogo (vino del
+      // fallback en vivo), la de otro súper o la del catálogo unificado.
+      const rutas = precioCache.categoriasPorEAN(ean);
+      const rutaRespaldo = Object.values(rutas)[0] ?? delCatalogo?.categoria ?? null;
+      for (const [key, m] of Object.entries(mejores)) {
+        m.categorias = categoriasDeProducto(rutas[key] ?? rutaRespaldo);
+        m.nombreProducto = m.productoNombre || nombre;
       }
 
       return {

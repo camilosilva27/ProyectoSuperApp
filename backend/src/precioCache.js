@@ -237,11 +237,16 @@ function entradasDe(key, sku) {
 }
 
 let indice = null; // Map<ean, { vea:[], carr:[], changomas:[], dia:[], coto:[], jumbo:[], disco:[] }>
+// Map<ean, { [key]: 'Almacén > Desayuno y Merienda > Galletitas Dulces' }> — la categoría del catálogo
+// de CADA súper (el mismo EAN tiene una ruta distinta en cada árbol). Para las promos bancarias
+// limitadas a categorías (ver AllPromos/core/categoriasPromo.js y categoriasPorEAN abajo).
+let categoriasIndice = new Map();
 let datosVistos = {}; // key -> referencia al objeto que devolvió leerCatalogo la última vez
 let fechasPorFuente = {}; // key -> `fecha` del catalogo-*.json usado para construir el índice
 
 function construirIndice() {
   const nuevoIndice = new Map();
+  const nuevasCategorias = new Map();
   const nuevasFechas = {};
 
   for (const { key, archivo } of FUENTES) {
@@ -258,10 +263,16 @@ function construirIndice() {
         nuevoIndice.set(sku.ean, Object.fromEntries(FUENTES.map(f => [f.key, []])));
       }
       nuevoIndice.get(sku.ean)[key].push(...entradasDe(key, sku));
+      if (sku.categoria) {
+        if (!nuevasCategorias.has(sku.ean)) nuevasCategorias.set(sku.ean, {});
+        const porSuper = nuevasCategorias.get(sku.ean);
+        if (!porSuper[key]) porSuper[key] = sku.categoria;
+      }
     }
   }
 
   indice = nuevoIndice;
+  categoriasIndice = nuevasCategorias;
   fechasPorFuente = nuevasFechas;
 }
 
@@ -291,6 +302,15 @@ function precioPorEAN(ean) {
   asegurarIndice();
   const grupo = indice.get(ean);
   return grupo ? sanearPorEmpaquetado(aplicarVigencia(grupo)) : null;
+}
+
+/**
+ * Ruta de categoría del catálogo de cada súper para un EAN: `{ vea: 'Almacén > …', coto: '…' }`
+ * (solo los supers que lo tienen en su catálogo). `{}` si no está en ninguno.
+ */
+function categoriasPorEAN(ean) {
+  asegurarIndice();
+  return categoriasIndice.get(ean) || {};
 }
 
 /** Fecha de generación de cada fuente — para /api/health, así se ve de un vistazo si el
@@ -342,4 +362,4 @@ function elegirProductosTour() {
   return candidatos.slice(0, CANTIDAD_PRODUCTOS_TOUR);
 }
 
-module.exports = { precioPorEAN, estadoFuentes, elegirProductosTour, _test: { entradasCencosud, entradasVtexConTeasers, entradasCoto, aplicarVigencia } };
+module.exports = { precioPorEAN, categoriasPorEAN, estadoFuentes, elegirProductosTour, _test: { entradasCencosud, entradasVtexConTeasers, entradasCoto, aplicarVigencia } };

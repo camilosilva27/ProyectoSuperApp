@@ -17,6 +17,7 @@
 const express = require('express');
 const { leerPromosBancariasCache, fechaGeneracionPromosBancarias } = require('../promosBancariasCache');
 const { promoAplicaATarjetas, normalizarTarjetasUsuario } = require('../../../AllPromos/promos-bancarias');
+const { textoCategorias } = require('../../../AllPromos/core/categoriasPromo');
 const { requiereSesion, requierePlanActivo } = require('../middleware/requiereSesion');
 
 const router = express.Router();
@@ -58,10 +59,14 @@ function elegirPromosDelDia(promos, dia, tarjetasPropias) {
   }
 
   return [...mejorPorBanco.entries()]
-    .map(([banco, p]) => ({ banco, pct: p.descuentoPct, propia: esPropia(p), prioridad: prioridad(p) }))
+    .map(([banco, p]) => ({ banco, pct: p.descuentoPct, propia: esPropia(p), prioridad: prioridad(p), promo: p }))
     .sort((a, b) => (b.prioridad - a.prioridad) || (b.pct - a.pct))
     .slice(0, 3)
-    .map(({ banco, pct }) => ({ banco, pct }));
+    // `categorias` (2026-09-24): la promo vale solo en algunos rubros (Cencopay 25% jueves) — la
+    // app le pone un asterisco al % para no venderla como "25% en toda la compra".
+    .map(({ banco, pct, promo }) => ({
+      banco, pct, ...(promo.categoriasIncluidas ? { categorias: textoCategorias(promo.categoriasIncluidas) } : {}),
+    }));
 }
 
 function armarFilas(datosPorSuper, tarjetasPropias) {

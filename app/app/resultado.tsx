@@ -551,6 +551,7 @@ function PlanDeCompra({ data }: { data: RespuestaComparar }) {
                         : ''}
                       {!topeIrreal ? ' — ya está restado del total' : ''}
                       {ahorroBancario.soloOnline ? ' · solo comprando online' : ''}
+                      {ahorroBancario.categorias ? ` · solo en ${ahorroBancario.categorias}` : ''}
                     </Text>
                   </View>
                 </View>

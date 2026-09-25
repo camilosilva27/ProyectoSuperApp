@@ -76,7 +76,9 @@ const DIMENSIONES = {
 
 function etiquetaCelda(celda: CeldaGrilla): string {
   if (!celda.promos.length) return 'sin promo';
-  return celda.promos.map(p => `${p.banco} ${Math.round(p.pct * 100)}%`).join(', ');
+  return celda.promos
+    .map(p => `${p.banco} ${Math.round(p.pct * 100)}%${p.categorias ? ` solo en ${p.categorias}` : ''}`)
+    .join(', ');
 }
 
 // `as const` deja cada valor como literal (anchoDia: 92 | 80), pero en desktop `anchoDia` se
@@ -125,7 +127,7 @@ function CeldaPromo({
                   { fontSize: dim.fontPct, lineHeight: dim.lineHeightPct, color: paleta.ofertaTinta },
                 ]}
               >
-                {Math.round(p.pct * 100)}%
+                {Math.round(p.pct * 100)}%{p.categorias ? '*' : ''}
               </Text>
             </View>
           </View>
@@ -198,8 +200,13 @@ export function GrillaPromosBancarias({
   // 'center' la centra dentro de `estadoInicial` (que por defecto la estira, alignItems: 'stretch').
   const anchoContenido = dim.anchoSuper + dim.anchoDia * 7;
 
+  // Alguna promo visible vale solo en algunos rubros (Cencopay 25% jueves: galletitas, bebidas sin
+  // alcohol…): su % lleva "*" y abajo va la aclaración (2026-09-24).
+  const hayConCategorias = filasOrdenadas.some(f => f.celdas.some(c => c.promos.some(p => p.categorias)));
+
   return (
-    <View style={[styles.fila, pantallaAncha ? { alignSelf: 'center', width: anchoContenido } : null]}>
+    <View style={pantallaAncha ? { alignSelf: 'center', width: anchoContenido } : null}>
+    <View style={styles.fila}>
       <View
         style={[styles.columnaSupers, { width: dim.anchoSuper, borderColor: paleta.bordeSuave }]}
       >
@@ -280,6 +287,12 @@ export function GrillaPromosBancarias({
           ))}
         </View>
       </ScrollView>
+    </View>
+    {hayConCategorias ? (
+      <Text style={[texto.micro, { color: paleta.tintaSuave, marginTop: espacio.xs }]}>
+        * Solo en algunas categorías de productos
+      </Text>
+    ) : null}
     </View>
   );
 }

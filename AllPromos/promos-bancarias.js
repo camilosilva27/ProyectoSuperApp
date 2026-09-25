@@ -25,6 +25,10 @@
 const fs   = require('fs');
 const path = require('path');
 const { partesFechaArgentina, diaSemanaISOArgentina, fechaISOArgentina } = require('./core/fechaArgentina');
+const {
+  VOCABULARIO, MARCAS: MARCAS_PROMO, TERMINOS_EXCLUSION, parsearListaCategorias, lineaCumplePromo,
+  promoRestringeProductos,
+} = require('./core/categoriasPromo');
 
 // Reintento simple para errores de conexión (timeout, reset, DNS) — no para status HTTP, que
 // cada fetch*() ya trata como "fuente caída" (`fetch_failed`) sin reintentar, a propósito: son
@@ -468,6 +472,160 @@ function extraerMontoMinimo(texto) {
   ]);
 }
 
+// ─── Promos limitadas a categorías / marcas / "no acumulable" (decisión del usuario 2026-09-24) ──
+//
+// Antes TODAS las promos por ticket se aplicaban al ticket entero. Tres restricciones nuevas, todas
+// leídas del texto (corto + legal) y resueltas contra el carrito en mejorPromoTicket (ver
+// lineaCumplePromo en core/categoriasPromo.js):
+//  - `categoriasIncluidas`: "25% de descuento en productos seleccionados de galletitas, bebidas sin
+//    alcohol, perfumería y limpieza" (Cencopay jueves Jumbo/Disco), "En Alimentos secos, Congelados,
+//    Lácteos, …" (Carrefour Empleado público). REGLA DE SEGURIDAD: si el texto limita la promo a
+//    ciertos productos pero algún pedazo de la lista no se puede mapear al vocabulario (Chango Más
+//    ANSES "únicamente en los productos detallados: … almacén sin tacc, horneables y gelificables…"),
+//    la promo se DESCARTA — nunca se aplica al ticket entero.
+//  - `categoriasExcluidas` / `marcasExcluidas`: "no incluye carnicería, huevos de gallina, frutas,
+//    verduras, electros…", "cervezas y gaseosas de Cervecería y Maltería Quilmes (Stella Artois, …)".
+//    Acá NO rige la regla de seguridad: lo que no se reconoce ("ofertón por bulto", "precios
+//    cuidados") se ignora y esas filas siguen contando, como antes (sobreestima lo mismo que hoy,
+//    nunca más).
+//  - "No acumulable con otras promociones" → `soloSinOferta` + `noAcumulable` (misma base que Coto
+//    "Aplica en los productos sin oferta"): el % va solo sobre lo que no tiene promo de producto.
+
+// Palabra clave de exclusión y palabras que cortan la continuación de la lista en la oración siguiente.
+const RE_CLAVE_EXCLUSION = /\b(?:no\s+incluyen?|excluid[oa]s?|se\s+excluyen?|excepto|a\s+excepcion\s+de|no\s+participan)\b/;
+const RE_FIN_EXCLUSION = /\b(?:promocion(?:es)?|beneficios?|valid[oa]s?|descuentos?|reintegros?|topes?|consult\w*|compras?|pagos?|tarjetas?|clientes?|socios?|acumulables?|vigencia|legales|exclusivos?|abonando)\b/;
+
+/** Oraciones de un texto ya normalizado (no corta "$15.000"). Los saltos de línea NO cortan: el legal
+ *  del BNA en Chango Más parte la lista de excluidos en varias líneas a mitad de oración. */
+function oraciones(t) {
+  return t.replace(/\s*\n\s*/g, ' ').split(/(?<!\d)\.(?!\d)|\||;/).map(s => s.trim()).filter(Boolean);
+}
+
+/**
+ * Categorías y marcas excluidas por el texto. Cada zona arranca en la palabra clave ("no incluye",
+ * "excluidos", "se excluye el rubro", "excepto") y sigue en las oraciones siguientes mientras
+ * sean pura lista (Chango Más reparte la lista en 3 oraciones).
+ */
+function exclusionesDeTexto(texto) {
+  const partes = oraciones(normalizar(texto));
+  const categorias = new Set();
+  const marcas = new Set();
+  for (let i = 0; i < partes.length; i++) {
+    const m = partes[i].match(RE_CLAVE_EXCLUSION);
+    if (!m) continue;
+    let zona = partes[i].slice(m.index + m[0].length);
+    let j = i + 1;
+    while (j < partes.length && j <= i + 6 && !RE_CLAVE_EXCLUSION.test(partes[j]) && !RE_FIN_EXCLUSION.test(partes[j])) {
+      zona += ', ' + partes[j];
+      j++;
+    }
+    // Marca propia ("no incluye productos Carrefour de alimentos, lácteos, … bebidas, perfumería y
+    // limpieza"): son los productos de ESA marca, no esas categorías enteras.
+    if (/\bproductos\s+carrefour\b/.test(zona)) marcas.add('carrefour');
+    zona = zona
+      .replace(/\bproductos\s+carrefour\b.*$/, '')
+      .replace(/\bmarcas?\s+(?:exclusivas?|propias?)\s*\([^)]*\)/g, ' ');
+    for (const [etiqueta, re] of TERMINOS_EXCLUSION) if (re.test(zona)) categorias.add(etiqueta);
+    // Marcas del diccionario, de la más larga a la más corta ("eco de los andes" antes que "andes").
+    let resto = zona;
+    for (const marca of [...MARCAS_PROMO].sort((a, b) => b.enTexto.source.length - a.enTexto.source.length)) {
+      if (marca.enTexto.test(resto)) {
+        marcas.add(marca.clave);
+        resto = resto.replace(new RegExp(marca.enTexto.source, 'g'), ' ');
+      }
+    }
+    i = j - 1;
+  }
+  return { categorias: [...categorias], marcas: [...marcas] };
+}
+
+/**
+ * Listas de categorías INCLUIDAS en el texto. `explicita`: el texto dice que es solo para ciertos
+ * productos ("productos seleccionados de …", "únicamente en los productos …"); sin eso, una frase
+ * "descuento en …"/"en los productos …"/"En …" (al principio del texto corto) solo cuenta como lista
+ * si su primer elemento es una categoría conocida ("descuento en tu compra", "en el acto",
+ * "en los productos sin oferta" no lo son).
+ */
+function listasIncluidas(textoCorto, textoLegal) {
+  const candidatas = [];
+  for (const t of [normalizar(textoCorto), normalizar(textoLegal)]) {
+    for (const m of t.matchAll(/\bdescuento\s+en\s+((?:los\s+)?productos\s+seleccionados\b\s*(?:de\s+)?(?:las\s+secciones\s+)?)?([^.|;\n]*)/g)) {
+      candidatas.push({ lista: m[2], explicita: !!m[1] });
+    }
+    for (const m of t.matchAll(/\b(?:unicamente|solamente|exclusivamente)\s+en\s+(?:los\s+)?productos\b[^:.|]*:?\s*([^|\n]*)/g)) {
+      candidatas.push({ lista: m[1], explicita: true });
+    }
+    for (const m of t.matchAll(/\ben\s+los\s+productos\s+(?!sin\b|seleccionados\b|detallados\b)([^.|;\n]+)/g)) {
+      candidatas.push({ lista: m[1], explicita: false });
+    }
+  }
+  // Carrefour Empleado público: sub_title "En Alimentos secos, Congelados, Lácteos, Fiambres, …".
+  for (const f of frases(textoCorto)) {
+    const m = f.trim().match(/^en\s+(.+)$/);
+    if (m) candidatas.push({ lista: m[1], explicita: false });
+  }
+  return candidatas;
+}
+
+/**
+ * Restricciones por producto de una promo, a partir de su texto corto y su legal.
+ * @returns { descartar: true } si la limita a categorías que no se pueden mapear con seguridad;
+ *   si no, { categoriasIncluidas?, categoriasExcluidas?, marcasExcluidas?, noAcumulable? }
+ *   (solo las claves que aplican, para no ensuciar el cache con campos vacíos).
+ */
+function restriccionesDeCategoria(textoCorto, textoLegal) {
+  const incluidas = new Set();
+  for (const { lista, explicita } of listasIncluidas(textoCorto, textoLegal)) {
+    const r = parsearListaCategorias(lista);
+    if (!explicita && !r.primeroConocido) continue; // no era una lista de categorías
+    if (r.desconocidos.length || !r.etiquetas.length) return { descartar: true };
+    r.etiquetas.forEach(e => incluidas.add(e));
+  }
+  const excl = exclusionesDeTexto(`${textoCorto || ''}. ${textoLegal || ''}`);
+  const salida = {};
+  if (incluidas.size) salida.categoriasIncluidas = Object.keys(VOCABULARIO).filter(k => incluidas.has(k));
+  if (excl.categorias.length) salida.categoriasExcluidas = excl.categorias;
+  if (excl.marcas.length) salida.marcasExcluidas = excl.marcas;
+  if (esNoAcumulable(textoCorto, textoLegal)) salida.noAcumulable = true;
+  return salida;
+}
+
+// "No acumulable con otras promociones / descuentos / ofertas" — Cencopay ("NO ACUMULABLES CON
+// OTRAS PROMOCIONES Y/O DESCUENTOS"), Chango Más MP/MasClub/BNA, varias de Carrefour ("NO
+// ACUMULABLE CON OTRAS PROMOCIONES VIGENTES", "…y/o folletos vigentes"). NO cuenta "no acumulable
+// con otras promociones bancarias" (Chango Más Cuenta DNI: solo entre bancos). Afirmativo
+// ("Acumulable con todas las promos", "Promoción acumulable", "ACUMULABLE CON PRODUCTOS EN
+// OFERTA") = sin restricción. El texto corto manda sobre el legal (Carrefour BNA jubilados: corto
+// "Acumulable con promociones vigentes"); en el legal, si aparecen las dos cosas, se toma como
+// acumulable (el afirmativo suele ser la regla de la promo y el negativo, el de otra).
+const RE_NO_ACUMULABLE = /\bno\s+(?:es\s+|son\s+)?acumulables?\s+con\s+(?:otr[oa]s\s+|las\s+)?(?:promociones|promos|descuentos|ofertas|beneficios)\b(?!\s+bancari)/;
+
+function mencionAcumulable(texto) {
+  const t = normalizar(texto);
+  const negativo = RE_NO_ACUMULABLE.test(t);
+  // Afirmativo = alguna mención de "acumulable" que NO sea parte de un "no acumulable".
+  const afirmativo = [...t.matchAll(/\bacumulables?\b/g)].some(m => !/\bno\s+(?:es\s+|son\s+)?$/.test(t.slice(Math.max(0, m.index - 10), m.index)));
+  return { negativo, afirmativo };
+}
+
+function esNoAcumulable(textoCorto, textoLegal) {
+  const corto = mencionAcumulable(textoCorto);
+  if (corto.negativo) return true;
+  if (corto.afirmativo) return false;
+  const legal = mencionAcumulable(textoLegal);
+  return legal.negativo && !legal.afirmativo;
+}
+
+/** Para los fetchers: null = descartar la promo; si no, los campos a sumar a la promo normalizada.
+ *  `soloSinOfertaExtra`: el fetcher ya sabe que es "solo productos sin oferta" (Coto). */
+function camposRestriccion(textoCorto, textoLegal, soloSinOfertaExtra = false) {
+  const r = restriccionesDeCategoria(textoCorto, textoLegal);
+  if (r.descartar) return null;
+  const { noAcumulable, ...resto } = r;
+  const soloSinOferta = !!(soloSinOfertaExtra || noAcumulable);
+  return { ...resto, ...(noAcumulable ? { noAcumulable: true } : {}), ...(soloSinOferta ? { soloSinOferta: true } : {}) };
+}
+
 function diaISO(fecha) {
   // Convención del proyecto (igual que el campo `days` de Vea): 1=lunes...7=domingo.
   // En hora ARGENTINA, no con fecha.getDay() (corregido 2026-09-24): la VM corre en UTC, así
@@ -530,6 +688,14 @@ function diasCencosud(days, textoNormalizado) {
   return enumeraDomingo || todosLosDias ? [...dias, 7] : dias;
 }
 
+/** "EXCLUSIVO PARA VENTAS PRESENCIALES", "CENCOPAY CUENTA EXCLUSIVO PRESENCIAL" (texto normalizado).
+ *  No si el mismo texto habilita la web (Disco jubilados: "Exclusivo para compras presenciales y
+ *  compras telefónicas" + "y para compras realizadas en Disco.com.ar"). */
+function esExclusivoPresencial(textoNormalizado) {
+  return /\bexclusivo\s+(?:para\s+ventas\s+)?presencial(?:es)?\b/.test(textoNormalizado)
+    && !/\.com\.ar|\bsitios?\s+web\b|\bonline\b|\bventa\s+telefonica|\bcompras\s+telefonicas/.test(textoNormalizado);
+}
+
 // Vea, Jumbo y Disco son la MISMA cuenta VTEX (ver AllPromos/core/fetchers.js) y este feed de
 // Master Data es DE CUENTA COMPLETA, no de sitio — confirmado en vivo pegándole al mismo
 // endpoint desde los 3 dominios: devuelve exactamente el mismo array de entradas. Cada entrada
@@ -579,11 +745,17 @@ async function fetchCencosud(superNombre) {
       const texto = `${e.info || ''} ${e.legals || ''}`;
       const textoNorm = normalizar(texto);
       if (esPromoDeLocalPuntual(textoNorm)) continue;
+      const restriccion = camposRestriccion(e.info || '', e.legals || '');
+      if (!restriccion) continue; // limitada a categorías que no se pueden mapear con seguridad
       promos.push({
         ...clasificada,
+        ...restriccion,
         super: superNombre,
         dias: diasCencosud(e.days, textoNorm),
-        canales: null, // el feed no expone flags de canal, a diferencia de Carrefour/Chango Más
+        // El feed no expone flags de canal (a diferencia de Carrefour/Chango Más): null = ambos. Solo
+        // se restringe con un "exclusivo (para ventas) presencial(es)" explícito (Cencopay 40%
+        // vie-dom y Cencopay Cuenta 25% lunes, 2026-09-24).
+        canales: esExclusivoPresencial(textoNorm) ? ['tienda'] : null,
         descuentoPct,
         tope: topeDePromo(e.info || '', texto),
         montoMinimo: extraerMontoMinimo(texto),
@@ -699,9 +871,12 @@ async function fetchTicketBancoVTEX({ host, hashPromos, hashBanks, hashCards, op
 
     const textoLegal = o.sub_title || o.legal || '';
     const textoParaMontos = `${o.sub_title || ''} ${o.legal || ''}`;
+    const restriccion = camposRestriccion(textoCorto, o.legal || '');
+    if (!restriccion) continue; // limitada a categorías que no se pueden mapear con seguridad
     promos.push({
       canonicosPosibles,
       requisitos,
+      ...restriccion,
       ...(viaModo ? { viaModo: true } : {}),
       super: esCarrefour ? 'Carrefour' : 'Chango Más',
       dias: diasDesdeBooleanos(o),
@@ -862,9 +1037,12 @@ async function fetchDia() {
       const textoCorto = `${card.__editorItemTitle || ''}. ${primeraLinea.length <= 60 ? primeraLinea : ''}`;
       const clasificada = clasificarPromo(nombresBanco, textoCorto);
       if (!clasificada) continue;
+      const restriccion = camposRestriccion(textoCorto, card.terms || '');
+      if (!restriccion) continue;
 
       promos.push({
         ...clasificada,
+        ...restriccion,
         super: 'Día',
         dias: diasDesdeCardDia(card.daysToShow),
         canales: canalesDesdeCardDia(card.availableOn),
@@ -1030,6 +1208,11 @@ async function fetchCoto() {
       const textoCompleto = `${p.descripcion || ''} ${p.observacion || ''}`;
       const fechasPuntuales = extraerFechasPuntuales(textoCompleto, dias, partesFechaArgentina(new Date()).anio);
       if (fechasPuntuales === false) continue;
+      // "Aplica en los productos sin oferta" (Banco Ciudad, MODO martes, Supervielle/Comafi con
+      // MODO): el % va solo sobre lo que no tiene promo de producto — ver mejorPromoTicket.
+      const restriccion = camposRestriccion(p.descripcion || '', p.observacion || '',
+        /productos\s+sin\s+oferta/.test(normalizar(textoCompleto)));
+      if (!restriccion) continue;
 
       promos.push({
         canonicosPosibles,
@@ -1038,9 +1221,7 @@ async function fetchCoto() {
         super: 'Coto',
         dias,
         ...(fechasPuntuales ? { fechasPuntuales } : {}),
-        // "Aplica en los productos sin oferta" (Banco Ciudad, MODO martes, Supervielle/Comafi
-        // con MODO): el % va solo sobre lo que no tiene promo de producto — ver mejorPromoTicket.
-        soloSinOferta: /productos\s+sin\s+oferta/.test(normalizar(textoCompleto)),
+        ...restriccion,
         canales: [p.isDigital ? 'ecommerce' : 'tienda'],
         descuentoPct,
         tope: extraerTopeTextoLibre(p.observacion || ''),
@@ -1072,20 +1253,40 @@ function promosAplicablesHoy(promosNormalizadas, { fecha = new Date() } = {}) {
 }
 
 /**
- * De las promos aplicables, la de mayor ahorro real sobre `subtotal` (aplicando tope y monto
- * mínimo). `subtotalSinOferta` (opcional, default = subtotal): la parte del subtotal sin promo
- * de producto — base de las promos `soloSinOferta` (Coto "Aplica en los productos sin
- * oferta"). El monto mínimo se sigue mirando contra el ticket completo.
+ * Base de la promo = lo del ticket sobre lo que se calcula el %.
+ * `lineas` (array): las filas del carrito en ese súper, `[{ precio, sinOferta?, categorias?, nombre? }]`
+ *   — la base es la suma de las que cumplen (ver lineaCumplePromo: categoría incluida / no excluida,
+ *   marca no excluida, y sin promo de producto si `soloSinOferta`). Es lo que usa /api/comparar.
+ * Número (compatibilidad, CLI): el subtotal sin promo de producto, como antes. Sin filas no se sabe
+ *   la categoría de nada: una promo con `categoriasIncluidas` no aplica (base 0, conservador) y las
+ *   exclusiones no se pueden comprobar (cuenta todo, como antes).
  */
-function mejorPromoTicket(promosAplicables, subtotal, subtotalSinOferta = subtotal) {
+function basePromoTicket(promo, subtotal, lineasOSinOferta) {
+  if (Array.isArray(lineasOSinOferta)) {
+    if (!promoRestringeProductos(promo)) return subtotal;
+    return Math.min(subtotal, lineasOSinOferta.reduce((acc, l) => (lineaCumplePromo(promo, l) ? acc + l.precio : acc), 0));
+  }
+  if (promo.categoriasIncluidas) return 0;
+  return promo.soloSinOferta ? Math.min(subtotal, lineasOSinOferta) : subtotal;
+}
+
+/**
+ * De las promos aplicables, la de mayor ahorro real sobre `subtotal` (aplicando tope y monto
+ * mínimo). Tercer argumento (opcional): las filas del carrito en ese súper, o (compatibilidad) el
+ * subtotal sin promo de producto — ver basePromoTicket. El % va sobre la base de CADA promo
+ * (Cencopay 25% jueves solo sobre galletitas/bebidas sin alcohol/…, "no acumulable" solo sobre lo
+ * sin oferta) y el tope sobre ese descuento. El monto mínimo se sigue mirando contra el ticket
+ * completo. Devuelve también `base`.
+ */
+function mejorPromoTicket(promosAplicables, subtotal, lineasOSinOferta = subtotal) {
   let mejor = null;
   for (const promo of promosAplicables) {
     if (promo.montoMinimo != null && subtotal < promo.montoMinimo) continue;
-    const base = promo.soloSinOferta ? Math.min(subtotal, subtotalSinOferta) : subtotal;
+    const base = basePromoTicket(promo, subtotal, lineasOSinOferta);
     let descuento = base * promo.descuentoPct;
     if (promo.tope != null) descuento = Math.min(descuento, promo.tope);
     if (descuento <= 0) continue;
-    if (!mejor || descuento > mejor.descuento) mejor = { promo, descuento, totalConDescuento: subtotal - descuento };
+    if (!mejor || descuento > mejor.descuento) mejor = { promo, descuento, base, totalConDescuento: subtotal - descuento };
   }
   return mejor;
 }
@@ -1114,13 +1315,13 @@ function promoBancariaRequiereOnline(promo) {
  * `[{ fecha, mejor }]` (uno por día, `mejor` puede ser null) para poder testear o
  * inspeccionar cada día por separado antes de elegir el mejor con elegirMejorDia().
  */
-function mejoresDiasTicket(promosNormalizadas, subtotal, { desde = new Date(), dias = 7, canal = null, subtotalSinOferta = subtotal } = {}) {
+function mejoresDiasTicket(promosNormalizadas, subtotal, { desde = new Date(), dias = 7, canal = null, subtotalSinOferta = subtotal, lineas = null } = {}) {
   const resultados = [];
   for (let i = 0; i < dias; i++) {
     const fecha = new Date(desde.getTime() + i * 86400000);
     let aplicables = promosAplicablesHoy(promosNormalizadas, { fecha });
     if (canal) aplicables = aplicables.filter(p => promoAplicaEnCanal(p, canal));
-    resultados.push({ fecha, mejor: mejorPromoTicket(aplicables, subtotal, subtotalSinOferta) });
+    resultados.push({ fecha, mejor: mejorPromoTicket(aplicables, subtotal, lineas ?? subtotalSinOferta) });
   }
   return resultados;
 }
@@ -1319,11 +1520,11 @@ function imprimirMejorDiaPorSuper(supermercados, datosPorSuper, subtotalesPorSup
  * de esta compra ya tiene una promo de producto exclusiva online, así que ir al local no
  * es una alternativa real (perdés ese descuento, casi siempre mayor que el bancario).
  */
-function mejorOportunidadTicket(promosNormalizadas, subtotal, { desde = new Date(), dias = 7, canalForzado = null, subtotalSinOferta = subtotal } = {}) {
-  const online = elegirMejorDia(mejoresDiasTicket(promosNormalizadas, subtotal, { desde, dias, canal: 'online', subtotalSinOferta }));
+function mejorOportunidadTicket(promosNormalizadas, subtotal, { desde = new Date(), dias = 7, canalForzado = null, subtotalSinOferta = subtotal, lineas = null } = {}) {
+  const online = elegirMejorDia(mejoresDiasTicket(promosNormalizadas, subtotal, { desde, dias, canal: 'online', subtotalSinOferta, lineas }));
   if (canalForzado === 'online') return online?.mejor ? { ...online, canal: 'online' } : null;
 
-  const fisico = elegirMejorDia(mejoresDiasTicket(promosNormalizadas, subtotal, { desde, dias, canal: 'fisico', subtotalSinOferta }));
+  const fisico = elegirMejorDia(mejoresDiasTicket(promosNormalizadas, subtotal, { desde, dias, canal: 'fisico', subtotalSinOferta, lineas }));
   const ahorroOnline = online?.mejor?.descuento || 0;
   const ahorroFisico = fisico?.mejor?.descuento || 0;
   if (ahorroOnline === 0 && ahorroFisico === 0) return null;
@@ -1395,23 +1596,44 @@ function elegirSuperMasBarato(item, oportunidadesPorSuper = {}) {
   let mejor = null;
   for (const [superKey, precio] of Object.entries(item.preciosPorSuper)) {
     if (precio == null) continue;
-    const pct = oportunidadesPorSuper[superKey]?.mejor?.promo?.descuentoPct || 0;
+    // Misma base que el cálculo real: el % de ese súper cuenta para este ítem solo si el ítem entra
+    // en la promo (categoría, marca, sin oferta — ver lineaCumplePromo).
+    const promo = oportunidadesPorSuper[superKey]?.mejor?.promo;
+    const pct = promo && lineaCumplePromo(promo, lineaDeItem(item, superKey)) ? promo.descuentoPct : 0;
     const efectivo = precio * (1 - pct);
     if (!mejor || efectivo < mejor.efectivo) mejor = { superKey, efectivo };
   }
   return mejor ? mejor.superKey : null;
 }
 
-function calcularSubtotalesDesdeAsignacion(items, asignacion, supermercados, { soloSinOferta = false } = {}) {
+/** La fila de `item` en `superKey`, en la forma que esperan basePromoTicket/lineaCumplePromo. */
+function lineaDeItem(item, superKey) {
+  return {
+    precio: item.preciosPorSuper[superKey],
+    // Sin `sinOfertaPorSuper` (CLI) no se sabe qué tuvo promo de producto: cuenta, como antes.
+    sinOferta: item.sinOfertaPorSuper ? item.sinOfertaPorSuper[superKey] !== false : undefined,
+    categorias: item.categoriasPorSuper ? (item.categoriasPorSuper[superKey] ?? null) : null,
+    nombre: item.nombre ?? null,
+  };
+}
+
+function calcularSubtotalesDesdeAsignacion(items, asignacion, supermercados) {
   const subtotales = Object.fromEntries(supermercados.map(s => [s.key, 0]));
   items.forEach((item, i) => {
     const superKey = asignacion[i];
-    if (!superKey) return;
-    // Sin `sinOfertaPorSuper` (CLI) no se sabe qué tuvo promo de producto: cuenta todo, como antes.
-    if (soloSinOferta && item.sinOfertaPorSuper && item.sinOfertaPorSuper[superKey] === false) return;
-    subtotales[superKey] += item.preciosPorSuper[superKey];
+    if (superKey) subtotales[superKey] += item.preciosPorSuper[superKey];
   });
   return subtotales;
+}
+
+/** Las filas de cada súper en esta asignación (base de las promos con restricciones por producto). */
+function calcularLineasDesdeAsignacion(items, asignacion, supermercados) {
+  const lineas = Object.fromEntries(supermercados.map(s => [s.key, []]));
+  items.forEach((item, i) => {
+    const superKey = asignacion[i];
+    if (superKey) lineas[superKey].push(lineaDeItem(item, superKey));
+  });
+  return lineas;
 }
 
 /** true si ALGÚN ítem asignado a ese super (en esta asignación) exige canal online. */
@@ -1432,7 +1654,10 @@ function mismaAsignacion(a, b) {
  * items: [{ id, preciosPorSuper: {vea,carr,changomas} (null si no está ahí),
  *           esOnlineExclusivoPorSuper: {...},
  *           sinOfertaPorSuper?: {...} (false = ese ítem tiene promo de producto en ese super;
- *             base de las promos `soloSinOferta`, ver mejorPromoTicket) }]
+ *             base de las promos `soloSinOferta`, ver mejorPromoTicket),
+ *           categoriasPorSuper?: {...} (etiquetas de core/categoriasPromo.js según la categoría de
+ *             ESE súper; base de las promos con `categoriasIncluidas`/`categoriasExcluidas`),
+ *           nombre?: string (para `marcasExcluidas`) }]
  * Devuelve { asignacion, subtotales, canalForzado, oportunidades, erroresPorSuper,
  *            total, totalSinReasignar, mejoro }.
  */
@@ -1441,7 +1666,7 @@ function reoptimizarAsignacion(items, datosPorSuper, supermercados, { hoy = new 
 
   function calcularResultado(asignacion) {
     const subtotales = calcularSubtotalesDesdeAsignacion(items, asignacion, supermercados);
-    const subtotalesSinOferta = calcularSubtotalesDesdeAsignacion(items, asignacion, supermercados, { soloSinOferta: true });
+    const lineasPorSuper = calcularLineasDesdeAsignacion(items, asignacion, supermercados);
     const canalForzado = calcularCanalForzadoDesdeAsignacion(items, asignacion, supermercados);
     const oportunidades = {};
     const erroresPorSuper = {};
@@ -1451,7 +1676,7 @@ function reoptimizarAsignacion(items, datosPorSuper, supermercados, { hoy = new 
       const datos = datosPorSuper[key];
       erroresPorSuper[key] = datos?.error || null;
       const oportunidad = (subtotal && datos && !datos.error)
-        ? mejorOportunidadTicket(datos.promos, subtotal, { desde: hoy, canalForzado: canalForzado[key], subtotalSinOferta: subtotalesSinOferta[key] })
+        ? mejorOportunidadTicket(datos.promos, subtotal, { desde: hoy, canalForzado: canalForzado[key], lineas: lineasPorSuper[key] })
         : null;
       oportunidades[key] = oportunidad;
       total += subtotal - (oportunidad ? oportunidad.mejor.descuento : 0);
@@ -1571,6 +1796,13 @@ module.exports = {
   esFinanciacionVea,
   esPromoDeLocalPuntual,
   diasCencosud,
+  // Promos limitadas a categorías / marcas / no acumulables (2026-09-24):
+  restriccionesDeCategoria,
+  exclusionesDeTexto,
+  esExclusivoPresencial,
+  esNoAcumulable,
+  basePromoTicket,
+  lineaDeItem,
   fetchVea,
   fetchJumbo,
   fetchCarrefour,
