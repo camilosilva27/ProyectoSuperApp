@@ -65,6 +65,7 @@ const fs = require('fs');
 const path = require('path');
 const { leerCatalogo } = require('./core/catalogo');
 const { guardarCatalogoConGuardrail } = require('./core/guardrailCatalogo');
+const { esDescuentoComunidadCoto } = require('./promo-engine');
 
 const KEY = 'key_r6xzz4IAoTWcipni';
 const AUTOCOMPLETE_URL = 'https://ac.cnstrc.com/autocomplete';
@@ -177,8 +178,20 @@ function interpretarDescuentos(discounts = [], precioBase) {
       if (minimo > 1) descuentoDirecto.cantidadMinima = minimo;
     }
   }
+  // Promos exclusivas de Comunidad Coto ("1 Pago X%", "+X%", "15%" — discountImage comunidad.png,
+  // ver esDescuentoComunidadCoto en promo-engine.js): se marcan con `comunidad: true` y se guarda
+  // el precio final (discountPrice), que es la verdad para derivar el % (ver promoComunidadCoto).
+  // A propósito NO se agrega `descuentoPct`/`cantidadMinima`: cambiarían la huella de Alertas
+  // (diffCatalogos.js) y re-avisarían "promo nueva" por la misma oferta.
   const promosInternas = otros.length
-    ? otros.map(d => ({ nombre: d.discountText || '', comentarios: d.comments || null }))
+    ? otros.map(d => {
+        const p = { nombre: d.discountText || '', comentarios: d.comments || null };
+        if (esDescuentoComunidadCoto(d)) {
+          p.comunidad = true;
+          p.precioFinal = parsearMonto(d.discountPrice);
+        }
+        return p;
+      })
     : null;
   return { descuentoDirecto, promosInternas };
 }
@@ -435,7 +448,11 @@ async function main() {
   console.log(`  Guardado en:           catalogo-coto.json + promos-coto.json`);
 }
 
-main().catch(err => {
-  console.error('Error fatal:', err);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch(err => {
+    console.error('Error fatal:', err);
+    process.exit(1);
+  });
+}
+
+module.exports = { interpretarDescuentos, parsearProducto };

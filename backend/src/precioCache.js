@@ -26,7 +26,7 @@
 const { leerCatalogo } = require('../../AllPromos/core/catalogo');
 const {
   interpretarPromoPorTexto, interpretarPromoCarrefour, interpretarTeaserTarjetaPropia, esTeaserBancario,
-  promoDescuentoCoto, esPromoCotoCondicionada, tarjetasDelTeaserPropio,
+  promoDescuentoCoto, tarjetasDelTeaserPropio, esPromoInternaComunidadCoto, promoComunidadCoto,
 } = require('../../AllPromos/promo-engine');
 const { sanearPorEmpaquetado } = require('../../AllPromos/core/empaquetado');
 const { promoMotorCencosud } = require('../../AllPromos/core/promoCencosud');
@@ -190,7 +190,13 @@ function entradasVtexConTeasers(sku, superNombre, { conTarjetaPropia = false } =
   return resultados;
 }
 
-/** Coto: no es VTEX, no tiene skuId/sellerId comparable, ni teaser de tarjeta propia. */
+/**
+ * Coto: no es VTEX, no tiene skuId/sellerId comparable. Las promos exclusivas de Comunidad Coto
+ * ("1 Pago X%", "+X%", "15%") van como entrada aparte con requiereTarjeta 'Comunidad Coto' (igual
+ * que la Tarjeta Carrefour en entradasVtexConTeasers): se generan siempre y comparar.js decide
+ * si cuentan según las tarjetas del usuario. Son "No acumulable": mejorOpcion elige UNA entrada
+ * por SKU, así que la de Comunidad reemplaza al descuento directo, no se suma.
+ */
 function entradasCoto(sku) {
   const resultados = [];
   const base = { super: 'Coto', skuId: null, sellerId: null, productName: sku.nombre, skuName: null, ean: sku.ean };
@@ -204,8 +210,14 @@ function entradasCoto(sku) {
   }
 
   for (const t of sku.promosInternas || []) {
-    if (esPromoCotoCondicionada(t.nombre)) continue;
-    const promo = interpretarPromoPorTexto(t.nombre);
+    const promo = esPromoInternaComunidadCoto(t)
+      ? promoComunidadCoto({
+          texto: t.nombre,
+          precioFinal: t.precioFinal,
+          precioBase: sku.precioBase,
+          descuentoDirecto: sku.descuentoDirecto?.descuento,
+        })
+      : interpretarPromoPorTexto(t.nombre);
     if (promo) resultados.push({ ...base, precioBase: sku.precioBase, promo });
   }
 
@@ -313,7 +325,8 @@ function elegirProductosTour() {
   for (const [ean, grupoCrudo] of indice) {
     if (!SUPERS_TOUR.every(key => grupoCrudo[key]?.length)) continue;
     const grupo = aplicarVigencia(grupoCrudo, ahora);
-    const opciones = calcularOpciones(grupo, 1, SUPERMERCADOS_TOUR);
+    // Sin tarjetas: el tour no puede asumir Tarjeta Carrefour ni Comunidad Coto (promos con requiereTarjeta).
+    const opciones = calcularOpciones(grupo, 1, SUPERMERCADOS_TOUR, []);
     if (opciones.length < SUPERS_TOUR.length) continue;
 
     const masBarato = opciones[0];
@@ -329,4 +342,4 @@ function elegirProductosTour() {
   return candidatos.slice(0, CANTIDAD_PRODUCTOS_TOUR);
 }
 
-module.exports = { precioPorEAN, estadoFuentes, elegirProductosTour, _test: { entradasCencosud, entradasVtexConTeasers, aplicarVigencia } };
+module.exports = { precioPorEAN, estadoFuentes, elegirProductosTour, _test: { entradasCencosud, entradasVtexConTeasers, entradasCoto, aplicarVigencia } };

@@ -73,7 +73,9 @@ function filtrarSupermercados(supers) {
 // descartó — ver "Cerrado, no implementar" en CONTEXTO_TECNICO.md: la fuente de datos está
 // abandonada por Vea (0 ofertas vigentes, la última hace 9 meses).
 // Cuenta Digital: el teaser "35% Off Tarjeta Carrefour o Cuenta digital" vale con las dos (2026-09-24).
-const TARJETAS_QUE_AFECTAN_PRODUCTO = ['Tarjeta Carrefour Crédito', 'Cuenta Digital Carrefour'];
+// Comunidad Coto (2026-09-24): las promos de producto de Coto "Comunidad" piden
+// `requiereTarjeta: 'Comunidad Coto'` (mismo canónico que la opción de Mis descuentos).
+const TARJETAS_QUE_AFECTAN_PRODUCTO = ['Tarjeta Carrefour Crédito', 'Cuenta Digital Carrefour', 'Comunidad Coto'];
 
 const MAX_ITEMS = 60;
 // Carrefour y Chango Más rate-limitean (429 en Carrefour, 429 y 502 intermitentes en Chango
@@ -245,11 +247,14 @@ function serializarOpcion(o, cantidad, tarjetasSeleccionadas, precioLista) {
  * recomendación inconsistente.
  */
 function datosBancariosDeHoy(tarjetasSeleccionadas, advertencias) {
-  if (!tarjetasSeleccionadas.length) return null;
-
+  // Sin tarjetas marcadas igual se lee el cache (2026-09-24): hay promos para TODOS los usuarios
+  // (Carrefour "10% OFF Todos los Medios de Pago - EXCLUSIVO ONLINE"), que el filtro deja pasar
+  // con `tarjetas` vacío. Si no hay ninguna vigente, aplicarPromosBancarias devuelve null como antes.
   const datosCrudos = leerPromosBancariasCache();
   if (!datosCrudos) {
-    advertencias.push('El cache de promos bancarias todavía no está listo — probá de nuevo en unos minutos');
+    if (tarjetasSeleccionadas.length) {
+      advertencias.push('El cache de promos bancarias todavía no está listo — probá de nuevo en unos minutos');
+    }
     return null;
   }
 

@@ -59,6 +59,18 @@ const LOGOS_VECTOR: Record<string, React.FC<{ width?: number | string; height?: 
   'Banco Patagonia': BancoPatagoniaLogo,
   'Cencopay': CencopayLogo,
   'TCI': TciLogo,
+  // "<Banco> Modo" (2026-09-24, canónicos propios como "Galicia Modo"): el logo del banco.
+  // Hipotecario Modo / Yoy Modo no tienen logo del banco bajado — caen en iniciales, igual que
+  // los requisitos sin tarjeta ("Jubilado", "Comunidad Coto", "Todos los medios de pago").
+  'Santander Modo': SantanderLogo,
+  'Banco Macro Modo': MacroLogo,
+  'BBVA Modo': BbvaLogo,
+  'ICBC Modo': IcbcLogo,
+  'Comafi Modo': ComafiLogo,
+  'Credicoop Modo': CredicoopLogo,
+  'Banco Ciudad Modo': BancoCiudadLogo,
+  'Supervielle Modo': SupervielleLogo,
+  'Banco Nación Modo': BancoNacionLogo,
 };
 
 const LOGOS_RASTER: Record<string, number> = {

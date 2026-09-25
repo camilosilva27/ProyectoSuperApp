@@ -147,7 +147,7 @@ export default function PantallaMisDescuentos() {
       <HeaderNegro paddingTop={insets.top + espacio.xl} estilo={{ gap: espacio.sm }}>
         <TituloHeader>Mis descuentos</TituloHeader>
         <Text style={[texto.cuerpo, styles.bajada]}>
-          Tarjetas, apps y clubes que tenés. Sus promos se suman al comparar.
+          Tarjetas, apps, clubes y tu situación (jubilado, plan sueldo…). Sus promos se suman al comparar.
         </Text>
         <View style={styles.buscador}>
           <TextInput

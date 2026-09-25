@@ -127,12 +127,85 @@ function promoDescuentoCoto(descuento, cantidadMinima = 1) {
 
 /**
  * Textos de promo de producto de Coto que NO deben interpretarse como descuento para todos:
- * "15%" suelto, "+5%", "1 Pago 10%" son de Comunidad Coto / medio de pago (auditoría de promos
- * 2026-09-24: el "15%" suelto se aplicaba a cualquier usuario).
+ * "15%" suelto, "+5%", "1 Pago 10%" son exclusivos de Comunidad Coto (auditoría de promos
+ * 2026-09-24: el "15%" suelto se aplicaba a cualquier usuario). Verificado en vivo el mismo día
+ * (≈40 SKUs): los tres formatos vienen SIEMPRE con discountImage ".../ofertas/comunidad.png".
+ * Solo se aplican como promo con requiereTarjeta 'Comunidad Coto' — ver promoComunidadCoto.
  */
 function esPromoCotoCondicionada(texto) {
   const t = String(texto || '').trim();
   return /^\d+(?:[.,]\d+)?\s*%$/.test(t) || /^\+\s*\d/.test(t) || /^\d+\s*pago/i.test(t);
+}
+
+/** Nombre canónico del "descuento propio" que el usuario marca para ver las promos de Comunidad. */
+const COMUNIDAD_COTO = 'Comunidad Coto';
+
+/**
+ * ¿Este `discounts[]` crudo de la API de Coto es exclusivo de Comunidad Coto? La marca confiable
+ * es la imagen del descuento (`discountImage` termina en "comunidad.png"), NO `sale_type`:
+ * "Miembros Comunidad" en `sale_type` es del producto entero (convive con un "25%Dto" para todos
+ * en el mismo SKU) y a veces falta aunque el descuento sea de Comunidad (EAN 3016661173493:
+ * sale_type "Exclusivas", discount "1 Pago 30%" con comunidad.png).
+ */
+function esDescuentoComunidadCoto(disc) {
+  return /comunidad\.png$/i.test(String(disc?.discountImage || ''));
+}
+
+/**
+ * ¿Una promo interna ya guardada en catalogo-coto.json es de Comunidad? El scraper nuevo la marca
+ * con `comunidad: true`; un catálogo viejo (sin esa marca) cae al criterio por texto.
+ */
+function esPromoInternaComunidadCoto(promoInterna) {
+  return !!promoInterna?.comunidad || esPromoCotoCondicionada(promoInterna?.nombre);
+}
+
+/**
+ * Promo de Comunidad Coto como promo de producto condicionada (mismo mecanismo que
+ * interpretarTeaserTarjetaPropia: `requiereTarjeta`, el ranking la ignora si el usuario no la
+ * tiene marcada). Formatos (verificados en vivo 2026-09-24 contra `discountPrice`):
+ *   - "15%" / "1 Pago X%": X% sobre el precio de lista ("1 Pago" = pagando en 1 cuota, en vez de
+ *     las 12 cuotas de discounts_payment_methods; electro/hogar).
+ *   - "+X%": X puntos MÁS sobre el "N%Dto" para todos del mismo SKU, ambos sobre lista
+ *     (25%Dto + "+5%" → 30% sobre lista, no 5% sobre el precio ya rebajado).
+ * Todas "No acumulable con otras promos": la entrada reemplaza a la de producto (no se suma).
+ * La verdad es `precioFinal` (discountPrice del scraper): el % se deriva sobre `precioBase`. Sin
+ * precioFinal (catálogo viejo) se deriva del texto (+X% necesita el % del descuento directo).
+ * Un texto de otro tipo marcado como Comunidad (NxM, "70% 2da") se interpreta como siempre y
+ * solo se le agrega el requiereTarjeta — su discountPrice es un promedio por unidad, no sirve.
+ */
+function promoComunidadCoto({ texto, precioFinal, precioBase, descuentoDirecto } = {}) {
+  const t = String(texto || '').trim();
+  if (!esPromoCotoCondicionada(t)) {
+    const promo = interpretarPromoPorTexto(t);
+    return promo
+      ? { ...promo, descripcion: `${promo.descripcion} con ${COMUNIDAD_COTO}`, requiereTarjeta: COMUNIDAD_COTO }
+      : null;
+  }
+
+  let descuentoPct = NaN;
+  const pf = Number(precioFinal);
+  if (pf > 0 && precioBase > 0 && pf < precioBase) {
+    descuentoPct = Math.round((1 - pf / precioBase) * 10000) / 10000;
+  } else {
+    const x = parseFloat((t.match(/(\d+(?:[.,]\d+)?)\s*%/) || [])[1]?.replace(',', '.'));
+    if (/^\+/.test(t)) {
+      const directo = parseFloat(descuentoDirecto);
+      if (Number.isFinite(directo) && directo > 0) descuentoPct = Math.round((directo + x / 100) * 10000) / 10000;
+    } else {
+      descuentoPct = x / 100;
+    }
+  }
+  if (!(descuentoPct > 0 && descuentoPct < 1)) return null;
+
+  const enUnPago = /^\d+\s*pago/i.test(t) ? ' (pagando en 1 cuota)' : '';
+  return {
+    tipo: 'pct_directo',
+    descripcion: `${Math.round(descuentoPct * 100)}% con ${COMUNIDAD_COTO}${enUnPago}`,
+    cantidadMinima: 1,
+    descuentoPct,
+    esOnline: false,
+    requiereTarjeta: COMUNIDAD_COTO,
+  };
 }
 
 function interpretarPromoCarrefour(teaser) {
@@ -473,6 +546,7 @@ function fmt(n) {
 
 module.exports = {
   promoDescuentoCoto, esPromoCotoCondicionada, tarjetasDelTeaserPropio,
+  COMUNIDAD_COTO, esDescuentoComunidadCoto, esPromoInternaComunidadCoto, promoComunidadCoto,
   interpretarPromoPorTexto, interpretarPromoCarrefour, interpretarTeaserTarjetaPropia, calcularCosto,
   esTeaserBancario,
 };

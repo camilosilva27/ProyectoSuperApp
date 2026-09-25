@@ -34,22 +34,30 @@ function elegirPromosDelDia(promos, dia, tarjetasPropias) {
   const candidatas = vigentes.length ? vigentes : delDia.filter(p => p.dias.length);
   if (!candidatas.length) return [];
 
-  // requiereTodas (MODO + banco, auditoría 2026-09-24): propia solo si tiene TODAS; el logo es
-  // el del banco (canonicosPosibles[0]), no el de MODO.
+  // Propia = el usuario la puede usar (tarjeta Y requisitos, ver promoAplicaATarjetas). El logo es
+  // el de la tarjeta ("ICBC Modo" → logo de ICBC en LogoBanco.tsx); sin tarjeta, el requisito
+  // ("Jubilado", "Comunidad Coto") o "Todos los medios de pago" (fallback de iniciales).
   const esPropia = p => promoAplicaATarjetas(p, tarjetasPropias);
-  const bancoDe = p => (p.requiereTodas ? null : p.canonicosPosibles.find(c => tarjetasPropias.includes(c))) ?? p.canonicosPosibles[0];
+  const bancoDe = p => p.canonicosPosibles.find(c => tarjetasPropias.includes(c))
+    ?? p.canonicosPosibles[0]
+    ?? ((p.requisitos || []).join(' + ') || 'Todos los medios de pago');
+  // Prioridad (2026-09-24): primero las que el usuario puede usar; entre las que no, las que no
+  // piden un requisito (segmento/MasGO/Comunidad) antes que las que sí — "Supervielle 25%" de
+  // jubilados no debería taparle la general del 20% a quien no marcó "Jubilado".
+  const prioridad = p => (esPropia(p) ? 2 : ((p.requisitos || []).length ? 0 : 1));
 
-  // Una sola promo por banco (la de mayor % entre las que le corresponden a ese banco ese día).
+  // Una sola promo por banco (la de mayor prioridad y después mayor % ese día).
   const mejorPorBanco = new Map();
   for (const p of candidatas) {
     const banco = bancoDe(p);
     const actual = mejorPorBanco.get(banco);
-    if (!actual || p.descuentoPct > actual.descuentoPct) mejorPorBanco.set(banco, p);
+    if (!actual || prioridad(p) > prioridad(actual)
+      || (prioridad(p) === prioridad(actual) && p.descuentoPct > actual.descuentoPct)) mejorPorBanco.set(banco, p);
   }
 
   return [...mejorPorBanco.entries()]
-    .map(([banco, p]) => ({ banco, pct: p.descuentoPct, propia: esPropia(p) }))
-    .sort((a, b) => (Number(b.propia) - Number(a.propia)) || (b.pct - a.pct))
+    .map(([banco, p]) => ({ banco, pct: p.descuentoPct, propia: esPropia(p), prioridad: prioridad(p) }))
+    .sort((a, b) => (b.prioridad - a.prioridad) || (b.pct - a.pct))
     .slice(0, 3)
     .map(({ banco, pct }) => ({ banco, pct }));
 }
@@ -81,3 +89,5 @@ router.get('/promos-bancarias/grilla', requiereSesion, requierePlanActivo, (req,
 });
 
 module.exports = router;
+// Solo para tests (AllPromos/core/bancarias-tarjetas-segmentos.test.js).
+module.exports._test = { elegirPromosDelDia, armarFilas };

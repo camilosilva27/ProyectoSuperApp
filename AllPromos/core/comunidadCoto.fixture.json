@@ -1,0 +1,324 @@
+{
+ "_nota": "Respuestas crudas de Constructor.io (ac.cnstrc.com/autocomplete) de Coto, pedidas en vivo el 2026-09-24, recortadas a los campos que usan el scraper y el fallback en vivo (price reducido a 1 sucursal por precio distinto).",
+ "74101944686": {
+  "data": {
+   "id": "prod00629417",
+   "sku_id": "sku00629417",
+   "product_main_ean": 74101944686,
+   "sku_display_name": "Papel Fotográfico Fujifilm Instax Mini Instant Film Borde Blanco 20 Unidades",
+   "sale_type": [
+    "Miembros Comunidad",
+    "Todas las Ofertas"
+   ],
+   "store_availability": [
+    "056"
+   ],
+   "price": [
+    {
+     "listPrice": 54999
+    },
+    {
+     "listPrice": 54999
+    },
+    {
+     "listPrice": 54999
+    }
+   ],
+   "discounts": [
+    {
+     "id": "37959509",
+     "comments": "No acumulable con otras promos",
+     "takingText": null,
+     "discountText": "1 Pago 30%",
+     "regularPrice": null,
+     "discountImage": "/content/images/cdigi/ofertas/comunidad.png",
+     "discountPrice": "$38499.30",
+     "regularPriceText": "Precio Contado: $54999"
+    }
+   ],
+   "discounts_payment_methods": [
+    {
+     "id": "81695222",
+     "comentarios": "",
+     "precioCuota": "$4583.25",
+     "cantidadCuotas": "12",
+     "imagenDescuento": "/content/images/cdigi/ofertas/pagando-con-todas-tarjetas.png"
+    }
+   ]
+  }
+ },
+ "3016661173493": {
+  "data": {
+   "id": "prod00589648",
+   "sku_id": "sku00589648",
+   "product_main_ean": 3016661173493,
+   "sku_display_name": "Cafeteras Express KRUPS Virtuoso Xp444c10 15 Bar",
+   "sale_type": [
+    "Exclusivas",
+    "Todas las Ofertas"
+   ],
+   "store_availability": [
+    "056"
+   ],
+   "price": [
+    {
+     "listPrice": 399999
+    },
+    {
+     "listPrice": 399999
+    },
+    {
+     "listPrice": 399999
+    },
+    {
+     "listPrice": 499999
+    }
+   ],
+   "discounts": [
+    {
+     "id": "37959100",
+     "comments": "No acumulable con otras promos",
+     "takingText": null,
+     "discountText": "1 Pago 30%",
+     "regularPrice": null,
+     "discountImage": "/content/images/cdigi/ofertas/comunidad.png",
+     "discountPrice": "$279999.30",
+     "regularPriceText": "Precio Contado: $399999"
+    }
+   ],
+   "discounts_payment_methods": [
+    {
+     "id": "81694349",
+     "comentarios": "",
+     "precioCuota": "$33333.25",
+     "cantidadCuotas": "12",
+     "imagenDescuento": "/content/images/cdigi/ofertas/pagando-con-todas-tarjetas.png"
+    }
+   ]
+  }
+ },
+ "7790244941551": {
+  "data": {
+   "id": "prod00561007",
+   "sku_id": "sku00561007",
+   "product_main_ean": 7790244941551,
+   "sku_display_name": "Dulce De Leche Repostero San Ignacio 410gr",
+   "sale_type": [
+    "Hasta 30% DTO!!",
+    "Miembros Comunidad",
+    "Todas las Ofertas"
+   ],
+   "store_availability": [
+    "056"
+   ],
+   "price": [
+    {
+     "listPrice": 3725
+    },
+    {
+     "listPrice": 3725
+    },
+    {
+     "listPrice": 3725
+    },
+    {
+     "listPrice": 3545
+    },
+    {
+     "listPrice": 2985
+    }
+   ],
+   "discounts": [
+    {
+     "id": "37963416",
+     "comments": "No acumulable con otras promos",
+     "takingText": null,
+     "discountText": "25%Dto",
+     "regularPrice": null,
+     "discountImage": null,
+     "discountPrice": "$2793.75",
+     "regularPriceText": "Precio Contado: $3725"
+    },
+    {
+     "id": "37963417",
+     "comments": "No acumulable con otras promos",
+     "takingText": null,
+     "discountText": "+10%",
+     "regularPrice": null,
+     "discountImage": "/content/images/cdigi/ofertas/comunidad.png",
+     "discountPrice": "$2421.25",
+     "regularPriceText": null
+    }
+   ],
+   "discounts_payment_methods": [
+    {
+     "id": "81709020",
+     "comentarios": "",
+     "precioCuota": "$2793.75",
+     "cantidadCuotas": "1",
+     "imagenDescuento": "/content/images/cdigi/ofertas/pagando-con-todas-tarjetas.png"
+    }
+   ]
+  }
+ },
+ "7790895007217": {
+  "data": {
+   "id": "prod00474726",
+   "sku_id": "sku00474726",
+   "product_main_ean": 7790895007217,
+   "sku_display_name": "Gaseosa Coca-Cola Sabor Original 1,75 Lt",
+   "sale_type": [
+    "Miembros Comunidad",
+    "Otras Ofertas",
+    "Todas las Ofertas"
+   ],
+   "store_availability": [
+    "056"
+   ],
+   "price": [
+    {
+     "listPrice": 5150
+    },
+    {
+     "listPrice": 5150
+    },
+    {
+     "listPrice": 5150
+    },
+    {
+     "listPrice": 3800
+    },
+    {
+     "listPrice": 4700
+    }
+   ],
+   "discounts": [
+    {
+     "id": "37960578",
+     "comments": "No acumulable con otras promos",
+     "takingText": null,
+     "discountText": "15%",
+     "regularPrice": null,
+     "discountImage": "/content/images/cdigi/ofertas/comunidad.png",
+     "discountPrice": "$4377.50",
+     "regularPriceText": "Precio Contado: $5150"
+    }
+   ],
+   "discounts_payment_methods": []
+  }
+ },
+ "7798065734512": {
+  "data": {
+   "id": "prod00563958",
+   "sku_id": "sku00563958",
+   "product_main_ean": 7798065734512,
+   "sku_display_name": "Agua Sin Gas Mineral Sierra De Los Padres 6.25l",
+   "sale_type": [
+    "Hasta 30% DTO!!",
+    "Miembros Comunidad",
+    "Todas las Ofertas"
+   ],
+   "store_availability": [
+    "056"
+   ],
+   "price": [
+    {
+     "listPrice": 4350
+    },
+    {
+     "listPrice": 4350
+    },
+    {
+     "listPrice": 4350
+    },
+    {
+     "listPrice": 4100
+    },
+    {
+     "listPrice": 3800
+    }
+   ],
+   "discounts": [
+    {
+     "id": "37947932",
+     "comments": "No acumulable con otras promos",
+     "takingText": null,
+     "discountText": "25%Dto",
+     "regularPrice": null,
+     "discountImage": null,
+     "discountPrice": "$3248.58",
+     "regularPriceText": "Precio Contado: $4350"
+    },
+    {
+     "id": "37947933",
+     "comments": "No acumulable con otras promos",
+     "takingText": null,
+     "discountText": "+5%",
+     "regularPrice": null,
+     "discountImage": "/content/images/cdigi/ofertas/comunidad.png",
+     "discountPrice": "$3031.52",
+     "regularPriceText": null
+    }
+   ],
+   "discounts_payment_methods": [
+    {
+     "id": "81683093",
+     "comentarios": "",
+     "precioCuota": "$3248.58",
+     "cantidadCuotas": "1",
+     "imagenDescuento": "/content/images/cdigi/ofertas/pagando-con-todas-tarjetas.png"
+    }
+   ]
+  }
+ },
+ "7797942006933": {
+  "data": {
+   "id": "prod00560445",
+   "sku_id": "sku00560445",
+   "product_main_ean": 7797942006933,
+   "sku_display_name": "Vino Malbec Wampa 750 Ml",
+   "sale_type": [
+    "3X2",
+    "Todas las Ofertas"
+   ],
+   "store_availability": [
+    "056"
+   ],
+   "price": [
+    {
+     "listPrice": 5466
+    },
+    {
+     "listPrice": 5466
+    },
+    {
+     "listPrice": 5466
+    },
+    {
+     "listPrice": 5103
+    }
+   ],
+   "discounts": [
+    {
+     "id": "37948529",
+     "comments": "No acumulable con otras promos",
+     "takingText": "Llevando 3",
+     "discountText": "3x2",
+     "regularPrice": null,
+     "discountImage": null,
+     "discountPrice": "$3644.18",
+     "regularPriceText": "Precio Contado: $5466"
+    }
+   ],
+   "discounts_payment_methods": [
+    {
+     "id": "81683688",
+     "comentarios": "",
+     "precioCuota": "$3644.18",
+     "cantidadCuotas": "1",
+     "imagenDescuento": "/content/images/cdigi/ofertas/pagando-con-todas-tarjetas.png"
+    }
+   ]
+  }
+ }
+}

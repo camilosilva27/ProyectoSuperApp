@@ -44,12 +44,18 @@ type Accion =
  *  la Cuenta Digital que Carrefour Banco publicita junto con ella). */
 export const TARJETAS_DISPONIBLES = [
   'Mi Carrefour', 'Cuenta Digital Carrefour', 'Tarjeta Carrefour Crédito', 'MasClub', 'Cencopay',
-  'Santander', 'MODO', 'Mercado Pago', 'Cuenta DNI', 'Banco Provincia',
-  'Galicia', 'Galicia Modo', 'Banco Macro', 'HSBC', 'BBVA', 'ICBC',
-  'Comafi', 'Naranja X', 'Credicoop', 'Banco Ciudad', 'Supervielle',
-  'Banco Columbia', 'Banco Patagonia', 'Banco Nación', 'TCI',
+  'Santander', 'Santander Modo', 'MODO', 'Mercado Pago', 'Cuenta DNI', 'Banco Provincia',
+  'Galicia', 'Galicia Modo', 'Banco Macro', 'Banco Macro Modo', 'HSBC', 'BBVA', 'BBVA Modo',
+  'ICBC', 'ICBC Modo', 'Comafi', 'Comafi Modo', 'Naranja X', 'Credicoop', 'Credicoop Modo',
+  'Banco Ciudad', 'Banco Ciudad Modo', 'Supervielle', 'Supervielle Modo',
+  'Banco Columbia', 'Banco Patagonia', 'Banco Nación', 'Banco Nación Modo', 'TCI',
   // Sumado 2026-09-24 (auditoría de promos): mismo canónico que ALIAS_TARJETAS.
-  'Banco Hipotecario',
+  'Banco Hipotecario', 'Hipotecario Modo', 'Yoy Modo',
+  // 2026-09-24: "<Banco> Modo" es su propia opción (como "Galicia Modo"): la promo exige pagar con
+  // MODO desde ese banco, no alcanza con tener MODO ni la tarjeta. Y al final, segmentos del
+  // cliente y programas/tiendas, que funcionan como cualquier otro descuento propio (ver
+  // SEGMENTOS/PROGRAMAS en AllPromos/promos-bancarias.js). Strings idénticos a TARJETAS_CONOCIDAS.
+  'Jubilado', 'Plan sueldo', 'Empleado público', 'Supervielle Identité', 'MasGO', 'Comunidad Coto',
 ];
 
 // Vacío a propósito: no hace falta elegir tarjetas para comparar. Las promos de tarjeta

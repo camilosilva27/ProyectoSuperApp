@@ -73,7 +73,10 @@ const DIA_BLOQUE_MARCA = 'landing-medios-pago#props":{';
 const ALIAS_TARJETAS = {
   'Santander':       ['santander'],
   'MODO':            ['modo'],
-  'Mercado Pago':    ['mercado pago'],
+  // 'billeteras virtuales' (Chango Más, 15% vie-dom "Pagando con QR de todas las billeteras
+  // virtuales"): su legal dice que es pagando con el QR de Mercado Pago — decisión del usuario
+  // 2026-09-24. Ningún otro feed tiene una entidad con ese nombre.
+  'Mercado Pago':    ['mercado pago', 'billeteras virtuales'],
   'Cuenta DNI':      ['cuenta dni'],
   'Banco Provincia': ['banco provincia'],
   'Cencopay':        ['cencopay'],
@@ -108,8 +111,9 @@ const ALIAS_TARJETAS = {
   'Cuenta Digital Carrefour':   ['cuenta digital'],
   'Tarjeta Carrefour Crédito':  ['standard_master_carrefour', 'carrefour credito', 'mi carrefour credito'],
   'MasClub':         ['masclub'],
+  // "Galicia Modo" (y el resto de "<Banco> Modo") ya no se matchea por substring: sale de
+  // combinar el banco con MODO — ver BANCO_MODO más abajo.
   'Galicia':         ['galicia'],
-  'Galicia Modo':    ['galicia modo'],
   'Banco Macro':     ['banco macro'],
   'HSBC':            ['hsbc'],
   'BBVA':            ['bbva'],
@@ -126,7 +130,9 @@ const ALIAS_TARJETAS = {
   'Supervielle':     ['supervielle'],
   'Banco Columbia':  ['banco columbia'],
   'Banco Patagonia': ['banco patagonia'],
-  'Banco Nación':    ['banco nacion', 'nacion'],
+  // 'bna': Día lo lista como "BNA" (entrada "Modo|BNA", 5% jubilados) y Chango Más como
+  // "BNA+MODO" — 2026-09-24.
+  'Banco Nación':    ['banco nacion', 'nacion', 'bna'],
   // Sumado 2026-09-24 (auditoría de promos): "Banco Hipotecario" en Cencosud (25% martes,
   // tope $15.000) e "Hipotecario_Modo" en Chango Más se descartaban por falta de alias. Ningún
   // otro nombre de entidad de los 5 feeds contiene "hipotecario".
@@ -141,11 +147,10 @@ const ALIAS_TARJETAS = {
 // riesgo real en la investigación. Excluida a mano.
 const EXCLUSIONES_ALIAS = {
   'Banco Provincia': ['neuquen'],
-  // "Galicia Modo" exige pagar con la app MODO del banco, no solo tener la tarjeta —
-  // es una promo distinta de 'Galicia' aunque el nombre crudo contenga el substring
-  // "galicia" (decisión del usuario: tratarlas separadas, como ya pasa con MODO vs.
-  // Mercado Pago).
-  'Galicia': ['modo'],
+  // (Hasta 2026-09-24 había acá `'Galicia': ['modo']` para que "Galicia Modo" no matcheara
+  // también 'Galicia'. Ya no hace falta: "Galicia Modo" resuelve a ['Galicia', 'MODO'] y
+  // combinarConModo() lo convierte en el canónico "Galicia Modo", igual que el resto de los
+  // "<Banco> Modo".)
   // Mismo caso que Galicia Modo: "Banco Patagonia 365" es un programa de fidelización
   // propio, no equivalente a tener cualquier tarjeta Patagonia — visto en el feed de Vea
   // como entidad separada de "Banco Patagonia" a secas.
@@ -177,59 +182,211 @@ function resolverCanonicosDesdeNombre(nombre) {
   });
 }
 
-// ─── MODO + banco: la promo exige las DOS cosas (auditoría 2026-09-24) ─────────
+// ─── "<Banco> Modo" como canónico propio (decisión del usuario 2026-09-24) ──────
 //
-// Nombres crudos como "ICBC Modo", "Banco Credicoop MODO", "Banco_Comafi_MODO" (Chango Más) o
-// la descripción de Coto "Pagando con MODO desde la app de Comafi" NO son "cualquier MODO": el
-// descuento es solo pagando con MODO Y con una tarjeta de ESE banco. Antes quedaban con
-// canonicosPosibles [MODO, Comafi] ("cualquiera de las dos"), así que un usuario con solo MODO
-// recibía el 30% de Comafi. Ahora esas promos llevan `requiereTodas: true` y el usuario tiene
-// que tener marcadas TODAS las tarjetas de canonicosPosibles (ver
-// filtrarPromosBancariasPorTarjetas). "Galicia Modo" es la excepción: ya es su propio canónico
-// (que implica MODO), así que queda como tarjeta única, igual que antes para quien la marca.
-// Un nombre "X MODO" cuyo banco X no tiene canónico (ej. "Yoy_MODO") se descarta: no se puede
-// exigir una tarjeta que la app no modela, y tratarla como MODO genérico era el bug.
+// Nombres crudos como "ICBC Modo", "Banco Credicoop MODO", "Hipotecario_Modo" (Chango Más), la
+// descripción de Coto "Pagando con MODO desde la app de Comafi", la entrada de Día "Modo|BNA" o el
+// título de Carrefour "Exclusivo pagando con Modo" NO son "cualquier MODO" ni "cualquier tarjeta
+// del banco": el descuento es pagando con MODO desde ESE banco. Igual que "Galicia Modo" (que ya
+// existía y hay usuarios que lo tienen guardado), cada combinación es su propia opción en Mis
+// descuentos: una promo "X Modo" aplica SOLO a quien marca "X Modo" — no a quien tiene solo MODO
+// ni solo el banco X. MODO genérico sigue siendo su propia opción. Reemplaza el `requiereTodas`
+// (tener marcadas las dos, MODO + banco) que se había agregado a la mañana del mismo día.
+// Relevado en los 5 feeds del 2026-09-24 (vigentes y programadas).
+const BANCO_MODO = {
+  'Galicia':           'Galicia Modo',
+  'Santander':         'Santander Modo',      // Carrefour "Exclusivo MODO" (programada)
+  'Banco Macro':       'Banco Macro Modo',    // Carrefour "exclusivo con Modo desde App Macro" (programada)
+  'BBVA':              'BBVA Modo',           // Carrefour "cuenta sueldo y pagando con Modo" (programada)
+  'ICBC':              'ICBC Modo',
+  'Comafi':            'Comafi Modo',
+  'Credicoop':         'Credicoop Modo',
+  'Banco Ciudad':      'Banco Ciudad Modo',
+  'Supervielle':       'Supervielle Modo',
+  'Banco Nación':      'Banco Nación Modo',
+  'Banco Hipotecario': 'Hipotecario Modo',
+  'Yoy':               'Yoy Modo',
+};
+const TARJETAS_MODO = Object.values(BANCO_MODO);
 
-/** Para UN nombre crudo: { canonicos, requiereTodas } o null si hay que descartarlo. */
+// Bancos que solo se modelan combinados con MODO: "Yoy" a secas (Chango Más, 20% jueves) no tiene
+// canónico propio — no se pidió —, pero "Yoy_MODO" sí es "Yoy Modo".
+const BANCOS_SOLO_CON_MODO = { 'Yoy': ['yoy'] };
+
+/** Si hay MODO y bancos en la misma lista, cada banco pasa a su "<Banco> Modo". Un banco sin
+ *  combinación modelada se descarta (no se puede exigir una opción que la app no tiene). */
+function combinarConModo(canonicos) {
+  if (!canonicos.includes('MODO')) return canonicos;
+  const bancos = canonicos.filter(c => c !== 'MODO');
+  if (!bancos.length) return canonicos;
+  return [...new Set(bancos.map(b => BANCO_MODO[b] ?? (TARJETAS_MODO.includes(b) ? b : null)).filter(Boolean))];
+}
+
+/** Para UN nombre crudo: array de canónicos, o null si hay que descartarlo. */
 function resolverTarjetasDeNombre(nombre) {
+  const n = normalizar(nombre);
   const canonicos = resolverCanonicosDesdeNombre(nombre);
-  if (!canonicos.includes('MODO')) return canonicos.length ? { canonicos, requiereTodas: false } : null;
-  if (canonicos.includes('Galicia Modo')) return { canonicos: ['Galicia Modo'], requiereTodas: false };
-  const otros = canonicos.filter(c => c !== 'MODO');
-  if (otros.length) return { canonicos: [...otros, 'MODO'], requiereTodas: true };
-  // Solo MODO: ¿el nombre es MODO a secas, o "<banco sin canónico> MODO"?
-  const resto = normalizar(nombre).replace(/modo|banco|app|[^a-z0-9]+/g, '');
-  return resto ? null : { canonicos: ['MODO'], requiereTodas: false };
+  if (!canonicos.includes('MODO')) return canonicos.length ? canonicos : null;
+  const soloConModo = Object.keys(BANCOS_SOLO_CON_MODO).filter(b => BANCOS_SOLO_CON_MODO[b].some(a => n.includes(a)));
+  const conBancos = [...canonicos, ...soloConModo];
+  if (conBancos.length > 1) {
+    const combinados = combinarConModo(conBancos);
+    return combinados.length ? combinados : null;
+  }
+  // Solo MODO: ¿el nombre es MODO a secas, o "<banco sin canónico> MODO" ("Banco San Juan MODO",
+  // "Semana_MODO")? Lo segundo se descarta: tratarlo como MODO genérico era el bug original.
+  const resto = n.replace(/modo|banco|app|[^a-z0-9]+/g, '');
+  return resto ? null : ['MODO'];
+}
+
+// El texto CORTO de la promo exige pagar con MODO ("Exclusivo pagando con Modo" — Banco Nación 5%
+// jubilados en Carrefour —, "Desde App Hipotecario o App Modo" — Hipotecario 25% en Cencosud —,
+// "exclusivo con Modo desde App Macro"). Se ignoran las frases que solo lo mencionan de pasada
+// ("acumulable con otras promociones que apliquen pagando con MODO", "no aplica a pagos con … modo").
+function textoExigeModo(textoCorto) {
+  return frases(textoCorto).some(f =>
+    !/\bno\s+(?:aplica|valid|acumula)|\bacumulable/.test(f)
+    && /\b(?:exclusivo|pagando|abonando)\s+(?:exclusivamente\s+)?(?:con\s+)?modo\b|\bcon\s+modo\b|\b(?:app|billetera|qr)\s+modo\b/.test(f));
 }
 
 /**
- * Combina varios nombres crudos de UNA promo (Cencosud/Día listan varios bancos por entrada:
- * vale cualquiera). El modelo es "cualquiera de" o "todas": no puede expresar "A, o bien
- * (B y MODO)", así que si se mezclan se quedan solo los de "cualquiera" (conservador).
- * @returns { canonicosPosibles, requiereTodas } — canonicosPosibles vacío = descartar.
+ * Combina los nombres crudos de UNA promo (Cencosud/Día listan varios por entrada: vale
+ * cualquiera) y el texto corto. MODO + banco en la MISMA entrada (Día "Modo|BNA") o un texto
+ * corto que exige MODO convierten el banco en "<Banco> Modo".
+ * @returns { canonicosPosibles } — vacío = sin tarjeta reconocida (ver clasificarPromo).
  */
-function resolverTarjetasPromo(nombres) {
-  const resueltos = nombres.map(resolverTarjetasDeNombre).filter(Boolean);
-  const cualquiera = [...new Set(resueltos.filter(r => !r.requiereTodas).flatMap(r => r.canonicos))];
-  if (cualquiera.length) return { canonicosPosibles: cualquiera, requiereTodas: false };
-  const todas = resueltos.filter(r => r.requiereTodas);
-  if (todas.length === 1) return { canonicosPosibles: todas[0].canonicos, requiereTodas: true };
-  return { canonicosPosibles: [], requiereTodas: false };
+function resolverTarjetasPromo(nombres, textoCorto = '') {
+  let canonicos = [...new Set(nombres.map(resolverTarjetasDeNombre).filter(Boolean).flat())];
+  if (canonicos.length > 1 && canonicos.includes('MODO')) canonicos = combinarConModo(canonicos);
+  else if (!canonicos.includes('MODO') && canonicos.some(c => BANCO_MODO[c]) && textoExigeModo(textoCorto)) {
+    canonicos = combinarConModo([...canonicos, 'MODO']);
+  }
+  return { canonicosPosibles: canonicos };
 }
 
-/** ¿El usuario con `tarjetas` puede usar esta promo? Único criterio de match tarjeta↔promo. */
+// ─── Requisitos: segmentos del cliente y programas/tiendas (2026-09-24) ─────────
+//
+// Opciones propias de Mis descuentos que no son una tarjeta sino una condición del cliente o de
+// dónde compra. Una promo lleva `requisitos: [...]` además de `canonicosPosibles`, y aplica solo
+// si el usuario marcó TODOS los requisitos (y, si tiene tarjetas, alguna de ellas):
+//  - Banco + segmento (Banco Nación Modo 5% jubilados, Supervielle "Exclusivo Jubilados", Mi
+//    Carrefour 10% ANSES/+60, ICBC_Sueldos, Supervielle "SGTO IDENTITÉ") → tarjeta Y segmento.
+//  - Solo segmento, sin banco ("Anses 10%" de Chango Más/Día, "Empleados Públicos", el ícono de
+//    jubilados de Coto, "Medios de Pago" jubilados de Vea/Jumbo/Disco) → solo el segmento.
+//  - "Exclusivo MasGo" (formato de tienda de Chango Más: MasClub 20%, Banco Ciudad 35%, MODO
+//    domingo 20%) → la tarjeta + "MasGO".
+//  - "Comunidad Coto" (ícono/texto de comunidad en Coto) → solo "Comunidad Coto". Mismo nombre que
+//    usan las promos de PRODUCTO de Coto como `requiereTarjeta` (promo-engine.js).
+// Una promo general del banco no se restringe. El segmento se detecta SOLO en los campos cortos
+// (nombre de la entidad, título/sub_title, `info`, `descripcion`, ícono), nunca en el legal
+// completo: el legal de Cuenta DNI general dice "si sos jubilado tope $5.000" y no es una promo
+// de jubilados.
+const SEGMENTOS = ['Jubilado', 'Plan sueldo', 'Empleado público', 'Supervielle Identité'];
+const PROGRAMAS = ['MasGO', 'Comunidad Coto'];
+const REQUISITOS = [...SEGMENTOS, ...PROGRAMAS];
+
+const PATRONES_REQUISITO = [
+  // Jubilados, pensionados, beneficiarios de ANSES y mayores de 60 van juntos (decisión del usuario).
+  ['Jubilado', /\bjubilad[oa]s?\b|\bpensionad[oa]s?\b|\banses\b|\bmayor(?:es)?\s+de\s+60\b|\+\s?60\b/g],
+  ['Plan sueldo', /\bplan\s+sueldo\b|\bsueldos?\b/g],
+  // "empleado/a público" y "empleada/o público" (Carrefour), "Empleados Públicos" (Chango Más).
+  ['Empleado público', /\bemplead[oa]s?(?:\/[oa]s?)?\s+public[oa]s?\b/g],
+  ['Supervielle Identité', /\bidentite\b/g],
+  ['MasGO', /\bmas\s?go\b/g],
+];
+
+/** Frases de un texto corto: corta en ". " (no en "$15.000"), "!", "?", "¡", "|", " - " (separador
+ *  de Carrefour: "Tope de devolución $10.000 - Exclusivo para clientes con plan sueldo") y saltos de línea. */
+function frases(texto) {
+  return normalizar(texto).replace(/_/g, ' ').split(/(?<!\d)\.|\.(?!\d)|[!?¡|\n]|\s-\s/);
+}
+
+/**
+ * Requisitos mencionados en el texto CORTO. Dentro de cada frase, una mención NO cuenta si:
+ *  - hay un "tope" antes en la misma frase ("Tope mensual: $10.000 para Cartera General y $30.000
+ *    para … Sueldo, … y Jubilado" — Hipotecario_Modo en Chango Más: son topes por segmento de una
+ *    promo general);
+ *  - le sigue inmediatamente "tope" ("Si sos jubilado tope de $5.000", Cuenta DNI en Carrefour);
+ *  - la frase habla de un beneficio "adicional" ("Y si sos jubilado, tenés 5% de descuento
+ *    adicional", "5% adicional jubilados": el % de la promo es el general).
+ */
+function requisitosDeTexto(texto) {
+  const requisitos = new Set();
+  for (const frase of frases(texto)) {
+    if (/\badicional\b/.test(frase)) continue;
+    for (const [nombre, re] of PATRONES_REQUISITO) {
+      for (const m of frase.matchAll(re)) {
+        if (/\b(?:tope|limite)\b/.test(frase.slice(0, m.index))) continue;
+        if (/^\W{0,3}tope\b/.test(frase.slice(m.index + m[0].length))) continue;
+        requisitos.add(nombre);
+      }
+    }
+  }
+  return REQUISITOS.filter(r => requisitos.has(r));
+}
+
+// Entidades del feed que no son una tarjeta: el descuento es "con cualquier medio de pago" y lo
+// que lo condiciona es el segmento (o nada, ver esTodosLosMedios). Un banco que la app no modela
+// NO entra acá — una promo de jubilados de un banco desconocido no se regala a todos los jubilados.
+function esEntidadSinTarjeta(nombre) {
+  return /^(?:medios de pago|todos los medios de pago|(?:beneficios )?anses|empleados publicos)$/.test(normalizar(nombre).trim());
+}
+
+// "10% OFF Todos los Medios de Pago - EXCLUSIVO ONLINE" (Carrefour, jueves, tope $8.000 por
+// semana): aplica a TODOS los usuarios, sin tarjeta (decisión del usuario 2026-09-24). Solo por
+// texto corto y solo si la promo no tiene tarjeta ni banco desconocido; la financiación en cuotas
+// ya se descartó antes (sin %).
+function esTodosLosMedios(textoCorto) {
+  return /\btodos\s+los\s+medios\s+de\s+pago\b|\bcualquier\s+medio\s+de\s+pago\b/.test(normalizar(textoCorto));
+}
+
+/**
+ * Tarjetas + requisitos de una promo a partir de sus nombres de entidad y su texto corto.
+ * `sinTarjeta`: el caller ya sabe que la entidad no es un banco (ícono de jubilados/comunidad de Coto).
+ * @returns { canonicosPosibles, requisitos } o null si hay que descartarla.
+ */
+function clasificarPromo(nombres, textoCorto, { requisitosExtra = [], sinTarjeta = false } = {}) {
+  const { canonicosPosibles } = resolverTarjetasPromo(nombres, textoCorto);
+  const detectados = new Set([...requisitosDeTexto([...nombres, textoCorto].join('. ')), ...requisitosExtra]);
+  const requisitos = REQUISITOS.filter(r => detectados.has(r));
+  if (canonicosPosibles.length) return { canonicosPosibles, requisitos };
+  if (!sinTarjeta && !nombres.every(esEntidadSinTarjeta)) return null; // banco que la app no modela
+  if (requisitos.length || esTodosLosMedios(textoCorto)) return { canonicosPosibles: [], requisitos };
+  return null;
+}
+
+/**
+ * ¿El usuario con `tarjetas` (canónicos + requisitos marcados en Mis descuentos) puede usar esta
+ * promo? Único criterio de match, usado por filtrarPromosBancariasPorTarjetas (comparar/CLI), la
+ * grilla y misDescuentos. Sin tarjeta (`canonicosPosibles` vacío) alcanza con los requisitos; sin
+ * tarjeta ni requisitos, aplica a todos.
+ */
 function promoAplicaATarjetas(promo, tarjetas) {
-  return promo.requiereTodas
-    ? promo.canonicosPosibles.every(c => tarjetas.includes(c))
-    : promo.canonicosPosibles.some(c => tarjetas.includes(c));
+  if (!(promo.requisitos || []).every(r => tarjetas.includes(r))) return false;
+  const canonicos = promo.canonicosPosibles || [];
+  if (!canonicos.length) return true;
+  // Compatibilidad con un cache generado antes del cambio (MODO + banco con `requiereTodas`):
+  // se va solo en la próxima corrida del cron (cada 2hs).
+  if (promo.requiereTodas) return canonicos.every(c => tarjetas.includes(c));
+  return canonicos.some(c => tarjetas.includes(c));
 }
 
-/** Nombre a mostrar ("Pagando con X"): ej. "Comafi (MODO)" para una promo de MODO + banco. */
+/** Nombre a mostrar ("Pagando con X"): "Supervielle (Jubilado)", "cualquier medio de pago (Jubilado)". */
 function etiquetaTarjetas(promo, tarjetas) {
-  if (!promo.requiereTodas) return promo.canonicosPosibles.find(c => tarjetas.includes(c)) ?? promo.canonicosPosibles[0];
-  const otros = promo.canonicosPosibles.filter(c => c !== 'MODO');
-  return otros.length < promo.canonicosPosibles.length ? `${otros.join(' + ')} (MODO)` : otros.join(' + ');
+  const canonicos = promo.canonicosPosibles || [];
+  const requisitos = promo.requisitos || [];
+  const tarjeta = canonicos.find(c => tarjetas.includes(c)) ?? canonicos[0] ?? 'cualquier medio de pago';
+  return requisitos.length ? `${tarjeta} (${requisitos.join(' + ')})` : tarjeta;
 }
+
+/** Orden de Mis descuentos / carrito: cada "<Banco> Modo" justo después de su banco, y al final
+ *  los segmentos y programas. */
+const TARJETAS_CONOCIDAS = [
+  ...Object.keys(ALIAS_TARJETAS).flatMap(c => (BANCO_MODO[c] ? [c, BANCO_MODO[c]] : [c])),
+  ...TARJETAS_MODO.filter(t => !Object.keys(ALIAS_TARJETAS).some(c => BANCO_MODO[c] === t)), // Yoy Modo
+  ...REQUISITOS,
+];
+
 
 function extraerMonto(texto, patrones) {
   const t = normalizar(texto);
@@ -424,15 +581,15 @@ async function fetchCencosud(superNombre) {
       if (!(descuentoPct > 0)) continue;
 
       const nombresBanco = (e.banks || []).map(b => b.name);
-      const { canonicosPosibles, requiereTodas } = resolverTarjetasPromo(nombresBanco);
-      if (!canonicosPosibles.length) continue;
+      // `info` es el texto corto (segmento, "App Modo"); `legals` nunca se mira para eso.
+      const clasificada = clasificarPromo(nombresBanco, e.info || '');
+      if (!clasificada) continue;
 
       const texto = `${e.info || ''} ${e.legals || ''}`;
       const textoNorm = normalizar(texto);
       if (esPromoDeLocalPuntual(textoNorm)) continue;
       promos.push({
-        canonicosPosibles,
-        requiereTodas,
+        ...clasificada,
         super: superNombre,
         dias: diasCencosud(e.days, textoNorm),
         canales: null, // el feed no expone flags de canal, a diferencia de Carrefour/Chango Más
@@ -534,11 +691,16 @@ async function fetchTicketBancoVTEX({ host, hashPromos, hashBanks, hashCards, op
     if (!(descuentoPct > 0)) continue;
 
     const nombreBanco = nombrePorId.get(o.idBank) || nombrePorId.get(o.idCard);
-    const { canonicosPosibles, requiereTodas } = resolverTarjetasPromo(nombreBanco ? [nombreBanco] : []);
-    if (isMasClubField && o[isMasClubField] === 'true' && !canonicosPosibles.includes('MasClub') && !requiereTodas) {
+    // Texto corto = título + sub_title (segmento, "Exclusivo MasGo", "Exclusivo pagando con Modo");
+    // el legal no se mira para eso. Sin entidad (Carrefour "Si sos empleado/a público", "10% OFF
+    // Todos los Medios de Pago") → `nombres` vacío, ver clasificarPromo.
+    const textoCorto = `${o.title || ''}. ${o.sub_title || ''}`;
+    const clasificada = clasificarPromo(nombreBanco ? [nombreBanco] : [], textoCorto);
+    if (!clasificada) continue;
+    const { canonicosPosibles, requisitos } = clasificada;
+    if (isMasClubField && o[isMasClubField] === 'true' && canonicosPosibles.length && !canonicosPosibles.includes('MasClub')) {
       canonicosPosibles.push('MasClub');
     }
-    if (!canonicosPosibles.length) continue;
 
     const esCarrefour = host === CARREFOUR_HOST;
     const canales = canalesTicketVTEX(o, esCarrefour);
@@ -548,7 +710,7 @@ async function fetchTicketBancoVTEX({ host, hashPromos, hashBanks, hashCards, op
     const textoParaMontos = `${o.sub_title || ''} ${o.legal || ''}`;
     promos.push({
       canonicosPosibles,
-      requiereTodas,
+      requisitos,
       super: esCarrefour ? 'Carrefour' : 'Chango Más',
       dias: diasDesdeBooleanos(o),
       canales,
@@ -603,13 +765,21 @@ const PATRONES_PCT_DIA = [
   /otorgar[a]\s+(?:un\s+)?(\d+(?:[.,]\d+)?)\s*%/g,
 ];
 
-function extraerDescuentoPctDia(terms) {
+function extraerDescuentoPctDia(terms, titulo = '') {
   const t = normalizar(terms);
   const valores = new Set();
   for (const patron of PATRONES_PCT_DIA) {
     for (const m of t.matchAll(patron)) valores.add(Number(m[1].replace(',', '.')));
   }
-  return valores.size === 1 ? [...valores][0] / 100 : null;
+  if (valores.size === 1) return [...valores][0] / 100;
+  // Fallback (2026-09-24) SOLO si el legal no trae ningún % legible (no si trae varios distintos,
+  // que sigue siendo "no adivinar"): el título de la tarjeta con un único "N%" ("5% BNA MODO", Banco
+  // Nación jubilados — el legal solo lo repite en el encabezado "BNA JUBILADOS 5%").
+  if (valores.size === 0) {
+    const enTitulo = [...normalizar(titulo).matchAll(/(\d+(?:[.,]\d+)?)\s*%/g)].map(m => Number(m[1].replace(',', '.')));
+    if (enTitulo.length === 1 && enTitulo[0] > 0 && enTitulo[0] < 100) return enTitulo[0] / 100;
+  }
+  return null;
 }
 
 /** Extrae el primer objeto JSON balanceado que arranca en `texto[inicio]` (debe ser '{'). */
@@ -690,16 +860,19 @@ async function fetchDia() {
     const promos = [];
     for (const card of cards) {
       if (card.active === false) continue;
-      const descuentoPct = extraerDescuentoPctDia(card.terms || '');
+      const descuentoPct = extraerDescuentoPctDia(card.terms || '', card.__editorItemTitle || '');
       if (!(descuentoPct > 0)) continue;
 
       const nombresBanco = (card.associatedBanks || []).map(b => b.__editorItemTitle).filter(Boolean);
-      const { canonicosPosibles, requiereTodas } = resolverTarjetasPromo(nombresBanco);
-      if (!canonicosPosibles.length) continue;
+      // Texto corto: el título de la tarjeta ("5% BNA MODO") + el encabezado del legal si es una
+      // línea corta ("BNA JUBILADOS 5%"); el resto del legal no se mira para el segmento.
+      const primeraLinea = (card.terms || '').trim().split('\n')[0].trim();
+      const textoCorto = `${card.__editorItemTitle || ''}. ${primeraLinea.length <= 60 ? primeraLinea : ''}`;
+      const clasificada = clasificarPromo(nombresBanco, textoCorto);
+      if (!clasificada) continue;
 
       promos.push({
-        canonicosPosibles,
-        requiereTodas,
+        ...clasificada,
         super: 'Día',
         dias: diasDesdeCardDia(card.daysToShow),
         canales: canalesDesdeCardDia(card.availableOn),
@@ -766,7 +939,8 @@ function extraerDescuentoPctCoto(textoDescuento) {
 // íconos de redes de tarjeta genéricas (Visa/Mastercard/Amex/Cabal/tarjeta de crédito
 // genérica) ni de programas que no son "tener una tarjeta propia" (comunidad Coto,
 // ciudadanía porteña, beneficios ANSES, jubilados y pensionados) — mismo criterio que ya
-// se usa para no incluir Visa/Mastercard sueltos en ALIAS_TARJETAS.
+// se usa para no incluir Visa/Mastercard sueltos en ALIAS_TARJETAS. Desde 2026-09-24,
+// comunidad/jubilados/ANSES sí se usan, pero como requisito (ICONO_REQUISITO_COTO), no como banco.
 const ICONO_BANCO_COTO = {
   'logo_comafi.png':        'Comafi',
   'logo_naranjax2.png':     'Naranja X',
@@ -785,6 +959,15 @@ const ICONO_BANCO_COTO = {
   'logo_mercadopago.png':          'Mercado Pago',
   'logo_mercadopago_3cuotas.png':  'Mercado Pago',
   'logo_mp2cuotas.png':            'Mercado Pago',
+};
+
+// Íconos de Coto que no son un banco sino un requisito del cliente (2026-09-24, antes se
+// descartaban a propósito): la promo es "con todos los medios de pago" y la condiciona el
+// segmento o la membresía. Ciudadanía porteña sigue afuera (no se pidió modelarla).
+const ICONO_REQUISITO_COTO = {
+  'logo_comunidad.png':                'Comunidad Coto',
+  'logo_jubiladosypensionados.png':    'Jubilado',
+  'logo_beneficios_anses.png':         'Jubilado',
 };
 
 // Auditoría 2026-09-24: "Válido únicamente los lunes 07/09, 14/09 y 28/09" (Credicoop en Coto)
@@ -833,18 +1016,23 @@ async function fetchCoto() {
       // Comafi solo por ícono).
       const desdeTexto = resolverCanonicosDesdeNombre(p.descripcion || '');
       const desdeIcono = ICONO_BANCO_COTO[p.icono];
-      let canonicosPosibles = desdeIcono && !desdeTexto.includes(desdeIcono)
-        ? [...desdeTexto, desdeIcono]
-        : desdeTexto;
-      if (!canonicosPosibles.length) continue;
       // "Pagando con MODO desde la app de Comafi/Supervielle/Ciudad", "desde APP BANCA CREDICOOP
-      // con MODO": exige MODO Y ese banco (ver resolverTarjetasDeNombre). El banco puede venir
-      // solo por ícono (Ciudad: el texto dice "app de Ciudad", sin "banco").
-      let requiereTodas = false;
-      if (canonicosPosibles.includes('MODO') && canonicosPosibles.length > 1) {
-        canonicosPosibles = [...canonicosPosibles.filter(c => c !== 'MODO'), 'MODO'];
-        requiereTodas = true;
-      }
+      // con MODO" → "<Banco> Modo" (ver BANCO_MODO). El banco puede venir solo por ícono (Ciudad:
+      // el texto dice "app de Ciudad", sin "banco").
+      const canonicosPosibles = combinarConModo(desdeIcono && !desdeTexto.includes(desdeIcono)
+        ? [...desdeTexto, desdeIcono]
+        : desdeTexto);
+      // Requisitos: por texto de la descripción ("PLAN SUELDO", "SGTO IDENTITÉ", "miembro DE
+      // NUESTRA COMUNIDAD") y por ícono (jubilados, beneficios ANSES, comunidad).
+      const requisitoIcono = ICONO_REQUISITO_COTO[p.icono];
+      const detectados = new Set([
+        ...requisitosDeTexto(p.descripcion || ''),
+        ...(requisitoIcono ? [requisitoIcono] : []),
+        ...(/\bcomunidad\b/.test(normalizar(p.descripcion)) ? ['Comunidad Coto'] : []),
+      ]);
+      const requisitos = REQUISITOS.filter(r => detectados.has(r));
+      // Sin tarjeta: solo si el ícono es de un requisito (no de un banco/red que la app no modela).
+      if (!canonicosPosibles.length && !requisitoIcono) continue;
 
       const dias = diasDesdeCoto(p.dias);
       const textoCompleto = `${p.descripcion || ''} ${p.observacion || ''}`;
@@ -853,7 +1041,7 @@ async function fetchCoto() {
 
       promos.push({
         canonicosPosibles,
-        requiereTodas,
+        requisitos,
         super: 'Coto',
         dias,
         ...(fechasPuntuales ? { fechasPuntuales } : {}),
@@ -988,7 +1176,8 @@ async function obtenerTodasLasPromosBancarias() {
 function filtrarPromosBancariasPorTarjetas(datosPorSuper, tarjetas) {
   const filtrarPorTarjetasPropias = resultado => {
     if (resultado.error) return resultado;
-    // requiereTodas (MODO + banco): hace falta tener marcadas TODAS — ver promoAplicaATarjetas.
+    // Tarjetas + requisitos (segmento, MasGO, Comunidad Coto) — ver promoAplicaATarjetas. Con
+    // `tarjetas` vacío quedan solo las promos para todos (Carrefour 10% todos los medios online).
     const promos = resultado.promos
       .filter(p => promoAplicaATarjetas(p, tarjetas))
       .map(p => ({ ...p, bancoCanonico: etiquetaTarjetas(p, tarjetas) }));
@@ -1343,9 +1532,13 @@ module.exports = {
   obtenerPromosBancarias,
   obtenerTodasLasPromosBancarias,
   filtrarPromosBancariasPorTarjetas,
-  // Nombres canónicos de tarjeta que el resto del sistema puede reusar en vez de duplicar
-  // esta lista (ya duplicada una vez en app/src/carrito.tsx como TARJETAS_DISPONIBLES).
-  TARJETAS_CONOCIDAS: Object.keys(ALIAS_TARJETAS),
+  // Nombres canónicos de tarjeta + "<Banco> Modo" + requisitos (segmentos y programas) que el resto
+  // del sistema puede reusar en vez de duplicar esta lista (ya duplicada una vez en
+  // app/src/carrito.tsx como TARJETAS_DISPONIBLES — mismo orden).
+  TARJETAS_CONOCIDAS,
+  TARJETAS_MODO,
+  SEGMENTOS,
+  PROGRAMAS,
   promosAplicablesHoy,
   mejorPromoTicket,
   imprimirSeccionBancaria,
@@ -1373,6 +1566,10 @@ module.exports = {
   resolverTarjetasPromo,
   promoAplicaATarjetas,
   etiquetaTarjetas,
+  // Modelo de tarjetas/requisitos 2026-09-24:
+  requisitosDeTexto,
+  clasificarPromo,
+  textoExigeModo,
   extraerTope,
   topeDePromo,
   extraerTopeTextoLibre,
@@ -1385,6 +1582,7 @@ module.exports = {
   fetchJumbo,
   fetchCarrefour,
   fetchChangoMas,
+  fetchDia,
   fetchCoto,
 };
 

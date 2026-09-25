@@ -17,6 +17,9 @@ const {
   promoDescuentoCoto,
   esPromoCotoCondicionada,
   tarjetasDelTeaserPropio,
+  COMUNIDAD_COTO,
+  esDescuentoComunidadCoto,
+  promoComunidadCoto,
 } = require('../promo-engine');
 const { extrasDescuentoDirecto, esExclusivoOnline, precioBaseTeasersOffer } = require('./datosPromoVtex');
 
@@ -545,7 +548,13 @@ function precioDominanteCoto(precios) {
   return mejor.precio;
 }
 
-function parsearProductosCoto(results) {
+/**
+ * `tarjetas`: igual que parsearProductosCarrefour — la promo exclusiva de Comunidad Coto
+ * (discountImage comunidad.png, ver promoComunidadCoto) solo se genera si 'Comunidad Coto' está
+ * entre las tarjetas; el backend pasa TARJETAS_QUE_AFECTAN_PRODUCTO y filtra por usuario después.
+ */
+function parsearProductosCoto(results, { tarjetas = [] } = {}) {
+  const conComunidad = tarjetas.includes(COMUNIDAD_COTO);
   const resultados = [];
   for (const item of results) {
     const d = item.data || {};
@@ -562,6 +571,7 @@ function parsearProductosCoto(results) {
     const percentual = discounts.find(disc => /^\d+(?:\.\d+)?\s*%\s*Dto/i.test(disc.discountText || ''));
     const otros = discounts.filter(disc => disc !== percentual);
 
+    let huboEntrada = false;
     if (percentual) {
       const precioFinal = parseFloat(String(percentual.discountPrice || '').replace(/[^\d.]/g, ''));
       if (Number.isFinite(precioFinal) && precioFinal > 0 && precioFinal < precioBase) {
@@ -573,18 +583,37 @@ function parsearProductosCoto(results) {
             parseInt((String(percentual.takingText || '').match(/llevando\s+(\d+)/i) || [])[1] || '1', 10),
           ),
         });
+        huboEntrada = true;
       }
     }
 
     for (const disc of otros) {
-      if (esPromoCotoCondicionada(disc.discountText)) continue;
-      const promo = interpretarPromoPorTexto(disc.discountText || '');
+      const esComunidad = esDescuentoComunidadCoto(disc) || esPromoCotoCondicionada(disc.discountText);
+      let promo = null;
+      if (!esComunidad) {
+        promo = interpretarPromoPorTexto(disc.discountText || '');
+      } else if (conComunidad) {
+        const precioFinal = parseFloat(String(disc.discountPrice || '').replace(/[^\d.]/g, ''));
+        const precioDirecto = percentual
+          ? parseFloat(String(percentual.discountPrice || '').replace(/[^\d.]/g, ''))
+          : NaN;
+        promo = promoComunidadCoto({
+          texto: disc.discountText,
+          precioFinal,
+          precioBase,
+          descuentoDirecto: precioDirecto > 0 ? 1 - precioDirecto / precioBase : undefined,
+        });
+      }
       if (promo) {
         resultados.push({ super: 'Coto', productName, skuName: null, ean, precioBase, promo });
+        huboEntrada = true;
       }
     }
 
-    if (!percentual && !otros.length) {
+    // Sin ninguna entrada (ni siquiera la de Comunidad, si el usuario no la tiene): precio de
+    // lista sin promo. Antes era `!percentual && !otros.length`, y un SKU con SOLO una promo de
+    // Comunidad descartada (o con un discountText null/ilegible) desaparecía del resultado en vivo.
+    if (!huboEntrada) {
       resultados.push({ super: 'Coto', productName, skuName: null, ean, precioBase, promo: null });
     }
   }
@@ -602,14 +631,14 @@ async function cotoBuscar(termino) {
 }
 
 /** Búsqueda por EAN: Coto no tiene filtro exacto, así que se busca por texto y se filtra el match exacto. */
-async function cotoLiveEAN(ean) {
+async function cotoLiveEAN(ean, { tarjetas = [] } = {}) {
   const results = await cotoBuscar(ean);
   const exactos = results.filter(item => String(item.data?.product_main_ean ?? '') === ean);
-  return parsearProductosCoto(exactos);
+  return parsearProductosCoto(exactos, { tarjetas });
 }
 
-async function cotoLiveNombre(nombre) {
-  return parsearProductosCoto(await cotoBuscar(nombre));
+async function cotoLiveNombre(nombre, { tarjetas = [] } = {}) {
+  return parsearProductosCoto(await cotoBuscar(nombre), { tarjetas });
 }
 
 // ─── Link de "agregar al carrito" ─────────────────────────────────────────────
@@ -666,7 +695,7 @@ async function buscarPorEAN(ean, { tarjetas = [], skuIdVea } = {}) {
     carrefourLiveEAN(ean, { tarjetas }),
     changoMasLiveEAN(ean),
     diaLiveEAN(ean),
-    cotoLiveEAN(ean),
+    cotoLiveEAN(ean, { tarjetas }),
     jumboLive(ean, sku),
     discoLive(ean, sku),
   ]);
@@ -680,7 +709,7 @@ async function buscarPorNombreEnVivo(nombre, { tarjetas = [] } = {}) {
     carrefourLiveNombre(nombre, { tarjetas }),
     changoMasLiveNombre(nombre),
     diaLiveNombre(nombre),
-    cotoLiveNombre(nombre),
+    cotoLiveNombre(nombre, { tarjetas }),
     jumboLiveNombre(nombre),
     discoLiveNombre(nombre),
   ]);

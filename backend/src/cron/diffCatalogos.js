@@ -203,7 +203,11 @@ function diffProductos(antes, despues) {
 function identidadPromo(promo) {
   const bancos = (promo.canonicosPosibles ?? []).slice().sort().join('+');
   const dias = (promo.dias ?? []).slice().sort().join('+');
-  return `${bancos}|${dias}`;
+  // Requisitos (segmento/MasGO/Comunidad, 2026-09-24): sin esto, dos promos sin tarjeta del mismo
+  // día (ej. "Jubilado" y "Empleado público") tendrían la misma identidad. Solo se agrega si hay,
+  // para no cambiar la identidad de las promos que ya se venían comparando.
+  const requisitos = (promo.requisitos ?? []).length ? `(${promo.requisitos.slice().sort().join('+')})` : '';
+  return `${bancos}${requisitos}|${dias}`;
 }
 
 function huellaCondicion(promo) {
