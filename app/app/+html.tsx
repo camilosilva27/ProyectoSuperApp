@@ -8,7 +8,7 @@
 import { ScrollViewStyleReset } from 'expo-router/html';
 import { type PropsWithChildren } from 'react';
 
-const URL_APP = 'https://mi-superapp.com.ar';
+const URL_APP = 'https://superahorro.com.ar';
 const DESCRIPCION = 'Compará precios entre Vea, Carrefour, Chango Más, Día, Coto, Jumbo y Disco, y armá la compra más barata.';
 
 export default function Root({ children }: PropsWithChildren) {
@@ -39,6 +39,10 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="twitter:title" content="SuperAhorro" />
         <meta name="twitter:description" content={DESCRIPCION} />
         <meta name="twitter:image" content={`${URL_APP}/og-image.png`} />
+
+        {/* Favicon de la pestaña del navegador (sin esto, el navegador cae a un ícono genérico) */}
+        <link rel="icon" href="/icon-192.png" sizes="192x192" type="image/png" />
+        <link rel="icon" href="/icon-512.png" sizes="512x512" type="image/png" />
 
         {/* Ícono nítido al agregar como acceso directo (antes escalaba el favicon de 48px y se veía borroso) */}
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />

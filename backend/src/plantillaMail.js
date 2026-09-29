@@ -20,8 +20,8 @@ const COLOR_TEXTO_FOOTER = '#767E88';
 const COLOR_FONDO = '#F6F7F9';
 const COLOR_ACENTO = '#FFD400'; // mismo amarillo "oferta" de theme.ts / confirm-signup.html — reservado para el botón CTA
 const COLOR_ACENTO_SUAVE = '#FFF6C9'; // "ofertaSuave" de theme.ts — para destacar un monto sin que se confunda con el botón
-const LOGO_URL = 'https://mi-superapp.com.ar/apple-touch-icon.png';
-const URL_APP = 'https://mi-superapp.com.ar';
+const LOGO_URL = 'https://superahorro.com.ar/apple-touch-icon.png';
+const URL_APP = 'https://superahorro.com.ar';
 
 // Baja de mails NO transaccionales (auditoría 2026-09-24): resúmenes de ahorro, inactividad y
 // Alertas son mails "de marketing/aviso" que el usuario no pidió puntualmente, así que tienen que
