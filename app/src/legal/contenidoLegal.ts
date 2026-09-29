@@ -15,7 +15,7 @@ export type SeccionLegal = { titulo: string; cuerpo: string };
 export const SECCIONES_TERMINOS: SeccionLegal[] = [
   {
     titulo: '1. Aceptación de los términos',
-    cuerpo: 'Al crear una cuenta o usar SuperAhorro ("la App"), aceptás estos Términos de Servicio y la Política de Privacidad. Si no estás de acuerdo, no uses la App.\n\nLa App es operada por Camilo Silva, persona física (no hay una empresa/razón social detrás), con contacto en contacto@mi-superapp.com.ar.',
+    cuerpo: 'Al crear una cuenta o usar SuperAhorro ("la App"), aceptás estos Términos de Servicio y la Política de Privacidad. Si no estás de acuerdo, no uses la App.\n\nLa App es operada por Camilo Silva, persona física (no hay una empresa/razón social detrás), con contacto en contacto@superahorro.com.ar.',
   },
   {
     titulo: '2. Qué es SuperAhorro',
@@ -39,7 +39,7 @@ export const SECCIONES_TERMINOS: SeccionLegal[] = [
   },
   {
     titulo: '7. Derecho de arrepentimiento',
-    cuerpo: 'Conforme a la Ley de Defensa del Consumidor (Ley 24.240) de Argentina, si compraste un plan de forma remota tenés derecho a arrepentirte dentro de los 10 días corridos desde la contratación, sin justificar el motivo, y a que se te reintegre lo pagado. Escribinos a contacto@mi-superapp.com.ar dentro de ese plazo para ejercerlo.',
+    cuerpo: 'Conforme a la Ley de Defensa del Consumidor (Ley 24.240) de Argentina, si compraste un plan de forma remota tenés derecho a arrepentirte dentro de los 10 días corridos desde la contratación, sin justificar el motivo, y a que se te reintegre lo pagado. Escribinos a contacto@superahorro.com.ar dentro de ese plazo para ejercerlo.',
   },
   {
     titulo: '8. Uso aceptable',
@@ -63,7 +63,7 @@ export const SECCIONES_TERMINOS: SeccionLegal[] = [
   },
   {
     titulo: '13. Terminación',
-    cuerpo: 'Podemos suspender o cerrar tu cuenta si violás estos Términos. Vos podés dejar de usar la App y pedir la baja de tu cuenta cuando quieras, escribiendo a contacto@mi-superapp.com.ar.',
+    cuerpo: 'Podemos suspender o cerrar tu cuenta si violás estos Términos. Vos podés dejar de usar la App y pedir la baja de tu cuenta cuando quieras, escribiendo a contacto@superahorro.com.ar.',
   },
   {
     titulo: '14. Ley aplicable',
@@ -71,14 +71,14 @@ export const SECCIONES_TERMINOS: SeccionLegal[] = [
   },
   {
     titulo: '15. Contacto',
-    cuerpo: 'Dudas, reclamos o soporte: contacto@mi-superapp.com.ar',
+    cuerpo: 'Dudas, reclamos o soporte: contacto@superahorro.com.ar',
   },
 ];
 
 export const SECCIONES_PRIVACIDAD: SeccionLegal[] = [
   {
     titulo: '1. Quiénes somos',
-    cuerpo: 'SuperAhorro es operada por Camilo Silva, persona física (no hay una empresa/razón social detrás). Contacto: contacto@mi-superapp.com.ar.',
+    cuerpo: 'SuperAhorro es operada por Camilo Silva, persona física (no hay una empresa/razón social detrás). Contacto: contacto@superahorro.com.ar.',
   },
   {
     titulo: '2. Qué datos recolectamos',
@@ -86,11 +86,11 @@ export const SECCIONES_PRIVACIDAD: SeccionLegal[] = [
   },
   {
     titulo: '3. Cómo usamos tus datos',
-    cuerpo: 'Para darte acceso a la App y sincronizar tu carrito entre dispositivos, gestionar tu plan y pagos, calcular tu historial de ahorro, y detectar errores y mejorar el rendimiento. Te mandamos mails operativos (confirmación de cuenta, recibos, aviso de fin del período de prueba y otros avisos de plan) y, además, resúmenes semanal y mensual de ahorro, un aviso si hace un tiempo que no entrás, y alertas de promos de lo que seguís (por mail y push).\n\nLas alertas se apagan desde la App con "Recibir notificaciones" (las push también desde tu navegador). Para dejar de recibir los resúmenes de ahorro, el aviso de inactividad o las alertas por mail, usá el link "date de baja acá" que viene al pie de cada uno de esos mails, o escribinos a contacto@mi-superapp.com.ar con el asunto "baja". Los mails operativos se siguen mandando mientras tengas cuenta. No usamos tus datos para publicidad ni los vendemos a terceros.',
+    cuerpo: 'Para darte acceso a la App y sincronizar tu carrito entre dispositivos, gestionar tu plan y pagos, calcular tu historial de ahorro, y detectar errores y mejorar el rendimiento. Te mandamos mails operativos (confirmación de cuenta, recibos, aviso de fin del período de prueba y otros avisos de plan) y, además, resúmenes semanal y mensual de ahorro, un aviso si hace un tiempo que no entrás, y alertas de promos de lo que seguís (por mail y push).\n\nLas alertas se apagan desde la App con "Recibir notificaciones" (las push también desde tu navegador). Para dejar de recibir los resúmenes de ahorro, el aviso de inactividad o las alertas por mail, usá el link "date de baja acá" que viene al pie de cada uno de esos mails, o escribinos a contacto@superahorro.com.ar con el asunto "baja". Los mails operativos se siguen mandando mientras tengas cuenta. No usamos tus datos para publicidad ni los vendemos a terceros.',
   },
   {
     titulo: '4. Con quién compartimos tus datos',
-    cuerpo: 'Supabase (base de datos y login), Google Cloud Platform (servidor que procesa los pedidos de la App), Vercel (hosting de la versión web, más Vercel Analytics y Speed Insights para métricas agregadas de uso y rendimiento), Sentry (reportes de errores, que pueden incluir tu IP), Mercado Pago (pagos y suscripciones), Brevo (envío de mails), ImprovMX (reenvío de los mails que nos mandás a contacto@mi-superapp.com.ar), el servicio de notificaciones de tu navegador si activás las push, y, si elegís ese método, Google (login). No compartimos tus datos con nadie más, salvo que la ley nos obligue.',
+    cuerpo: 'Supabase (base de datos y login), Google Cloud Platform (servidor que procesa los pedidos de la App), Vercel (hosting de la versión web, más Vercel Analytics y Speed Insights para métricas agregadas de uso y rendimiento), Sentry (reportes de errores, que pueden incluir tu IP), Mercado Pago (pagos y suscripciones), Brevo (envío de mails), ImprovMX (reenvío de los mails que nos mandás a contacto@superahorro.com.ar), el servicio de notificaciones de tu navegador si activás las push, y, si elegís ese método, Google (login). No compartimos tus datos con nadie más, salvo que la ley nos obligue.',
   },
   {
     titulo: '5. Datos guardados en tu dispositivo',
@@ -102,7 +102,7 @@ export const SECCIONES_PRIVACIDAD: SeccionLegal[] = [
   },
   {
     titulo: '7. Tus derechos',
-    cuerpo: 'Conforme a la Ley 25.326 de Argentina, tenés derecho a acceder, rectificar o solicitar la eliminación de tus datos personales, o pedir la baja completa de tu cuenta, escribiendo a contacto@mi-superapp.com.ar. La Agencia de Acceso a la Información Pública es el Órgano de Control de esta ley.',
+    cuerpo: 'Conforme a la Ley 25.326 de Argentina, tenés derecho a acceder, rectificar o solicitar la eliminación de tus datos personales, o pedir la baja completa de tu cuenta, escribiendo a contacto@superahorro.com.ar. La Agencia de Acceso a la Información Pública es el Órgano de Control de esta ley.',
   },
   {
     titulo: '8. Retención de datos',
@@ -114,6 +114,6 @@ export const SECCIONES_PRIVACIDAD: SeccionLegal[] = [
   },
   {
     titulo: '10. Contacto',
-    cuerpo: 'Dudas sobre tus datos o esta política: contacto@mi-superapp.com.ar',
+    cuerpo: 'Dudas sobre tus datos o esta política: contacto@superahorro.com.ar',
   },
 ];

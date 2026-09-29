@@ -48,7 +48,7 @@ export default function PantallaAyuda() {
         </View>
 
         <Text style={[texto.cuerpo, { color: paleta.tintaSuave }]}>
-          Ante cualquier duda, opinión o problema, escribir a contacto@mi-superapp.com.ar
+          Ante cualquier duda, opinión o problema, escribir a contacto@superahorro.com.ar
         </Text>
       </View>
     </View>

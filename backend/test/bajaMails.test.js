@@ -121,7 +121,7 @@ describe('token de baja', () => {
     config.bajaMailsSecret = null;
     assert.equal(tokenBaja(USUARIO), null);
     assert.equal(urlBaja(USUARIO), null);
-    assert.deepEqual(HEADERS_NO_TRANSACCIONAL(USUARIO), { 'List-Unsubscribe': '<mailto:contacto@mi-superapp.com.ar?subject=baja>' });
+    assert.deepEqual(HEADERS_NO_TRANSACCIONAL(USUARIO), { 'List-Unsubscribe': '<mailto:contacto@superahorro.com.ar?subject=baja>' });
     assert.ok(!PIE_BAJA(USUARIO).includes('https://'));
   });
 });
@@ -131,7 +131,7 @@ describe('headers y pie con el link', () => {
     const h = HEADERS_NO_TRANSACCIONAL(USUARIO);
     const url = `https://backend.ejemplo.test/api/mails/baja?u=${USUARIO}&t=${tokenBaja(USUARIO)}`;
     assert.equal(urlBaja(USUARIO), url);
-    assert.equal(h['List-Unsubscribe'], `<${url}>, <mailto:contacto@mi-superapp.com.ar?subject=baja>`);
+    assert.equal(h['List-Unsubscribe'], `<${url}>, <mailto:contacto@superahorro.com.ar?subject=baja>`);
     assert.equal(h['List-Unsubscribe-Post'], 'List-Unsubscribe=One-Click');
   });
 

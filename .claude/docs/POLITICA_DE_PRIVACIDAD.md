@@ -6,7 +6,7 @@
 
 ## 1. Quiénes somos
 
-SuperAhorro es operada por Camilo Silva, persona física (no hay una empresa/razón social detrás). Contacto: contacto@mi-superapp.com.ar.
+SuperAhorro es operada por Camilo Silva, persona física (no hay una empresa/razón social detrás). Contacto: contacto@superahorro.com.ar.
 
 ## 2. Qué datos recolectamos
 
@@ -29,7 +29,7 @@ SuperAhorro es operada por Camilo Silva, persona física (no hay una empresa/raz
 - Para calcular tu historial de ahorro dentro de la App.
 - Para detectar y corregir errores y mejorar el rendimiento de la App (reportes de errores y métricas agregadas).
 
-**Cómo darte de baja de estos avisos**: las alertas (por mail y push) se apagan desde la App con el interruptor "Recibir notificaciones"; las notificaciones push también se pueden bloquear desde la configuración de tu navegador. Para dejar de recibir los resúmenes de ahorro, el aviso de inactividad o las alertas por mail, usá el link "date de baja acá" que viene al pie de cada uno de esos mails, o escribinos a contacto@mi-superapp.com.ar con el asunto "baja". Los mails operativos (confirmación, recibos, avisos del plan) se siguen mandando mientras tengas cuenta, porque son parte del servicio.
+**Cómo darte de baja de estos avisos**: las alertas (por mail y push) se apagan desde la App con el interruptor "Recibir notificaciones"; las notificaciones push también se pueden bloquear desde la configuración de tu navegador. Para dejar de recibir los resúmenes de ahorro, el aviso de inactividad o las alertas por mail, usá el link "date de baja acá" que viene al pie de cada uno de esos mails, o escribinos a contacto@superahorro.com.ar con el asunto "baja". Los mails operativos (confirmación, recibos, avisos del plan) se siguen mandando mientras tengas cuenta, porque son parte del servicio.
 
 No usamos tus datos para publicidad ni los vendemos a terceros.
 
@@ -43,7 +43,7 @@ Usamos los siguientes proveedores (procesadores de datos) para operar la App:
 - **Sentry** — recibe los reportes de errores de la App y del servidor (datos técnicos del error, que pueden incluir tu dirección IP).
 - **Mercado Pago** — procesa los pagos y suscripciones. Cuando pagás, Mercado Pago recibe los datos necesarios para procesar el cobro (esto lo maneja Mercado Pago según su propia política de privacidad).
 - **Brevo** — envía los mails de la App (confirmación de cuenta, recibos, avisos del plan, resúmenes de ahorro, alertas).
-- **ImprovMX** — reenvía los mails que nos mandás a contacto@mi-superapp.com.ar a nuestra casilla.
+- **ImprovMX** — reenvía los mails que nos mandás a contacto@superahorro.com.ar a nuestra casilla.
 - **Google** (opcional) — si elegís iniciar sesión con Google, Google comparte con nosotros tu mail y nombre según los permisos que autorices.
 - **Servicio de notificaciones de tu navegador** (por ejemplo, el de Google, Apple o Mozilla, según qué navegador uses) — si activás las notificaciones push, la notificación (cifrada) pasa por ese servicio para llegar a tu dispositivo.
 
@@ -59,7 +59,7 @@ Los datos en Supabase están protegidos con políticas de seguridad a nivel de f
 
 ## 7. Tus derechos
 
-Conforme a la Ley de Protección de Datos Personales (Ley 25.326) de Argentina, tenés derecho a acceder, rectificar o solicitar la eliminación de tus datos personales. Para ejercer estos derechos, o para pedir la baja completa de tu cuenta (borrado de todos tus datos), escribinos a contacto@mi-superapp.com.ar.
+Conforme a la Ley de Protección de Datos Personales (Ley 25.326) de Argentina, tenés derecho a acceder, rectificar o solicitar la eliminación de tus datos personales. Para ejercer estos derechos, o para pedir la baja completa de tu cuenta (borrado de todos tus datos), escribinos a contacto@superahorro.com.ar.
 
 La Agencia de Acceso a la Información Pública, en su carácter de Órgano de Control de la Ley 25.326, tiene la atribución de atender denuncias y reclamos que se interpongan por incumplimiento de las normas de protección de datos personales.
 
@@ -73,4 +73,4 @@ Podemos actualizar esta Política de Privacidad. Si el cambio es significativo, 
 
 ## 10. Contacto
 
-Dudas sobre tus datos o esta política: **contacto@mi-superapp.com.ar**
+Dudas sobre tus datos o esta política: **contacto@superahorro.com.ar**

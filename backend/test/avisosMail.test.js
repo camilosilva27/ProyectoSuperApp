@@ -199,7 +199,7 @@ describe('baja de mails no transaccionales', () => {
   });
 
   test('header List-Unsubscribe con mailto', () => {
-    assert.equal(HEADERS_NO_TRANSACCIONAL()['List-Unsubscribe'], '<mailto:contacto@mi-superapp.com.ar?subject=baja>');
+    assert.equal(HEADERS_NO_TRANSACCIONAL()['List-Unsubscribe'], '<mailto:contacto@superahorro.com.ar?subject=baja>');
   });
 });
 

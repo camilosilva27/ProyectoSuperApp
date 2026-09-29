@@ -57,3 +57,4 @@ Se compró `mi-superapp.com.ar` en NIC Argentina ($8.500 ARS/año — **no es gr
 - Remitente nuevo `no-reply@superahorro.com.ar`: activo en `GET /v3/senders` (API) y mail de prueba enviado OK. Cambiado en `config.js`, `.env.example` y en el `.env` de la VM (línea `BREVO_REMITENTE_EMAIL`, que pisaba el default del código).
 - En Supabase → SMTP Settings → Sender email hay que cambiarlo a mano (dashboard).
 - `no-reply@mi-superapp.com.ar` queda en Brevo hasta confirmar que todo funciona; después se puede borrar.
+- Contacto migrado a `contacto@superahorro.com.ar` en app (Ayuda, legales), mails (bienvenida, plantilla, List-Unsubscribe), `vapidSubject` y tests. ImprovMX free admite 1 solo dominio: `mi-superapp.com.ar` se borró de ImprovMX, así que `contacto@mi-superapp.com.ar` ya no recibe.

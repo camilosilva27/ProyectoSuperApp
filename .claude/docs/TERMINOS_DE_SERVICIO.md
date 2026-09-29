@@ -8,7 +8,7 @@
 
 Al crear una cuenta o usar SuperAhorro ("la App"), aceptás estos Términos de Servicio y la [Política de Privacidad](./POLITICA_DE_PRIVACIDAD.md). Si no estás de acuerdo, no uses la App.
 
-La App es operada por Camilo Silva, persona física (no hay una empresa/razón social detrás), con contacto en contacto@mi-superapp.com.ar.
+La App es operada por Camilo Silva, persona física (no hay una empresa/razón social detrás), con contacto en contacto@superahorro.com.ar.
 
 ## 2. Qué es SuperAhorro
 
@@ -49,7 +49,7 @@ El plan permanente, al ser un pago único sin cobros recurrentes, no tiene "canc
 
 Conforme a la Ley de Defensa del Consumidor (Ley 24.240) de Argentina, si compraste un plan de forma remota (dentro de la App), tenés derecho a arrepentirte dentro de los **10 días corridos** desde la contratación, sin necesidad de justificar el motivo, y a que se te reintegre lo pagado. Pasado ese plazo, se aplica lo descripto en la sección de Cancelación de arriba (sin reembolso de lo ya transcurrido).
 
-Para ejercer este derecho, escribinos a contacto@mi-superapp.com.ar dentro del plazo indicado.
+Para ejercer este derecho, escribinos a contacto@superahorro.com.ar dentro del plazo indicado.
 
 ## 8. Uso aceptable
 
@@ -79,7 +79,7 @@ Podemos modificar estos Términos en cualquier momento. Si el cambio es signific
 
 ## 13. Terminación
 
-Podemos suspender o cerrar tu cuenta si violás estos Términos. Vos podés dejar de usar la App y pedir la baja de tu cuenta en cualquier momento escribiendo a contacto@mi-superapp.com.ar.
+Podemos suspender o cerrar tu cuenta si violás estos Términos. Vos podés dejar de usar la App y pedir la baja de tu cuenta en cualquier momento escribiendo a contacto@superahorro.com.ar.
 
 ## 14. Ley aplicable
 
@@ -87,4 +87,4 @@ Estos Términos se rigen por las leyes de la República Argentina. Conforme a la
 
 ## 15. Contacto
 
-Dudas, reclamos o soporte: **contacto@mi-superapp.com.ar**
+Dudas, reclamos o soporte: **contacto@superahorro.com.ar**

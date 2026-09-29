@@ -33,7 +33,7 @@ const URL_APP = 'https://superahorro.com.ar';
 // desde su botón). El mailto a contacto@ queda siempre como alternativa. Sin secreto o sin
 // usuarioId, solo el mailto (comportamiento anterior).
 // Recibo de pago, bienvenida y fin de trial son transaccionales: no llevan esto.
-const MAIL_CONTACTO = 'contacto@mi-superapp.com.ar';
+const MAIL_CONTACTO = 'contacto@superahorro.com.ar';
 const MAILTO_BAJA = `mailto:${MAIL_CONTACTO}?subject=baja`;
 
 /**
