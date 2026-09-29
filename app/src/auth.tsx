@@ -98,21 +98,65 @@ type Contexto = {
 
 const AuthContext = createContext<Contexto | null>(null);
 
+/** Origen de la visita (`?utm_source=instagram` en el link de la bio, etc), para saber con
+ *  certeza de dónde viene cada registro sin depender de Vercel Analytics (que cuenta visitantes
+ *  por día con hash de IP, no personas). Primer toque: se guarda la primera vez que llega y no
+ *  se pisa. Termina en `raw_user_meta_data.origen` de auth.users — sin migración ni RLS. */
+const CLAVE_ORIGEN = 'origen_visita';
+
+function leerOrigen(): string | null {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
+  try {
+    return window.localStorage.getItem(CLAVE_ORIGEN);
+  } catch {
+    return null;
+  }
+}
+
+function capturarOrigen() {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+  const utm = new URLSearchParams(window.location.search).get('utm_source');
+  if (!utm) return;
+  try {
+    if (!window.localStorage.getItem(CLAVE_ORIGEN)) {
+      window.localStorage.setItem(CLAVE_ORIGEN, utm.slice(0, 50).toLowerCase());
+    }
+  } catch {
+    // Storage bloqueado (modo privado, etc): se pierde el dato, no rompe nada.
+  }
+}
+
+/** Google OAuth no deja mandar user_metadata propio en el signup: se completa después, solo si
+ *  la cuenta es nueva (creada hace < 1 día) y todavía no tiene origen. */
+function completarOrigenSiFalta(session: Session | null) {
+  const user = session?.user;
+  if (!user || user.user_metadata?.origen) return;
+  const origen = leerOrigen();
+  if (!origen) return;
+  if (Date.now() - new Date(user.created_at).getTime() > 24 * 60 * 60 * 1000) return;
+  supabase.auth.updateUser({ data: { origen } });
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [cargando, setCargando] = useState(true);
   const [necesitaNuevaPassword, setNecesitaNuevaPassword] = useState(false);
 
   useEffect(() => {
+    capturarOrigen();
+
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setCargando(false);
+      completarOrigenSiFalta(data.session);
     });
 
     // Cubre login/logout/refresh de token, en cualquier pestaña o pantalla — no solo el
     // primer getSession() de arriba.
-    const { data: suscripcion } = supabase.auth.onAuthStateChange((_evento, nuevaSession) => {
+    const { data: suscripcion } = supabase.auth.onAuthStateChange((evento, nuevaSession) => {
       setSession(nuevaSession);
+      // setTimeout: llamar a supabase.auth dentro del callback puede trabar el lock de auth.
+      if (evento === 'SIGNED_IN') setTimeout(() => completarOrigenSiFalta(nuevaSession), 0);
     });
 
     // Link de confirmación de mail o de recuperación de contraseña: llega como
@@ -148,8 +192,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // `full_name` es la clave que lee la columna "Display name" del Dashboard de Supabase
       // (es la misma que completa Google en el login con OAuth); sin esto, los signups por
       // mail+contraseña aparecían "sin nombre" ahí aunque perfil_usuario.nombre estuviera bien.
+      const origen = leerOrigen();
       const { data, error } = await supabase.auth.signUp({
-        email, password, options: { data: { nombre, full_name: nombre } },
+        email, password, options: { data: { nombre, full_name: nombre, ...(origen ? { origen } : {}) } },
       });
       if (error) return { error: mensajeError(error), necesitaConfirmarMail: false };
       // Bug real (2026-09-04): registrarse con un mail que YA tiene una cuenta CONFIRMADA no
