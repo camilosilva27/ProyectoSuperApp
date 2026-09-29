@@ -99,7 +99,7 @@ module.exports = {
   // de Supabase Auth, pero vía su API HTTP con una API key propia (Brevo > Settings > SMTP & API
   // > API Keys), no el SMTP key que ya tiene Supabase.
   brevoApiKey: process.env.BREVO_API_KEY,
-  brevoRemitenteEmail: process.env.BREVO_REMITENTE_EMAIL || 'no-reply@mi-superapp.com.ar',
+  brevoRemitenteEmail: process.env.BREVO_REMITENTE_EMAIL || 'no-reply@superahorro.com.ar',
   brevoRemitenteNombre: process.env.BREVO_REMITENTE_NOMBRE || 'SuperAhorro',
 
   // Baja de un clic de los mails NO transaccionales (resúmenes, inactividad, Alertas — ver

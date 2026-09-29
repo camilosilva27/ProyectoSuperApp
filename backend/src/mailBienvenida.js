@@ -15,7 +15,7 @@ const { enviarMail } = require('./clienteBrevo');
 const { armarMailBase, escaparHtml, URL_APP } = require('./plantillaMail');
 const { obtenerSuscripcionesDeUsuario, enviarPush } = require('./clientePush');
 
-// Sin CTA a propósito: el remitente es no-reply@mi-superapp.com.ar (ver clienteBrevo.js), una
+// Sin CTA a propósito: el remitente es no-reply@superahorro.com.ar (ver clienteBrevo.js), una
 // respuesta directa al mail no llegaría a ningún lado — por eso se deriva al mail de contacto
 // real, el mismo que ya figura en Ajustes (app/app/(tabs)/ajustes.tsx).
 function armarHtml({ nombre }) {
