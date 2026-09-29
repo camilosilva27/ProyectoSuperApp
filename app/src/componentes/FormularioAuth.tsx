@@ -453,6 +453,18 @@ export function FormularioAuth({
                 </>
               )}
             </Pressable>
+            {/* Aceptación implícita para Google (no exige el checkbox, ver continuarConGoogle). */}
+            <Text style={[texto.etiqueta, { color: paleta.tintaTenue, textAlign: 'center' }]}>
+              Al continuar con Google aceptás los{' '}
+              <Text style={{ textDecorationLine: 'underline' }} onPress={() => setModalLegalAbierto('terminos')}>
+                Términos de Servicio
+              </Text>
+              {' '}y la{' '}
+              <Text style={{ textDecorationLine: 'underline' }} onPress={() => setModalLegalAbierto('privacidad')}>
+                Política de Privacidad
+              </Text>
+              .
+            </Text>
             <View style={styles.divisor}>
               <View style={[styles.lineaDivisor, { backgroundColor: paleta.borde }]} />
               <Text style={[texto.etiqueta, { color: paleta.tintaTenue }]}>O</Text>
