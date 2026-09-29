@@ -308,10 +308,8 @@ export function FormularioAuth({
 
   const continuarConGoogle = async () => {
     if (enviandoGoogle) return;
-    if (modo === 'registro' && !aceptoTerminos) {
-      setError('Tenés que aceptar los Términos de Servicio y la Política de Privacidad.');
-      return;
-    }
+    // Sin exigir el checkbox de términos (decisión 2026-09-29): con Google se puede registrar
+    // sin tildarlo. El checkbox sigue siendo obligatorio solo para mail+contraseña.
     setEnviandoGoogle(true);
     setError(null);
     const r = await iniciarSesionConGoogle();
