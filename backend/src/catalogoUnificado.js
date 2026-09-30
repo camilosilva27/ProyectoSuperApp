@@ -21,6 +21,13 @@ const { rutaCatalogoUnificado, limiteBusquedaDefault, limiteBusquedaMaximo } = r
 
 let cache = null; // { mtimeMs, catalogo, indice }
 
+/** Unifica el separador decimal ("2,25" y "2.25" son el mismo número): cada super escribe los
+ *  nombres a su manera, y sin esto buscar con uno de los dos separadores esconde los
+ *  productos que usan el otro. Solo entre dígitos, para no tocar comas/puntos de texto. */
+function normalizarDecimales(texto) {
+  return texto.replace(/(\d),(\d)/g, '$1.$2');
+}
+
 function cargar() {
   let stat;
   try {
@@ -36,7 +43,7 @@ function cargar() {
   // Se precalcula el texto normalizado de búsqueda una vez por carga, no por request —
   // incluidas las palabras y sus stems, que solo se usan si falla el match exacto.
   const indice = catalogo.productos.map(p => {
-    const haystackNorm = normalize(`${p.nombre} ${p.variante || ''}`);
+    const haystackNorm = normalize(normalizarDecimales(`${p.nombre} ${p.variante || ''}`));
     const haystackWords = haystackNorm.split(/\s+/).filter(Boolean);
     return {
       producto: p,
@@ -78,7 +85,7 @@ function buscar({
   const c = cargar();
   if (!c) return { total: 0, resultados: [], disponible: false };
 
-  const palabras = q ? palabrasDeBusqueda(q) : [];
+  const palabras = q ? palabrasDeBusqueda(normalizarDecimales(q)) : [];
   const categoriaNorm = categoria ? normalize(categoria) : '';
   const supersFiltro = supers.length ? new Set(supers) : null;
 
