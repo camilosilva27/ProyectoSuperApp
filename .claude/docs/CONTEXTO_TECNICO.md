@@ -836,6 +836,14 @@ quedaba pidiendo un segundo toque sobre una pestaña ya abierta. Fix: `tourMarca
 `app/(tabs)/_layout.tsx` (el navegador de tabs, montado toda la vida de la app, así que su
 listener existe antes de que cualquier pestaña lazy se monte).
 
+**`volver-buscar` se salteaba solo si ya habías tocado Buscar antes del tour (bug real, corregido
+2026-10-02).** `pestanasTocadas` (el Set de `tourMarcarTabPress`) nunca se vaciaba: cualquier toque
+de pestaña previo al tour (o de un paso anterior) dejaba el paso `volver-buscar`/`tab-descuentos`
+cumplido de entrada. Se notaba al tocar Mercado Pago con el carrito ya cargado: el paso pasaba
+a `volver-buscar` y avanzaba al instante a `buscador-input`. Fix: `fijarEstado` vacía
+`pestanasTocadas` cada vez que cambia `pasoActivo`, así un toque de pestaña solo cuenta si ocurre
+con SU paso activo.
+
 **El spotlight de 'coto'/'tope-elegido'/'listo' (pasos dentro de `HojaSupers`) quedaba invisible
 (bug real, corregido 2026-09-12, encontrado reproduciendo en el navegador).** Desde el turno
 "Unifica consistencia visual" (10/09), `HojaSupers` usa el `<Modal>` de RN — en RN Web ese

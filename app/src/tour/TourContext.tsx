@@ -47,7 +47,12 @@ let estado: EstadoTour = { activo: false, pasoActivo: null };
 const oyentes = new Set<() => void>();
 
 function fijarEstado(siguiente: EstadoTour) {
+  const cambioPaso = siguiente.pasoActivo !== estado.pasoActivo;
   estado = siguiente;
+  // Un toque de pestaña solo cuenta si ocurre CON el paso activo: sin esto, haber tocado
+  // Buscar/Descuentos antes del tour (o en un paso anterior) dejaba 'volver-buscar' /
+  // 'tab-descuentos' cumplidos de entrada y se salteaban solos (bug real).
+  if (cambioPaso) limpiarPestanasTocadas();
   oyentes.forEach(o => o());
 }
 
@@ -79,6 +84,12 @@ export function refDeTarget(id: PasoId): React.RefObject<unknown> | undefined {
  *  del tour quedaba pidiendo un segundo toque sobre una pestaña ya abierta). */
 const pestanasTocadas = new Set<string>();
 const oyentesPestanas = new Set<() => void>();
+
+function limpiarPestanasTocadas() {
+  if (pestanasTocadas.size === 0) return;
+  pestanasTocadas.clear();
+  oyentesPestanas.forEach(o => o());
+}
 
 export function tourMarcarTabPress(nombreRuta: string) {
   if (pestanasTocadas.has(nombreRuta)) return;
