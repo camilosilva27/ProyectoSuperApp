@@ -260,7 +260,14 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const REINTENTOS = 2;
 const ESPERA_MS = 3000;
 
+// Auditoría apagada el 2026-10-05: el análisis de horarios ya está hecho (ver CONTEXTO_TECNICO.md
+// § "Análisis ampliado de horarios"). Para volver a medir, correr los crons con
+// GUARDAR_SCRAPER_DIFFS=true. El cálculo del diff (diffProductos, estadoPromoPorEan) NO depende
+// de esto: lo usa Alertas.
+const GUARDAR_DIFFS = process.env.GUARDAR_SCRAPER_DIFFS === 'true';
+
 async function registrarDiff(fila) {
+  if (!GUARDAR_DIFFS) return;
   const supabaseAdmin = clienteSupabaseAdmin();
   if (!supabaseAdmin) return; // sin credenciales configuradas (ej. entorno local sin .env completo)
 
