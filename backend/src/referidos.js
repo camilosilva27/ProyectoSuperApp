@@ -292,6 +292,13 @@ async function registrarComparacion(cliente, usuarioId, ahora = new Date()) {
   return resultado;
 }
 
+/** "María José Pérez" → "María": solo el nombre de pila, nunca apellido ni mail. */
+function nombreDePila(nombre) {
+  if (typeof nombre !== 'string') return null;
+  const primero = nombre.trim().split(/\s+/)[0];
+  return primero ? primero.slice(0, 40) : null;
+}
+
 /** Lo que necesita la pantalla de referidos (GET /api/referidos). null si no existe el perfil. */
 async function estadoDelUsuario(cliente, usuarioId, ahora = new Date()) {
   const codigo = await obtenerCodigo(cliente, usuarioId);
@@ -306,11 +313,11 @@ async function estadoDelUsuario(cliente, usuarioId, ahora = new Date()) {
 
   const [invitadas, premio, perfil] = await Promise.all([
     cliente.from('referido')
-      .select('estado, registrada_en, primera_comparacion_en')
+      .select('invitada_id, estado, registrada_en, primera_comparacion_en')
       .eq('invitador_id', usuarioId)
       .order('asociada_en', { ascending: true }),
     cliente.from('premio_referido')
-      .select('estado, motivo, otorgado_en, dias, hasta')
+      .select('estado, motivo, otorgado_en, dias, hasta, plan_antes')
       .eq('usuario_id', usuarioId)
       .maybeSingle(),
     cliente.from('perfil_usuario')
@@ -321,6 +328,15 @@ async function estadoDelUsuario(cliente, usuarioId, ahora = new Date()) {
   for (const r of [invitadas, premio, perfil]) if (r.error) throw r.error;
 
   const filas = invitadas.data ?? [];
+  // Nombre de pila de cada invitada (decisión 12/10: quien invita la conoce). Sale del registro de
+  // la otra persona; null si no cargó nombre.
+  const nombres = new Map();
+  if (filas.length) {
+    const { data: perfiles, error: errorNombres } = await cliente
+      .from('perfil_usuario').select('id, nombre').in('id', filas.map(f => f.invitada_id));
+    if (errorNombres) throw errorNombres;
+    for (const p of perfiles ?? []) nombres.set(p.id, nombreDePila(p.nombre));
+  }
   return {
     codigo,
     link: `${config.urlApp}/?ref=${codigo}`,
@@ -328,9 +344,9 @@ async function estadoDelUsuario(cliente, usuarioId, ahora = new Date()) {
     invitadasNecesarias: config.invitadasNecesarias,
     diasPremio: config.diasPremio,
     validas: filas.filter(f => f.estado === 'valida').length,
-    // Sin nombre ni mail de las invitadas: qué mostrar de ellas es una decisión pendiente
-    // (privacidad, ver PLAN_REFERIDOS.md).
+    // Solo nombre de pila: nunca apellido ni mail.
     invitadas: filas.map(f => ({
+      nombre: nombres.get(f.invitada_id) ?? null,
       estado: f.estado,
       registradaEn: f.registrada_en,
       primeraComparacionEn: f.primera_comparacion_en,
@@ -345,6 +361,8 @@ async function estadoDelUsuario(cliente, usuarioId, ahora = new Date()) {
         otorgadoEn: premio.data.otorgado_en,
         dias: premio.data.dias,
         hasta: premio.data.hasta,
+        // 'trial' → se extendió la prueba; 'gratis'/'premium' → quedó premium hasta `hasta`.
+        planAntes: premio.data.plan_antes,
       }
       : null,
     motivoNoAplica: premio.data ? null : motivoNoAplica(perfil.data),
@@ -359,6 +377,7 @@ module.exports = {
   // Exportadas para tests.
   normalizarCodigo,
   normalizarMail,
+  nombreDePila,
   esMailDescartable,
   motivoNoAplica,
   generarCodigo,

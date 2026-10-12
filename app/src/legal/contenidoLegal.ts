@@ -30,47 +30,51 @@ export const SECCIONES_TERMINOS: SeccionLegal[] = [
     cuerpo: 'Todo usuario nuevo arranca con un período de prueba gratuito con acceso completo. Al finalizar, para seguir usando la App hace falta un plan pago: mensual, anual o permanente (pago único). Los precios vigentes se muestran en la pantalla de selección de plan dentro de la App y pueden cambiar — el precio que pagás en el momento de suscribirte queda fijo mientras esa suscripción siga activa. No ofrecemos un plan gratuito permanente: sin un plan pago activo o un período de prueba vigente, la App no está disponible.',
   },
   {
-    titulo: '5. Pagos y facturación',
+    titulo: '5. Programa "Invitá amigos"',
+    cuerpo: 'Cada cuenta tiene un link personal para invitar a otras personas a SuperAhorro. Una persona invitada cuenta cuando crea una cuenta nueva con tu link, confirma su mail y hace su primera comparación de precios dentro de los 30 días desde que se registró. Cada persona puede contar para una sola cuenta, y no cuenta una cuenta que ya existía antes.\n\nCuando 3 personas invitadas cuentan, tu cuenta recibe 2 meses (60 días) de acceso gratuito, una sola vez por cuenta. Si estás en el período de prueba, se suman al final de tu prueba; si no tenés un plan activo, tenés acceso completo durante 60 días desde ese momento. El premio no se puede cambiar por dinero ni transferir.\n\nEl premio no aplica si al momento de ganarlo tenés una suscripción paga activa o el plan permanente. Si después de ganarlo contratás un plan pago, el plan empieza y se cobra en ese momento, y los días de premio que te quedaban no se acumulan.\n\nPara que puedas seguir tu progreso, en tu pantalla de invitaciones vas a ver el nombre de pila de cada persona que se registró con tu link y si ya hizo su primera comparación. Si vos te registrás con el link de otra persona, ella va a ver esos mismos datos tuyos (ver la Política de Privacidad).\n\nPodemos anular un premio si detectamos un uso abusivo del programa (por ejemplo, cuentas creadas solo para sumar invitaciones). El programa está vigente hasta que lo modifiquemos o lo demos de baja. Los premios ya otorgados se respetan.',
+  },
+  {
+    titulo: '6. Pagos y facturación',
     cuerpo: 'Los pagos se procesan a través de Mercado Pago. Nosotros no vemos ni almacenamos los datos de tu tarjeta. El plan mensual/anual es una suscripción recurrente que se cobra automáticamente hasta que la canceles. El plan permanente es un pago único, sin cobros recurrentes.',
   },
   {
-    titulo: '6. Cancelación',
+    titulo: '7. Cancelación',
     cuerpo: 'Podés cancelar tu suscripción en cualquier momento desde Ajustes → Plan y pago. Al cancelar, no se te va a cobrar el próximo período, pero conservás el acceso hasta el final del período ya pagado (sin reembolso de lo ya transcurrido). El plan permanente no tiene cancelación: una vez comprado, el acceso no vence.',
   },
   {
-    titulo: '7. Derecho de arrepentimiento',
+    titulo: '8. Derecho de arrepentimiento',
     cuerpo: 'Conforme a la Ley de Defensa del Consumidor (Ley 24.240) de Argentina, si compraste un plan de forma remota tenés derecho a arrepentirte dentro de los 10 días corridos desde la contratación, sin justificar el motivo, y a que se te reintegre lo pagado. Escribinos a contacto@superahorro.com.ar dentro de ese plazo para ejercerlo.',
   },
   {
-    titulo: '8. Uso aceptable',
+    titulo: '9. Uso aceptable',
     cuerpo: 'No está permitido scrapear, revender o redistribuir masivamente los datos de precios/promos, intentar vulnerar la seguridad de la App o acceder a cuentas de otros usuarios, ni usarla con fines ilegales. Nos reservamos el derecho de suspender cuentas que violen esto.',
   },
   {
-    titulo: '9. Propiedad intelectual',
+    titulo: '10. Propiedad intelectual',
     cuerpo: 'El diseño, marca, logo y código de SuperAhorro nos pertenecen (o están licenciados para nuestro uso). Los logos de los supermercados pertenecen a sus respectivas cadenas y se usan solo con fines identificatorios.',
   },
   {
-    titulo: '10. Exactitud de la información',
+    titulo: '11. Exactitud de la información',
     cuerpo: 'La información de precios y promociones se ofrece "tal cual", sin garantía de exactitud, disponibilidad o actualización en tiempo real. No garantizamos que la App esté libre de errores o interrupciones.',
   },
   {
-    titulo: '11. Limitación de responsabilidad',
+    titulo: '12. Limitación de responsabilidad',
     cuerpo: 'En la máxima medida permitida por la ley, no somos responsables por daños indirectos ni pérdidas derivadas de decisiones de compra tomadas en base a la App. Nuestra responsabilidad total se limita al monto pagado por tu plan en los últimos 12 meses.',
   },
   {
-    titulo: '12. Modificaciones',
+    titulo: '13. Modificaciones',
     cuerpo: 'Podemos modificar estos Términos en cualquier momento. Si el cambio es significativo, te avisaremos por mail o dentro de la App. Usar la App después de un cambio implica aceptarlo.',
   },
   {
-    titulo: '13. Terminación',
+    titulo: '14. Terminación',
     cuerpo: 'Podemos suspender o cerrar tu cuenta si violás estos Términos. Vos podés dejar de usar la App y pedir la baja de tu cuenta cuando quieras, escribiendo a contacto@superahorro.com.ar.',
   },
   {
-    titulo: '14. Ley aplicable',
+    titulo: '15. Ley aplicable',
     cuerpo: 'Estos Términos se rigen por las leyes de la República Argentina. Conforme a la Ley de Defensa del Consumidor, cualquier disputa se resuelve ante los tribunales correspondientes al domicilio del usuario/consumidor.',
   },
   {
-    titulo: '15. Contacto',
+    titulo: '16. Contacto',
     cuerpo: 'Dudas, reclamos o soporte: contacto@superahorro.com.ar',
   },
 ];
@@ -82,15 +86,15 @@ export const SECCIONES_PRIVACIDAD: SeccionLegal[] = [
   },
   {
     titulo: '2. Qué datos recolectamos',
-    cuerpo: 'Datos de cuenta (mail, nombre, o tu cuenta de Google). Datos de uso: carrito, tarjetas bancarias marcadas como propias (solo nombre/tipo, nunca número de tarjeta), supers activos, listas guardadas, historial de ahorro. Alertas: los productos y categorías que seguís y si tenés activado "Recibir notificaciones". Notificaciones push (web): si las aceptás, la suscripción push que genera tu navegador (dirección técnica de envío y sus claves de cifrado). Datos de pago: el mail que usaste en Mercado Pago y el estado de tu suscripción — nunca el número de tarjeta, eso lo procesa y guarda Mercado Pago directamente. Datos técnicos: reportes de errores (qué falló, navegador/sistema operativo, y puede incluir tu dirección IP) y métricas agregadas de uso y rendimiento de la versión web.',
+    cuerpo: 'Datos de cuenta (mail, nombre, o tu cuenta de Google). Datos de uso: carrito, tarjetas bancarias marcadas como propias (solo nombre/tipo, nunca número de tarjeta), supers activos, listas guardadas, historial de ahorro. Alertas: los productos y categorías que seguís y si tenés activado "Recibir notificaciones". Notificaciones push (web): si las aceptás, la suscripción push que genera tu navegador (dirección técnica de envío y sus claves de cifrado). Datos de pago: el mail que usaste en Mercado Pago y el estado de tu suscripción — nunca el número de tarjeta, eso lo procesa y guarda Mercado Pago directamente. Invitaciones ("Invitá amigos"): el código de tu link; si te registraste con el link de otra persona, quién te invitó, cuándo te registraste y cuándo hiciste tu primera comparación; y una versión normalizada de tu mail (sin puntos ni "+algo"), solo para detectar la misma casilla usada en otra cuenta. Datos técnicos: reportes de errores (qué falló, navegador/sistema operativo, y puede incluir tu dirección IP) y métricas agregadas de uso y rendimiento de la versión web.',
   },
   {
     titulo: '3. Cómo usamos tus datos',
-    cuerpo: 'Para darte acceso a la App y sincronizar tu carrito entre dispositivos, gestionar tu plan y pagos, calcular tu historial de ahorro, y detectar errores y mejorar el rendimiento. Te mandamos mails operativos (confirmación de cuenta, recibos, aviso de fin del período de prueba y otros avisos de plan) y, además, resúmenes semanal y mensual de ahorro, un aviso si hace un tiempo que no entrás, y alertas de promos de lo que seguís (por mail y push).\n\nLas alertas se apagan desde la App con "Recibir notificaciones" (las push también desde tu navegador). Para dejar de recibir los resúmenes de ahorro, el aviso de inactividad o las alertas por mail, usá el link "date de baja acá" que viene al pie de cada uno de esos mails, o escribinos a contacto@superahorro.com.ar con el asunto "baja". Los mails operativos se siguen mandando mientras tengas cuenta. No usamos tus datos para publicidad ni los vendemos a terceros.',
+    cuerpo: 'Para darte acceso a la App y sincronizar tu carrito entre dispositivos, gestionar tu plan y pagos, calcular tu historial de ahorro, gestionar el programa "Invitá amigos" (quién invitó a quién, si cada invitación cuenta, el premio y evitar abusos), y detectar errores y mejorar el rendimiento. Te mandamos mails operativos (confirmación de cuenta, recibos, aviso de fin del período de prueba y otros avisos de plan) y, además, resúmenes semanal y mensual de ahorro, un aviso si hace un tiempo que no entrás, y alertas de promos de lo que seguís (por mail y push).\n\nLas alertas se apagan desde la App con "Recibir notificaciones" (las push también desde tu navegador). Para dejar de recibir los resúmenes de ahorro, el aviso de inactividad o las alertas por mail, usá el link "date de baja acá" que viene al pie de cada uno de esos mails, o escribinos a contacto@superahorro.com.ar con el asunto "baja". Los mails operativos se siguen mandando mientras tengas cuenta. No usamos tus datos para publicidad ni los vendemos a terceros.',
   },
   {
     titulo: '4. Con quién compartimos tus datos',
-    cuerpo: 'Supabase (base de datos y login), Google Cloud Platform (servidor que procesa los pedidos de la App), Vercel (hosting de la versión web, más Vercel Analytics y Speed Insights para métricas agregadas de uso y rendimiento), Sentry (reportes de errores, que pueden incluir tu IP), Mercado Pago (pagos y suscripciones), Brevo (envío de mails), ImprovMX (reenvío de los mails que nos mandás a contacto@superahorro.com.ar), el servicio de notificaciones de tu navegador si activás las push, y, si elegís ese método, Google (login). No compartimos tus datos con nadie más, salvo que la ley nos obligue.',
+    cuerpo: 'Supabase (base de datos y login), Google Cloud Platform (servidor que procesa los pedidos de la App), Vercel (hosting de la versión web, más Vercel Analytics y Speed Insights para métricas agregadas de uso y rendimiento), Sentry (reportes de errores, que pueden incluir tu IP), Mercado Pago (pagos y suscripciones), Brevo (envío de mails), ImprovMX (reenvío de los mails que nos mandás a contacto@superahorro.com.ar), el servicio de notificaciones de tu navegador si activás las push, y, si elegís ese método, Google (login). Además, si te registraste con el link de invitación de otra persona, esa persona ve tu nombre de pila y si ya hiciste tu primera comparación, para seguir su progreso en "Invitá amigos" — no ve tu apellido, tu mail ni ningún otro dato tuyo. No compartimos tus datos con nadie más, salvo que la ley nos obligue.',
   },
   {
     titulo: '5. Datos guardados en tu dispositivo',

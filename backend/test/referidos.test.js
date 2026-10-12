@@ -13,7 +13,7 @@ const assert = require('node:assert/strict');
 
 const {
   asociarInvitada, registrarComparacion, estadoDelUsuario, obtenerCodigo,
-  normalizarMail, esMailDescartable, normalizarCodigo, motivoNoAplica, generarCodigo,
+  normalizarMail, esMailDescartable, normalizarCodigo, motivoNoAplica, generarCodigo, nombreDePila,
   _sinReferidoPendiente,
 } = require('../src/referidos');
 
@@ -65,6 +65,7 @@ function crearSupabase({ tablas, usuarios }) {
       update(obj) { operacion = 'update'; datos = obj; return q; },
       eq(col, val) { filtros.push(f => f[col] === val); return q; },
       is(col, val) { filtros.push(f => (f[col] ?? null) === val); return q; },
+      in(col, vals) { filtros.push(f => vals.includes(f[col])); return q; },
       lt(col, val) { filtros.push(f => new Date(f[col]) < new Date(val)); return q; },
       gte(col, val) { filtros.push(f => new Date(f[col]) >= new Date(val)); return q; },
       order(col, { ascending }) { orden = { col, asc: ascending }; return q; },
@@ -110,7 +111,7 @@ function nuevaInvitada(n, extra = {}) {
     id: INV(n), email: `amiga${n}@hotmail.com`, created_at: hace(1),
     email_confirmed_at: hace(1), ...extra,
   };
-  tablas.perfil_usuario.push({ id: INV(n), codigo_referido: null, plan: 'trial' });
+  tablas.perfil_usuario.push({ id: INV(n), codigo_referido: null, plan: 'trial', nombre: extra.nombre ?? null });
 }
 
 beforeEach(() => {
@@ -152,6 +153,13 @@ describe('funciones puras', () => {
     assert.equal(normalizarCodigo('ab'), null);
     assert.equal(normalizarCodigo('CAMI-4K'), null);
     assert.equal(normalizarCodigo(42), null);
+  });
+
+  test('nombre de pila: solo la primera palabra, nunca el apellido', () => {
+    assert.equal(nombreDePila('  María José Pérez '), 'María');
+    assert.equal(nombreDePila('Lucas'), 'Lucas');
+    assert.equal(nombreDePila('   '), null);
+    assert.equal(nombreDePila(null), null);
   });
 
   test('el código generado no usa caracteres que se confunden', () => {
@@ -295,7 +303,7 @@ describe('primera comparación y premio', () => {
 
 describe('estado para la pantalla', () => {
   test('resume progreso y vence a las pendientes viejas', async () => {
-    nuevaInvitada(1);
+    nuevaInvitada(1, { nombre: 'Martina López' });
     nuevaInvitada(2, { created_at: hace(20) });
     await asociarInvitada(supabase, { invitadaId: INV(1), codigo: 'CAMI4K', ahora: AHORA });
     await asociarInvitada(supabase, { invitadaId: INV(2), codigo: 'CAMI4K', ahora: AHORA });
@@ -306,6 +314,8 @@ describe('estado para la pantalla', () => {
     assert.equal(estado.link, 'https://superahorro.com.ar/?ref=CAMI4K');
     assert.equal(estado.validas, 1);
     assert.deepEqual(estado.invitadas.map(i => i.estado), ['valida', 'expirada']);
+    assert.deepEqual(estado.invitadas.map(i => i.nombre), ['Martina', null]);
+    assert.equal('invitada_id' in estado.invitadas[0], false);
     assert.equal(estado.invitadasNecesarias, 3);
     assert.equal(estado.premio, null);
     assert.equal(estado.motivoNoAplica, null);

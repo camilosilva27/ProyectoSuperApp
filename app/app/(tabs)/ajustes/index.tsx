@@ -4,7 +4,8 @@
  * Reestructurada (diseño 20d, Claude Design turno 20, 2026-09-10) en 3 grupos:
  * - TU ACTIVIDAD: "Mis ahorros", mudada acá desde su propia pestaña de la barra inferior (le
  *   cedió el lugar a "Alertas", ver (tabs)/_layout.tsx) — chip "NUEVO ACÁ" mientras dure la
- *   mudanza.
+ *   mudanza. Debajo, "Invitá amigos" (referidos, diseño 22a de Claude Design, 2026-10-12): el
+ *   chip amarillo es el premio y solo aparece mientras se pueda ganar.
  * - PREFERENCIAS: "Supers cerca tuyo", anunciada como próxima (sin pantalla real todavía).
  * - CUENTA: "Datos personales" (mail + cerrar sesión, antes inline acá) y "Ayuda" (tutorial +
  *   contacto, antes sueltos en el cuerpo) pasan a ser sus propias pantallas; "Suscripción" es
@@ -18,11 +19,13 @@
  * (ni a ningún otro) — por eso acá abajo no hace falta un branch para el caso sin sesión.
  */
 
+import { useQuery } from '@tanstack/react-query';
 import { useFocusEffect, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 import React, { useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { estadoReferidos, type EstadoReferidos } from '../../../src/api';
 import { useAuth } from '../../../src/auth';
 import { IconoChevron } from '../../../src/componentes/comunes';
 import { HeaderNegro, TituloHeader } from '../../../src/componentes/HeaderNegro';
@@ -40,16 +43,32 @@ export default function PantallaAjustes() {
   const { eventos } = useHistorialAhorro();
   const totalAhorrado = useMemo(() => calcularResumenAhorro(eventos).totalMonto, [eventos]);
 
+  const { data: referidos, refetch: recargarReferidos } = useQuery({
+    queryKey: ['referidos'],
+    queryFn: () => estadoReferidos(session?.access_token as string),
+    enabled: !!session?.access_token,
+  });
+
   // Al volver a esta pantalla (ej. después de ir y volver del checkout de Mercado Pago) se
   // refresca el plan — el webhook de MP ya pudo haber actualizado `perfil_usuario` mientras
-  // el usuario estaba afuera.
-  useFocusEffect(useCallback(() => { recargarPlan(); }, [recargarPlan]));
+  // el usuario estaba afuera. Los referidos también: una invitada pudo haber comparado.
+  useFocusEffect(useCallback(() => {
+    recargarPlan();
+    recargarReferidos();
+  }, [recargarPlan, recargarReferidos]));
 
   const diasTrial = diasRestantesTrial(infoPlan?.trialTerminaEn ?? null);
   const nombrePlanActivo = infoPlan?.tipoPlan === 'anual' ? 'Anual' : infoPlan?.tipoPlan === 'mensual' ? 'Mensual' : null;
 
+  // Premium sin suscripción ni plan pago, con fecha de fin: solo lo da el premio de referidos
+  // (migración 0030; la gracia de una cancelación siempre deja una suscripción asociada).
+  const premiumPorReferidos = infoPlan?.plan === 'premium' && !infoPlan.tipoPlan
+    && !infoPlan.pasarelaSuscripcionId && !!infoPlan.accesoPremiumHasta;
+
   const subtituloPlan = infoPlan?.plan === 'premium'
-    ? infoPlan.tipoPlan === 'permanente'
+    ? premiumPorReferidos
+      ? `Premium gratis por invitar amigos · hasta el ${fechaCorta(infoPlan.accesoPremiumHasta as string)}`
+      : infoPlan.tipoPlan === 'permanente'
       ? 'Permanente'
       // `nombrePlanActivo` puede venir null (premium otorgado a mano sin `tipo_plan` seteado
       // a 'anual'/'mensual'/'permanente') — sin este fallback se imprimía literal "null" en
@@ -88,6 +107,31 @@ export default function PantallaAjustes() {
               </View>
               <IconoChevron color={paleta.tintaTenue} />
             </Pressable>
+            {mostrarFilaReferidos(referidos) ? (
+              <>
+                <View style={[styles.separador, { backgroundColor: paleta.borde }]} />
+                <Pressable
+                  onPress={() => router.push('/ajustes/invitar')}
+                  accessibilityRole="button"
+                  style={[styles.fila, { minHeight: 68 }]}
+                >
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={[texto.cuerpoMedio, { color: paleta.tinta }]}>Invitá amigos</Text>
+                    <Text style={[texto.etiqueta, { color: paleta.tintaSuave, letterSpacing: 0.2 }]}>
+                      {subtituloReferidos(referidos)}
+                    </Text>
+                  </View>
+                  {premioAlAlcance(referidos) ? (
+                    <View style={[styles.chip, { backgroundColor: paleta.oferta }]}>
+                      <Text style={[texto.micro, { color: paleta.ofertaTinta }]}>
+                        {textoPremio(referidos?.diasPremio ?? 60).toUpperCase()} GRATIS
+                      </Text>
+                    </View>
+                  ) : null}
+                  <IconoChevron color={paleta.tintaTenue} />
+                </Pressable>
+              </>
+            ) : null}
           </View>
         </View>
 
@@ -136,6 +180,38 @@ export default function PantallaAjustes() {
       </View>
     </View>
   );
+}
+
+/** "14/02". A mano: `toLocaleDateString('es-AR', { month: '2-digit' })` da "14/2" en Chrome. */
+function fechaCorta(iso: string): string {
+  const d = new Date(iso);
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/** "60" → "2 meses"; cualquier otro número de días, tal cual. */
+function textoPremio(dias: number): string {
+  return dias % 30 === 0 ? `${dias / 30} meses` : `${dias} días`;
+}
+
+/** Mientras carga (o si falla) la fila se muestra igual, con el texto genérico. Solo se oculta
+ *  si la promo terminó y la persona nunca participó. */
+function mostrarFilaReferidos(r: EstadoReferidos | undefined): boolean {
+  if (!r) return true;
+  return r.promoVigente || !!r.premio || r.invitadas.length > 0;
+}
+
+/** El premio todavía se puede ganar: sin premio previo, sin suscripción paga y promo vigente. */
+function premioAlAlcance(r: EstadoReferidos | undefined): boolean {
+  if (!r) return true;
+  return r.promoVigente && !r.premio && !r.motivoNoAplica;
+}
+
+function subtituloReferidos(r: EstadoReferidos | undefined): string {
+  if (!r) return 'Llevate 2 meses gratis';
+  if (r.premio?.estado === 'otorgado') return `Ganaste ${textoPremio(r.diasPremio)} gratis`;
+  if (r.premio || r.motivoNoAplica || !r.promoVigente) return 'Compartí SuperAhorro';
+  if (r.validas === 0) return `Invitá a ${r.invitadasNecesarias} y llevate ${textoPremio(r.diasPremio)} gratis`;
+  return `Ya se ${r.validas === 1 ? 'sumó' : 'sumaron'} ${r.validas} de ${r.invitadasNecesarias}`;
 }
 
 const styles = StyleSheet.create({

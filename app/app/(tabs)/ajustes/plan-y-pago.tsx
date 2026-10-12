@@ -150,6 +150,14 @@ export default function PantallaPlanYPago() {
             Suscripción cancelada · tenés acceso hasta el {formatearFecha(infoPlan.accesoPremiumHasta)}
           </Text>
         </View>
+      ) : infoPlan?.plan === 'premium' && !infoPlan.tipoPlan && !infoPlan.pasarelaSuscripcionId
+        && infoPlan.accesoPremiumHasta ? (
+        // Premium gratis del premio de referidos (migración 0030): no hay suscripción que cancelar.
+        <View style={[styles.pieCancelar, { paddingBottom: insets.bottom + espacio.md }]}>
+          <Text style={[texto.cuerpo, { color: paleta.tintaSuave, textAlign: 'center' }]}>
+            Premium gratis por invitar amigos · tenés acceso hasta el {formatearFecha(infoPlan.accesoPremiumHasta)}
+          </Text>
+        </View>
       ) : null}
       <ConfirmacionModal
         visible={mostrarConfirmarCancelar}

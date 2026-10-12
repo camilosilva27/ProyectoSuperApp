@@ -10,7 +10,7 @@ Este repo es la app "Super App" (motor interno de comparación de precios: AllPr
 | `opciones_planes.md` | Planes mensual/anual/permanente, precios, `PlanSelect`, `MercadoPagoEmailSheet`. |
 | `email-confirmacion-embellecer.md` | Setup específico del mail de confirmación (Brevo, remitente, por qué no hay foto de remitente sin dominio). |
 | `PLAN_FEATURES_APP.md` | Backlog de features de producto (modo claro, límite de supers por geolocalización) — login ya no está acá, ver el doc de planes/cobros. |
-| `PLAN_REFERIDOS.md` | Referidos "invitá a 3 y llevate 2 meses gratis": backend + base + captura del link implementados (12/10), **falta la UI** (diseño en Claude Design, turno 22), el texto legal y los avisos. Decisiones, antiabuso mínimo, por qué los suscriptores quedan afuera. Abrir antes de retomar este trabajo. |
+| `PLAN_REFERIDOS.md` | Referidos "invitá a 3 y llevate 2 meses gratis": backend, base, captura del link, UI (pantalla "Invitá amigos", variante 22b) y texto legal implementados (12/10); falta solo el aviso por mail/push. Decisiones, antiabuso mínimo, por qué los suscriptores quedan afuera. Abrir antes de retomar este trabajo. |
 | `PANTALLAS-ahorros-y-paywall.md` | Diseño de las pantallas de historial de ahorro y paywall. |
 | `PLAN_SACAR_LAANONIMA.md` | Histórico: por qué y cómo se sacó La Anónima de la app (ya ejecutado). |
 | `completador_catalogos.md` | Completadores de catálogo por EAN (los 6 supers VTEX completando datos de Coto y viceversa), crons asociados. |
@@ -18,7 +18,7 @@ Este repo es la app "Super App" (motor interno de comparación de precios: AllPr
 | `mails_y_notificaciones.md` | Inventario de mails (existentes + planeados) y su futura notificación push equivalente. Abrir antes de agregar cualquier mail nuevo o de arrancar con push notifications. |
 | `ALERTAS-notificaciones-plan.md` | Feature "Alertas" (seguir productos/categorías, aviso de promo nueva): estado completo, decisiones de diseño, archivos tocados y pendientes. Abrir antes de retomar este trabajo. |
 | `AUDITORIA_2026-09-24.md` | Auditoría general (código + producción) del 24/09/2026: hallazgos por gravedad con checklist de pendientes. Abrir antes de tocar pagos, RLS de `perfil_usuario`, promo-engine o empaquetado. |
-| `TERMINOS_DE_SERVICIO.md` | Términos de Servicio (plan pago, cancelación con gracia hasta fin de período, derecho de arrepentimiento de 10 días). Texto completo, espejado en `app/src/legal/contenidoLegal.ts` (checkbox de registro). |
+| `TERMINOS_DE_SERVICIO.md` | Términos de Servicio (plan pago, programa "Invitá amigos", cancelación con gracia hasta fin de período, derecho de arrepentimiento de 10 días). Texto completo, espejado en `app/src/legal/contenidoLegal.ts` (checkbox de registro). |
 | `POLITICA_DE_PRIVACIDAD.md` | Política de Privacidad (qué datos guardamos, Supabase/Mercado Pago/Brevo como procesadores). Texto completo, mismo espejo que el ToS. |
 
 ## Contexto por subcarpeta (mismo criterio: abrir solo si se trabaja ahí)

@@ -2,7 +2,7 @@
 
 > Adaptado a los datos que la App realmente guarda (ver `.claude/docs/Plan_Usuarios_y_cobros.md`, `CONTEXTO_TECNICO.md`), no un template genérico. No reemplaza asesoramiento legal — para un lanzamiento con volumen real conviene que un abogado lo revise, pero cubre el piso mínimo razonable para un lanzamiento chico.
 
-**Última actualización:** 2026-09-24
+**Última actualización:** 2026-10-12
 
 ## 1. Quiénes somos
 
@@ -15,6 +15,7 @@ SuperAhorro es operada por Camilo Silva, persona física (no hay una empresa/raz
 - **Alertas**: los productos y categorías que elegís seguir, y si tenés activado el interruptor "Recibir notificaciones".
 - **Notificaciones push (web)**: si aceptás recibir notificaciones en el navegador, guardamos la suscripción push que genera tu navegador (una dirección técnica de envío y sus claves de cifrado), asociada a tu cuenta. No incluye tu ubicación ni otros datos del dispositivo.
 - **Datos de pago**: cuando contratás un plan pago, guardamos el mail que usaste en Mercado Pago (`mail_mercado_pago`), el estado de tu suscripción, y las fechas de pago/renovación. **No almacenamos número de tarjeta ni ningún dato sensible de pago** — eso lo procesa y guarda Mercado Pago directamente, nunca pasa por nuestros servidores.
+- **Invitaciones ("Invitá amigos")**: el código de tu link de invitación; si te registraste con el link de otra persona, quién te invitó, cuándo te registraste y cuándo hiciste tu primera comparación; y una versión normalizada de tu mail (sin puntos ni "+algo"), solo para detectar la misma casilla usada en otra cuenta.
 - **Datos técnicos**: cuando la App tiene un error, se genera un reporte técnico (qué falló y dónde, navegador/sistema operativo, y puede incluir tu dirección IP). También medimos de forma agregada el uso y el rendimiento de la versión web (páginas visitadas, tiempos de carga, tipo de dispositivo/navegador).
 
 ## 3. Cómo usamos tus datos
@@ -27,6 +28,7 @@ SuperAhorro es operada por Camilo Silva, persona física (no hay una empresa/raz
   - **Aviso de inactividad**, si hace un tiempo que no entrás a la App.
   - **Alertas de promos** de los productos y categorías que seguís.
 - Para calcular tu historial de ahorro dentro de la App.
+- Para gestionar el programa "Invitá amigos": saber quién invitó a quién, si cada invitación cuenta, otorgar el premio y evitar abusos.
 - Para detectar y corregir errores y mejorar el rendimiento de la App (reportes de errores y métricas agregadas).
 
 **Cómo darte de baja de estos avisos**: las alertas (por mail y push) se apagan desde la App con el interruptor "Recibir notificaciones"; las notificaciones push también se pueden bloquear desde la configuración de tu navegador. Para dejar de recibir los resúmenes de ahorro, el aviso de inactividad o las alertas por mail, usá el link "date de baja acá" que viene al pie de cada uno de esos mails, o escribinos a contacto@superahorro.com.ar con el asunto "baja". Los mails operativos (confirmación, recibos, avisos del plan) se siguen mandando mientras tengas cuenta, porque son parte del servicio.
@@ -46,6 +48,8 @@ Usamos los siguientes proveedores (procesadores de datos) para operar la App:
 - **ImprovMX** — reenvía los mails que nos mandás a contacto@superahorro.com.ar a nuestra casilla.
 - **Google** (opcional) — si elegís iniciar sesión con Google, Google comparte con nosotros tu mail y nombre según los permisos que autorices.
 - **Servicio de notificaciones de tu navegador** (por ejemplo, el de Google, Apple o Mozilla, según qué navegador uses) — si activás las notificaciones push, la notificación (cifrada) pasa por ese servicio para llegar a tu dispositivo.
+
+Además, **si te registraste con el link de invitación de otra persona**, esa persona ve tu nombre de pila y si ya hiciste tu primera comparación, para seguir su progreso en "Invitá amigos". No ve tu apellido, tu mail ni ningún otro dato tuyo.
 
 No compartimos tus datos con nadie más, salvo que la ley nos obligue.
 

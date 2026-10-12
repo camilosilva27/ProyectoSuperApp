@@ -1126,6 +1126,20 @@ Cómo funciona: `backend/src/cron/diffCatalogos.js` compara, en memoria, el cat�
 
 No hay endpoint propio para leerlo todavía — se consulta directo en Supabase (SQL editor o `select ... from scraper_diffs`), por ejemplo agrupando por `super`, `extract(dow from corrida_en)` y `extract(hour from corrida_en)` para ver en qué día/hora se concentran los cambios reales de cada super. Hace falta acumular varios días de corridas (cron cada 2hs) antes de que el patrón sea significativo.
 
+### Auditoría `scraper_diffs` APAGADA (2026-10-05)
+
+`registrarDiff()` (`backend/src/cron/diffCatalogos.js`) ahora no escribe nada salvo que el cron corra con `GUARDAR_SCRAPER_DIFFS=true`. Motivo: el análisis de horarios ya estaba hecho y se decidió **no tocar la frecuencia del cron** (regla del usuario: si una corrida trae aunque sea 1 promo, se mantiene; solo Coto era candidato a recortar y el ahorro no justificaba el riesgo). La tabla y sus 4.959 filas (08/09–05/10) quedan intactas. El cálculo del diff (`diffProductos`, `estadoPromoPorEan`) sigue activo porque lo usa Alertas; `scraper_errores` también sigue (la lee `/api/health`). Para volver a medir: setear esa variable en el workflow/VM, sin cambios de código.
+
+### Análisis ampliado de horarios (2026-10-05, 27 días, 2.457 filas de productos)
+
+Mismo método que el análisis del 17/09, con 3 veces más datos (artifact "Monitoreo de Cambios de Precio", actualizado). Las corridas extra fuera de horario del 18-25/09 (pruebas de la migración a GitHub Actions) se suman a la ventana impar siguiente; las ventanas con caída de catálogo se excluyen de las medianas. Conclusiones, que **confirman y matizan** las del 17/09:
+- **Precio:** Vea, Jumbo, Disco y Día cambian en la ventana 23-01 (81-93% de los días). Coto en 01-03 (92%; desde el 25/09 el 100%). Carrefour en 03-07 (85% en 03-05 y 05-07). Disco tiene un movimiento menor en 19-21 y Día en 05-07.
+- **Chango Más corrige lo dicho el 17/09:** NO tiene un pico diurno fuerte. Mueve pocos productos (mediana 0-2) en cualquier ventana; solo la frecuencia es algo mayor de día (44-63% de los días entre 11 y 21hs vs 26-33% de noche). La impresión anterior venía de dos eventos puntuales (961 el 10/09 y 1.086 el 17/09, ambos en 15-17).
+- **Promo:** igual al horario de precio. Carrefour reformula ~2.350-2.540 SKUs de teaser en 23-01 casi todos los días (17 de 27; los días en 0 son sobre todo domingos y lunes).
+- **Coto:** el salto 4.084 → ~8.000 SKUs está resuelto (commit `976218f`, ofertas exclusivas). Además oscila ±700-800 SKUs en la ventana 01-03 (rotación de ofertas, causa sin confirmar).
+- Más caídas puntuales de catálogo detectadas: Jumbo/Disco 10/09, Día 21/09 (−400, 16%, no la frena el guardrail del 70%) y 28/09 (−101), Chango Más 17/09 (−199). Todas se recuperaron en la corrida siguiente.
+- Cómo reproducirlo: volcar `scraper_diffs` con supabase-js (service role, paginar de a 1.000) y agrupar `precio_modificados`/`promocion_modificados` por super y hora ART de `corrida_en` (UTC−3).
+
 ### Historial de fallos (`scraper_errores`, 2026-09-22)
 
 `scraper_diffs` solo registra corridas EXITOSAS — un fallo no deja rastro ahí. Hasta acá, la única forma de saber *por qué* falló un scraper era mirar el log de esa corrida puntual de GitHub Actions, que GitHub borra solo a los ~90 días. Se agregó `scraper_errores` (migración `0023_scraper_errores.sql`) para que quede un historial consultable indefinidamente: `super`, `etapa` (`'scraper'` o `'extra'`), `script`, `corrida_en`, `mensaje`. Se escribe desde `refrescarCatalogosGHA.js` (y también desde el `refrescarCatalogos.js` fallback) cada vez que `resultado.ok` es `false`, vía `registrarError()` en `diffCatalogos.js` (mismo patrón de reintentos cortos que `registrarDiff`).
@@ -1384,4 +1398,9 @@ Detalle completo, decisiones y pendientes en `.claude/docs/PLAN_REFERIDOS.md`. L
 - **Premio:** se otorga en el mismo request que valida a la tercera invitada. Un premio por cuenta (PK `usuario_id` en `premio_referido`, también para `no_aplica`/`revertido`).
 - **`procesarSuscripcion` respeta un `acceso_premium_hasta` más lejano** que el próximo cobro al aplicar la gracia por cancelación. Sin eso, un webhook atrasado de una suscripción cancelada borraba los días del premio.
 - **App web:** el `?ref=` se guarda en AsyncStorage al cargar el módulo de `_layout.tsx`, viaja en `user_metadata.ref` al registrarse con mail, y `AsociadorReferido` lo manda al backend ya con sesión.
+- **UI:**
+  - `app/(tabs)/ajustes/invitar.tsx` (variante 22b del diseño, con nombre de pila) y la fila "Invitá amigos" en `ajustes/index.tsx`. Las dos leen `GET /api/referidos` con la misma query key de React Query (`['referidos']`).
+  - Compartir usa `Share.share`; en un navegador de escritorio sin Web Share API cae a copiar el mensaje.
+  - El portapapeles va directo con `navigator.clipboard`: no hay `expo-clipboard`, y no hay build nativo.
+- **Fechas cortas "dd/mm":** armarlas a mano. `toLocaleDateString('es-AR', { month: '2-digit' })` devuelve "10/1" en Chrome, no "10/01".
 - **Gotcha de expo-router (web):** expo-router reescribe la URL inicial (con su query string) cuando se monta el `<Stack>`. Por eso un `history.replaceState` hecho al cargar el módulo no sirve, y `router.setParams({ ref: undefined })` tampoco, porque `ref` no es parámetro de ninguna ruta. Para sacar un query param de la barra hay que hacer `replaceState` desde un componente que se monte junto con la navegación (`LimpiadorRefDeUrl`, hermano del `<Stack>` dentro del paywall, revisa 3 s). En producción el `<Stack>` monta recién cuando el paywall terminó de leer el plan por red: limpiar antes no sirve, porque a ~1 s el router la vuelve a escribir (verificado 12/10).

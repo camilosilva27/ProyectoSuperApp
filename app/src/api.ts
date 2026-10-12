@@ -415,6 +415,8 @@ export function misDescuentos(accessToken: string) {
 
 /** Referidos (.claude/docs/PLAN_REFERIDOS.md, backend/src/referidos.js). */
 export type EstadoInvitada = {
+  /** Nombre de pila (nunca apellido ni mail); null si la invitada no cargó nombre. */
+  nombre: string | null;
   estado: 'pendiente' | 'valida' | 'expirada' | 'descartada';
   registradaEn: string;
   primeraComparacionEn: string | null;
@@ -438,6 +440,8 @@ export type EstadoReferidos = {
     dias: number;
     /** Hasta cuándo quedó el acceso con el premio (null si no aplicó). */
     hasta: string | null;
+    /** Plan al ganarlo: 'trial' → se extendió la prueba; si no, quedó premium hasta `hasta`. */
+    planAntes: 'trial' | 'premium' | 'gratis';
   } | null;
   /** Por qué el premio no aplicaría hoy (todavía sin premio): suscripción paga, permanente, etc. */
   motivoNoAplica: 'suscripcion_activa' | 'permanente' | 'premium_manual' | null;

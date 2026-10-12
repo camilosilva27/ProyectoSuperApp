@@ -1,6 +1,6 @@
 # Plan: referidos ("invitá a 3 y llevate 2 meses gratis")
 
-**Estado (2026-10-12): backend, base y captura del link IMPLEMENTADOS, verificados contra la base real y deployados; falta la UI (pantalla de referidos + fila en Ajustes), el texto legal y los avisos.** Detalle en § "Implementado" y § "Pendiente". El diseño de la pantalla está en Claude Design (proyecto SuperApp, `Referidos.dc.html`, turno 22): https://claude.ai/design/p/9ed550fb-8171-4826-838d-dbaaa3fc4847?file=Referidos.dc.html
+**Estado (2026-10-12): backend, base, captura del link, UI (pantalla "Invitá amigos" + fila en Ajustes) y texto legal IMPLEMENTADOS y verificados. Falta: los avisos por mail/push.** Detalle en § "Implementado" y § "Pendiente". El diseño de la pantalla está en Claude Design (proyecto SuperApp, `Referidos.dc.html`, turno 22): https://claude.ai/design/p/9ed550fb-8171-4826-838d-dbaaa3fc4847?file=Referidos.dc.html
 
 **Objetivo del usuario (12/10): darse a conocer.** La promo es una herramienta de crecimiento, no algo de duración acotada — por eso la intención es que siga indefinidamente y el antiabuso se mantiene liviano (el costo máximo de un fraude es ingreso no percibido, no infra).
 
@@ -77,16 +77,50 @@ Promo de crecimiento (sin fecha de fin planeada, ver § Ventana): un usuario que
 - Script de punta a punta contra la base real con 14 cuentas temporales (borradas): trial +60, gratis → premium 60 días, suscripto → `no_aplica` con el plan intacto, idempotencia, reversión, y el flujo HTTP real login → asociar → `/api/comparar` → válida.
 - Navegador real (Playwright): `?ref=` se guarda, después del login se asocia (`asociada`), se olvida, y la URL queda limpia.
 
+## UI (2026-10-12)
+
+**Decisiones del usuario (12/10) sobre el diseño del turno 22:**
+- Pantalla: **22b**, la lista estándar.
+- Las invitadas se muestran **con nombre de pila**: "si lo invitaste, lo conocés".
+- **Sin** la banda "Te invitó X" en el registro (22g descartada).
+
+**Implementado:**
+- `app/(tabs)/ajustes/invitar.tsx`: pantalla "Invitá amigos". Tiene el link con Copiar/Compartir y la lista "TUS INVITADOS", y sale de 22b + 22e:
+  - en curso: válida ✓, pendiente ◐ "quedan N días", expirada/descartada con chip `EXPIRÓ`/`NO CUENTA` (no ocupa lugar), y los lugares libres;
+  - premio ganado: bloque amarillo "GANASTE · 2 MESES GRATIS" + "Tu prueba ahora vence el dd/mm" o "Tenés premium gratis hasta el dd/mm" (según `premio.planAntes`);
+  - no aplica: tarjeta gris "Tenés una suscripción paga / el plan permanente / tu cuenta ya tiene premium";
+  - casos raros: premio revertido y promo cerrada.
+- Usa el mismo esqueleto que Mis ahorros (header nativo "‹ Ajustes" + banda negra), no la flecha dentro de la banda que dibujaba el mock.
+- Compartir:
+  - usa `Share.share` (Web Share API en el celular), con el mensaje de 22f;
+  - en un navegador sin "Compartir" del sistema, copia el mensaje entero;
+  - Copiar usa `navigator.clipboard`, con `execCommand` de respaldo, llamado directo desde el toque por el bug de WebKit 222262.
+- `ajustes/index.tsx`: fila "Invitá amigos" debajo de Mis ahorros (22a).
+  - El subtítulo cambia según el estado: "Invitá a 3 y llevate 2 meses gratis", "Ya se sumó 1 de 3", "Ganaste 2 meses gratis" o "Compartí SuperAhorro".
+  - El chip amarillo "2 MESES GRATIS" solo aparece mientras el premio se pueda ganar.
+  - La fila se oculta solo si la promo terminó y la persona nunca participó.
+- Quien ganó el premio estando en gratis queda premium sin plan pago. Para ese caso:
+  - la fila de Suscripción dice "Premium gratis por invitar amigos · hasta el dd/mm";
+  - `plan-y-pago.tsx` lo dice al pie.
+- `GET /api/referidos` devuelve `nombre`, que es solo el nombre de pila de `perfil_usuario.nombre` (nunca apellido ni mail), y `premio.planAntes`.
+
+**Legal (12/10):**
+- ToS: sección nueva "5. Programa 'Invitá amigos'"; las siguientes se renumeraron (6–16).
+- Privacidad: datos de invitaciones, uso del programa, y que quien te invitó ve tu nombre de pila y si ya comparaste.
+- Los dos espejados en `app/src/legal/contenidoLegal.ts`.
+- **Queda escrito en el ToS** que si contratás un plan pago con días de premio pendientes, el plan se cobra desde ese momento y esos días no se acumulan (es el comportamiento actual).
+
+**Verificación (12/10):**
+- Playwright contra el backend local + base real, con cuentas temporales en tres estados (en curso con válida/pendiente/expirada, premio ganado, suscripta) y el caso de premium por premio en Ajustes y Plan y pago. Sin errores de consola.
+- Copiar muestra "Copiamos tu link."
+
 ## Pendiente
 
-- **UI** según el diseño del turno 22 (Claude Design, `Referidos.dc.html`): fila en Ajustes (22a), pantalla "Invitá amigos" (elegir entre 22b/22c/22d), estados (22e), mensaje al compartir (22f) y banda "Te invitó X" en el registro (22g, necesitaría exponer el nombre de pila del invitador por código: endpoint público nuevo, a decidir).
-- **Decisión pendiente del usuario:** mostrar las invitadas anónimas (22b/22d) o con nombre de pila (22c). Hoy `GET /api/referidos` no devuelve nombres.
-- **Legal:** actualizar `TERMINOS_DE_SERVICIO.md` + `app/src/legal/contenidoLegal.ts` antes de mostrar la pantalla (mecánica, un premio por cuenta, no aplica a suscriptores, reversión por fraude, vigencia sin fecha). La Política de Privacidad no cambia.
-- **Avisos (mail/push)** al validarse una invitada y al ganar el premio: abrir `mails_y_notificaciones.md` antes.
-- **Copys de plan a revisar con la UI:** quien gana el premio estando en gratis queda `premium` con `tipo_plan = null` y `acceso_premium_hasta`. Ajustes muestra "Premium" y `plan-y-pago.tsx` puede decir "Suscripción cancelada · tenés acceso hasta…" si tenía una suscripción vieja cancelada. Conviene un texto propio ("2 meses gratis por invitar amigos · hasta el …"). Si se suscribe mientras le quedan días del premio, MP cobra igual desde el día uno (los días restantes se pierden): avisarlo en la UI o aceptarlo.
+- **Avisos (mail/push)** al validarse una invitada y al ganar el premio. Abrir `mails_y_notificaciones.md` antes.
 - **Fecha de corte:** correr `REFERIDOS_FECHA_CORTE` (en `backend/.env` de la VM) antes del 01/01/2027 si se quiere seguir.
+- **Vista previa del link (og:image/og:title) de la landing:** 22f asume una imagen de vista previa. No se revisó qué muestra hoy WhatsApp al pegar el link.
 - **Casos borde todavía sin prueba real:**
-  - invitada que se registra con Google (el mail viene confirmado de entrada; el código viaja solo por storage porque Google no pasa por `signUp`);
+  - invitada que se registra con Google (el código viaja solo por storage);
   - invitada que confirma el mail desde otro dispositivo (camino `user_metadata.ref`).
 
 ## Descartado: premio para suscriptores pagos (re-evaluado y confirmado 12/10)

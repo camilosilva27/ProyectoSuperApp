@@ -2,7 +2,7 @@
 
 > Estructura adaptada de templates estándar de ToS para apps/SaaS (Termly), recortada a lo que aplica acá y con el contexto real de la app (Supabase, Mercado Pago). No reemplaza asesoramiento legal — para un lanzamiento con volumen real conviene que un abogado lo revise, pero cubre el piso mínimo razonable para un lanzamiento chico.
 
-**Última actualización:** 2026-09-17
+**Última actualización:** 2026-10-12
 
 ## 1. Aceptación de los términos
 
@@ -28,14 +28,24 @@ Tiene que ser una cuenta real tuya — no compartida ni de otra persona sin su c
 - Al finalizar el período de prueba, para seguir usando la App hace falta un plan pago: **mensual, anual o permanente (pago único)**. Los precios vigentes se muestran en la pantalla de selección de plan dentro de la App y pueden cambiar — el precio que pagás en el momento de suscribirte queda fijo mientras esa suscripción siga activa.
 - No ofrecemos un plan gratuito permanente: sin un plan pago activo o un período de prueba vigente, la App no está disponible.
 
-## 5. Pagos y facturación
+## 5. Programa "Invitá amigos"
+
+- Cada cuenta tiene un link personal para invitar a otras personas a SuperAhorro.
+- Una persona invitada **cuenta** cuando crea una cuenta nueva con tu link, confirma su mail y hace su primera comparación de precios dentro de los 30 días desde que se registró. Cada persona puede contar para una sola cuenta, y no cuenta una cuenta que ya existía antes.
+- Cuando 3 personas invitadas cuentan, tu cuenta recibe **2 meses (60 días) de acceso gratuito**, **una sola vez por cuenta**. Si estás en el período de prueba, se suman al final de tu prueba; si no tenés un plan activo, tenés acceso completo durante 60 días desde ese momento. El premio no se puede cambiar por dinero ni transferir.
+- **El premio no aplica** si al momento de ganarlo tenés una suscripción paga activa o el plan permanente. Si después de ganarlo contratás un plan pago, el plan empieza y se cobra en ese momento, y los días de premio que te quedaban no se acumulan.
+- Para que puedas seguir tu progreso, en tu pantalla de invitaciones vas a ver el nombre de pila de cada persona que se registró con tu link y si ya hizo su primera comparación. Si vos te registrás con el link de otra persona, ella va a ver esos mismos datos tuyos (ver la Política de Privacidad).
+- Podemos anular un premio si detectamos un uso abusivo del programa (por ejemplo, cuentas creadas solo para sumar invitaciones).
+- El programa está vigente hasta que lo modifiquemos o lo demos de baja. Los premios ya otorgados se respetan.
+
+## 6. Pagos y facturación
 
 Los pagos se procesan a través de **Mercado Pago**. Nosotros no vemos ni almacenamos los datos de tu tarjeta — eso lo maneja Mercado Pago directamente.
 
 - **Plan mensual/anual**: es una suscripción recurrente. Se te va a cobrar automáticamente cada período (cada mes o cada año, según el plan elegido) hasta que la canceles.
 - **Plan permanente**: es un pago único. No hay cobros recurrentes asociados a este plan.
 
-## 6. Cancelación
+## 7. Cancelación
 
 Podés cancelar tu suscripción (mensual o anual) en cualquier momento desde la App (Ajustes → Plan y pago). Al cancelar:
 
@@ -45,13 +55,13 @@ Podés cancelar tu suscripción (mensual o anual) en cualquier momento desde la 
 
 El plan permanente, al ser un pago único sin cobros recurrentes, no tiene "cancelación" — una vez comprado, el acceso no vence.
 
-## 7. Derecho de arrepentimiento (compras a distancia)
+## 8. Derecho de arrepentimiento (compras a distancia)
 
 Conforme a la Ley de Defensa del Consumidor (Ley 24.240) de Argentina, si compraste un plan de forma remota (dentro de la App), tenés derecho a arrepentirte dentro de los **10 días corridos** desde la contratación, sin necesidad de justificar el motivo, y a que se te reintegre lo pagado. Pasado ese plazo, se aplica lo descripto en la sección de Cancelación de arriba (sin reembolso de lo ya transcurrido).
 
 Para ejercer este derecho, escribinos a contacto@superahorro.com.ar dentro del plazo indicado.
 
-## 8. Uso aceptable
+## 9. Uso aceptable
 
 No está permitido:
 
@@ -61,30 +71,30 @@ No está permitido:
 
 Nos reservamos el derecho de suspender o cancelar cuentas que violen estas condiciones.
 
-## 9. Propiedad intelectual
+## 10. Propiedad intelectual
 
 El diseño, marca, logo y código de SuperAhorro nos pertenecen (o están licenciados para nuestro uso). Los logos de los supermercados que aparecen en la App pertenecen a sus respectivas cadenas y se usan solo con fines identificatorios/informativos.
 
-## 10. Exactitud de la información — sin garantías
+## 11. Exactitud de la información — sin garantías
 
 La información de precios y promociones se ofrece "tal cual" ("as is"), sin garantía de exactitud, disponibilidad o actualización en tiempo real. No garantizamos que la App esté libre de errores o interrupciones.
 
-## 11. Limitación de responsabilidad
+## 12. Limitación de responsabilidad
 
 En la máxima medida permitida por la ley aplicable, no somos responsables por daños indirectos, pérdida de ahorro esperado, o cualquier perjuicio derivado de decisiones de compra tomadas en base a la información de la App. Nuestra responsabilidad total frente a vos, en cualquier caso, se limita al monto que hayas pagado por tu plan en los últimos 12 meses.
 
-## 12. Modificaciones
+## 13. Modificaciones
 
 Podemos modificar estos Términos en cualquier momento. Si el cambio es significativo, te avisaremos por mail o dentro de la App. El uso continuado de la App después de un cambio implica tu aceptación de los nuevos Términos.
 
-## 13. Terminación
+## 14. Terminación
 
 Podemos suspender o cerrar tu cuenta si violás estos Términos. Vos podés dejar de usar la App y pedir la baja de tu cuenta en cualquier momento escribiendo a contacto@superahorro.com.ar.
 
-## 14. Ley aplicable
+## 15. Ley aplicable
 
 Estos Términos se rigen por las leyes de la República Argentina. Conforme a la Ley de Defensa del Consumidor, cualquier disputa se resolverá ante los tribunales correspondientes al domicilio del usuario/consumidor.
 
-## 15. Contacto
+## 16. Contacto
 
 Dudas, reclamos o soporte: **contacto@superahorro.com.ar**
