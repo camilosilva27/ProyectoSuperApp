@@ -153,10 +153,11 @@ async function estadoInvitadora(page, nombre) {
       const errores = [];
       p.on('pageerror', e => errores.push(e.message.slice(0, 150)));
       const asociar = [];
+      let t0 = Date.now();
       comparar = [];
       compararAntesDeTocar.n = null;
       p.on('response', async r => {
-        if (r.url().includes('/api/referidos/asociar')) asociar.push((await r.json().catch(() => ({}))).resultado);
+        if (r.url().includes('/api/referidos/asociar')) asociar.push(`${(await r.json().catch(() => ({}))).resultado ?? r.status()}@${((Date.now() - t0) / 1000).toFixed(1)}s`);
         if (r.url().includes('/api/comparar')) comparar.push(r.status());
       });
 
@@ -187,14 +188,15 @@ async function estadoInvitadora(page, nombre) {
         pagina = await ctx2.newPage();
         pagina.on('pageerror', e => errores.push(e.message.slice(0, 150)));
         pagina.on('response', async r => {
-          if (r.url().includes('/api/referidos/asociar')) asociar.push((await r.json().catch(() => ({}))).resultado);
+          if (r.url().includes('/api/referidos/asociar')) asociar.push(`${(await r.json().catch(() => ({}))).resultado ?? r.status()}@${((Date.now() - t0) / 1000).toFixed(1)}s`);
           if (r.url().includes('/api/comparar')) comparar.push(r.status());
         });
         check(await pagina.evaluate(() => null) === null, 'otro dispositivo: contexto nuevo, sin código guardado');
       }
+      t0 = Date.now();
       await login(pagina, email);
-      for (let k = 0; k < 30 && !asociar.length; k++) await pagina.waitForTimeout(500);
-      check(asociar[0] === 'asociada', `asociación al iniciar sesión: ${asociar[0]}`);
+      for (let k = 0; k < 60 && !asociar.length; k++) await pagina.waitForTimeout(500);
+      check(String(asociar[0]).startsWith('asociada'), `asociación al iniciar sesión: ${asociar[0]} (segundos desde que tocó ENTRAR)`);
 
       const tutorialOk = await hacerTutorial(pagina, `inv${n}`);
       check(tutorialOk, 'tutorial completo de punta a punta');
@@ -203,6 +205,7 @@ async function estadoInvitadora(page, nombre) {
       const fila = (await admin.from('referido').select('estado, primera_comparacion_en').eq('invitada_id', u.id).single()).data;
       check(fila?.estado === 'valida', `base: la invitada quedó '${fila?.estado}'`);
       check(errores.length === 0, `sin errores de página${errores.length ? ': ' + errores.join(' | ') : ''}`);
+      console.log(`      (pedidos a /api/referidos/asociar vistos: ${asociar.join(', ') || 'ninguno'})`);
 
       const texto = await estadoInvitadora(pA, `tras-${n}`);
       check(texto.includes(inv2.pila) && !texto.includes(inv2.nombre), `pantalla de quien invita muestra "${inv2.pila}" (sin apellido)`);

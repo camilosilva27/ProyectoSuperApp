@@ -1,6 +1,6 @@
 # Plan: referidos ("invitá a 3 y llevate 2 meses gratis")
 
-**Estado (2026-10-12): backend, base, captura del link, UI (pantalla "Invitá amigos" + fila en Ajustes) y texto legal IMPLEMENTADOS y verificados. Falta: los avisos por mail/push.** Detalle en § "Implementado" y § "Pendiente". El diseño de la pantalla está en Claude Design (proyecto SuperApp, `Referidos.dc.html`, turno 22): https://claude.ai/design/p/9ed550fb-8171-4826-838d-dbaaa3fc4847?file=Referidos.dc.html
+**Estado (2026-10-12): backend, base, captura del link, UI (pantalla "Invitá amigos" + fila en Ajustes) y texto legal IMPLEMENTADOS, en producción y verificados de punta a punta en superahorro.com.ar. Falta: los avisos por mail/push.** Detalle en § "Implementado" y § "Pendiente". El diseño de la pantalla está en Claude Design (proyecto SuperApp, `Referidos.dc.html`, turno 22): https://claude.ai/design/p/9ed550fb-8171-4826-838d-dbaaa3fc4847?file=Referidos.dc.html
 
 **Objetivo del usuario (12/10): darse a conocer.** La promo es una herramienta de crecimiento, no algo de duración acotada — por eso la intención es que siga indefinidamente y el antiabuso se mantiene liviano (el costo máximo de un fraude es ingreso no percibido, no infra).
 
@@ -115,6 +115,7 @@ Promo de crecimiento (sin fecha de fin planeada, ver § Ventana): un usuario que
   3. Cada una inicia sesión: la 2da desde otro "dispositivo", sin código guardado, así que se asocia por `user_metadata.ref`.
   4. Cada una hace **el tutorial completo**. La pantalla de quien invita muestra su nombre de pila con ✓ y el progreso "1 de 3", "2 de 3".
   5. Con la tercera: "GANASTE 2 MESES GRATIS", la prueba sube +60 días (90 días en Ajustes) y Ajustes dice "Ganaste 2 meses gratis".
+- **Corrido contra producción (superahorro.com.ar) el 12/10 después del deploy: TODO OK.** Cada asociación tarda entre 3 y 4,5 s desde que se toca ENTRAR.
 - **Hecho estable descubierto en el test:** la invitada queda válida en el **paso del tope** del tutorial ("Poné un máximo de supermercados"), no recién en "Comparar precios". `HojaSupers` (`useCostoTope`) llama a `POST /api/comparar` para mostrar en vivo cuánto cuesta el tope elegido, y ese pedido ya cuenta como comparación. Sigue estando dentro del tutorial, que es el criterio del usuario. Fuera del tutorial, también cuenta elegir un tope con productos en el carrito.
 
 ## Pendiente
