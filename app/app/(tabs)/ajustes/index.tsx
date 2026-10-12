@@ -207,7 +207,9 @@ function premioAlAlcance(r: EstadoReferidos | undefined): boolean {
 }
 
 function subtituloReferidos(r: EstadoReferidos | undefined): string {
-  if (!r) return 'Llevate 2 meses gratis';
+  // Mientras carga, el mismo texto que el de "todavía nadie se sumó" (el caso más común): sin
+  // salto de texto cuando llega la respuesta.
+  if (!r) return 'Invitá a 3 y llevate 2 meses gratis';
   if (r.premio?.estado === 'otorgado') return `Ganaste ${textoPremio(r.diasPremio)} gratis`;
   if (r.premio || r.motivoNoAplica || !r.promoVigente) return 'Compartí SuperAhorro';
   if (r.validas === 0) return `Invitá a ${r.invitadasNecesarias} y llevate ${textoPremio(r.diasPremio)} gratis`;

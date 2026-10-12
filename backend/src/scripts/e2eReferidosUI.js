@@ -127,7 +127,8 @@ async function estadoInvitadora(page, nombre) {
     await pA.goto(BASE + '/ajustes', { waitUntil: 'domcontentloaded' });
     await pA.getByText('Invitá amigos', { exact: true }).waitFor({ timeout: 30000 });
     await pA.waitForTimeout(1500);
-    check(await pA.getByText('Invitá a 3 y llevate 2 meses gratis').count() > 0, 'Ajustes: fila "Invitá amigos" con "Invitá a 3 y llevate 2 meses gratis"');
+    const filaOk = await pA.getByText('Invitá a 3 y llevate 2 meses gratis').first().waitFor({ timeout: 15000 }).then(() => true, () => false);
+    check(filaOk, 'Ajustes: fila "Invitá amigos" con "Invitá a 3 y llevate 2 meses gratis"');
     await pA.getByText('Invitá amigos', { exact: true }).click();
     await pA.getByText('Copiar link', { exact: true }).waitFor({ timeout: 30000 });
     check(await pA.getByText('Compartir', { exact: true }).count() === 0, 'no hay botón Compartir');
