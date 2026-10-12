@@ -69,7 +69,7 @@ Promo de crecimiento (sin fecha de fin planeada, ver § Ventana): un usuario que
 - `app/src/codigoReferido.ts`: guarda `?ref=` en AsyncStorage al cargar (`_layout.tsx`, antes del render).
 - `auth.tsx § registrarse`: manda el código en `user_metadata.ref`, para que no se pierda si la persona confirma el mail desde otro dispositivo.
 - `componentes/AsociadorReferido.tsx` (sin UI, dentro de `GateSesion`, fuera del paywall): ya con sesión, manda el código una vez (del storage o de `user_metadata.ref`) y lo olvida.
-- El mismo componente saca `?ref=` de la barra de direcciones con `history.replaceState` y reintenta un rato. Hace falta porque expo-router reescribe la URL inicial cuando se monta el `<Stack>`, y `router.setParams` no sirve porque `ref` no es parámetro de ninguna ruta. Mientras no hay sesión (formulario de registro), el `?ref=` sigue visible en la URL.
+- `LimpiadorRefDeUrl` (mismo archivo, hermano del `<Stack>` dentro del paywall) saca `?ref=` de la barra de direcciones con `history.replaceState`. Hace falta porque expo-router reescribe la URL inicial cuando se monta el `<Stack>`, que en producción espera a que el paywall lea el plan. Por eso no sirve limpiar antes, ni `router.setParams`, porque `ref` no es parámetro de ninguna ruta. Mientras no hay sesión (formulario de registro), el `?ref=` sigue visible en la URL.
 
 **Verificación (12/10):**
 - `backend/test/referidos.test.js`: 22 tests.

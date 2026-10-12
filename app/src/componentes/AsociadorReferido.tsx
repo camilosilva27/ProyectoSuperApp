@@ -51,30 +51,35 @@ export function AsociadorReferido() {
     return () => { cancelado = true; };
   }, [userId]);
 
-  // Saca el `?ref=` de la barra de direcciones, para que un "agregar a inicio", un marcador o
-  // copiar la URL para pasársela a otro no arrastren el código de quien invitó (el código ya
-  // quedó guardado, ver capturarCodigoReferidoDeUrl). No alcanza con hacerlo una vez al cargar:
-  // expo-router reescribe la URL inicial cuando se monta la navegación (el <Stack>, que espera a
-  // que el paywall lea el plan), así que se revisa un rato hasta que quede limpia dos veces
-  // seguidas. `router.setParams` no sirvió: `ref` no es un parámetro de ninguna ruta.
+  return null;
+}
+
+/**
+ * Saca el `?ref=` de la barra de direcciones, para que un "agregar a inicio", un marcador o copiar
+ * la URL para pasársela a otro no arrastren el código de quien invitó (el código ya quedó
+ * guardado, ver capturarCodigoReferidoDeUrl).
+ *
+ * Va al lado del `<Stack>`, adentro del paywall (`app/_layout.tsx`): expo-router reescribe la URL
+ * inicial, con su query string, recién cuando se monta la navegación — que en producción espera a
+ * que el paywall lea el plan por red. Limpiarla antes no sirve (verificado: en producción volvía a
+ * aparecer ~1 s después). Desde acá se revisa unos segundos por si el router la escribe después de
+ * este efecto. `router.setParams` no sirve: `ref` no es parámetro de ninguna ruta.
+ */
+export function LimpiadorRefDeUrl() {
   useEffect(() => {
-    if (!userId || Platform.OS !== 'web' || typeof window === 'undefined') return;
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
     let intentos = 0;
-    let limpiasSeguidas = 0;
     const id = setInterval(() => {
       intentos++;
       const url = new URL(window.location.href);
       if (url.searchParams.has('ref')) {
-        limpiasSeguidas = 0;
         url.searchParams.delete('ref');
         window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
-      } else {
-        limpiasSeguidas++;
       }
-      if (limpiasSeguidas >= 2 || intentos > 30) clearInterval(id);
-    }, 500);
+      if (intentos >= 10) clearInterval(id);
+    }, 300);
     return () => clearInterval(id);
-  }, [userId]);
+  }, []);
 
   return null;
 }

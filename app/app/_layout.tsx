@@ -32,7 +32,7 @@ import { ProveedorCarrito } from '../src/carrito';
 import { ProveedorCarritosGuardados } from '../src/carritosGuardados';
 import { GatePaywallFinTrial } from '../src/componentes/GatePaywallFinTrial';
 import { GateSesion } from '../src/componentes/GateSesion';
-import { AsociadorReferido } from '../src/componentes/AsociadorReferido';
+import { AsociadorReferido, LimpiadorRefDeUrl } from '../src/componentes/AsociadorReferido';
 import { capturarCodigoReferidoDeUrl } from '../src/codigoReferido';
 import { ProveedorFiltrosSupers } from '../src/filtrosSupers';
 import { ProveedorHistorialAhorro } from '../src/historialAhorro';
@@ -188,6 +188,8 @@ export default function LayoutRaiz() {
                         que solo decide si el usuario logueado tiene que ver el paywall de fin
                         de trial en vez de la navegación (ver GatePaywallFinTrial.tsx). */}
                     <GatePaywallFinTrial>
+                      {/* Se monta junto con la navegación: recién ahí se puede sacar el ?ref= de la URL. */}
+                      <LimpiadorRefDeUrl />
                       <Stack
                         screenOptions={{
                           contentStyle: { backgroundColor: paleta.fondo },
