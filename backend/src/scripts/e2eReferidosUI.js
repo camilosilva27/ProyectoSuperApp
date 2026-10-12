@@ -219,6 +219,12 @@ async function estadoInvitadora(page, nombre) {
     const trialDespues = (await admin.from('perfil_usuario').select('trial_termina_en').eq('id', inv.user.id).single()).data.trial_termina_en;
     const dias = Math.round((new Date(trialDespues) - new Date(trialAntes)) / 86400000);
     check(dias === 60, `base: la prueba de quien invita se extendió ${dias} días`);
+    let mailEn = null;
+    for (let k = 0; k < 20 && !mailEn; k++) {
+      mailEn = (await admin.from('premio_referido').select('mail_enviado_en').eq('usuario_id', inv.user.id).single()).data?.mail_enviado_en;
+      if (!mailEn) await new Promise(r => setTimeout(r, 1000));
+    }
+    check(!!mailEn, `mail "¡Ganaste 2 meses gratis!" enviado a ${emailInv} (${mailEn ?? 'no salió'})`);
     await pA.goto(BASE + '/ajustes', { waitUntil: 'domcontentloaded' });
     await pA.getByText('Invitá amigos', { exact: true }).waitFor({ timeout: 30000 });
     await pA.waitForTimeout(2000);

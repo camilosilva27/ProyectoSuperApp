@@ -10,7 +10,8 @@
  *    tutorial alcanza) la pasa a 'valida' si tiene el mail confirmado y está dentro de los 30 días
  *    desde que se registró. Si no comparó a tiempo, queda 'expirada'.
  * 4. Al validarse, se intenta el premio (`otorgar_premio_referido`, SQL, migración 0030): con 3
- *    válidas y sin premio previo, suma 60 días en el mismo momento.
+ *    válidas y sin premio previo, suma 60 días en el mismo momento, y le avisa por mail (+ push)
+ *    a quien invitó (`mailPremioReferidos.js`) — el único aviso del programa.
  *
  * Antiabuso mínimo por decisión del usuario (12/10): mail confirmado + una comparación, sin mails
  * descartables, sin la misma casilla de Gmail con otra cuenta, un premio por cuenta y premio
@@ -22,6 +23,7 @@
 
 const crypto = require('crypto');
 const { referidos: config } = require('./config');
+const { enviarAvisoPremio } = require('./mailPremioReferidos');
 
 const DIA_MS = 24 * 60 * 60 * 1000;
 
@@ -182,7 +184,13 @@ async function validarInvitada(cliente, fila, primeraComparacionEn, ahora) {
   if (premio === 'otorgado' || premio === 'no_aplica') {
     console.log(`Referidos: premio '${premio}' para ${fila.invitador_id} (${ahora.toISOString()})`);
   }
-  return { resultado: 'valida', premio };
+  let aviso;
+  if (premio === 'otorgado') {
+    // Nunca lanza: si el mail falla, el premio ya está dado y queda `mail_enviado_en` en null.
+    aviso = await enviarAvisoPremio(cliente, fila.invitador_id, config.invitadasNecesarias);
+    if (!aviso.ok) console.error(`Referidos: no salió el aviso del premio a ${fila.invitador_id}: ${aviso.error}`);
+  }
+  return { resultado: 'valida', premio, aviso };
 }
 
 /**

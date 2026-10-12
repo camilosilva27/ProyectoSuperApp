@@ -10,6 +10,15 @@
 
 const { test, describe, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
+const path = require('node:path');
+
+// El aviso por mail del premio se simula: acá solo importa que se pida una vez, a quien invitó.
+const avisosPremio = [];
+const rutaMail = require.resolve(path.join(__dirname, '../src/mailPremioReferidos.js'));
+require.cache[rutaMail] = {
+  id: rutaMail, filename: rutaMail, loaded: true,
+  exports: { enviarAvisoPremio: async (cliente, usuarioId, n) => { avisosPremio.push({ usuarioId, n }); return { ok: true }; } },
+};
 
 const {
   asociarInvitada, registrarComparacion, estadoDelUsuario, obtenerCodigo,
@@ -116,6 +125,7 @@ function nuevaInvitada(n, extra = {}) {
 
 beforeEach(() => {
   _sinReferidoPendiente.clear();
+  avisosPremio.length = 0;
   tablas = {
     perfil_usuario: [{
       id: INVITADOR, codigo_referido: 'CAMI4K', plan: 'trial', tipo_plan: null,
@@ -269,8 +279,10 @@ describe('primera comparación y premio', () => {
     const tercera = await asociarYComparar(3);
     assert.equal(tercera.premio, 'otorgado');
     assert.deepEqual(supabase.premiosOtorgados, [INVITADOR]);
+    assert.deepEqual(avisosPremio, [{ usuarioId: INVITADOR, n: 3 }], 'avisa por mail una vez, a quien invitó');
     const cuarta = await asociarYComparar(4);
     assert.equal(cuarta.premio, 'ya_tenia');
+    assert.equal(avisosPremio.length, 1, 'una cuarta invitada no vuelve a avisar');
   });
 
   test('una comparación fuera de los 30 días la deja expirada', async () => {
