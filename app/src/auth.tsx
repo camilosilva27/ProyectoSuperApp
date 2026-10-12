@@ -25,6 +25,7 @@
 import type { Session } from '@supabase/supabase-js';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
+import { leerCodigoReferidoGuardado } from './codigoReferido';
 import { supabase } from './supabase';
 
 /** Mismo texto en los dos lugares donde puede aparecer: el error real que manda Supabase
@@ -148,8 +149,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // `full_name` es la clave que lee la columna "Display name" del Dashboard de Supabase
       // (es la misma que completa Google en el login con OAuth); sin esto, los signups por
       // mail+contraseña aparecían "sin nombre" ahí aunque perfil_usuario.nombre estuviera bien.
+      // `ref`: código del link de invitación con el que llegó (ver codigoReferido.ts). Viaja
+      // en user_metadata para no perderse si confirma el mail desde otro dispositivo.
+      const ref = await leerCodigoReferidoGuardado();
       const { data, error } = await supabase.auth.signUp({
-        email, password, options: { data: { nombre, full_name: nombre } },
+        email, password, options: { data: { nombre, full_name: nombre, ...(ref ? { ref } : {}) } },
       });
       if (error) return { error: mensajeError(error), necesitaConfirmarMail: false };
       // Bug real (2026-09-04): registrarse con un mail que YA tiene una cuenta CONFIRMADA no

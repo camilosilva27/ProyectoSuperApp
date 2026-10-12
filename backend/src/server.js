@@ -56,6 +56,7 @@ const pagosRouter = require('./routes/pagos');
 const webhookMercadoPagoRouter = require('./routes/webhookMercadoPago');
 const webhookAuthUsuariosRouter = require('./routes/webhookAuthUsuarios');
 const bajaMailsRouter = require('./routes/bajaMails');
+const referidosRouter = require('./routes/referidos');
 const sondaEnVivo = require('./sondaEnVivo');
 
 const app = express();
@@ -102,6 +103,10 @@ app.use('/api', healthRouter);
 // dentro de cada archivo. Ninguna dispara consultas a los 5 supers, así que el rate limit
 // global de acá abajo (120/min) alcanza.
 app.use('/api', pagosRouter, webhookMercadoPagoRouter, webhookAuthUsuariosRouter);
+
+// Referidos (routes/referidos.js): con sesión, sin consultas a los supers — mismo caso que pagos,
+// alcanza con el rate limit global.
+app.use('/api', referidosRouter);
 
 // Baja de un clic de mails no transaccionales (GET = página de confirmación, POST = baja; ver
 // routes/bajaMails.js). Pública, autenticada por el token HMAC del link. Límite propio más

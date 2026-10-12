@@ -269,3 +269,39 @@ describe('reembolsos y contracargos', () => {
     assert.equal(fila.tipo_plan, 'permanente');
   });
 });
+
+// Premio de referidos (migración 0030): extiende `acceso_premium_hasta`. Un webhook atrasado o
+// repetido de la suscripción ya cancelada no tiene que achicar ni borrar esa fecha.
+describe('premio de referidos sobre una suscripción cancelada', () => {
+  const enDias = d => new Date(Date.now() + d * 24 * 60 * 60 * 1000).toISOString();
+
+  test('en período de gracia: un cancelled repetido no pisa los días sumados', async () => {
+    const hasta = enDias(65);
+    fila.suscripcion_estado = 'cancelled';
+    fila.siguiente_cobro_en = enDias(5);
+    fila.acceso_premium_hasta = hasta;
+    await procesarSuscripcion(suscripcion('SUB_MENSUAL', 'cancelled'), 'SUB_MENSUAL', supabase);
+    assert.equal(fila.plan, 'premium');
+    assert.equal(fila.acceso_premium_hasta, hasta);
+  });
+
+  test('ya había caído a gratis y el premio lo reactivó: un cancelled viejo no lo baja', async () => {
+    const hasta = enDias(60);
+    Object.assign(fila, {
+      plan: 'premium', tipo_plan: null, suscripcion_estado: 'cancelled',
+      siguiente_cobro_en: enDias(-20), acceso_premium_hasta: hasta,
+    });
+    const plan = await procesarSuscripcion(suscripcion('SUB_MENSUAL', 'cancelled'), 'SUB_MENSUAL', supabase);
+    assert.equal(plan, null);
+    assert.equal(fila.plan, 'premium');
+    assert.equal(fila.acceso_premium_hasta, hasta);
+  });
+
+  test('sin premio, la gracia sigue siendo hasta el próximo cobro', async () => {
+    const proximo = enDias(8);
+    fila.siguiente_cobro_en = proximo;
+    await procesarSuscripcion(suscripcion('SUB_MENSUAL', 'cancelled'), 'SUB_MENSUAL', supabase);
+    assert.equal(fila.plan, 'premium');
+    assert.equal(fila.acceso_premium_hasta, proximo);
+  });
+});

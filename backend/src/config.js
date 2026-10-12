@@ -117,4 +117,18 @@ module.exports = {
   // server sigue funcionando exactamente igual que antes (mismo criterio "gracioso" que el
   // resto de las integraciones opcionales de este archivo).
   sentryDsn: process.env.SENTRY_DSN,
+
+  // Referidos: invitá a 3 y llevate 2 meses gratis (.claude/docs/PLAN_REFERIDOS.md, ver
+  // src/referidos.js). La fecha de corte es un interruptor de apagado, no un fin planeado: la
+  // intención es que la promo siga indefinidamente, así que hay que correrla antes de que llegue
+  // si se quiere seguir (cuenta toda invitada que se registró antes del corte). Lo ya otorgado
+  // se respeta siempre.
+  referidos: {
+    fechaCorte: new Date(process.env.REFERIDOS_FECHA_CORTE || '2027-01-01T00:00:00-03:00'),
+    invitadasNecesarias: Number(process.env.REFERIDOS_INVITADAS_NECESARIAS) || 3,
+    diasPremio: Number(process.env.REFERIDOS_DIAS_PREMIO) || 60,
+    // Plazo para que la invitada haga su primera comparación, desde que se registró (= su trial).
+    diasActividad: Number(process.env.REFERIDOS_DIAS_ACTIVIDAD) || 30,
+    urlApp: (process.env.REFERIDOS_URL_APP || 'https://superahorro.com.ar').replace(/\/+$/, ''),
+  },
 };

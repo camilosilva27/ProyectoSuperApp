@@ -243,6 +243,8 @@ Se evaluó sumar Stripe como segunda opción de cobro con tarjeta, además de Me
 
 ## Cancelación con período de gracia + derecho de arrepentimiento (10 días) — implementado 2026-09-11
 
+> **Ajuste 2026-10-12 (referidos):** al aplicar la gracia, `procesarSuscripcion` ahora toma la fecha más lejana entre `siguiente_cobro_en` y el `acceso_premium_hasta` que ya tuviera la fila (antes la pisaba con `siguiente_cobro_en`). El premio de referidos extiende `acceso_premium_hasta` (ver `PLAN_REFERIDOS.md`) y un webhook atrasado o repetido de la suscripción cancelada no tiene que achicarlo.
+
 **Bug real corregido**: cancelar una suscripción bajaba `plan` a `'gratis'` al instante (`pagos.js § /pagos/cancelar-suscripcion`), sin respetar la política acordada con el usuario ("no se cobra el próximo período, pero se mantiene el acceso hasta el final del ya pagado, sin reembolso" — ver TERMINOS_DE_SERVICIO.md § "Cancelación"). Fix (migración `0020_gracia_cancelacion_suscripcion.sql`, **falta correr contra el proyecto Supabase real**):
 
 - Columna nueva `perfil_usuario.acceso_premium_hasta` — cuando una suscripción se cancela/pausa con un `siguiente_cobro_en` conocido en el futuro, el plan queda en `'premium'` hasta esa fecha en vez de bajar ya. `bajar_planes_vencidos()` (mismo cron diario del downgrade de trial, migración 0005) extendida para bajar a `'gratis'` cuando esa fecha pasa.

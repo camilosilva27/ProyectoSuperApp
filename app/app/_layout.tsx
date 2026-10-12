@@ -32,6 +32,8 @@ import { ProveedorCarrito } from '../src/carrito';
 import { ProveedorCarritosGuardados } from '../src/carritosGuardados';
 import { GatePaywallFinTrial } from '../src/componentes/GatePaywallFinTrial';
 import { GateSesion } from '../src/componentes/GateSesion';
+import { AsociadorReferido } from '../src/componentes/AsociadorReferido';
+import { capturarCodigoReferidoDeUrl } from '../src/codigoReferido';
 import { ProveedorFiltrosSupers } from '../src/filtrosSupers';
 import { ProveedorHistorialAhorro } from '../src/historialAhorro';
 import { texto } from '../src/theme';
@@ -41,6 +43,9 @@ import { useTema } from '../src/useTema';
 
 SplashScreen.preventAutoHideAsync();
 inicializarSentry();
+// Link de invitación (?ref=, PLAN_REFERIDOS.md): se guarda antes de cualquier render, mientras la
+// URL todavía lo tiene — después se usa al registrarse y al asociar la cuenta (AsociadorReferido).
+capturarCodigoReferidoDeUrl();
 
 // "Cannot find single active touch." es un console.error interno de react-native-web (bookkeeping
 // de touches al soltar un gesto de pinch en la grilla de promos, ResponderTouchHistoryStore.js),
@@ -177,6 +182,8 @@ export default function LayoutRaiz() {
                       (que necesita que el provider no se remonte al loguearse) y migra los
                       datos igual que en Fase 1 — moverlos adentro del gate rompería eso. */}
                   <GateSesion>
+                    {/* Afuera del paywall: asocia la cuenta nueva con quien la invitó (sin UI). */}
+                    <AsociadorReferido />
                     {/* Adentro de GateSesion: para cuando esto se evalúa ya hay sesión, así
                         que solo decide si el usuario logueado tiene que ver el paywall de fin
                         de trial en vez de la navegación (ver GatePaywallFinTrial.tsx). */}

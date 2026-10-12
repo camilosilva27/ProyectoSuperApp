@@ -45,6 +45,9 @@ const { requiereSesion, requierePlanActivo } = require('../middleware/requiereSe
 const { crearLimitador } = require('../limitadorGlobal');
 const { leerPromosBancariasCache } = require('../promosBancariasCache');
 const { maxColaFallbackEnVivo } = require('../config');
+const { clienteSupabaseAdmin } = require('../clienteSupabaseAdmin');
+const { registrarComparacion } = require('../referidos');
+const { Sentry } = require('../sentry');
 
 const router = express.Router();
 
@@ -669,6 +672,17 @@ router.post('/comparar', requiereSesion, requierePlanActivo, async (req, res) =>
     },
     advertencias,
   });
+
+  // Referidos (PLAN_REFERIDOS.md): la primera comparación de una invitada — la del tutorial
+  // alcanza — la valida, y con la tercera se le da el premio a quien invitó. Después de
+  // responder y sin await: nunca demora ni rompe la comparación.
+  const clienteReferidos = clienteSupabaseAdmin();
+  if (clienteReferidos) {
+    registrarComparacion(clienteReferidos, req.usuarioId).catch(err => {
+      console.error(`Referidos: no se pudo registrar la comparación de ${req.usuarioId}:`, err?.message ?? err);
+      try { Sentry.captureException(err); } catch { /* Sentry no inicializado: no-op */ }
+    });
+  }
 });
 
 // MAX_EANS_PRECIOS coincide a propósito con el límite default de /api/catalogo/buscar (ver

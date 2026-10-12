@@ -1375,3 +1375,13 @@ Detalle y checklist en `AUDITORIA_2026-09-24.md`. Hechos estables que resultaron
 - **Permisos Supabase (0028):** `anon` no tiene ningún privilegio de tabla ni secuencia en `public` (también para tablas futuras vía default privileges). `manejar_usuario_nuevo()` con `search_path=public`.
 - **CI con huella SSH fija:** secrets `VM_HOST_KEY` (clave ed25519 de la VM, la usan `bajar/subir-catalogos.sh` con `StrictHostKeyChecking=yes`) y `VM_HOST_FINGERPRINT` (SHA256 de la clave **ECDSA**, que es la que negocia `appleboy/ssh-action` en `deploy.yml`). Si se recrea la VM hay que actualizar ambos con `/etc/ssh/ssh_host_{ed25519,ecdsa}_key.pub`.
 - **VM:** se borró la regla de firewall `default-allow-rdp` (Linux, nada escuchaba en 3389); `.env` y sus backups con permisos 600.
+
+## Referidos — backend y captura del link (2026-10-12, UI pendiente)
+
+Detalle completo, decisiones y pendientes en `.claude/docs/PLAN_REFERIDOS.md`. Lo estable del código:
+- **Base (0030):** `perfil_usuario.codigo_referido`, tablas `referido` y `premio_referido` (solo service role), funciones `otorgar_premio_referido()` (atómica + idempotente, la llama el backend) y `revertir_premio_referido()` (a mano, SQL editor). El código de referido NO se genera en `manejar_usuario_nuevo()`: lo crea `GET /api/referidos` la primera vez.
+- **Validación de una invitada:** `POST /api/comparar` llama a `registrarComparacion` (`backend/src/referidos.js`) después de responder, sin await. Cualquier comparación cuenta, incluida la del tutorial. Hay un cache en memoria de "sin referido pendiente" de 6 hs por proceso.
+- **Premio:** se otorga en el mismo request que valida a la tercera invitada. Un premio por cuenta (PK `usuario_id` en `premio_referido`, también para `no_aplica`/`revertido`).
+- **`procesarSuscripcion` respeta un `acceso_premium_hasta` más lejano** que el próximo cobro al aplicar la gracia por cancelación. Sin eso, un webhook atrasado de una suscripción cancelada borraba los días del premio.
+- **App web:** el `?ref=` se guarda en AsyncStorage al cargar el módulo de `_layout.tsx`, viaja en `user_metadata.ref` al registrarse con mail, y `AsociadorReferido` lo manda al backend ya con sesión.
+- **Gotcha de expo-router (web):** expo-router reescribe la URL inicial (con su query string) cuando se monta el `<Stack>`. Por eso un `history.replaceState` hecho al cargar el módulo no sirve, y `router.setParams({ ref: undefined })` tampoco, porque `ref` no es parámetro de ninguna ruta. Para sacar un query param de la barra hay que hacer `replaceState` después de que la navegación montó (`AsociadorReferido` lo reintenta cada 500 ms hasta ver la URL limpia dos veces seguidas).

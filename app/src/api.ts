@@ -413,6 +413,50 @@ export function misDescuentos(accessToken: string) {
   );
 }
 
+/** Referidos (.claude/docs/PLAN_REFERIDOS.md, backend/src/referidos.js). */
+export type EstadoInvitada = {
+  estado: 'pendiente' | 'valida' | 'expirada' | 'descartada';
+  registradaEn: string;
+  primeraComparacionEn: string | null;
+  /** Hasta cuándo tiene para hacer su primera comparación (solo `pendiente`). */
+  venceEl: string | null;
+};
+
+export type EstadoReferidos = {
+  codigo: string;
+  /** Link listo para compartir (`https://superahorro.com.ar/?ref=CODIGO`). */
+  link: string;
+  promoVigente: boolean;
+  invitadasNecesarias: number;
+  diasPremio: number;
+  validas: number;
+  invitadas: EstadoInvitada[];
+  premio: {
+    estado: 'otorgado' | 'no_aplica' | 'revertido';
+    motivo: string | null;
+    otorgadoEn: string;
+    dias: number;
+    /** Hasta cuándo quedó el acceso con el premio (null si no aplicó). */
+    hasta: string | null;
+  } | null;
+  /** Por qué el premio no aplicaría hoy (todavía sin premio): suscripción paga, permanente, etc. */
+  motivoNoAplica: 'suscripcion_activa' | 'permanente' | 'premium_manual' | null;
+};
+
+export function estadoReferidos(accessToken: string) {
+  return pedir<EstadoReferidos>('/api/referidos', { headers: conSesion(accessToken) });
+}
+
+/** Asocia la cuenta recién creada con quien la invitó (una sola vez; repetirlo no cambia nada). */
+export function asociarReferido(codigo: string, accessToken: string) {
+  return pedir<{ resultado: string }>('/api/referidos/asociar', {
+    method: 'POST',
+    headers: conSesion(accessToken),
+    body: JSON.stringify({ codigo }),
+    idempotente: true,
+  });
+}
+
 /** Una celda de la grilla de promos por super×día (turno 17): hasta 3 promos, una por banco —
  *  primero las de las tarjetas propias del usuario, completando con las de mayor % hasta 3
  *  (ver backend/src/routes/promosBancariasGrilla.js). `tiene: false` es "sin promo ese día". */

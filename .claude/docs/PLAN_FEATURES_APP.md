@@ -2,6 +2,8 @@
 
 **Estado (actualizado 2026-08-29): la sección 1 (modo claro) y la 3 (límite de supers) siguen como estaban — anotadas, sin decisión final. La sección 2 (login) quedó obsoleta: se implementó por completo y ya está en producción, ver la nota al principio de esa sección.** Leer primero `CONTEXTO_TECNICO.md` y `.claude/plans/twinkling-puzzling-brook.md` (el plan original de la app, ya ejecutado hasta Fase 1) para contexto de arquitectura.
 
+**Programa de referidos** (invitar a 3 → 2 meses gratis): backend, base y captura del link implementados el 2026-10-12; falta la UI, el texto legal y los avisos — detalle completo en `PLAN_REFERIDOS.md`.
+
 ---
 
 ## 0. Decisión pendiente que afecta a todo lo de abajo: ¿web o tienda?

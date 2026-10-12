@@ -10,6 +10,7 @@ Este repo es la app "Super App" (motor interno de comparación de precios: AllPr
 | `opciones_planes.md` | Planes mensual/anual/permanente, precios, `PlanSelect`, `MercadoPagoEmailSheet`. |
 | `email-confirmacion-embellecer.md` | Setup específico del mail de confirmación (Brevo, remitente, por qué no hay foto de remitente sin dominio). |
 | `PLAN_FEATURES_APP.md` | Backlog de features de producto (modo claro, límite de supers por geolocalización) — login ya no está acá, ver el doc de planes/cobros. |
+| `PLAN_REFERIDOS.md` | Referidos "invitá a 3 y llevate 2 meses gratis": backend + base + captura del link implementados (12/10), **falta la UI** (diseño en Claude Design, turno 22), el texto legal y los avisos. Decisiones, antiabuso mínimo, por qué los suscriptores quedan afuera. Abrir antes de retomar este trabajo. |
 | `PANTALLAS-ahorros-y-paywall.md` | Diseño de las pantallas de historial de ahorro y paywall. |
 | `PLAN_SACAR_LAANONIMA.md` | Histórico: por qué y cómo se sacó La Anónima de la app (ya ejecutado). |
 | `completador_catalogos.md` | Completadores de catálogo por EAN (los 6 supers VTEX completando datos de Coto y viceversa), crons asociados. |

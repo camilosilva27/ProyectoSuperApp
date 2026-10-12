@@ -182,7 +182,7 @@ async function procesarSuscripcion(suscripcion, dataId, supabaseAdmin) {
 
   const { data: filaAnterior } = await supabaseAdmin
     .from('perfil_usuario')
-    .select('id, plan, nombre, tipo_plan, siguiente_cobro_en, pasarela_suscripcion_id, pasarela_suscripcion_anterior_id')
+    .select('id, plan, nombre, tipo_plan, siguiente_cobro_en, acceso_premium_hasta, pasarela_suscripcion_id, pasarela_suscripcion_anterior_id')
     .or(`pasarela_suscripcion_id.eq.${dataId},pasarela_suscripcion_anterior_id.eq.${dataId}`)
     .eq('premium_manual', false)
     .maybeSingle();
@@ -237,10 +237,14 @@ async function procesarSuscripcion(suscripcion, dataId, supabaseAdmin) {
       cambios.pasarela_suscripcion_anterior_id = null;
       cambios.suscripcion_estado = 'authorized';
     } else {
-      const yaVencido = filaAnterior.siguiente_cobro_en
-        && new Date(filaAnterior.siguiente_cobro_en) <= new Date();
-      if (filaAnterior.siguiente_cobro_en && !yaVencido) {
-        cambios.acceso_premium_hasta = filaAnterior.siguiente_cobro_en;
+      // El acceso dura hasta lo más lejano entre lo ya pagado y un `acceso_premium_hasta` que la
+      // fila ya tuviera: el premio de referidos (migración 0030) extiende esa fecha, y un webhook
+      // atrasado o repetido de esta misma suscripción cancelada no tiene que achicarla.
+      const limite = [filaAnterior.siguiente_cobro_en, filaAnterior.acceso_premium_hasta]
+        .filter(Boolean)
+        .reduce((max, f) => (max && new Date(max) >= new Date(f) ? max : f), null);
+      if (limite && new Date(limite) > new Date()) {
+        cambios.acceso_premium_hasta = limite;
       } else {
         cambios.plan = 'gratis';
         cambios.tipo_plan = null;
