@@ -3,7 +3,8 @@
  *
  * Diseño: turno 22 de Claude Design (proyecto SuperApp, `Referidos.dc.html`), variante 22b con
  * nombre de pila en vez de "Invitado N" (decisión del usuario 12/10: si lo invitaste, lo conocés).
- * Los otros estados (premio ganado, suscripción paga, invitada expirada) salen de 22e. Mismo
+ * Los otros estados (premio ganado, suscripción paga, invitada expirada) salen de 22e. Solo botón
+ * de copiar el link: el de Compartir del mock se sacó a pedido del usuario (12/10). Mismo
  * esqueleto que Mis ahorros: header nativo "‹ Ajustes" (Stack de ajustes) + banda negra con el
  * título — el mock dibujaba la flecha adentro de la banda, como Resultado, pero las pantallas de
  * Ajustes ya usan el header nativo.
@@ -15,7 +16,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useFocusEffect } from 'expo-router';
 import Head from 'expo-router/head';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { estadoReferidos, type EstadoInvitada, type EstadoReferidos } from '../../../src/api';
 import { useAuth } from '../../../src/auth';
@@ -37,16 +38,11 @@ function fechaCorta(iso: string): string {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-/** El texto que precarga Compartir (22f). La persona lo puede editar antes de mandarlo. */
-function mensajeParaCompartir(link: string): string {
-  return 'Estoy usando SuperAhorro para ver en qué súper me conviene comprar cada cosa, con las '
-    + `promos de mis tarjetas ya calculadas. Probala gratis 30 días con mi link: ${link}`;
-}
-
 /**
  * Copia al portapapeles en web. Se llama directo desde el toque, sin `await` antes: Safari
  * rechaza `clipboard.writeText` fuera del gesto del usuario (WebKit bug 222262). En nativo no
- * hay portapapeles sin una dependencia nueva (no hay build nativo todavía): devuelve false.
+ * hay portapapeles sin una dependencia nueva (no hay build nativo todavía): devuelve false y el
+ * aviso sugiere copiarlo a mano (el link es texto seleccionable).
  */
 async function copiarAlPortapapeles(contenido: string): Promise<boolean> {
   if (Platform.OS !== 'web' || typeof navigator === 'undefined') return false;
@@ -70,10 +66,6 @@ async function copiarAlPortapapeles(contenido: string): Promise<boolean> {
       return false;
     }
   }
-}
-
-function hayShareNativoDelNavegador(): boolean {
-  return Platform.OS !== 'web' || (typeof navigator !== 'undefined' && typeof navigator.share === 'function');
 }
 
 export default function PantallaInvitar() {
@@ -101,26 +93,9 @@ export default function PantallaInvitar() {
   };
 
   const copiar = (link: string) => {
-    if (Platform.OS !== 'web') {
-      Share.share({ message: link }).catch(() => undefined);
-      return;
-    }
     copiarAlPortapapeles(link).then(ok => mostrarAviso(ok
-      ? 'Copiamos tu link.'
+      ? 'Copiamos tu link: pegalo donde quieras.'
       : 'No se pudo copiar. Mantené apretado el link para copiarlo.'));
-  };
-
-  const compartir = (link: string) => {
-    const mensaje = mensajeParaCompartir(link);
-    if (!hayShareNativoDelNavegador()) {
-      // Navegador de escritorio sin "Compartir" del sistema: se copia el mensaje entero.
-      copiarAlPortapapeles(mensaje).then(ok => mostrarAviso(ok
-        ? 'Copiamos el mensaje con tu link: pegalo donde quieras.'
-        : 'No se pudo copiar. Mantené apretado el link para copiarlo.'));
-      return;
-    }
-    // Si la persona cierra la hoja de compartir sin mandar nada, no hay nada que avisar.
-    Share.share({ message: mensaje }).catch(() => undefined);
   };
 
   const encabezado = (subtitulo: React.ReactNode) => (
@@ -179,14 +154,7 @@ export default function PantallaInvitar() {
           {data.link.replace(/^https?:\/\//, '')}
         </Text>
       </View>
-      <View style={styles.botones}>
-        <BotonPrincipal variante="secundario" onPress={() => copiar(data.link)} estilo={{ flex: 1 }}>
-          Copiar
-        </BotonPrincipal>
-        <BotonPrincipal onPress={() => compartir(data.link)} estilo={{ flex: 1 }}>
-          Compartir
-        </BotonPrincipal>
-      </View>
+      <BotonPrincipal onPress={() => copiar(data.link)}>Copiar link</BotonPrincipal>
       {aviso ? <Text style={[texto.etiqueta, { color: paleta.tintaSuave }]}>{aviso}</Text> : null}
     </View>
   );
@@ -214,8 +182,8 @@ export default function PantallaInvitar() {
               <Text style={[texto.prosa, { color: paleta.tintaProsa }]}>
                 Podés seguir compartiendo tu link para que otros prueben gratis. El premio es uno por cuenta.
               </Text>
-              <BotonPrincipal variante="secundario" onPress={() => compartir(data.link)}>
-                Compartir mi link
+              <BotonPrincipal variante="secundario" onPress={() => copiar(data.link)}>
+                Copiar mi link
               </BotonPrincipal>
               {aviso ? <Text style={[texto.etiqueta, { color: paleta.tintaSuave }]}>{aviso}</Text> : null}
             </View>
@@ -352,7 +320,6 @@ const styles = StyleSheet.create({
   cajaLink: {
     minHeight: 52, borderRadius: radio.md, borderWidth: 1, paddingHorizontal: 14, justifyContent: 'center',
   },
-  botones: { flexDirection: 'row', gap: 10 },
   encabezadoLista: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: espacio.sm },
   grupo: { borderWidth: 1, borderRadius: radio.tarjeta, paddingHorizontal: espacio.md },
   separador: { height: StyleSheet.hairlineWidth },

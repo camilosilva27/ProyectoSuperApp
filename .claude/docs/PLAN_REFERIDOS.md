@@ -85,16 +85,13 @@ Promo de crecimiento (sin fecha de fin planeada, ver § Ventana): un usuario que
 - **Sin** la banda "Te invitó X" en el registro (22g descartada).
 
 **Implementado:**
-- `app/(tabs)/ajustes/invitar.tsx`: pantalla "Invitá amigos". Tiene el link con Copiar/Compartir y la lista "TUS INVITADOS", y sale de 22b + 22e:
+- `app/(tabs)/ajustes/invitar.tsx`: pantalla "Invitá amigos". Tiene el link con un solo botón **"Copiar link"** y la lista "TUS INVITADOS", y sale de 22b + 22e. El botón Compartir del mock se sacó a pedido del usuario (12/10).
   - en curso: válida ✓, pendiente ◐ "quedan N días", expirada/descartada con chip `EXPIRÓ`/`NO CUENTA` (no ocupa lugar), y los lugares libres;
   - premio ganado: bloque amarillo "GANASTE · 2 MESES GRATIS" + "Tu prueba ahora vence el dd/mm" o "Tenés premium gratis hasta el dd/mm" (según `premio.planAntes`);
   - no aplica: tarjeta gris "Tenés una suscripción paga / el plan permanente / tu cuenta ya tiene premium";
   - casos raros: premio revertido y promo cerrada.
 - Usa el mismo esqueleto que Mis ahorros (header nativo "‹ Ajustes" + banda negra), no la flecha dentro de la banda que dibujaba el mock.
-- Compartir:
-  - usa `Share.share` (Web Share API en el celular), con el mensaje de 22f;
-  - en un navegador sin "Compartir" del sistema, copia el mensaje entero;
-  - Copiar usa `navigator.clipboard`, con `execCommand` de respaldo, llamado directo desde el toque por el bug de WebKit 222262.
+- Copiar: usa `navigator.clipboard`, con `execCommand` de respaldo, llamado directo desde el toque por el bug de WebKit 222262. Copia solo el link, sin mensaje. En nativo no hay portapapeles: el aviso sugiere copiarlo a mano, porque el texto del link es seleccionable.
 - `ajustes/index.tsx`: fila "Invitá amigos" debajo de Mis ahorros (22a).
   - El subtítulo cambia según el estado: "Invitá a 3 y llevate 2 meses gratis", "Ya se sumó 1 de 3", "Ganaste 2 meses gratis" o "Compartí SuperAhorro".
   - El chip amarillo "2 MESES GRATIS" solo aparece mientras el premio se pueda ganar.
@@ -112,7 +109,13 @@ Promo de crecimiento (sin fecha de fin planeada, ver § Ventana): un usuario que
 
 **Verificación (12/10):**
 - Playwright contra el backend local + base real, con cuentas temporales en tres estados (en curso con válida/pendiente/expirada, premio ganado, suscripta) y el caso de premium por premio en Ajustes y Plan y pago. Sin errores de consola.
-- Copiar muestra "Copiamos tu link."
+- **Test de punta a punta por la interfaz** (`backend/src/scripts/e2eReferidosUI.js`, Playwright, base real, cuentas temporales borradas al final; ver el encabezado del script para correrlo en local o contra producción):
+  1. Quien invita copia su link desde la pantalla.
+  2. Tres personas abren el link, se registran con el formulario (los Términos del modal ya muestran la sección 5) y confirman el mail (por admin).
+  3. Cada una inicia sesión: la 2da desde otro "dispositivo", sin código guardado, así que se asocia por `user_metadata.ref`.
+  4. Cada una hace **el tutorial completo**. La pantalla de quien invita muestra su nombre de pila con ✓ y el progreso "1 de 3", "2 de 3".
+  5. Con la tercera: "GANASTE 2 MESES GRATIS", la prueba sube +60 días (90 días en Ajustes) y Ajustes dice "Ganaste 2 meses gratis".
+- **Hecho estable descubierto en el test:** la invitada queda válida en el **paso del tope** del tutorial ("Poné un máximo de supermercados"), no recién en "Comparar precios". `HojaSupers` (`useCostoTope`) llama a `POST /api/comparar` para mostrar en vivo cuánto cuesta el tope elegido, y ese pedido ya cuenta como comparación. Sigue estando dentro del tutorial, que es el criterio del usuario. Fuera del tutorial, también cuenta elegir un tope con productos en el carrito.
 
 ## Pendiente
 

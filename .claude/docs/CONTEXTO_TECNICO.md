@@ -1400,7 +1400,7 @@ Detalle completo, decisiones y pendientes en `.claude/docs/PLAN_REFERIDOS.md`. L
 - **App web:** el `?ref=` se guarda en AsyncStorage al cargar el módulo de `_layout.tsx`, viaja en `user_metadata.ref` al registrarse con mail, y `AsociadorReferido` lo manda al backend ya con sesión.
 - **UI:**
   - `app/(tabs)/ajustes/invitar.tsx` (variante 22b del diseño, con nombre de pila) y la fila "Invitá amigos" en `ajustes/index.tsx`. Las dos leen `GET /api/referidos` con la misma query key de React Query (`['referidos']`).
-  - Compartir usa `Share.share`; en un navegador de escritorio sin Web Share API cae a copiar el mensaje.
-  - El portapapeles va directo con `navigator.clipboard`: no hay `expo-clipboard`, y no hay build nativo.
+  - Solo hay botón "Copiar link": se sacó Compartir a pedido del usuario. El portapapeles va directo con `navigator.clipboard`: no hay `expo-clipboard`, y no hay build nativo.
+  - Una invitada queda válida con **cualquier** `POST /api/comparar`. Eso incluye la vista previa del costo del tope en `HojaSupers` (`useCostoTope`), que en el tutorial es el paso "Poné un máximo de supermercados", antes de "Comparar precios".
 - **Fechas cortas "dd/mm":** armarlas a mano. `toLocaleDateString('es-AR', { month: '2-digit' })` devuelve "10/1" en Chrome, no "10/01".
 - **Gotcha de expo-router (web):** expo-router reescribe la URL inicial (con su query string) cuando se monta el `<Stack>`. Por eso un `history.replaceState` hecho al cargar el módulo no sirve, y `router.setParams({ ref: undefined })` tampoco, porque `ref` no es parámetro de ninguna ruta. Para sacar un query param de la barra hay que hacer `replaceState` desde un componente que se monte junto con la navegación (`LimpiadorRefDeUrl`, hermano del `<Stack>` dentro del paywall, revisa 3 s). En producción el `<Stack>` monta recién cuando el paywall terminó de leer el plan por red: limpiar antes no sirve, porque a ~1 s el router la vuelve a escribir (verificado 12/10).
