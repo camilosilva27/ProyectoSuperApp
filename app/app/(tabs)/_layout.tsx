@@ -66,9 +66,12 @@ export default function LayoutPestanas() {
           // no corre — ahí depende de env(safe-area-inset-bottom), que solo existe si el
           // viewport tiene viewport-fit=cover (ver app/+html.tsx). Sin esto la tab bar
           // queda pegada al borde curvo de los iPhone nuevos en Safari/PWA.
+          // 54px y no los 49px del default: con 49 el label (texto.micro, lineHeight 14) quedaba
+          // con 10px de alto y overflow:hidden, y la cola de la "j" de "Ajustes" se cortaba
+          // ("Aiustes"), igual que las demás letras con descendente.
           ...(Platform.OS === 'web'
             ? {
-                height: 'calc(49px + env(safe-area-inset-bottom, 0px))' as unknown as number,
+                height: 'calc(54px + env(safe-area-inset-bottom, 0px))' as unknown as number,
                 paddingBottom: 'env(safe-area-inset-bottom, 0px)' as unknown as number,
               }
             : null),
