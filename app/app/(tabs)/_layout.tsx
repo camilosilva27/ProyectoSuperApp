@@ -21,6 +21,7 @@
 import { Tabs } from 'expo-router';
 import React, { useCallback } from 'react';
 import { Platform, StyleSheet, Text, View, type ColorValue } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { useCarrito } from '../../src/carrito';
 import { radio, texto } from '../../src/theme';
@@ -29,6 +30,7 @@ import { useTema } from '../../src/useTema';
 
 export default function LayoutPestanas() {
   const { paleta } = useTema();
+  const insets = useSafeAreaInsets();
   const { totalUnidades } = useCarrito();
 
   // Identidad estable entre renders (`useCallback`, sin deps): `LayoutPestanas` se re-renderiza
@@ -66,15 +68,17 @@ export default function LayoutPestanas() {
           // no corre — ahí depende de env(safe-area-inset-bottom), que solo existe si el
           // viewport tiene viewport-fit=cover (ver app/+html.tsx). Sin esto la tab bar
           // queda pegada al borde curvo de los iPhone nuevos en Safari/PWA.
-          // 54px y no los 49px del default: con 49 el label (texto.micro, lineHeight 14) quedaba
-          // con 10px de alto y overflow:hidden, y la cola de la "j" de "Ajustes" se cortaba
-          // ("Aiustes"), igual que las demás letras con descendente.
+          // 54px y no los 49px del default (web y nativo): con 49 el label (texto.micro,
+          // lineHeight 14) quedaba con 10px de alto y overflow:hidden, y la cola de la "j" de
+          // "Ajustes" se cortaba ("Aiustes"), igual que las demás letras con descendente. En
+          // nativo, al pasar `height` React Navigation deja de sumar el inset solo (sí sigue
+          // poniendo el paddingBottom), por eso se suma acá.
           ...(Platform.OS === 'web'
             ? {
                 height: 'calc(54px + env(safe-area-inset-bottom, 0px))' as unknown as number,
                 paddingBottom: 'env(safe-area-inset-bottom, 0px)' as unknown as number,
               }
-            : null),
+            : { height: 54 + insets.bottom }),
         },
         tabBarLabelStyle: texto.micro,
         sceneStyle: { backgroundColor: paleta.fondo },
