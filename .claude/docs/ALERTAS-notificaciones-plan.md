@@ -113,8 +113,8 @@ feature de "seguir X y que me avise", no es específico de esta.
 - **Ajustes reestructurado** (`app/app/(tabs)/ajustes.tsx`) en 3 grupos: TU ACTIVIDAD (fila "Mis
   ahorros" con chip amarillo "NUEVO ACÁ" → `app/app/mis-ahorros.tsx`, la vieja pantalla de la tab
   "Ahorros" movida acá con back button agregado), PREFERENCIAS ("Supers cerca tuyo", deshabilitado,
-  chip gris "PRÓXIMAMENTE"), CUENTA (Datos personales → `app/app/datos-personales.tsx`, mail +
-  cerrar sesión, antes inline; Suscripción → ya existía, es la fila de plan/pago; Ayuda →
+  chip gris "PRÓXIMAMENTE"), CUENTA (Datos personales → `app/app/datos-personales.tsx`, solo el mail — "Cerrar sesión"
+  estuvo acá pero volvió a Ajustes como grupo propio al pie el 2026-10-14 porque costaba encontrarlo; Suscripción → ya existía, es la fila de plan/pago; Ayuda →
   `app/app/ayuda.tsx`, tutorial + contacto, antes sueltos en el cuerpo). La sección
   "NOTIFICACIONES" (recordatorio semanal genérico, feature aparte de Alertas) no se tocó, sigue
   en el cuerpo de Ajustes tal cual estaba.

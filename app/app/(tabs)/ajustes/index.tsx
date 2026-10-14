@@ -7,9 +7,11 @@
  *   mudanza. Debajo, "Invitá amigos" (referidos, diseño 22a de Claude Design, 2026-10-12): el
  *   chip amarillo es el premio y solo aparece mientras se pueda ganar.
  * - PREFERENCIAS: "Supers cerca tuyo", anunciada como próxima (sin pantalla real todavía).
- * - CUENTA: "Datos personales" (mail + cerrar sesión, antes inline acá) y "Ayuda" (tutorial +
- *   contacto, antes sueltos en el cuerpo) pasan a ser sus propias pantallas; "Suscripción" es
- *   la fila de plan/pago que ya existía (antes bajo su propio bloque "TU PLAN").
+ * - CUENTA: "Datos personales" (el mail) y "Ayuda" (tutorial + contacto, antes sueltos en el
+ *   cuerpo) pasan a ser sus propias pantallas; "Suscripción" es la fila de plan/pago que ya
+ *   existía (antes bajo su propio bloque "TU PLAN").
+ * - "Cerrar sesión", en su propio grupo al pie (2026-10-14): estuvo un tiempo adentro de "Datos
+ *   personales" y costaba encontrarlo.
  *
  * El toggle de notificaciones/push que vivía acá ("recordatorio semanal") se sacó: el permiso de
  * notificaciones ahora es uno solo, pedido desde el interruptor "Recibir notificaciones" de la
@@ -22,12 +24,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { useFocusEffect, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
-import React, { useCallback, useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { estadoReferidos, type EstadoReferidos } from '../../../src/api';
 import { useAuth } from '../../../src/auth';
 import { IconoChevron } from '../../../src/componentes/comunes';
+import { ConfirmacionModal, IconoSalir } from '../../../src/componentes/Confirmacion';
 import { HeaderNegro, TituloHeader } from '../../../src/componentes/HeaderNegro';
 import { calcularResumenAhorro, useHistorialAhorro } from '../../../src/historialAhorro';
 import { diasRestantesTrial, usePlanUsuario } from '../../../src/plan';
@@ -38,7 +41,8 @@ export default function PantallaAjustes() {
   const { paleta } = useTema();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { session } = useAuth();
+  const { session, cerrarSesion } = useAuth();
+  const [mostrarConfirmarSalir, setMostrarConfirmarSalir] = useState(false);
   const { info: infoPlan, recargar: recargarPlan } = usePlanUsuario();
   const { eventos } = useHistorialAhorro();
   const totalAhorrado = useMemo(() => calcularResumenAhorro(eventos).totalMonto, [eventos]);
@@ -87,7 +91,7 @@ export default function PantallaAjustes() {
       <HeaderNegro paddingTop={insets.top + espacio.xl}>
         <TituloHeader>Ajustes</TituloHeader>
       </HeaderNegro>
-      <View style={styles.cuerpo}>
+      <ScrollView contentContainerStyle={styles.cuerpo}>
         <View style={styles.seccion}>
           <Text style={[texto.tituloSeccion, { color: paleta.tintaSuave }]}>TU ACTIVIDAD</Text>
           <View style={[styles.grupo, { borderColor: paleta.borde }]}>
@@ -177,7 +181,23 @@ export default function PantallaAjustes() {
             </Pressable>
           </View>
         </View>
-      </View>
+
+        <View style={[styles.grupo, { borderColor: paleta.borde }]}>
+          <Pressable onPress={() => setMostrarConfirmarSalir(true)} accessibilityRole="button" style={styles.fila}>
+            <Text style={[texto.cuerpoMedio, { color: paleta.peligro }]}>Cerrar sesión</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+
+      <ConfirmacionModal
+        visible={mostrarConfirmarSalir}
+        titulo="Cerrar sesión"
+        mensaje="¿Estás seguro de que querés cerrar sesión?"
+        textoConfirmar="Cerrar sesión"
+        icono={IconoSalir}
+        onCancelar={() => setMostrarConfirmarSalir(false)}
+        onConfirmar={() => { setMostrarConfirmarSalir(false); cerrarSesion(); }}
+      />
     </View>
   );
 }
