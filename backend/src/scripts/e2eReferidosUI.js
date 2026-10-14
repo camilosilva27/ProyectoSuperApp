@@ -9,6 +9,8 @@
 // --port 8082`. Producción: BASE_URL=https://superahorro.com.ar. Playwright no es dependencia del
 // repo: se toma de PLAYWRIGHT_PATH o del cache de npx (ver memoria verificacion-navegador-playwright).
 // Capturas en SCREENSHOTS_DIR (default: el tmp del sistema).
+// INVITADAS=1 corta después de la primera invitada (solo para sacar capturas: sin premio, los
+// checks del final no corren).
 //
 // 1. Quien invita (cuenta creada por admin) entra a Ajustes → Invitá amigos y copia su link.
 // 2. Tres personas abren el link, se registran con el formulario (aceptando términos),
@@ -138,6 +140,7 @@ async function estadoInvitadora(page, nombre) {
     const codigo = (link.match(/[?&]ref=([A-Z0-9]+)/) || [])[1];
     check(!!codigo && /^https:\/\/superahorro\.com\.ar\/\?ref=[A-Z0-9]{6}$/.test(link), `"Copiar link" copió ${link}`);
     check(await pA.getByText('Copiamos tu link: pegalo donde quieras.').count() > 0, 'aviso "Copiamos tu link"');
+    await estadoInvitadora(pA, 'inicial');
 
     // --- Tres invitadas por la interfaz ------------------------------------------------------
     const invitadas = [
@@ -145,7 +148,8 @@ async function estadoInvitadora(page, nombre) {
       { nombre: 'Lucas Pereyra', pila: 'Lucas', otroDispositivo: true },
       { nombre: 'Sofía Ruiz', pila: 'Sofía', otroDispositivo: false },
     ];
-    for (const [i, inv2] of invitadas.entries()) {
+    const cuantas = Math.min(Number(process.env.INVITADAS) || 3, 3);
+    for (const [i, inv2] of invitadas.slice(0, cuantas).entries()) {
       const n = i + 1;
       console.log(`\n--- Invitada ${n}: ${inv2.nombre}${inv2.otroDispositivo ? ' (confirma y entra desde otro dispositivo)' : ''} ---`);
       const email = `prueba-ref-e2e-${n}-${SUF}@superahorro.com.ar`;
@@ -198,6 +202,7 @@ async function estadoInvitadora(page, nombre) {
       await login(pagina, email);
       for (let k = 0; k < 60 && !asociar.length; k++) await pagina.waitForTimeout(500);
       check(String(asociar[0]).startsWith('asociada'), `asociación al iniciar sesión: ${asociar[0]} (segundos desde que tocó ENTRAR)`);
+      await estadoInvitadora(pA, `pendiente-${n}`);
 
       const tutorialOk = await hacerTutorial(pagina, `inv${n}`);
       check(tutorialOk, 'tutorial completo de punta a punta');
@@ -215,6 +220,7 @@ async function estadoInvitadora(page, nombre) {
     }
 
     // --- Premio ------------------------------------------------------------------------------
+    if (cuantas < 3) return;
     const texto = await estadoInvitadora(pA, 'final');
     check(texto.includes('GANASTE') && texto.includes('2 MESES GRATIS'), 'pantalla: bloque "GANASTE · 2 MESES GRATIS"');
     const trialDespues = (await admin.from('perfil_usuario').select('trial_termina_en').eq('id', inv.user.id).single()).data.trial_termina_en;
