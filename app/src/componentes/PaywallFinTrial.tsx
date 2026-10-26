@@ -9,18 +9,23 @@
  * previo, con textos distintos vía `titulo`/`etiquetaPeriodo`).
  *
  * Bloqueante por diseño: sin botón de cerrar, sin X, sin gesto de back (ver `BackHandler`
- * abajo), sin scroll, y ahora con una sola acción posible en el pie.
+ * abajo). La acción principal sigue siendo suscribirse; la única alternativa es el bloque
+ * "Invitá amigos" (`invitar`, 26/10): si el premio de referidos todavía se puede ganar, se ofrece
+ * copiar el link (mismo link y mismas reglas que Ajustes › Invitá amigos, PLAN_REFERIDOS.md).
+ * Con ese bloque la pantalla puede no entrar en alto, por eso ahora scrollea.
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  BackHandler, Platform, Pressable, StyleSheet, Text, View,
+  BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
+import { copiarAlPortapapeles } from '../portapapeles';
 import { espacio, fuentes, pesosCorto, radio, texto } from '../theme';
 import { useTema } from '../useTema';
 
 export function PaywallFinTrial({
   montoAhorradoTrial, conteoComparaciones, precioMensual, onSuscribirse,
+  invitar = null,
   titulo = 'TERMINÓ TU MES DE PRUEBA',
   etiquetaPeriodo = 'este mes de prueba',
 }: {
@@ -30,6 +35,8 @@ export function PaywallFinTrial({
   /** Turnos 12/13: ya no crea la suscripción directo — avanza a `PlanSelect`, donde se elige
    *  el plan y se confirma el mail de Mercado Pago antes de crear nada. */
   onSuscribirse: () => void;
+  /** Datos de referidos si el premio todavía se puede ganar; null oculta el bloque. */
+  invitar?: { link: string; necesarias: number; validas: number; diasPremio: number } | null;
   titulo?: string;
   etiquetaPeriodo?: string;
 }) {
@@ -42,11 +49,30 @@ export function PaywallFinTrial({
     return () => sub.remove();
   }, []);
 
+  const [aviso, setAviso] = useState<string | null>(null);
+  const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (temporizador.current) clearTimeout(temporizador.current); }, []);
+  const copiar = (link: string) => {
+    copiarAlPortapapeles(link).then(ok => {
+      setAviso(ok
+        ? 'Copiamos tu link: pegalo donde quieras.'
+        : 'No se pudo copiar. Mantené apretado el link para copiarlo.');
+      if (temporizador.current) clearTimeout(temporizador.current);
+      temporizador.current = setTimeout(() => setAviso(null), 3000);
+    });
+  };
+  const premio = invitar && invitar.diasPremio % 30 === 0
+    ? `${invitar.diasPremio / 30} meses`
+    : `${invitar?.diasPremio ?? 0} días`;
+
   const montoTexto = pesosCorto(montoAhorradoTrial);
   const conteoTexto = `${conteoComparaciones} comparaci${conteoComparaciones === 1 ? 'ón' : 'ones'}`;
 
   return (
-    <View style={[styles.pantalla, { backgroundColor: paleta.tinta }]}>
+    <ScrollView
+      style={{ backgroundColor: paleta.tinta }}
+      contentContainerStyle={styles.pantalla}
+    >
       <Text style={[texto.tituloSeccion, styles.tituloTope]}>{titulo}</Text>
 
       <View style={styles.bloqueCentral}>
@@ -91,12 +117,40 @@ export function PaywallFinTrial({
           </Text>
         </Pressable>
       </View>
-    </View>
+
+      {invitar ? (
+        <View style={styles.bloqueInvitar}>
+          <Text style={[texto.tituloSeccion, { color: paleta.oferta, letterSpacing: 1.2 }]}>
+            O SEGUÍ GRATIS
+          </Text>
+          <Text style={[styles.tituloInvitar, { color: '#FFFFFF' }]}>
+            Invitá a {invitar.necesarias} amigos y llevate{' '}
+            <Text style={{ color: paleta.oferta }}>{premio} gratis</Text>
+          </Text>
+          <Text style={[texto.cuerpo, styles.textoTenueOscuro]}>
+            Cuando {invitar.necesarias} amigos se registren con tu link y hagan su primera comparación,
+            te llevás {premio} gratis.
+            {invitar.validas > 0 ? ` Ya llevás ${Math.min(invitar.validas, invitar.necesarias)} de ${invitar.necesarias}.` : ''}
+          </Text>
+          <Text selectable numberOfLines={1} style={[texto.etiqueta, styles.link]}>
+            {invitar.link.replace(/^https?:\/\//, '')}
+          </Text>
+          <Pressable
+            onPress={() => copiar(invitar.link)}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.botonSecundario, { opacity: pressed ? 0.7 : 1 }]}
+          >
+            <Text style={styles.textoBotonSecundario}>Copiar link</Text>
+          </Pressable>
+          {aviso ? <Text style={[texto.etiqueta, styles.textoTenueOscuro]}>{aviso}</Text> : null}
+        </View>
+      ) : null}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  pantalla: { flex: 1, paddingTop: 40, paddingHorizontal: 24 },
+  pantalla: { flexGrow: 1, paddingTop: 40, paddingHorizontal: 24, paddingBottom: 34 },
   tituloTope: { color: '#C6CCD3', letterSpacing: 1.2 },
   bloqueCentral: { flex: 1, justifyContent: 'center', paddingVertical: espacio.xl, gap: 26 },
   textoBlanco: { color: '#FFFFFF' },
@@ -105,7 +159,21 @@ const styles = StyleSheet.create({
   montoTrial: { fontFamily: fuentes.precio, fontSize: 76, lineHeight: 66 },
   divisoria: { height: 1, backgroundColor: 'rgba(255,255,255,.18)' },
   precioDestacado: { fontFamily: fuentes.semi },
-  pie: { paddingBottom: 34, gap: espacio.xs + 2 },
+  pie: { gap: espacio.xs + 2 },
+  bloqueInvitar: {
+    marginTop: espacio.xl, padding: espacio.lg, gap: espacio.sm, borderRadius: radio.tarjeta,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,.18)',
+  },
+  tituloInvitar: { fontFamily: fuentes.semi, fontSize: 20, lineHeight: 26 },
+  link: {
+    color: '#FFFFFF', backgroundColor: 'rgba(255,255,255,.08)', borderRadius: radio.md,
+    paddingHorizontal: 14, paddingVertical: 12, overflow: 'hidden',
+  },
+  botonSecundario: {
+    borderRadius: radio.md, minHeight: 48, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: '#FFFFFF',
+  },
+  textoBotonSecundario: { fontFamily: fuentes.semi, fontSize: 16, color: '#FFFFFF' },
   botonPrincipal: {
     borderRadius: radio.md, minHeight: 58, alignItems: 'center', justifyContent: 'center', gap: 2,
   },

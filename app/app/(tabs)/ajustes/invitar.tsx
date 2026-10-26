@@ -16,10 +16,11 @@ import { useQuery } from '@tanstack/react-query';
 import { useFocusEffect } from 'expo-router';
 import Head from 'expo-router/head';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { estadoReferidos, type EstadoInvitada, type EstadoReferidos } from '../../../src/api';
 import { useAuth } from '../../../src/auth';
+import { copiarAlPortapapeles } from '../../../src/portapapeles';
 import { BotonPrincipal, Cargando, Problema } from '../../../src/componentes/comunes';
 import { HeaderNegro, TituloHeader } from '../../../src/componentes/HeaderNegro';
 import { espacio, fuentes, radio, texto, usePantallaBaja, type Paleta } from '../../../src/theme';
@@ -36,36 +37,6 @@ function textoPremio(dias: number): string {
 function fechaCorta(iso: string): string {
   const d = new Date(iso);
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
-/**
- * Copia al portapapeles en web. Se llama directo desde el toque, sin `await` antes: Safari
- * rechaza `clipboard.writeText` fuera del gesto del usuario (WebKit bug 222262). En nativo no
- * hay portapapeles sin una dependencia nueva (no hay build nativo todavía): devuelve false y el
- * aviso sugiere copiarlo a mano (el link es texto seleccionable).
- */
-async function copiarAlPortapapeles(contenido: string): Promise<boolean> {
-  if (Platform.OS !== 'web' || typeof navigator === 'undefined') return false;
-  try {
-    await navigator.clipboard.writeText(contenido);
-    return true;
-  } catch {
-    // Navegadores sin Clipboard API (o sin permiso): el camino viejo.
-    try {
-      const area = document.createElement('textarea');
-      area.value = contenido;
-      area.setAttribute('readonly', '');
-      area.style.position = 'fixed';
-      area.style.opacity = '0';
-      document.body.appendChild(area);
-      area.select();
-      const ok = document.execCommand('copy');
-      document.body.removeChild(area);
-      return ok;
-    } catch {
-      return false;
-    }
-  }
 }
 
 export default function PantallaInvitar() {

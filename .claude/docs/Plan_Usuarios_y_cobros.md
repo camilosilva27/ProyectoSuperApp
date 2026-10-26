@@ -375,3 +375,9 @@ Preguntado al plantear empezar a publicitar la app. Es un uso distinto al de arr
 - **La frase importa más que el logo en sí**: "Contamos con estos supers" es ambigua — se puede leer como "tenemos un acuerdo/partnership con estos supers", que es exactamente lo que hay que evitar decir (no existe tal acuerdo). Preferir una frase que deje explícito que es comparación, no afiliación: "Comparamos precios en estos supermercados" / "Estos son los supers que comparamos". Evitar palabras como "aliados", "socios", "oficial", "en conjunto con".
 - **Sumar el mismo disclaimer que ya está en el ToS**, aunque sea en letra chica del pie del posteo o en la bio: "Los logos pertenecen a sus respectivas marcas. Sin afiliación con Super App."
 - **No se evaluó** (pendiente si se quiere blindar más antes de escalar el gasto en ads): consulta puntual con un abogado de marcas en Argentina — esta sección es una lectura razonada del principio de uso nominativo, no una opinión legal formal, y las cadenas grandes pueden reclamar igual aunque no tengan razón.
+
+## Reporte de usuarios para seguimiento (2026-10-26)
+
+Vista `admin.reporte_usuarios` (migración `0032_reporte_usuarios.sql`) para ver a mano, desde el dashboard de Supabase (Table Editor → schema `admin`), quién se registró, cuándo vence o venció su trial, cuánto usó la app (comparaciones y ahorro de `ahorro_registro`, invitados) y su estado (`en trial`, `vencido sin pagar`, `pago X`, `premium temporal`, `regalado`). Ordenada con los vencidos sin pagar primero. El objetivo es hacer seguimiento de quién no siguió después del trial; no hay nada automatizado. Va en el schema `admin` y no en `public` porque lee `auth.users` (mails), y `public` está expuesto a la API con la anon key.
+
+Gotcha: al pasar `plan` a `'gratis'` con un UPDATE, `plan_bajado_a_gratis_en` se pisa con `now()` aunque lo setees en el mismo UPDATE. Para restaurar la fecha original hay que hacer un segundo UPDATE solo de esa columna.

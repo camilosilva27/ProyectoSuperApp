@@ -120,6 +120,10 @@ Promo de crecimiento (sin fecha de fin planeada, ver § Ventana): un usuario que
 - **Corrido contra producción (superahorro.com.ar) el 12/10 después del deploy: TODO OK.** Cada asociación tarda entre 3 y 4,5 s desde que se toca ENTRAR.
 - **Hecho estable descubierto en el test:** la invitada queda válida en el **paso del tope** del tutorial ("Poné un máximo de supermercados"), no recién en "Comparar precios". `HojaSupers` (`useCostoTope`) llama a `POST /api/comparar` para mostrar en vivo cuánto cuesta el tope elegido, y ese pedido ya cuenta como comparación. Sigue estando dentro del tutorial, que es el criterio del usuario. Fuera del tutorial, también cuenta elegir un tope con productos en el carrito.
 
+### Bloque "Invitá amigos" en el paywall (2026-10-26)
+
+`PaywallFinTrial.tsx` (prop `invitar`) suma un recuadro debajo de "SEGUIR AHORRANDO": "O SEGUÍ GRATIS · Invitá a 3 amigos y llevate 2 meses gratis", el link y un botón secundario "Copiar link" (contorno blanco, porque el amarillo lleno queda para el CTA de pago). `GatePaywallFinTrial.tsx` pide `GET /api/referidos`, que solo exige sesión y no plan, así que responde aunque el usuario esté bloqueado. El bloque aparece solo si `promoVigente && !premio && !motivoNoAplica`; si el pedido falla, el paywall sale igual sin el bloque. Muestra "Ya llevás N de 3" si hay válidas; el texto dice "te llevás 2 meses gratis". El paywall ahora scrollea. `copiarAlPortapapeles` se movió de `invitar.tsx` a `app/src/portapapeles.ts` (compartido). Verificado con Playwright: el link se copia bien y en 390×844 entra sin scroll.
+
 ## Aviso al ganar el premio (2026-10-12)
 
 **Único aviso del programa**, por decisión del usuario: no se avisa cada invitada que se suma.

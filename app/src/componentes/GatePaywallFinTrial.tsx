@@ -24,9 +24,10 @@
  *   ya fue premium después de esa prueba.
  */
 
+import { useQuery } from '@tanstack/react-query';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppState, View } from 'react-native';
-import { precioSuscripcion } from '../api';
+import { estadoReferidos, precioSuscripcion } from '../api';
 import { useAuth } from '../auth';
 import { useFlujoDePago } from '../flujoDePago';
 import { calcularResumenAhorro, type EventoAhorro, useHistorialAhorro } from '../historialAhorro';
@@ -127,6 +128,23 @@ export function GatePaywallFinTrial({ children }: { children: React.ReactNode })
   // error acá no es motivo para abrir la app: se muestra "Volver a intentar" en su lugar.
   const errorDeCarga = !cargando && ((!infoPlan && !!errorPlan) || (bloqueado && precios === null));
 
+  // "Invitá amigos" en el paywall: solo si el premio todavía se puede ganar (promo vigente, sin
+  // premio ya resuelto y sin motivo de exclusión). /api/referidos pide solo sesión, no plan, así
+  // que responde aunque el usuario esté bloqueado. Si falla, el paywall sale igual sin el bloque.
+  const { data: referidos } = useQuery({
+    queryKey: ['referidos'],
+    queryFn: () => estadoReferidos(session?.access_token as string),
+    enabled: mostrarPaywall && !!session?.access_token,
+  });
+  const invitar = referidos && referidos.promoVigente && !referidos.premio && !referidos.motivoNoAplica
+    ? {
+      link: referidos.link,
+      necesarias: referidos.invitadasNecesarias,
+      validas: referidos.validas,
+      diasPremio: referidos.diasPremio,
+    }
+    : null;
+
   const onSuscribirse = useCallback(() => setPantalla('planSelect'), []);
   const reintentar = useCallback(() => {
     recargarPlan();
@@ -157,6 +175,7 @@ export function GatePaywallFinTrial({ children }: { children: React.ReactNode })
         conteoComparaciones={resumen.conteo}
         precioMensual={(precios as PreciosPlanes).mensual}
         onSuscribirse={onSuscribirse}
+        invitar={invitar}
         titulo={huboSuscripcionPrevia ? 'SIN SUSCRIPCIÓN ACTIVA' : 'TERMINÓ TU MES DE PRUEBA'}
         etiquetaPeriodo={huboSuscripcionPrevia ? 'desde que usás la app' : 'este mes de prueba'}
       />
