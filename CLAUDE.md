@@ -20,6 +20,7 @@ Este repo es la app "Super App" (motor interno de comparación de precios: AllPr
 | `AUDITORIA_2026-09-24.md` | Auditoría general (código + producción) del 24/09/2026: hallazgos por gravedad con checklist de pendientes. Abrir antes de tocar pagos, RLS de `perfil_usuario`, promo-engine o empaquetado. |
 | `TERMINOS_DE_SERVICIO.md` | Términos de Servicio (plan pago, programa "Invitá amigos", cancelación con gracia hasta fin de período, derecho de arrepentimiento de 10 días). Texto completo, espejado en `app/src/legal/contenidoLegal.ts` (checkbox de registro). |
 | `POLITICA_DE_PRIVACIDAD.md` | Política de Privacidad (qué datos guardamos, Supabase/Mercado Pago/Brevo como procesadores). Texto completo, mismo espejo que el ToS. |
+| `MIGRACION_ORACLE.md` | Migración del backend de GCP (vence la prueba ~08/11/2026) a Oracle Cloud Always Free: inventario de la VM, todo lo que apunta a la URL del backend, plan de corte. Abrir antes de tocar infra de la VM. |
 
 ## Contexto por subcarpeta (mismo criterio: abrir solo si se trabaja ahí)
 

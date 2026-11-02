@@ -110,8 +110,8 @@ module.exports = {
   // Generar con: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
   bajaMailsSecret: process.env.BAJA_MAILS_SECRET || null,
   // URL pública (https) del backend, para armar links que apuntan a él desde afuera (hoy: el de
-  // baja de mails). En producción es Caddy + nip.io sobre la IP estática de la VM.
-  urlPublicaBackend: (process.env.URL_PUBLICA_BACKEND || 'https://34.24.10.174.nip.io').replace(/\/+$/, ''),
+  // baja de mails). En producción es Caddy en `api.superahorro.com.ar` (registro A en el DNS de Vercel → IP de la VM; ver .claude/docs/MIGRACION_ORACLE.md).
+  urlPublicaBackend: (process.env.URL_PUBLICA_BACKEND || 'https://api.superahorro.com.ar').replace(/\/+$/, ''),
 
   // Monitoreo de errores (Sentry) — sin esta variable, sentry.js no inicializa nada y el
   // server sigue funcionando exactamente igual que antes (mismo criterio "gracioso" que el
