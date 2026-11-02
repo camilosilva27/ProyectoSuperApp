@@ -55,9 +55,12 @@ const CARREFOUR_HASH_BANKS      = 'a17d0a4ae5248a8007075eb0c871b327be760c90f8ef9
 const CARREFOUR_HASH_CARDS      = 'b0268b02cfc0021bcd0d0373f54e590bb71111cbcef4dcc62bf381a3a0abfa15';
 
 const CHANGOMAS_HOST          = 'https://www.masonline.com.ar';
-const CHANGOMAS_HASH_PROMOS     = '1a071ebc5dc407a3f65e687b0f4c0a3b8d12a0c45d8d11370075c3b2a505251c';
-const CHANGOMAS_HASH_BANKS      = '968d464317be357766de0e3beb313a55e0ebf7f45f2ef4a02c99fdf4ebca0876';
-const CHANGOMAS_HASH_CARDS      = 'b3aa47c5a259fd0c6ea4b9d29d553170da26dfcead2be3acafa026b9b9084b3a';
+// Chango Más dejó de usar GraphQL persistido (~28/10/2026): la app `valtech.gdn-banks-promotions`
+// ahora lee de un endpoint REST `/_v/private/gdn-services/content/<entidad>` (público pese al
+// "private"), con valores tipados (bool/number) en vez de strings. Ver fetchContenidoGdn.
+const CHANGOMAS_CAMPOS_PROMOS = ['id','title','sub_title','discount_percentage','active_from','active_to','active',
+  'hyper','market','ecommerce','express','maxi','legal','monday','tuesday','wednesday','thursday','friday',
+  'saturday','sunday','idBank','idCard','isMasClub'];
 
 // Día no es VTEX IO en esta parte del sitio (a diferencia de su catálogo de productos):
 // las promos bancarias son un bloque de CMS server-renderizado, embebido como JSON crudo
@@ -794,6 +797,32 @@ async function fetchGraphQL(host, operationName, hash, variablesObj) {
   }
 }
 
+/**
+ * Chango Más: endpoint REST de gdn-services. Devuelve documentos con la misma forma `{fields:[{key,value}]}`
+ * que el GraphQL (valores pasados a string como antes: true→'true', null→'null') para reusar
+ * fetchTicketBancoVTEX sin tocarlo. Un 404 o una respuesta que no es array = la fuente cambió de
+ * forma → 'hash_roto' (mismo aviso de "recapturar con el navegador").
+ */
+async function fetchContenidoGdn(host, entidad, campos, where) {
+  try {
+    const qs = [`_fields=${campos.join(',')}`, '_from=0', '_to=999'];
+    if (where) qs.push(`_where=${encodeURIComponent(where)}`);
+    const res = await fetchConReintento(`${host}/_v/private/gdn-services/content/${entidad}?${qs.join('&')}`,
+      { headers: { Accept: 'application/json' } });
+    if (res.status === 404) return { error: 'hash_roto' };
+    const data = await res.json();
+    if (!Array.isArray(data)) return { error: 'hash_roto' };
+    return { documents: data.map(o => ({ fields: Object.entries(o).map(([key, v]) => ({ key, value: v === null ? 'null' : String(v) })) })) };
+  } catch {
+    return { error: 'fetch_failed' };
+  }
+}
+
+/** Hora local de Argentina sin zona ("2026-11-02T11:05:00"), el formato que usa el sitio en el `_where`. */
+function ahoraArgentinaSinZona() {
+  return new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 19);
+}
+
 function camposAObjeto(doc) {
   return Object.fromEntries(doc.fields.map(f => [f.key, f.value === 'null' ? null : f.value]));
 }
@@ -827,11 +856,11 @@ function canalesTicketVTEX(o, esCarrefour) {
 }
 
 /** Común a Carrefour y Chango Más: misma forma de API, distinto account/hashes. */
-async function fetchTicketBancoVTEX({ host, hashPromos, hashBanks, hashCards, operationPromos, account, isMasClubField }) {
+async function fetchTicketBancoVTEX({ host, hashPromos, hashBanks, hashCards, operationPromos, account, isMasClubField, fuente }) {
   const ahoraISO = new Date().toISOString();
   const where = `active=true AND (active_from < '${ahoraISO}') AND (active_to > '${ahoraISO}')`;
 
-  const [promosRes, banksRes, cardsRes] = await Promise.all([
+  const [promosRes, banksRes, cardsRes] = fuente ? await fuente() : await Promise.all([
     fetchGraphQL(host, operationPromos, hashPromos, { where, account }),
     fetchGraphQL(host, 'GetBanks', hashBanks, null),
     fetchGraphQL(host, 'GetCards', hashCards, null),
@@ -906,12 +935,16 @@ async function fetchCarrefour() {
 async function fetchChangoMas() {
   return fetchTicketBancoVTEX({
     host: CHANGOMAS_HOST,
-    hashPromos: CHANGOMAS_HASH_PROMOS,
-    hashBanks: CHANGOMAS_HASH_BANKS,
-    hashCards: CHANGOMAS_HASH_CARDS,
-    operationPromos: 'GetPromos',
-    account: 'masonlineprod',
     isMasClubField: 'isMasClub',
+    fuente: () => {
+      const t = ahoraArgentinaSinZona();
+      return Promise.all([
+        fetchContenidoGdn(CHANGOMAS_HOST, 'banks-promotions', CHANGOMAS_CAMPOS_PROMOS,
+          `active=true AND ((active_from < ${t}) AND (active_to > ${t}))`),
+        fetchContenidoGdn(CHANGOMAS_HOST, 'financing-banks', ['id', 'name'], null),
+        fetchContenidoGdn(CHANGOMAS_HOST, 'financing-cards', ['id', 'name'], null),
+      ]);
+    },
   });
 }
 
