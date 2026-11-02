@@ -62,6 +62,8 @@ export const TARJETAS_DISPONIBLES = [
   'Banco Columbia', 'Banco Patagonia', 'Banco Nación', 'TCI',
   // Sumado 2026-09-24 (auditoría de promos): mismo canónico que ALIAS_TARJETAS.
   'Banco Hipotecario',
+  // Sumado 2026-11-02: programa de beneficios del diario (promos online en Carrefour).
+  'Club La Nación',
   // Promos "banco + MODO" (ICBC Modo, Comafi MODO...): no son una opción aparte, alcanza con marcar
   // el banco ("ICBC vía MODO"); "MODO" es solo para las de MODO a secas (decisión del usuario 2026-09-24). Al final, segmentos del cliente y
   // programas/tiendas, que funcionan como cualquier otro descuento propio (ver

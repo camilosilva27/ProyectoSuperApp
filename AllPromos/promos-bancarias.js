@@ -136,7 +136,8 @@ const ALIAS_TARJETAS = {
   'Banco Ciudad':    ['banco ciudad'],
   'Supervielle':     ['supervielle'],
   'Banco Columbia':  ['banco columbia'],
-  'Banco Patagonia': ['banco patagonia'],
+  // 'patagonia' a secas: así lo nombra Carrefour en GetBanks (2026-11-02, 7 promos se descartaban).
+  'Banco Patagonia': ['banco patagonia', 'patagonia'],
   // 'bna': Día lo lista como "BNA" (entrada "Modo|BNA", 5% jubilados) y Chango Más como
   // "BNA+MODO" — 2026-09-24.
   'Banco Nación':    ['banco nacion', 'nacion', 'bna'],
@@ -144,6 +145,9 @@ const ALIAS_TARJETAS = {
   // tope $15.000) e "Hipotecario_Modo" en Chango Más se descartaban por falta de alias. Ningún
   // otro nombre de entidad de los 5 feeds contiene "hipotecario".
   'Banco Hipotecario': ['hipotecario'],
+  // Programa de beneficios del diario La Nación (Carrefour, 10-15% online). Sumado 2026-11-02 a
+  // pedido del usuario. Banco Nación excluye 'club' para no confundirlo.
+  'Club La Nación':  ['club la nacion'],
   // Tarjeta propia de Coto, sin nombre de banco detrás — no apareció en el texto de
   // ningún otro super al verificar, se deja el alias igual por si alguno la suma después.
   'TCI':             ['tci'],
@@ -1380,6 +1384,38 @@ function elegirMejorDia(diasCalculados) {
  * todavía no marcó como propias.
  * @returns { vea, carr, changomas, dia, coto, jumbo, disco: {promos,error} }
  */
+/**
+ * Banco Patagonia publica la MISMA promo en varios escalones según el nivel de tarjeta/cartera
+ * (Clásica 15%, Plus 20%, Singular 30%; Cartera General vs. Plan Sueldo en Carrefour), todos con
+ * los mismos días. La app no modela niveles de tarjeta, así que se muestra el escalón MÁS BAJO
+ * (decisión del usuario 2026-11-02): por cada día y canal, solo queda la promo de menor %.
+ * A una promo que no es la mínima en ninguno de sus días se la descarta; si lo es solo en algunos,
+ * se le recortan los días.
+ */
+const CANONICOS_SOLO_ESCALON_MINIMO = ['Banco Patagonia'];
+function quedarseConEscalonMinimo(promos) {
+  const esDeEscalones = p => p.canonicosPosibles.length === 1 && CANONICOS_SOLO_ESCALON_MINIMO.includes(p.canonicosPosibles[0]);
+  const todosLosDias = [1, 2, 3, 4, 5, 6, 7];
+  const clave = (p, dia) => `${p.canonicosPosibles[0]}|${dia}|${(p.canales || ['*']).slice().sort().join(',')}`;
+  const minimo = new Map(); // clave → promo de menor %
+  for (const p of promos.filter(esDeEscalones)) {
+    for (const d of (p.dias.length ? p.dias : todosLosDias)) {
+      const k = clave(p, d);
+      const actual = minimo.get(k);
+      if (!actual || p.descuentoPct < actual.descuentoPct) minimo.set(k, p);
+    }
+  }
+  const salida = [];
+  for (const p of promos) {
+    if (!esDeEscalones(p)) { salida.push(p); continue; }
+    const dias = p.dias.length ? p.dias : todosLosDias;
+    const ganados = dias.filter(d => minimo.get(clave(p, d)) === p);
+    if (!ganados.length) continue;
+    salida.push(ganados.length === dias.length ? p : { ...p, dias: ganados });
+  }
+  return salida;
+}
+
 async function obtenerTodasLasPromosBancarias() {
   const [vea, carr, changomas, dia, coto, jumbo, disco] = await Promise.all([
     fetchVea().catch(() => ({ promos: [], error: 'fetch_failed' })),
@@ -1390,7 +1426,9 @@ async function obtenerTodasLasPromosBancarias() {
     fetchJumbo().catch(() => ({ promos: [], error: 'fetch_failed' })),
     fetchDisco().catch(() => ({ promos: [], error: 'fetch_failed' })),
   ]);
-  return { vea, carr, changomas, dia, coto, jumbo, disco };
+  const datos = { vea, carr, changomas, dia, coto, jumbo, disco };
+  for (const r of Object.values(datos)) if (!r.error) r.promos = quedarseConEscalonMinimo(r.promos);
+  return datos;
 }
 
 /**
@@ -1820,6 +1858,7 @@ module.exports = {
   // Modelo de tarjetas/requisitos 2026-09-24:
   requisitosDeTexto,
   clasificarPromo,
+  quedarseConEscalonMinimo,
   textoExigeModo,
   extraerTope,
   topeDePromo,

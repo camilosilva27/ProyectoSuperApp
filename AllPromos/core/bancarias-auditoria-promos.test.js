@@ -546,6 +546,10 @@ function mockCencosud(entradas) {
 }
 function mockVTEX({ promos, bancos }) {
   globalThis.fetch = async url => {
+    // Chango Más (desde 2026-11-02): REST gdn-services, array plano en vez de GraphQL.
+    if (String(url).includes('gdn-services/content/financing-banks')) return respuesta(bancos);
+    if (String(url).includes('gdn-services/content/financing-cards')) return respuesta([]);
+    if (String(url).includes('gdn-services/content/banks-promotions')) return respuesta(promos);
     if (String(url).includes('GetBanks')) return respuesta(aDocs(bancos));
     if (String(url).includes('GetCards')) return respuesta(aDocs([]));
     return respuesta(aDocs(promos));
@@ -702,8 +706,8 @@ describe('4. alias', () => {
   test('"NaranjaX" (Chango Más, sin espacio) → Naranja X', () => {
     assert.deepEqual(pb.resolverCanonicosDesdeNombre('NaranjaX'), ['Naranja X']);
   });
-  test('"Club La Nación" (Carrefour) ya no es Banco Nación; "Banco Nación BNA" sí', () => {
-    assert.deepEqual(pb.resolverCanonicosDesdeNombre('Club La Nación'), []);
+  test('"Club La Nación" (Carrefour) es su propia tarjeta (2026-11-02), no Banco Nación; "Banco Nación BNA" sí', () => {
+    assert.deepEqual(pb.resolverCanonicosDesdeNombre('Club La Nación'), ['Club La Nación']);
     assert.deepEqual(pb.resolverCanonicosDesdeNombre('Banco Nación BNA'), ['Banco Nación']);
   });
   test('Banco Hipotecario (Cencosud, 25% martes tope $15.000) ya no se descarta', async () => {
@@ -715,8 +719,21 @@ describe('4. alias', () => {
     assert.equal(promos[0].tope, 15000);
     assert.deepEqual(promos[0].dias, [2]);
   });
-  test('"Patagonia" a secas (Carrefour) sigue sin alias (decisión pendiente por niveles)', () => {
-    assert.deepEqual(pb.resolverCanonicosDesdeNombre('Patagonia'), []);
+  test('"Patagonia" a secas (Carrefour) = Banco Patagonia (2026-11-02); "Banco Patagonia 365" no', () => {
+    assert.deepEqual(pb.resolverCanonicosDesdeNombre('Patagonia'), ['Banco Patagonia']);
+    assert.deepEqual(pb.resolverCanonicosDesdeNombre('Banco Patagonia 365'), []);
+  });
+  test('Patagonia: por día y canal solo queda el escalón de menor %', () => {
+    const base = { canonicosPosibles: ['Banco Patagonia'], requisitos: [], canales: ['ecommerce'] };
+    const r = pb.quedarseConEscalonMinimo([
+      { ...base, descuentoPct: 0.3, dias: [3] },
+      { ...base, descuentoPct: 0.15, dias: [3] },
+      { ...base, descuentoPct: 0.2, dias: [3, 5] },
+      { ...base, descuentoPct: 0.35, dias: [3], canales: ['market'] },
+      { canonicosPosibles: ['ICBC'], requisitos: [], canales: null, descuentoPct: 0.3, dias: [3] },
+    ]);
+    assert.deepEqual(r.map(p => `${p.canonicosPosibles} ${p.descuentoPct} ${p.dias.join('')}`),
+      ['Banco Patagonia 0.15 3', 'Banco Patagonia 0.2 5', 'Banco Patagonia 0.35 3', 'ICBC 0.3 3']);
   });
   test('Carrefour: Club La Nación no aparece como promo de Banco Nación', async () => {
     mockVTEX(VTEX.carr);

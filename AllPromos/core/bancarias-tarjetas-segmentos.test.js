@@ -52,7 +52,7 @@ const CARR = {
    "express": "true",
    "maxi": "true",
    "active_from": "2026-09-01T00:00:00+00:00",
-   "active_to": "2026-10-01T00:00:00+00:00"
+   "active_to": "2099-01-01T00:00:00+00:00"
   },
   {
    "id": "bc1f3a3d-50aa-4bf0-a833-177b08adc79e",
@@ -75,7 +75,7 @@ const CARR = {
    "express": "true",
    "maxi": "true",
    "active_from": "2026-09-01T00:00:00+00:00",
-   "active_to": "2026-10-01T00:00:00+00:00"
+   "active_to": "2099-01-01T00:00:00+00:00"
   },
   {
    "id": "35d30d5f-567a-11f0-b37f-c2cb70a90ede",
@@ -98,7 +98,7 @@ const CARR = {
    "express": "true",
    "maxi": "false",
    "active_from": "2025-09-01T00:00:00+00:00",
-   "active_to": "2026-10-01T00:00:00+00:00"
+   "active_to": "2099-01-01T00:00:00+00:00"
   },
   {
    "id": "4f9ac242-778f-11f0-b37f-f9b6f2b5c87b",
@@ -121,7 +121,7 @@ const CARR = {
    "express": "true",
    "maxi": "true",
    "active_from": "2026-09-01T00:00:00+00:00",
-   "active_to": "2026-10-01T00:00:00+00:00"
+   "active_to": "2099-01-01T00:00:00+00:00"
   },
   {
    "id": "41bd454d-0113-44ca-8848-c6950450ba95",
@@ -144,7 +144,7 @@ const CARR = {
    "express": "false",
    "maxi": "false",
    "active_from": "2026-09-01T00:00:00+00:00",
-   "active_to": "2026-10-01T00:00:00+00:00"
+   "active_to": "2099-01-01T00:00:00+00:00"
   },
   {
    "id": "2be11499-17aa-4d95-8937-45a2837c3d51",
@@ -167,7 +167,7 @@ const CARR = {
    "express": "true",
    "maxi": "true",
    "active_from": "2026-09-01T00:00:00+00:00",
-   "active_to": "2026-10-01T00:00:00+00:00"
+   "active_to": "2099-01-01T00:00:00+00:00"
   }
  ],
  "bancos": [
@@ -264,7 +264,7 @@ const CM = {
    "express": "true",
    "maxi": "null",
    "active_from": "2025-12-06T00:00:00+00:00",
-   "active_to": "2026-10-01T00:00:00+00:00",
+   "active_to": "2099-01-01T00:00:00+00:00",
    "isMasClub": "false"
   },
   {
@@ -288,7 +288,7 @@ const CM = {
    "express": "false",
    "maxi": "null",
    "active_from": "2026-09-01T00:00:00+00:00",
-   "active_to": "2026-10-01T00:00:00+00:00",
+   "active_to": "2099-01-01T00:00:00+00:00",
    "isMasClub": "false"
   },
   {
@@ -312,7 +312,7 @@ const CM = {
    "express": "false",
    "maxi": "null",
    "active_from": "2026-09-01T00:00:00+00:00",
-   "active_to": "2026-10-01T00:00:00+00:00",
+   "active_to": "2099-01-01T00:00:00+00:00",
    "isMasClub": "false"
   },
   {
@@ -336,7 +336,7 @@ const CM = {
    "express": "true",
    "maxi": "null",
    "active_from": "2026-07-01T00:00:00+00:00",
-   "active_to": "2026-10-01T00:00:00+00:00",
+   "active_to": "2099-01-01T00:00:00+00:00",
    "isMasClub": "false"
   },
   {
@@ -384,7 +384,7 @@ const CM = {
    "express": "true",
    "maxi": "null",
    "active_from": "2026-04-27T00:00:00+00:00",
-   "active_to": "2026-10-01T00:00:00+00:00",
+   "active_to": "2099-01-01T00:00:00+00:00",
    "isMasClub": "false"
   },
   {
@@ -408,7 +408,7 @@ const CM = {
    "express": "true",
    "maxi": "null",
    "active_from": "2026-01-01T00:00:00+00:00",
-   "active_to": "2026-10-01T00:00:00+00:00",
+   "active_to": "2099-01-01T00:00:00+00:00",
    "isMasClub": "false"
   },
   {
@@ -456,7 +456,7 @@ const CM = {
    "express": "true",
    "maxi": "null",
    "active_from": "2026-01-01T00:00:00+00:00",
-   "active_to": "2026-10-01T00:00:00+00:00",
+   "active_to": "2099-01-01T00:00:00+00:00",
    "isMasClub": "false"
   },
   {
@@ -480,7 +480,7 @@ const CM = {
    "express": "true",
    "maxi": "null",
    "active_from": "2026-05-01T00:00:00+00:00",
-   "active_to": "2026-10-01T00:00:00+00:00",
+   "active_to": "2099-01-01T00:00:00+00:00",
    "isMasClub": "false"
   },
   {
@@ -504,7 +504,7 @@ const CM = {
    "express": "false",
    "maxi": "null",
    "active_from": "2026-04-01T00:00:00+00:00",
-   "active_to": "2026-10-01T00:00:00+00:00",
+   "active_to": "2099-01-01T00:00:00+00:00",
    "isMasClub": "false"
   },
   {
@@ -528,7 +528,7 @@ const CM = {
    "express": "true",
    "maxi": "null",
    "active_from": "2026-02-01T00:00:00+00:00",
-   "active_to": "2026-10-01T00:00:00+00:00",
+   "active_to": "2099-01-01T00:00:00+00:00",
    "isMasClub": "false"
   }
  ],
@@ -887,6 +887,10 @@ const respuesta = body => ({ ok: true, json: async () => body, text: async () =>
 const aDocs = objetos => ({ data: { documents: objetos.map(o => ({ fields: Object.entries(o).map(([key, value]) => ({ key, value })) })) } });
 function mockVTEX({ promos, bancos }) {
   globalThis.fetch = async url => {
+    // Chango Más (desde 2026-11-02): REST gdn-services, array plano en vez de GraphQL.
+    if (String(url).includes('gdn-services/content/financing-banks')) return respuesta(bancos);
+    if (String(url).includes('gdn-services/content/financing-cards')) return respuesta([]);
+    if (String(url).includes('gdn-services/content/banks-promotions')) return respuesta(promos);
     if (String(url).includes('GetBanks')) return respuesta(aDocs(bancos));
     if (String(url).includes('GetCards')) return respuesta(aDocs([]));
     return respuesta(aDocs(promos));
@@ -1043,8 +1047,9 @@ describe('2. segmentos del cliente (solo campos cortos)', () => {
     assert.ok(r.includes('Banco Nación vía MODO [Jubilado]'));
     assert.ok(r.includes('- [Empleado público]'));
     assert.ok(r.includes('Cuenta DNI'));
-    // Patagonia "plan sueldo" sigue sin alias (decisión pendiente por niveles) → no aparece
-    assert.ok(!r.some(x => /patagonia/i.test(x)));
+    // "Patagonia" a secas tiene alias desde 2026-11-02 (se muestra el escalón mínimo, ver
+    // quedarseConEscalonMinimo) → ahora sí aparece.
+    assert.ok(r.some(x => /patagonia/i.test(x)));
   });
 
   test('Chango Más: Supervielle jubilados, ICBC_Sueldos, Anses y Empleados Públicos', async () => {
