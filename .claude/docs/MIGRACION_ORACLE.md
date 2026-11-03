@@ -33,7 +33,11 @@
 - **`api.superahorro.com.ar`** creado: registro A en el DNS de Vercel (`vercel dns add superahorro.com.ar api A 34.24.10.174`, id `rec_4d88a30fad0ddbdeedd17450`) → hoy apunta a la VM de GCP. Caddy de GCP sirve **los dos** hostnames (`34.24.10.174.nip.io, api.superahorro.com.ar`; backup en `/etc/caddy/Caddyfile.bak-20261102`).
 - Vercel `EXPO_PUBLIC_API_URL` = `https://api.superahorro.com.ar` (production). Default de `URL_PUBLICA_BACKEND` en `config.js` y de `folletos-carrefour/comparar.js` cambiados igual.
 - `backend/scripts/preparar-vm-oracle.sh`: deja la VM nueva lista (Node 22, Caddy, iptables 80/443, swap, systemd, clone + `npm ci`). No toca secretos ni datos.
-- **Pendiente a mano (usuario), se puede hacer YA sin esperar a Oracle:** Mercado Pago webhook → `https://api.superahorro.com.ar/api/webhooks/mercadopago`; Supabase webhook → `https://api.superahorro.com.ar/api/webhooks/auth-usuarios`; UptimeRobot → `https://api.superahorro.com.ar/api/health`. Hechos estos, el día del corte solo se cambia el registro A.
+- **Supabase:** no es un webhook del dashboard (roto en este proyecto) sino la función `public.notificar_webhook_auth_usuarios` con `net.http_post`; URL reemplazada in situ (`replace(pg_get_functiondef(...))`, sin tocar el secreto) el 2026-11-02 y verificado con un login real: llegó por `api.superahorro.com.ar`, 200.
+- **UptimeRobot:** cambiado por el usuario; verificado en el access log de Caddy (chequeos a `api.superahorro.com.ar/api/health`, 200).
+- **Mercado Pago:** URL cambiada por el usuario en Modo productivo; sin verificar todavía (falta un evento real o "Simular notificación").
+- Caddy de GCP tiene access log en `/var/log/caddy/access.log` (rota a 20 MB × 3) — sirve para ver por qué hostname entra cada request. Replicarlo en Oracle (el dir y el archivo tienen que ser de `caddy:caddy`, si no el reload falla).
+- Con esto, el día del corte solo se cambia el registro A (+ secretos de GitHub).
 - Links de baja de mails ya enviados apuntan a `34.24.10.174.nip.io/...`: dejan de andar cuando se apague GCP (aceptado: el mail siguiente trae el link nuevo).
 
 ## Plan de corte (sin downtime)
