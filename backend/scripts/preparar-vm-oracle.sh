@@ -13,7 +13,7 @@ HOSTNAME_API="${HOSTNAME_API:-api.superahorro.com.ar}"
 
 echo "== paquetes base"
 sudo apt-get update -y
-sudo apt-get install -y git curl ca-certificates gnupg debian-keyring debian-archive-keyring apt-transport-https iptables-persistent
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y git curl ca-certificates gnupg apt-transport-https iptables-persistent
 
 echo "== swap de 1 GB (por si la VM es chica; en A1 con más RAM no molesta)"
 if ! swapon --show | grep -q /swapfile; then
@@ -24,21 +24,25 @@ fi
 echo "== Node.js 22 (NodeSource)"
 if ! node -v 2>/dev/null | grep -q '^v22'; then
   curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-  sudo apt-get install -y nodejs
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y nodejs
 fi
 
 echo "== Caddy"
 if ! command -v caddy >/dev/null; then
   curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
   curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
-  sudo apt-get update -y && sudo apt-get install -y caddy
+  sudo apt-get update -y && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y caddy
 fi
 printf '%s {\n    reverse_proxy localhost:3000\n}\n' "$HOSTNAME_API" | sudo tee /etc/caddy/Caddyfile >/dev/null
 
 echo "== firewall del SO: las imágenes Ubuntu de Oracle traen iptables con todo cerrado salvo 22."
 # Además hay que abrir 80/443 en la Security List de la VCN (consola de Oracle) — son dos capas.
+# Las reglas tienen que ir ANTES del REJECT final, cuya posición varía según la imagen (en la
+# E2.1.Micro de 2026-11 era la 5, no la 6) — se calcula en vez de hardcodearla.
 for p in 80 443; do
-  sudo iptables -C INPUT -p tcp --dport $p -j ACCEPT 2>/dev/null || sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport $p -j ACCEPT
+  sudo iptables -D INPUT -m state --state NEW -p tcp --dport $p -j ACCEPT 2>/dev/null || true
+  POS=$(sudo iptables -L INPUT --line-numbers -n | awk '$2=="REJECT"{print $1; exit}')
+  sudo iptables -I INPUT ${POS:-1} -m state --state NEW -p tcp --dport $p -j ACCEPT
 done
 sudo netfilter-persistent save
 

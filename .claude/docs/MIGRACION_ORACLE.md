@@ -1,6 +1,6 @@
 # Migración del backend: GCP → Oracle Cloud (Always Free)
 
-**Estado:** en curso, arrancada 2026-11-02. Plazo duro: la prueba de GCP vence ~**2026-11-08** (proyecto creado 2026-08-10, 90 días). Sin upgrade, la VM se apaga ese día y se borra 30 días después.
+**Estado: CORTE HECHO 2026-11-03 ~01:35 UTC** — producción corre en Oracle; GCP queda prendida sin crons hasta verificar un ciclo de scrapers y después se borra. Arrancada 2026-11-02. Plazo duro: la prueba de GCP vence ~**2026-11-08** (proyecto creado 2026-08-10, 90 días). Sin upgrade, la VM se apaga ese día y se borra 30 días después.
 
 **Por qué:** en GCP, aun con upgrade, se cobra la IPv4 externa en uso (US$0,005/h ≈ US$3,65/mes; el Free Tier solo cubre 1 h/mes) + egress por encima de 1 GB/mes. Oracle Always Free incluye VM, IP pública y 10 TB/mes de egress sin costo. Decisión del usuario 2026-11-02: migrar ahora en vez de pagar.
 
@@ -27,6 +27,18 @@
 | Caddyfile | hostname | en la VM nueva |
 
 **Recomendación:** usar un hostname propio estable (`api.superahorro.com.ar`, registro A a la IP de Oracle) en vez de `<ip>.nip.io`. Así, si algún día hay que volver a mudar la VM, solo se cambia un registro DNS y no los 6 lugares de arriba.
+
+## Cómo quedó en Oracle (2026-11-03)
+
+- **Cuenta:** home region `sa-saopaulo-1` (única AD: `QEcD:SA-SAOPAULO-1-AD-1`). CLI `oci` (Homebrew) con auth por sesión: `oci session authenticate --region sa-saopaulo-1 --profile-name DEFAULT` (abre el navegador; dura 1 h, `oci session refresh` hasta 24 h) y `export OCI_CLI_AUTH=security_token`.
+- **Red:** VCN `superahorro-vcn` 10.0.0.0/16, internet gateway, subred pública `superahorro-subnet` 10.0.0.0/24; Security List por defecto con ingreso 22/80/443.
+- **VM:** `superahorro-backend`, **VM.Standard.E2.1.Micro** (AMD, 1 OCPU, 1 GB RAM — igual que la e2-micro de GCP), Ubuntu 22.04 x86_64, boot volume 50 GB. IP pública **146.235.59.32** (efímera: dura mientras exista la instancia; si se recrea, cambia → actualizar el registro A y los secretos). Usuario `ubuntu`, clave local `~/.ssh/oracle_superahorro`.
+- **ARM (A1.Flex) no se pudo:** "Out of host capacity" en São Paulo para 2/12 y 1/6, igual que la E2 al principio; la E2.1.Micro salió al reintentar a los ~3 min. Si algún día se quiere más RAM, reintentar A1 (gratis hasta 4 OCPU/24 GB) y repetir el corte.
+- **Secretos de GitHub:** `VM_HOST=146.235.59.32`, `VM_USER=ubuntu`, `VM_SSH_KEY` = clave nueva `github-actions-deploy-oracle` (en `authorized_keys` de la VM), `VM_HOST_KEY` = clave **ed25519** del host (la usa OpenSSH en `.github/scripts/*.sh`), `VM_HOST_FINGERPRINT` = huella SHA256 de la clave **ECDSA** del host, con prefijo `SHA256:` — gotcha: `appleboy/ssh-action` (cliente Go) negocia ECDSA, con la de ed25519 da "host key fingerprint mismatch".
+- **DNS:** registro A `api` → 146.235.59.32 (`rec_6e5a94d4b558a71df58e9b9c`). Caddy solo sirve `api.superahorro.com.ar` (nip.io de la IP vieja ya no aplica), con access log en `/var/log/caddy/access.log`.
+- **Crontab:** movido tal cual (rutas `/home/camilosilva28` → `/home/ubuntu`); el de GCP quedó borrado (backup en `~/crontab.bak-20261103` de la VM de GCP). Ambas VMs en UTC.
+- **Repo en la VM:** remoto cambiado a HTTPS (el de GCP era `git@github.com` con deploy key; el repo es público).
+- Sonda en vivo OK contra los 7 supers desde la IP de Brasil.
 
 ## Ya hecho (2026-11-02, antes de tener cuenta de Oracle)
 
