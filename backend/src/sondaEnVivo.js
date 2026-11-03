@@ -19,11 +19,20 @@
 
 const { buscarPorEAN, SUPERMERCADOS } = require('../../AllPromos/core/fetchers');
 
-// Aceite de Girasol 1.5 Lts Cocinero — presente en los 5 catálogos locales originales al
-// momento de escribir esto (confirmado 2026-08-11). Si en algún refresco futuro deja de estar
-// en alguno, esa fuente puntual va a reportar `ok:false` en la sonda aunque no sea un problema
-// real — revisar y cambiar el EAN si eso empieza a pasar seguido.
-const EAN_SONDA = '7790060023684';
+// Productos de prueba, en orden. El fetcher en vivo descarta a propósito los SKUs sin stock
+// (VTEX los devuelve con Price 0 — ver `precioValido` en core/fetchers.js), así que un producto
+// SIN STOCK es indistinguible de "API rota" mirando un solo EAN: pasó con el principal en Chango
+// Más el 2026-11-03 (falso `ok:false` → UptimeRobot avisando caída). Por eso hay respaldos: un
+// super cuenta como OK si devuelve precio para CUALQUIERA de estos. Los de respaldo solo se
+// consultan si a algún super le faltó el anterior (en el caso normal, 1 sola consulta por corrida).
+// Todos presentes en los 7 catálogos (catalogo-unificado, 2026-11-03).
+const EANS_SONDA = [
+  '7790060023684', // Aceite de Girasol 1.5 L Cocinero (el original, 2026-08-11)
+  '7792180001665', // Aceite de Girasol 1.5 L Cañuelas
+  '7790070431431', // Arroz Doble Carolina 500 g Gallo
+  '7791866001203', // Mayonesa Natura 237 g
+];
+const EAN_SONDA = EANS_SONDA[0]; // compatibilidad con quien lo importe
 
 const INTERVALO_MS = 15 * 60 * 1000;
 
@@ -31,11 +40,18 @@ let estado = { ultimaCorrida: null, resultados: null, error: null };
 
 async function correrSonda() {
   try {
-    const grupo = await buscarPorEAN(EAN_SONDA);
+    const okPorSuper = {};
+    for (const ean of EANS_SONDA) {
+      const pendientes = SUPERMERCADOS.filter(s => !okPorSuper[s.key]);
+      if (!pendientes.length) break;
+      const grupo = await buscarPorEAN(ean);
+      for (const s of pendientes) {
+        if ((grupo[s.key] || []).some(r => r.precioBase > 0)) okPorSuper[s.key] = ean;
+      }
+    }
     const resultados = {};
     for (const s of SUPERMERCADOS) {
-      const encontrados = (grupo[s.key] || []).filter(r => r.precioBase > 0);
-      resultados[s.key] = { nombre: s.nombre, ok: encontrados.length > 0 };
+      resultados[s.key] = { nombre: s.nombre, ok: Boolean(okPorSuper[s.key]), ...(okPorSuper[s.key] ? { ean: okPorSuper[s.key] } : {}) };
     }
     estado = { ultimaCorrida: new Date().toISOString(), resultados, error: null };
   } catch (err) {
@@ -53,4 +69,4 @@ function estadoActual() {
   return estado;
 }
 
-module.exports = { iniciar, estadoActual, EAN_SONDA, INTERVALO_MS };
+module.exports = { iniciar, estadoActual, EAN_SONDA, EANS_SONDA, INTERVALO_MS };

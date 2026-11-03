@@ -281,6 +281,15 @@ async function refrescar() {
   // Lo lee GET /api/health: es la forma de enterarse de que algo se rompió sin mirar logs.
   fs.mkdirSync(rutaLogs, { recursive: true });
   fs.writeFileSync(path.join(rutaLogs, 'ultimo-refresco.json'), JSON.stringify(reporte, null, 2));
+  // ultimo-refresco.json se pisa en cada corrida (cada 2 h): sin esto, el detalle de un error
+  // puntual se perdía con la corrida siguiente (pasó el 2026-11-03 con un aviso de producto
+  // seguido). Historial append-only, una línea JSON por corrida con errores, + detalle a stdout
+  // para que quede también en el log de GitHub Actions.
+  if (errores.length) {
+    fs.appendFileSync(path.join(rutaLogs, 'historial-errores-refresco.jsonl'),
+      JSON.stringify({ fin: reporte.fin ?? new Date().toISOString(), errores }) + '\n');
+    for (const e of errores) console.log(`   ✗ ${e}`);
+  }
 
   console.log(errores.length
     ? `\n⚠️  Refresco terminado con ${errores.length} problema(s) — ver /api/health`
