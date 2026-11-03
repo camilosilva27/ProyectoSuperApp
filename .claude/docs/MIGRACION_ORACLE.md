@@ -63,4 +63,4 @@
 4. Probar Oracle con `curl --resolve api.superahorro.com.ar:443:<ip-oracle> https://api.superahorro.com.ar/api/health` (Caddy saca el cert recién cuando el DNS apunta ahí — antes, probar por HTTP a la IP). Cambiar el registro A a la IP de Oracle (`vercel dns rm rec_4d88a30fad0ddbdeedd17450` + `vercel dns add ... api A <ip>`) y los secretos de GitHub (`VM_HOST`, `VM_USER=ubuntu`, `VM_SSH_KEY`, `VM_HOST_FINGERPRINT`).
 5. Copiar crontab a Oracle y **sacarlo de GCP** en el mismo paso (si no, los mails/cobros corren dos veces).
 6. Verificar un ciclo completo de scrapers (workflow de GitHub → VM nueva) y un login/comparar real en la app.
-7. Recién entonces apagar y borrar la VM de GCP + liberar la IP estática.
+7. Recién entonces apagar y borrar la VM de GCP + liberar la IP estática. **Hecho parcial 2026-11-03:** IP estática `34.24.10.174` liberada (antes se le sacó el access config a la VM, que quedó corriendo sin IP pública). La VM y su disco se dejaron a propósito: sin upgrade, GCP no cobra nada y los borra solo ~30 días después del fin de la prueba (08/11). Ojo: `34.24.10.174.nip.io` ya no responde (links de baja de mails viejos).
