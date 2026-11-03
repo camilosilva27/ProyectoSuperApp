@@ -23,6 +23,7 @@
 | Mercado Pago | URL de Webhooks (`/api/webhooks/mercadopago`) | a mano en el panel de Developers de MP (ojo con el checkbox "Pagos", ver memoria fase 3) |
 | Supabase | Database Webhook / `net.http_post` a `/api/webhooks/auth-usuarios` | a mano en el dashboard (ver `mails_y_notificaciones.md` § tipo #7) |
 | UptimeRobot | monitor Keyword sobre `/api/health` | a mano |
+| Brevo | whitelist de IPs de la API (no es una URL: es la IP de salida de la VM) | a mano en Security → Authorised IPs |
 | `folletos-carrefour/comparar.js` | URL hardcodeada | editar |
 | Caddyfile | hostname | en la VM nueva |
 
@@ -38,6 +39,7 @@
 - **Secretos de GitHub:** `VM_HOST=146.235.59.32`, `VM_USER=ubuntu`, `VM_SSH_KEY` = clave nueva `github-actions-deploy-oracle` (en `authorized_keys` de la VM), `VM_HOST_KEY` = clave **ed25519** del host (la usa OpenSSH en `.github/scripts/*.sh`), `VM_HOST_FINGERPRINT` = huella SHA256 de la clave **ECDSA** del host, con prefijo `SHA256:` — gotcha: `appleboy/ssh-action` (cliente Go) negocia ECDSA, con la de ed25519 da "host key fingerprint mismatch".
 - **DNS:** registro A `api` → 146.235.59.32 (`rec_6e5a94d4b558a71df58e9b9c`). Caddy solo sirve `api.superahorro.com.ar` (nip.io de la IP vieja ya no aplica), con access log en `/var/log/caddy/access.log`.
 - **Crontab:** movido tal cual (rutas `/home/camilosilva28` → `/home/ubuntu`); el de GCP quedó borrado (backup en `~/crontab.bak-20261103` de la VM de GCP). Ambas VMs en UTC.
+- **Brevo tiene whitelist de IPs** (Security → Authorised IPs): desde la IP nueva la API respondía `401 unauthorized: unrecognised IP address` y NO salía ningún mail del backend (bienvenida, avisos de seguidos, resúmenes, fin de trial; los de confirmación de Supabase sí, van por su propio SMTP). Causó el error del aviso de seguidos del 03/11 04:00. El usuario autorizó `146.235.59.32` el 03/11; verificado con un envío real (HTTP 201). **Si la IP cambia otra vez, autorizarla en https://app.brevo.com/security/authorised_ips ANTES del corte.**
 - **Repo en la VM:** remoto cambiado a HTTPS (el de GCP era `git@github.com` con deploy key; el repo es público).
 - Sonda en vivo OK contra los 7 supers desde la IP de Brasil.
 
