@@ -67,9 +67,12 @@ async function postBrevo(body) {
  *   `armarMailBase({ noTransaccional: true })`, que suma el pie de baja.
  * @param {string} [opciones.usuarioId] - con `noTransaccional`, el header lleva el link de baja
  *   de un clic de ese usuario + `List-Unsubscribe-Post` (RFC 8058); sin él, solo el mailto.
+ * @param {string} [opciones.responderA] - dirección a la que van las respuestas (Brevo `replyTo`).
+ *   Sin esto, responder va al remitente (`no-reply@`). Lo usa el mail "¿Por qué no seguiste?",
+ *   que invita a responder (→ contacto@, que reenvía al mail personal).
  * @returns {Promise<{ok: true} | {ok: false, error: string}>} nunca lanza.
  */
-async function enviarMail({ destinatarioEmail, destinatarioNombre, asunto, html, noTransaccional = false, usuarioId }) {
+async function enviarMail({ destinatarioEmail, destinatarioNombre, asunto, html, noTransaccional = false, usuarioId, responderA }) {
   if (!brevoApiKey) {
     return { ok: false, error: 'Falta BREVO_API_KEY — no se pudo mandar el mail' };
   }
@@ -80,6 +83,7 @@ async function enviarMail({ destinatarioEmail, destinatarioNombre, asunto, html,
     subject: asunto,
     htmlContent: html,
     ...(noTransaccional ? { headers: HEADERS_NO_TRANSACCIONAL(usuarioId) } : {}),
+    ...(responderA ? { replyTo: { email: responderA } } : {}),
   };
 
   let resultado = await postBrevo(body);

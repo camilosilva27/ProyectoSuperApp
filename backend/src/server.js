@@ -56,6 +56,7 @@ const pagosRouter = require('./routes/pagos');
 const webhookMercadoPagoRouter = require('./routes/webhookMercadoPago');
 const webhookAuthUsuariosRouter = require('./routes/webhookAuthUsuarios');
 const bajaMailsRouter = require('./routes/bajaMails');
+const feedbackTrialRouter = require('./routes/feedbackTrial');
 const referidosRouter = require('./routes/referidos');
 const sondaEnVivo = require('./sondaEnVivo');
 
@@ -111,13 +112,15 @@ app.use('/api', referidosRouter);
 // Baja de un clic de mails no transaccionales (GET = página de confirmación, POST = baja; ver
 // routes/bajaMails.js). Pública, autenticada por el token HMAC del link. Límite propio más
 // estricto que el global: un usuario real la abre una o dos veces, nunca decenas por minuto.
+// Mismo límite para /api/mails/feedback (respuesta al mail "¿Por qué no seguiste?",
+// routes/feedbackTrial.js), que funciona igual: GET = página, POST = guarda, token HMAC.
 app.use('/api/mails', rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 30,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   message: 'Demasiados intentos, probá de nuevo en unos minutos.',
-}), bajaMailsRouter);
+}), bajaMailsRouter, feedbackTrialRouter);
 
 // Sin token: en una app web no hay dónde guardar un secreto (queda en el JS que descarga
 // cualquiera — ver la discusión en PLAN_FEATURES_APP.md). La única defensa real hoy es este

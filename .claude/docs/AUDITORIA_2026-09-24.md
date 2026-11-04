@@ -68,3 +68,7 @@ Decisiones de negocio pendientes (no se tocaron):
 - [ ] Coto: 15% con cualquier tarjeta de crédito los viernes y Visa débito NFC — siguen sin modelar (el % no viene como "N% DE DESCUENTO" y no hay opción "cualquier crédito").
 - [ ] Topes semanales/mensuales tratados como por ticket.
 Dudosos sin confirmar: "Max N unidades" de Carrefour (online aplica a todas), Coca-Cola 6x4 vs 6x5 en Coto, promos por sucursal de Coto, "Ofertas Trafico" de Vea como solo online, seller que usan Jumbo/Disco en su tienda, carne picada de Chango Más (checkout más barato que catálogo), vigencia de las bancarias de Día (legales vencidos pero promos renovadas).
+
+## Pendiente anotado 2026-11-04: test de pagos con fecha vencida
+
+- [ ] `backend/test/procesarPagoMercadoPago.test.js` › "cambio de plan mensual → anual" › "si la mensual se cancela por su lado durante el cambio, aplica la gracia" falla desde el 20/10/2026. **No es un bug de pagos, es del test**: el fixture fija `siguiente_cobro_en: '2026-10-20T10:00:00.000-04:00'` (línea ~76) y espera que la gracia mantenga `premium` hasta esa fecha; como ya pasó, `procesarSuscripcion` (correctamente) baja a `gratis`. Arreglo: usar una fecha relativa (`enDias(30)`, como ya hacen otros tests del mismo archivo) en el fixture y en el assert de `acceso_premium_hasta`.
