@@ -10,7 +10,7 @@
 - **Repo clonado** en `/home/camilosilva28/ProyectoSuperApp` (617 MB, incluye catálogos, fotos en `backend/imagenes/`, logs). Disco usado: 11 GB de 28.
 - **`backend/.env`** (secretos de producción: Supabase service role, Mercado Pago token de Producción, Brevo, etc.) — copiar tal cual, NO commitear.
 - **Swapfile de 1 GB** (en e2-micro hacía falta; en Oracle ARM con más RAM probablemente no, pero no molesta).
-- **Crontab de `camilosilva28`** (9 entradas): descubrirCandidatosExtras (mensual), pingSupabase (lunes), recordatorioSemanal, resumenMensualAhorro, avisoFinTrial (diario), avisoInactividad (diario), resumenSemanalAhorro, reintentarPagosPendientes (cada 2 h), y `backend/scripts/disparar-scrapers.sh` (cada 2 h, dispara el workflow de GitHub). Copiar con `crontab -l` → `crontab -`.
+- **Crontab de `camilosilva28`** (9 entradas en GCP; en Oracle se sumó `feedbackTrialVencido` diario 12:30 UTC el 04/11): descubrirCandidatosExtras (mensual), pingSupabase (lunes), recordatorioSemanal, resumenMensualAhorro, avisoFinTrial (diario), avisoInactividad (diario), resumenSemanalAhorro, reintentarPagosPendientes (cada 2 h), y `backend/scripts/disparar-scrapers.sh` (cada 2 h, dispara el workflow de GitHub). Copiar con `crontab -l` → `crontab -`.
 - **`~/.config/gcloud`** en la VM — revisar si algo lo usa antes de descartarlo (no apareció en los crons).
 
 ## Todo lo que apunta a la URL/IP del backend (hay que cambiarlo)
