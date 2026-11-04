@@ -30,6 +30,11 @@
  * hay forma de loguearse y suscribir push, así que en la práctica no pasa). Tampoco sale el mail
  * (el push sí) si el usuario se dio de baja de mails no transaccionales
  * (`mails_no_transaccionales = false`, migración 0027, routes/bajaMails.js).
+ *
+ * Horario nocturno (decisión del usuario 2026-11-04): entre las 0 y las 6 AM hora Argentina no
+ * sale nada (ni mail ni push). La corrida entera se saltea SIN tocar las huellas, así que lo
+ * pendiente sale solo en la primera corrida después de las 6 (~7:30, scraping cada 2hs). Una
+ * promo que se prende y se apaga dentro de la noche no se avisa (aceptado).
  */
 
 const { clienteSupabaseAdmin } = require('./clienteSupabaseAdmin');
@@ -135,7 +140,20 @@ function clasificarSeguidos(seguidos, estadoActualPromoPorEan, perfilPorId, ahor
  *   estado ACTUAL (no un diff) de qué EAN tienen promo de producto en esta corrida, ver
  *   `estadoPromoPorEan` en cron/diffCatalogos.js.
  */
-async function avisarProductosSeguidos(estadoActualPromoPorEan) {
+const HORA_FIN_NOCHE_AR = 6; // de 0:00 a 5:59 hora Argentina no se avisa
+
+function esHorarioNocturno(fecha = new Date()) {
+  const hora = Number(new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric', hourCycle: 'h23', timeZone: 'America/Argentina/Buenos_Aires',
+  }).format(fecha));
+  return hora < HORA_FIN_NOCHE_AR;
+}
+
+async function avisarProductosSeguidos(estadoActualPromoPorEan, { ahoraFecha = new Date() } = {}) {
+  if (esHorarioNocturno(ahoraFecha)) {
+    console.log('   🌙 Horario nocturno (0-6 hora Argentina): avisos postergados a la próxima corrida');
+    return { avisados: 0, errores: [], postergado: true };
+  }
   const cliente = clienteSupabaseAdmin();
   if (!cliente) return { avisados: 0, errores: ['Falta SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY'] };
 
@@ -212,4 +230,4 @@ async function avisarProductosSeguidos(estadoActualPromoPorEan) {
   return { avisados, errores };
 }
 
-module.exports = { avisarProductosSeguidos, clasificarSeguidos, armarHtml };
+module.exports = { avisarProductosSeguidos, clasificarSeguidos, armarHtml, esHorarioNocturno };
